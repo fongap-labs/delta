@@ -10,9 +10,9 @@
 
 [English](README.md) · [**简体中文**](README.zh-CN.md)
 
-[![CI](https://github.com/fongap/delta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fongap/delta/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/fongap/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap/delta/actions/workflows/codeql.yml)
-![License](https://img.shields.io/github/license/fongap/delta?label=License)
+[![CI](https://github.com/fongap-labs/delta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml)
+![License](https://img.shields.io/github/license/fongap-labs/delta?label=License)
 
 [目标架构](docs/architecture/target-architecture.md) · [扩展边界](docs/governance/REPOSITORY_BOUNDARY.md) · [开发治理](docs/governance/DEVELOPMENT_POLICY.md)
 

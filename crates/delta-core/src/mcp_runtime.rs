@@ -5,8 +5,8 @@
 //! lifecycle. MCP tools never bypass normal Delta policy/approval execution.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufRead, BufReader, Write};
-use std::net::{IpAddr, ToSocketAddrs};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{IpAddr, TcpStream, ToSocketAddrs};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -42,31 +42,138 @@ fn is_private_ip(ip: IpAddr) -> bool {
     }
 }
 
-fn validate_mcp_url(raw: &str) -> Result<(), String> {
-    let parsed = url::Url::parse(raw).map_err(|error| format!("invalid MCP URL: {error}"))?;
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PinnedTarget {
+    request_url: String,
+    host_header: String,
+    server_name: String,
+}
+
+fn resolve_target<F>(raw: &str, mut resolve: F) -> Result<PinnedTarget, String>
+where
+    F: FnMut(&str, u16) -> Result<Vec<IpAddr>, String>,
+{
+    let mut parsed = url::Url::parse(raw).map_err(|error| format!("invalid MCP URL: {error}"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("HTTP MCP requires an http(s) URL".to_string());
     }
     let host = parsed
         .host_str()
-        .ok_or_else(|| "HTTP MCP URL requires a host".to_string())?;
+        .ok_or_else(|| "HTTP MCP URL requires a host".to_string())?
+        .to_string();
     if host.eq_ignore_ascii_case("localhost") || host.ends_with(".localhost") {
         return Err("HTTP MCP cannot target localhost".to_string());
     }
     let port = parsed
         .port_or_known_default()
         .ok_or_else(|| "HTTP MCP URL requires a valid port".to_string())?;
-    let addresses = (host, port)
-        .to_socket_addrs()
-        .map_err(|error| format!("resolve MCP host: {error}"))?
-        .collect::<Vec<_>>();
+    let addresses = resolve(&host, port)?;
     if addresses.is_empty() {
         return Err("HTTP MCP host did not resolve".to_string());
     }
-    if addresses.iter().any(|address| is_private_ip(address.ip())) {
+    if addresses.iter().copied().any(is_private_ip) {
         return Err("HTTP MCP cannot target local or private network addresses".to_string());
     }
-    Ok(())
+
+    let pinned_ip = addresses[0];
+    let host_text = match parsed.host() {
+        Some(url::Host::Ipv6(value)) => format!("[{value}]"),
+        _ => host.clone(),
+    };
+    let host_header = match parsed.port() {
+        Some(port) => format!("{host_text}:{port}"),
+        None => host_text,
+    };
+    parsed
+        .set_host(Some(&pinned_ip.to_string()))
+        .map_err(|_| "HTTP MCP could not pin the validated address".to_string())?;
+
+    Ok(PinnedTarget {
+        request_url: parsed.to_string(),
+        host_header,
+        server_name: host,
+    })
+}
+
+fn resolve_mcp_target(raw: &str) -> Result<PinnedTarget, String> {
+    resolve_target(raw, |host, port| {
+        (host, port)
+            .to_socket_addrs()
+            .map_err(|error| format!("resolve MCP host: {error}"))
+            .map(|items| items.map(|address| address.ip()).collect())
+    })
+}
+
+#[derive(Debug)]
+struct PinnedTls {
+    server_name: String,
+    config: Arc<rustls::ClientConfig>,
+}
+
+impl PinnedTls {
+    fn new(server_name: String) -> Self {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let mut roots = rustls::RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let config = rustls::ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        Self {
+            server_name,
+            config: Arc::new(config),
+        }
+    }
+}
+
+impl ureq::TlsConnector for PinnedTls {
+    fn connect(
+        &self,
+        _dns_name: &str,
+        io: Box<dyn ureq::ReadWrite>,
+    ) -> Result<Box<dyn ureq::ReadWrite>, ureq::Error> {
+        let server_name = rustls::pki_types::ServerName::try_from(self.server_name.clone())
+            .map_err(|error| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("invalid MCP TLS server name: {error}"),
+                )
+            })?;
+        let connection =
+            rustls::ClientConnection::new(self.config.clone(), server_name).map_err(|error| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("create MCP TLS connection: {error}"),
+                )
+            })?;
+        Ok(Box::new(PinnedStream(rustls::StreamOwned::new(
+            connection, io,
+        ))))
+    }
+}
+
+#[derive(Debug)]
+struct PinnedStream(rustls::StreamOwned<rustls::ClientConnection, Box<dyn ureq::ReadWrite>>);
+
+impl ureq::ReadWrite for PinnedStream {
+    fn socket(&self) -> Option<&TcpStream> {
+        self.0.sock.socket()
+    }
+}
+
+impl Read for PinnedStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.0.read(buffer)
+    }
+}
+
+impl Write for PinnedStream {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buffer)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
 }
 
 fn sanitize_segment(value: &str) -> String {
@@ -424,6 +531,7 @@ impl Drop for StdioClient {
 
 struct HttpClient {
     url: String,
+    host_header: String,
     headers: BTreeMap<String, String>,
     agent: ureq::Agent,
     session_id: Mutex<Option<String>>,
@@ -437,7 +545,7 @@ impl HttpClient {
             .get("url")
             .and_then(Value::as_str)
             .ok_or_else(|| "HTTP MCP requires an http(s) URL".to_string())?;
-        validate_mcp_url(url)?;
+        let target = resolve_mcp_target(url)?;
         if config.get("auth").and_then(Value::as_str) == Some("oauth")
             && config
                 .get("headers")
@@ -455,16 +563,22 @@ impl HttpClient {
             .map(|values| {
                 values
                     .iter()
+                    .filter(|(key, _)| !key.eq_ignore_ascii_case("host"))
                     .filter_map(|(key, value)| {
                         value.as_str().map(|value| (key.clone(), value.to_string()))
                     })
                     .collect::<BTreeMap<_, _>>()
             })
             .unwrap_or_default();
+        let mut builder = ureq::AgentBuilder::new().redirects(0);
+        if url.starts_with("https://") {
+            builder = builder.tls_connector(Arc::new(PinnedTls::new(target.server_name.clone())));
+        }
         let client = Self {
-            url: url.to_string(),
+            url: target.request_url,
+            host_header: target.host_header,
             headers,
-            agent: ureq::AgentBuilder::new().redirects(0).build(),
+            agent: builder.build(),
             session_id: Mutex::new(None),
             protocol_version: Mutex::new(None),
             next_id: AtomicU64::new(1),
@@ -501,6 +615,7 @@ impl HttpClient {
         for (key, value) in &self.headers {
             request = request.set(key, value);
         }
+        request = request.set("Host", &self.host_header);
         if let Some(value) = self.session_id.lock().unwrap().as_deref() {
             request = request.set("Mcp-Session-Id", value);
         }
@@ -826,5 +941,47 @@ impl McpRuntime {
                 row["last_error"] = Value::Null;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcp_target_pins_address() {
+        let target = resolve_target("https://example.com:8443/mcp?x=1", |host, port| {
+            assert_eq!(host, "example.com");
+            assert_eq!(port, 8443);
+            Ok(vec!["93.184.216.34".parse().unwrap()])
+        })
+        .unwrap();
+
+        assert_eq!(target.request_url, "https://93.184.216.34:8443/mcp?x=1");
+        assert_eq!(target.host_header, "example.com:8443");
+        assert_eq!(target.server_name, "example.com");
+    }
+
+    #[test]
+    fn mcp_target_rejects_private_answer() {
+        let error = resolve_target("https://example.com/mcp", |_, _| {
+            Ok(vec!["127.0.0.1".parse().unwrap()])
+        })
+        .unwrap_err();
+
+        assert!(error.contains("private"));
+    }
+
+    #[test]
+    fn mcp_target_rejects_split_answer() {
+        let error = resolve_target("https://example.com/mcp", |_, _| {
+            Ok(vec![
+                "93.184.216.34".parse().unwrap(),
+                "10.0.0.1".parse().unwrap(),
+            ])
+        })
+        .unwrap_err();
+
+        assert!(error.contains("private"));
     }
 }

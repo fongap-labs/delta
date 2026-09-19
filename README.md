@@ -10,9 +10,9 @@ Productivity · Research & analysis · Content creation
 
 [**English**](README.md) · [简体中文](README.zh-CN.md)
 
-[![CI](https://github.com/fongap/delta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fongap/delta/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/fongap/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap/delta/actions/workflows/codeql.yml)
-![License](https://img.shields.io/github/license/fongap/delta?label=License)
+[![CI](https://github.com/fongap-labs/delta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml)
+![License](https://img.shields.io/github/license/fongap-labs/delta?label=License)
 
 [Architecture](docs/architecture/target-architecture.md) · [Extension Boundary](docs/governance/REPOSITORY_BOUNDARY.md) · [Development Policy](docs/governance/DEVELOPMENT_POLICY.md)
 
