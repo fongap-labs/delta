@@ -189,6 +189,7 @@ dependencies = [
  "csv",
  "delta-sdk",
  "regex",
+ "rustls",
  "rusqlite",
  "serde",
  "serde_json",
@@ -199,6 +200,7 @@ dependencies = [
  "ureq",
  "url",
  "uuid",
+ "webpki-roots 0.26.11",
  "zip",
 ]
 
