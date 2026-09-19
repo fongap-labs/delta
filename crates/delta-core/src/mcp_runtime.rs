@@ -53,8 +53,7 @@ fn resolve_target<F>(raw: &str, mut resolve: F) -> Result<PinnedTarget, String>
 where
     F: FnMut(&str, u16) -> Result<Vec<IpAddr>, String>,
 {
-    let mut parsed =
-        url::Url::parse(raw).map_err(|error| format!("invalid MCP URL: {error}"))?;
+    let mut parsed = url::Url::parse(raw).map_err(|error| format!("invalid MCP URL: {error}"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("HTTP MCP requires an http(s) URL".to_string());
     }
@@ -139,8 +138,8 @@ impl ureq::TlsConnector for PinnedTls {
                     format!("invalid MCP TLS server name: {error}"),
                 )
             })?;
-        let connection = rustls::ClientConnection::new(self.config.clone(), server_name)
-            .map_err(|error| {
+        let connection =
+            rustls::ClientConnection::new(self.config.clone(), server_name).map_err(|error| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!("create MCP TLS connection: {error}"),
@@ -573,9 +572,7 @@ impl HttpClient {
             .unwrap_or_default();
         let mut builder = ureq::AgentBuilder::new().redirects(0);
         if url.starts_with("https://") {
-            builder = builder.tls_connector(Arc::new(PinnedTls::new(
-                target.server_name.clone(),
-            )));
+            builder = builder.tls_connector(Arc::new(PinnedTls::new(target.server_name.clone())));
         }
         let client = Self {
             url: target.request_url,
@@ -946,7 +943,6 @@ impl McpRuntime {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
