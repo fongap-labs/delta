@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Usage Questions
+    url: https://github.com/fongap/delta/discussions/categories/%E9%97%AE%E7%AD%94
+    about: For installation, configuration, model integration, and troubleshooting, please visit the Q&A category in Discussions.
+
+  - name: Feature Suggestions
+    url: https://github.com/fongap/delta/discussions/categories/%E5%BB%BA%E8%AE%AE
+    about: For feature requests, interactions, workflows, and product improvements, please visit the Ideas category in Discussions.

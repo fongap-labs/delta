@@ -1,0 +1,33 @@
+[package]
+name = "delta-desktop"
+version = "0.1.0"
+description = "Delta desktop shell"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+
+[lib]
+name = "delta_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+encoding_rs = "0.8"
+# R6: in-process Runtime Host used directly by the Tauri shell.
+delta-core = { path = "../../../crates/delta-core" }
+# Kept outside the Tauri shell so another product can depend on the same local STT engine.
+delta-stt = { path = "../../../crates/delta-stt" }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,110 @@
+# Dependabot configuration for the Delta monorepo.
+#
+# Policy:
+# - Runtime/production dependencies are updated individually.
+# - Development-only dependencies may be grouped to reduce PR noise.
+# - GitHub Actions updates are grouped together.
+# - Rust workspaces are tracked independently.
+# - Update windows are staggered to avoid unnecessary CI contention.
+# - Open PR counts are bounded.
+#
+# Rationale:
+# Production dependencies can affect runtime compatibility independently.
+# Do not group unrelated runtime upgrades into one PR, because one incompatible
+# dependency would otherwise block or obscure the others.
+
+version: 2
+
+updates:
+  # GitHub Actions
+  #
+  # Workflow actions are SHA-pinned in the repository. Dependabot keeps those
+  # immutable references current as one maintenance group.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Shanghai"
+
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+    open-pull-requests-limit: 5
+
+  # Desktop GUI — npm
+  #
+  # Production dependencies intentionally remain ungrouped so React, Tauri,
+  # PDF.js and other runtime packages can be validated independently.
+  #
+  # Development dependencies are grouped because they primarily affect the
+  # build/test toolchain rather than the shipped runtime.
+  - package-ecosystem: "npm"
+    directory: "/apps/desktop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:10"
+      timezone: "Asia/Shanghai"
+
+    groups:
+      npm-development:
+        dependency-type: "development"
+
+    open-pull-requests-limit: 8
+
+  # Python runtime
+  #
+  # Production dependencies intentionally remain ungrouped.
+  #
+  # This is important for worker transports such as httpx and Slack, which can have
+  # independent compatibility constraints.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:20"
+      timezone: "Asia/Shanghai"
+
+    groups:
+      pip-development:
+        dependency-type: "development"
+
+    open-pull-requests-limit: 10
+
+  # Desktop Tauri application
+  - package-ecosystem: "cargo"
+    directory: "/apps/desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:30"
+      timezone: "Asia/Shanghai"
+
+    open-pull-requests-limit: 5
+
+  # Windows portable launcher
+  - package-ecosystem: "cargo"
+    directory: "/packaging/portable/launcher"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:40"
+      timezone: "Asia/Shanghai"
+
+    open-pull-requests-limit: 5
+
+  # Local STT service
+  - package-ecosystem: "cargo"
+    directory: "/services/stt"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:50"
+      timezone: "Asia/Shanghai"
+
+    open-pull-requests-limit: 5

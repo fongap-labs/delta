@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements applied when code-signing the native app. -->
+<plist version="1.0">
+  <dict>
+    <!-- Voice input (§37): hardened-runtime processes need this entitlement to capture the
+         microphone — without it the SIGNED app is denied by macOS even though dev builds work
+         (Info.plist's NSMicrophoneUsageDescription is only the prompt text, not the grant). -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+  </dict>
+</plist>

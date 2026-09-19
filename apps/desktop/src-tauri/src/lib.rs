@@ -1,0 +1,885 @@
+//! Delta desktop shell.
+//!
+//! Tauri is a thin native window over the React SPA and embeds the
+//! Rust Runtime (`delta-core`) in-process. The SPA talks to the
+//! runtime via Tauri IPC (`runtime_ipc.rs`):
+//! pass / stealth via `runtime_run`/`runtime_steer`/`runtime_cancel`, events
+//! via `listen("delta-runtime-event")`. No localhost HTTP/WebSocket hop.
+//!
+//! The shell also lives in the system tray and exposes native commands:
+//! folder picker, autostart (open-at-login), keep-awake, dictation, and
+//! auto-update.
+
+use std::path::PathBuf;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+use delta_stt::{Dictation, DownloadProgress};
+use serde::Serialize;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Emitter, LogicalSize, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
+use tauri_plugin_autostart::ManagerExt;
+
+mod runtime_ipc;
+
+/// The active keep-awake guard while keep-awake is on (None when off). Dropping the guard
+/// releases the hold (kills `caffeinate` on macOS, clears the execution state on Windows).
+struct KeepAwake(Mutex<Option<KeepAwakeGuard>>);
+
+/// Resolve the shared Delta application state directory.
+/// Windows: `%APPDATA%\delta`; POSIX: `~/.config/delta`. `DELTA_STATE_DIR` overrides.
+fn state_dir() -> PathBuf {
+    if let Ok(d) = std::env::var("DELTA_STATE_DIR") {
+        return PathBuf::from(d);
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            return PathBuf::from(appdata).join("delta");
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    PathBuf::from(home).join(".config").join("delta")
+}
+
+fn desktop_prefs_path() -> PathBuf {
+    state_dir().join("desktop.json")
+}
+
+fn read_awake_pref() -> bool {
+    std::fs::read_to_string(desktop_prefs_path())
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("keep_awake").and_then(|b| b.as_bool()))
+        .unwrap_or(false)
+}
+
+fn write_awake_pref(is_enabled: bool) {
+    let path = desktop_prefs_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(
+        &path,
+        serde_json::json!({ "keep_awake": is_enabled }).to_string(),
+    );
+}
+
+// -- keep-awake: hold off idle + system sleep so the scheduler keeps firing -------------------
+// Cross-platform behind a uniform `start_keep_awake() -> Option<KeepAwakeGuard>`; dropping the
+// guard releases the hold. macOS uses the built-in `caffeinate`; Windows uses the
+// SetThreadExecutionState API (a dedicated thread holds ES_CONTINUOUS so the state survives
+// regardless of which Tauri worker thread toggled it); other platforms are a no-op.
+
+#[cfg(target_os = "macos")]
+struct KeepAwakeGuard(Child);
+
+#[cfg(target_os = "macos")]
+impl Drop for KeepAwakeGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn start_keep_awake() -> Option<KeepAwakeGuard> {
+    Command::new("caffeinate")
+        .args(["-i", "-s"])
+        .spawn()
+        .ok()
+        .map(KeepAwakeGuard)
+}
+
+#[cfg(target_os = "windows")]
+extern "system" {
+    fn SetThreadExecutionState(es_flags: u32) -> u32;
+    fn GetUserDefaultUILanguage() -> u16;
+}
+
+/// The tray has no i18n store of its own and is created before the webview (and its
+/// backend-stored locale preference) exists, so the OS UI language is the correct proxy
+/// for localizing tray labels — Chinese systems get 打开 Delta / 设置 / 退出, everything
+/// else keeps the English labels. (Windows: `GetUserDefaultUILanguage` LANGID, primary
+/// language 0x04 = Chinese. Other platforms: `LANG`/`LC_ALL` prefix.)
+fn is_tray_chinese() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let langid = unsafe { GetUserDefaultUILanguage() };
+        langid & 0x03FF == 0x04
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("LANG")
+            .or_else(|_| std::env::var("LC_ALL"))
+            .map(|l| l.to_lowercase().starts_with("zh"))
+            .unwrap_or(false)
+    }
+}
+
+#[cfg(target_os = "windows")]
+const ES_CONTINUOUS: u32 = 0x8000_0000;
+#[cfg(target_os = "windows")]
+const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+
+#[cfg(target_os = "windows")]
+struct KeepAwakeGuard {
+    stop: Arc<AtomicBool>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for KeepAwakeGuard {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(h) = self.handle.take() {
+            let _ = h.join();
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn start_keep_awake() -> Option<KeepAwakeGuard> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_thread = stop.clone();
+    let handle = std::thread::spawn(move || {
+        // SetThreadExecutionState is thread-affine and the ES_CONTINUOUS hold is dropped when
+        // the setting thread exits — so keep this thread alive, re-asserting periodically,
+        // until asked to stop, then clear the hold from this same thread.
+        unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) };
+        while !stop_thread.load(Ordering::SeqCst) {
+            unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) };
+            // Re-assert roughly every 30s, but in short slices so Drop's join() completes
+            // within ~500ms of the stop flag being set (a single long sleep would freeze
+            // the UI for up to 30s when keep-awake is toggled off or the app quits).
+            for _ in 0..60 {
+                if stop_thread.load(Ordering::SeqCst) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        }
+        unsafe { SetThreadExecutionState(ES_CONTINUOUS) };
+    });
+    Some(KeepAwakeGuard {
+        stop,
+        handle: Some(handle),
+    })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+struct KeepAwakeGuard;
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn start_keep_awake() -> Option<KeepAwakeGuard> {
+    // No portable built-in inhibitor on Linux; keep-awake is a no-op (the toggle still reflects
+    // state so the UI behaves, but the OS sleep policy is left to the user).
+    Some(KeepAwakeGuard)
+}
+
+// -- native commands (invoked from the SPA via window.__TAURI__.core.invoke) -----------------
+
+/// Native macOS folder picker for the workspace gate.
+#[tauri::command]
+async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog().file().pick_folder(move |p| {
+        let _ = tx.send(p);
+    });
+    rx.recv().ok().flatten().map(|fp| fp.to_string())
+}
+
+#[tauri::command]
+fn get_autostart(app: tauri::AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_autostart(app: tauri::AppHandle, is_enabled: bool) -> bool {
+    let m = app.autolaunch();
+    let _ = if is_enabled { m.enable() } else { m.disable() };
+    m.is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn get_keep_awake(state: tauri::State<KeepAwake>) -> bool {
+    state.0.lock().unwrap().is_some()
+}
+
+#[tauri::command]
+fn set_keep_awake(state: tauri::State<KeepAwake>, is_enabled: bool) -> bool {
+    let mut guard = state.0.lock().unwrap();
+    if is_enabled {
+        if guard.is_none() {
+            *guard = start_keep_awake();
+        }
+    } else {
+        // Taking the guard out of the Option and letting it drop at the statement's
+        // end releases the hold (kills caffeinate / clears the Windows execution state).
+        guard.take();
+    }
+    let is_enabled = guard.is_some();
+    write_awake_pref(is_enabled);
+    is_enabled
+}
+
+#[tauri::command]
+fn start_window_drag(window: tauri::WebviewWindow) -> bool {
+    window.start_dragging().is_ok()
+}
+
+/// Make the OS window chrome (native title bar on Windows/Linux, traffic-light area on macOS)
+/// follow the app's selected theme. The webview's own `data-theme` only styles web content;
+/// without this the native title bar keeps following the OS theme even in Delta's dark mode.
+/// Tauri's `Theme` maps to the platform's title-bar appearance (Windows DWMWA dark title bar,
+/// macOS window appearance).
+#[tauri::command]
+fn set_native_theme(window: tauri::WebviewWindow, is_dark: bool) -> bool {
+    window
+        .set_theme(if is_dark {
+            Some(tauri::Theme::Dark)
+        } else {
+            Some(tauri::Theme::Light)
+        })
+        .is_ok()
+}
+
+/// Un-pin the window theme so it follows the OS appearance again (the "auto" choice).
+/// `set_theme(Some(..))` pins light/dark permanently; without this reset, switching back
+/// to auto kept the last manual theme and never tracked the system.
+#[tauri::command]
+fn follow_system_theme(window: tauri::WebviewWindow) -> bool {
+    window.set_theme(None).is_ok()
+}
+
+/// Pre-paint native theme (issue #8): the SPA's theme.ts only runs after the webview's JS has
+/// loaded — potentially after the first frame — which left a light Windows title-bar flash for
+/// dark users before setNativeTheme landed. This script runs at document-start (before the HTML
+/// is parsed or painted, via a document-start initialization script)
+/// and mirrors theme.ts's resolution (localStorage pref "delta-theme",
+/// prefers-color-scheme fallback, absent/invalid = auto) so the native
+/// window chrome matches from the very first frame. `window.__TAURI__` is
+/// available here: withGlobalTauri's bundle is injected as an initialization script ahead of user
+/// ones (see tauri/src/manager/webview.rs). Fire-and-forget — theme.ts re-applies after load,
+/// so this is only the pre-paint head start and needs no error handling.
+const NATIVE_THEME_SCRIPT: &str = r#"
+if (window.__TAURI__) {
+  (async () => {
+    try {
+      var t = localStorage.getItem("delta-theme");
+      var dark = t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      await window.__TAURI__.core.invoke("set_native_theme", { dark: dark });
+    } catch (e) {}
+  })();
+}
+"#;
+
+// -- local dictation ---------------------------------------------------------------------------
+// The actual microphone/model code lives in the Tauri-free `delta-stt` crate. This shell owns the
+// macOS permission prompt and translates the reusable API into React-friendly Tauri commands.
+
+#[derive(Clone, Serialize)]
+struct VoiceInputStatus {
+    recording: bool,
+    model_installed: bool,
+    model_verified: bool,
+    test_passed: bool,
+    download_in_progress: bool,
+    model_name: &'static str,
+    model_bytes: u64,
+    supported: bool,
+    device_summary: String,
+    compatibility_reason: Option<String>,
+}
+
+fn voice_input_status(dictation: &Dictation) -> VoiceInputStatus {
+    let status = dictation.status();
+    let (supported, device_summary, compatibility_reason) = voice_input_compatibility();
+    VoiceInputStatus {
+        recording: status.recording,
+        model_installed: status.model_installed,
+        model_verified: status.model_verified,
+        test_passed: status.test_passed,
+        download_in_progress: status.download_in_progress,
+        model_name: status.model_name,
+        model_bytes: status.model_bytes,
+        supported,
+        device_summary,
+        compatibility_reason,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn voice_input_compatibility() -> (bool, String, Option<String>) {
+    let version = Command::new("/usr/bin/sw_vers")
+        .arg("-productVersion")
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        .unwrap_or_else(|| "unknown version".to_owned());
+    let major = version
+        .split('.')
+        .next()
+        .and_then(|part| part.parse::<u32>().ok())
+        .unwrap_or(0);
+    let apple_silicon = std::env::consts::ARCH == "aarch64";
+    let supported = apple_silicon && major >= 12;
+    let architecture = if apple_silicon {
+        "Apple Silicon"
+    } else {
+        "Intel"
+    };
+    let summary = format!("macOS {version} · {architecture}");
+    let reason = if !apple_silicon {
+        Some("Voice Input currently requires an Apple Silicon Mac (M1 or newer).".to_owned())
+    } else if major < 12 {
+        Some("Voice Input requires macOS 12 or newer.".to_owned())
+    } else {
+        None
+    };
+    (supported, summary, reason)
+}
+
+#[cfg(target_os = "windows")]
+fn voice_input_compatibility() -> (bool, String, Option<String>) {
+    // `cmd /C ver` prints the localised "Windows [Version …]" line in the OEM codepage
+    // (e.g. GBK/CP936 on Chinese Windows); naive UTF-8 decoding turns '版本'/'Version'
+    // into replacement chars. We only need the ASCII "10.0.x" run, so broadcast-decode the
+    // bytes as CP936 (with lossy fallback) and pull the numeric tokens out of that — the
+    // number itself is pure ASCII and identical under any codepage.
+    let decode = |bytes: &[u8]| {
+        let (decoded, _, _) = encoding_rs::GBK.decode(bytes);
+        decoded.into_owned()
+    };
+    let mut ver = Command::new("cmd");
+    ver.args(["/C", "ver"]);
+    // A GUI process spawning cmd.exe briefly pops up a console window unless suppressed —
+    // this runs on every dictation-status poll (the Settings voice page mounts), and the
+    // visible blink was reported as "the screen flashes".
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        ver.creation_flags(CREATE_NO_WINDOW);
+    }
+    let version = ver
+        .output()
+        .ok()
+        .map(|output| decode(&output.stdout).trim().to_owned())
+        .unwrap_or_else(|| "Windows (unknown version)".to_owned());
+    let build = version
+        .split(|character: char| !character.is_ascii_digit() && character != '.')
+        .find(|part| part.matches('.').count() >= 2)
+        .and_then(|part| part.split('.').nth(2))
+        .and_then(|part| part.parse::<u32>().ok())
+        .unwrap_or(0);
+    let x64 = std::env::consts::ARCH == "x86_64";
+    let supported = x64 && build >= 19_045;
+    let reason = if !x64 {
+        Some("Voice Input currently requires a 64-bit x64 Windows PC.".to_owned())
+    } else if build < 19_045 {
+        Some("Voice Input requires Windows 10 22H2 or Windows 11.".to_owned())
+    } else {
+        None
+    };
+    (supported, format!("{version} · x64"), reason)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn voice_input_compatibility() -> (bool, String, Option<String>) {
+    (
+        false,
+        format!("{} · {}", std::env::consts::OS, std::env::consts::ARCH),
+        Some("Voice Input is currently supported on macOS and Windows.".to_owned()),
+    )
+}
+
+#[tauri::command]
+fn get_dictation_status(state: tauri::State<Arc<Dictation>>) -> VoiceInputStatus {
+    voice_input_status(&state)
+}
+
+#[tauri::command]
+async fn start_dictation(
+    state: tauri::State<'_, Arc<Dictation>>,
+) -> Result<VoiceInputStatus, String> {
+    // Off the main thread: opening the input device blocks on macOS's one-time microphone
+    // permission dialog (and CoreAudio device setup) — a sync command would freeze the UI
+    // behind the system prompt.
+    let (supported, _, reason) = voice_input_compatibility();
+    if !supported {
+        return Err(
+            reason.unwrap_or_else(|| "Voice Input is not supported on this device.".to_owned())
+        );
+    }
+    let dictation = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        dictation.start()?;
+        Ok::<VoiceInputStatus, String>(voice_input_status(&dictation))
+    })
+    .await
+    .map_err(|e| format!("Dictation failed to start: {e}"))?
+}
+
+#[tauri::command]
+async fn stop_dictation(state: tauri::State<'_, Arc<Dictation>>) -> Result<String, String> {
+    let dictation = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || dictation.stop_and_transcribe())
+        .await
+        .map_err(|e| format!("Dictation stopped unexpectedly: {e}"))?
+}
+
+#[tauri::command]
+fn cancel_dictation(state: tauri::State<Arc<Dictation>>) {
+    state.cancel();
+}
+
+#[tauri::command]
+async fn download_dictation_model(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Arc<Dictation>>,
+) -> Result<VoiceInputStatus, String> {
+    let dictation = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        dictation.install_model_progress(|progress: DownloadProgress| {
+            let _ = app.emit("dictation-download-progress", progress);
+        })?;
+        Ok::<VoiceInputStatus, String>(voice_input_status(&dictation))
+    })
+    .await
+    .map_err(|e| format!("Voice model download stopped unexpectedly: {e}"))?
+}
+
+#[tauri::command]
+fn cancel_dictation_download(state: tauri::State<Arc<Dictation>>) {
+    state.cancel_model_download();
+}
+
+#[tauri::command]
+async fn verify_dictation_model(
+    state: tauri::State<'_, Arc<Dictation>>,
+) -> Result<VoiceInputStatus, String> {
+    let dictation = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        dictation.verify_default_model()?;
+        Ok::<VoiceInputStatus, String>(voice_input_status(&dictation))
+    })
+    .await
+    .map_err(|e| format!("Voice model verification stopped unexpectedly: {e}"))?
+}
+
+#[tauri::command]
+fn mark_dictation_passed(state: tauri::State<Arc<Dictation>>) -> Result<VoiceInputStatus, String> {
+    state.mark_test_passed()?;
+    Ok(voice_input_status(&state))
+}
+
+#[tauri::command]
+fn delete_dictation_model(state: tauri::State<Arc<Dictation>>) -> Result<VoiceInputStatus, String> {
+    state.delete_default_model()?;
+    Ok(voice_input_status(&state))
+}
+
+/// Instantaneous mic loudness (0..1) while a dictation is recording — the composer polls
+/// this to draw a real input-driven waveform instead of decorative bars (owner catch,
+/// DMG #28 walkthrough).
+#[tauri::command]
+fn dictation_level(state: tauri::State<Arc<Dictation>>) -> f32 {
+    state.input_level()
+}
+
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+// --- Auto-update (tauri-plugin-updater) -------------------------------------------
+// The GUI drives updates through these commands (same invoke bridge as everything
+// else — no global plugin JS): check, background pre-download, install. Update
+// artifacts are minisign-verified against the pubkey in tauri.conf.json before
+// anything is installed; the manifest lives at the endpoint configured there
+// (the fongap/delta GitHub releases latest.json).
+
+#[derive(serde::Serialize)]
+struct UpdateInfo {
+    version: String,
+    notes: String,
+}
+
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let update = updater.check().await.map_err(|e| e.to_string())?;
+    Ok(update.map(|u| UpdateInfo {
+        version: u.version.clone(),
+        notes: u.body.clone().unwrap_or_default(),
+    }))
+}
+
+/// Update bytes pre-fetched by `download_update`, keyed by version. The GUI kicks the
+/// download off as soon as a release is offered, so clicking "Restart to update" installs
+/// from memory instead of sitting on a multi-minute download behind a spinner.
+struct PendingUpdate(Mutex<Option<(String, Vec<u8>)>>);
+
+#[tauri::command]
+async fn download_update(
+    app: tauri::AppHandle,
+    pending: tauri::State<'_, PendingUpdate>,
+) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+        return Err("no update available".into());
+    };
+    // Periodic re-checks re-invoke this for the same release — the cached bytes stand.
+    // (Guard scope stays sync: a std MutexGuard must not live across an await.)
+    {
+        let slot = pending.0.lock().unwrap();
+        if slot
+            .as_ref()
+            .map(|(v, _)| v == &update.version)
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+    }
+    let bytes = update
+        .download(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())?;
+    *pending.0.lock().unwrap() = Some((update.version.clone(), bytes));
+    Ok(())
+}
+
+/// Drop the pre-fetched bundle. Invoked on "Later": a dismissed release would
+/// otherwise pin tens of MB in memory for the rest of an app run that can last
+/// weeks. Changing one's mind just re-downloads.
+#[tauri::command]
+fn clear_pending_update(pending: tauri::State<'_, PendingUpdate>) {
+    *pending.0.lock().unwrap() = None;
+}
+
+#[tauri::command]
+async fn install_update(
+    app: tauri::AppHandle,
+    pending: tauri::State<'_, PendingUpdate>,
+) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+        return Err("no update available".into());
+    };
+    // Pre-fetched bytes for this exact version install instantly; a stale or missing
+    // cache falls back to the original blocking download-and-install.
+    let cached = {
+        let mut slot = pending.0.lock().unwrap();
+        match slot.take() {
+            Some((v, bytes)) if v == update.version => Some(bytes),
+            _ => None,
+        }
+    };
+    match cached {
+        Some(bytes) => update.install(bytes).map_err(|e| e.to_string())?,
+        None => update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?,
+    }
+    // Installer-based Windows builds never reach here because the installer relaunches.
+    // macOS: the .app was swapped in place — restart into the new version.
+    app.restart();
+}
+
+pub fn run() {
+    // The Rust Runtime is embedded directly in the Tauri shell. The
+    // frontend talks only through Tauri IPC invoke/listen.
+    let inject = format!("window.__OCW_PLATFORM__={:?};", std::env::consts::OS);
+
+    tauri::Builder::default()
+        // MUST be the first plugin: when a second launch happens (e.g. the user relaunches
+        // while the window is closed-to-tray), this fires in the ALREADY-running instance to
+        // surface its healthy window, and the second process exits immediately.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main(app);
+        }))
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .invoke_handler(tauri::generate_handler![
+            pick_folder,
+            get_autostart,
+            set_autostart,
+            get_keep_awake,
+            set_keep_awake,
+            start_window_drag,
+            set_native_theme,
+            follow_system_theme,
+            get_dictation_status,
+            start_dictation,
+            stop_dictation,
+            cancel_dictation,
+            download_dictation_model,
+            cancel_dictation_download,
+            verify_dictation_model,
+            mark_dictation_passed,
+            delete_dictation_model,
+            dictation_level,
+            check_for_update,
+            download_update,
+            clear_pending_update,
+            install_update,
+            runtime_ipc::health,
+            runtime_ipc::runtime_run,
+            runtime_ipc::runtime_resume,
+            runtime_ipc::runtime_retry,
+            runtime_ipc::runtime_steer,
+            runtime_ipc::runtime_follow_up,
+            runtime_ipc::runtime_cancel,
+            runtime_ipc::runtime_approval,
+            runtime_ipc::resolve_directory_request,
+            runtime_ipc::resolve_plan_request,
+            runtime_ipc::resolve_question_request,
+            runtime_ipc::runtime_messages,
+            runtime_ipc::runtime_switch_model,
+            runtime_ipc::runtime_set_mode,
+            runtime_ipc::runtime_truncate,
+            runtime_ipc::settings_get,
+            runtime_ipc::update_model_key,
+            runtime_ipc::update_model_default,
+            runtime_ipc::settings_add_model,
+            runtime_ipc::settings_remove_model,
+            runtime_ipc::settings_set_onboarded,
+            runtime_ipc::settings_set_language,
+            runtime_ipc::update_context_bar,
+            runtime_ipc::update_session_peek,
+            runtime_ipc::update_scratch_base,
+            runtime_ipc::update_pdf_settings,
+            runtime_ipc::update_compaction,
+            runtime_ipc::providers_list,
+            runtime_ipc::provider_protocols,
+            runtime_ipc::provider_set,
+            runtime_ipc::provider_remove,
+            runtime_ipc::provider_verify,
+            runtime_ipc::fetch_provider_models,
+            runtime_ipc::sessions_list,
+            runtime_ipc::session_messages,
+            runtime_ipc::session_rename,
+            runtime_ipc::update_session_flags,
+            runtime_ipc::session_delete,
+            runtime_ipc::workspaces_recent,
+            runtime_ipc::workspace_open,
+            runtime_ipc::workspaces_trusted,
+            runtime_ipc::update_workspace_trust,
+            runtime_ipc::session_revert,
+            runtime_ipc::update_session_reasoning,
+            runtime_ipc::session_roots,
+            runtime_ipc::add_session_root,
+            runtime_ipc::delete_session_root,
+            runtime_ipc::get_session_unattended,
+            runtime_ipc::update_session_unattended,
+            runtime_ipc::inbox_list,
+            runtime_ipc::inbox_resolve,
+            runtime_ipc::artifacts_list,
+            runtime_ipc::artifact_read,
+            runtime_ipc::artifact_resolve_path,
+            runtime_ipc::memory_list,
+            runtime_ipc::memory_update,
+            runtime_ipc::memory_delete,
+            runtime_ipc::clear_memory,
+            runtime_ipc::memory_settings,
+            runtime_ipc::update_memory_settings,
+            runtime_ipc::automations_list,
+            runtime_ipc::automation_create,
+            runtime_ipc::automation_get,
+            runtime_ipc::automation_update,
+            runtime_ipc::automation_delete,
+            runtime_ipc::update_automation_seen,
+            runtime_ipc::prepare_automation_run,
+            runtime_ipc::finalize_automation_run,
+            runtime_ipc::scheduler_due,
+            runtime_ipc::mcp_list,
+            runtime_ipc::mcp_put,
+            runtime_ipc::mcp_patch,
+            runtime_ipc::mcp_delete,
+            runtime_ipc::mcp_tools,
+            runtime_ipc::mcp_reload,
+            runtime_ipc::mcp_connect,
+            runtime_ipc::mcp_signout,
+            runtime_ipc::audit_list,
+            runtime_ipc::sources_list,
+            runtime_ipc::validations_list,
+            runtime_ipc::skills_list,
+            runtime_ipc::skill_create,
+            runtime_ipc::skill_update,
+            runtime_ipc::skill_delete,
+            runtime_ipc::skill_move,
+            runtime_ipc::resolve_skill_folder,
+            runtime_ipc::stage_skill_upload,
+            runtime_ipc::confirm_skill_upload,
+            runtime_ipc::session_skills,
+            runtime_ipc::update_session_skill,
+            runtime_ipc::connectors_list,
+            runtime_ipc::connector_connect,
+            runtime_ipc::connector_disconnect,
+            runtime_ipc::update_connector_tools,
+            runtime_ipc::connector_action,
+            runtime_ipc::session_connections,
+            runtime_ipc::update_session_connection,
+            runtime_ipc::subscriptions_list,
+            runtime_ipc::subscription_add,
+            runtime_ipc::subscription_remove,
+            runtime_ipc::list_inbox_routes,
+            runtime_ipc::update_inbox_routes,
+            runtime_ipc::unrouted_list,
+            runtime_ipc::recent_channels,
+            runtime_ipc::get_dm_route,
+            runtime_ipc::update_dm_route,
+            runtime_ipc::browser_state,
+            runtime_ipc::browser_screenshot,
+            runtime_ipc::browser_close
+        ])
+        .setup(move |app| {
+            // The Rust Runtime is embedded and ready before the window opens.
+            // Manage the session registry so runtime commands can access hosts.
+            app.manage(runtime_ipc::init());
+            runtime_ipc::start_scheduler(app.handle().clone());
+
+            // Restore keep-awake from the last session.
+            let ka = if read_awake_pref() {
+                start_keep_awake()
+            } else {
+                None
+            };
+            app.manage(KeepAwake(Mutex::new(ka)));
+            app.manage(PendingUpdate(Mutex::new(None)));
+            // Voice recordings are transient; only the explicitly installed local Whisper model
+            // lives in the existing application state directory.
+            app.manage(Arc::new(Dictation::new(state_dir().join("models"))));
+
+            // 2. Build the window and initialize native platform/theme state.
+            //    Overlay title bar (macOS): traffic lights float over the edge-to-edge UI.
+            //
+            // Initial window = 65% of the primary monitor's work area (screen resolution minus
+            // taskbar/etc.), so the app adapts to whatever display it launches on. Falls back
+            // to the fixed 1360×900 default if the monitor can't be queried. work_area() is in
+            // PHYSICAL pixels while the builder's inner_size() takes LOGICAL pixels, so we
+            // scale by the monitors DPI factor before passing them in; the window is centered
+            // on that monitor rather than the default top-left placement.
+            let work = app.primary_monitor().ok().flatten();
+            let init_size = match work.as_ref() {
+                Some(m) => {
+                    let area = m.work_area();
+                    let sf = m.scale_factor();
+                    // 55% of work area (was 65%; reduced 15% per UX feedback)
+                    let w = area.size.width as f64 * 0.55 / sf;
+                    let h = area.size.height as f64 * 0.55 / sf;
+                    LogicalSize::new(w, h)
+                }
+                None => LogicalSize::new(1156.0, 765.0),
+            };
+            let builder =
+                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                    .title("Delta")
+                    .inner_size(init_size.width, init_size.height)
+                    .min_inner_size(980.0, 640.0)
+                    // Center on screen — Tauri's built-in centering handles all platforms
+                    // and edge cases (multi-monitor, taskbar offsets) more reliably than
+                    // manual position math.
+                    .center()
+                    // Let the WEBVIEW receive OS file drags: Tauri's own drag-drop handler
+                    // otherwise intercepts them, so the composer's HTML5 onDrop (attach by
+                    // dragging a file in) never fired in the desktop shell — browser dev
+                    // worked, DMGs didn't. main.tsx guards against drops outside the
+                    // composer navigating the page.
+                    .disable_drag_drop_handler()
+                    .initialization_script(&inject)
+                    .initialization_script(NATIVE_THEME_SCRIPT);
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder
+                    .title_bar_style(tauri::TitleBarStyle::Overlay)
+                    .hidden_title(true)
+                    // Nudge the traffic lights down + in so they sit vertically centered in a
+                    // roomier top strip, aligned with the sidebar toggle and title rather than
+                    // jammed against the top edge.
+                    .traffic_light_position(tauri::LogicalPosition::new(19.0, 24.0));
+            }
+            let win = builder.build()?;
+
+            // Close-to-tray: hide instead of quitting so scheduled tasks keep running.
+            let w = win.clone();
+            win.on_window_event(move |event| {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    let _ = w.hide();
+                    api.prevent_close();
+                }
+            });
+
+            // 3. System tray: Open / Settings / Quit. Tray labels follow the OS UI language
+            // (Chinese systems get 打开 Delta / 设置 / 退出) so nothing English surfaces in a
+            // Chinese environment; the menu handles stay language-neutral.
+            let zh = is_tray_chinese();
+            let open_label = if zh { "打开 Delta" } else { "Open Delta" };
+            let settings_label = if zh { "设置" } else { "Settings" };
+            let quit_label = if zh { "退出" } else { "Quit" };
+            let open_i = MenuItem::with_id(app, "open", open_label, true, None::<&str>)?;
+            let settings_i =
+                MenuItem::with_id(app, "settings", settings_label, true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", quit_label, true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
+
+            // Full-color Delta brand icon (colored RGBA 32×32, downsampled from the same
+            // assets/logo as the desktop icon) so the tray matches the app icon.
+            let tray_icon = tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 32, 32);
+            TrayIconBuilder::new()
+                .tooltip("Delta")
+                .icon(tray_icon)
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => show_main(app),
+                    "settings" => {
+                        show_main(app);
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.eval(
+                                "window.dispatchEvent(new CustomEvent('delta:open-settings'))",
+                            );
+                        }
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .build(app)?;
+
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building the Delta desktop app")
+        .run(|app, event| {
+            if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit) {
+                if let Some(state) = app.try_state::<KeepAwake>() {
+                    state.0.lock().unwrap().take();
+                }
+            }
+        });
+}
+
+/// Release/portable headless smoke entry. It never starts a window or network
+/// listener; success means the embedded authorities and Capability Host booted.
+pub fn portable_self_test() -> Result<(), String> {
+    runtime_ipc::portable_self_test()
+}

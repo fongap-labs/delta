@@ -1,0 +1,55 @@
+# pre-commit hooks for Delta Foundation
+# Install with: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: architecture-guard
+        name: Architecture Guard
+        entry: python scripts/check_architecture_boundary.py
+        language: system
+        types: [python, rust, toml, json, yaml]
+        pass_filenames: false
+        always_run: true
+
+      - id: repository-boundary
+        name: Repository Boundary Check
+        entry: python scripts/check_repository_boundary.py
+        language: system
+        types: [python, rust]
+        pass_filenames: false
+        always_run: true
+
+      - id: provenance-policy
+        name: Provenance Policy Check
+        entry: python scripts/check_provenance_policy.py
+        language: system
+        types: [python, rust]
+        pass_filenames: false
+        always_run: true
+
+      - id: retired-branding
+        name: Retired Branding Check
+        entry: python scripts/check_retired_branding.py
+        language: system
+        types: [python, rust]
+        pass_filenames: false
+        always_run: true

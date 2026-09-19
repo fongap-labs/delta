@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/capability-manifest.schema.json",
+  "title": "Capability Manifest",
+  "description": "Manifest describing a worker's declared capabilities, tool bindings, and permission requirements.",
+  "type": "object",
+  "required": ["worker_id", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "worker_id": {
+      "type": "string",
+      "description": "Unique identifier for the worker process."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/capability" }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "required": ["capability_id", "permissions"],
+      "additionalProperties": false,
+      "properties": {
+        "capability_id": {
+          "type": "string",
+          "description": "Fully-qualified capability identifier."
+        },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Permission tokens required to execute this capability."
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum wall-clock seconds before the capability is force-cancelled."
+        }
+      }
+    }
+  }
+}

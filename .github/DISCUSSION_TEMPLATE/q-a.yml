@@ -1,0 +1,39 @@
+title: "[Q&A] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Welcome to the Delta Discussion forum.
+
+        This category is for questions regarding installation, configuration, model integration, usage, and troubleshooting. If you have identified a reproducible product defect, please submit an Issue. For security vulnerabilities, do NOT disclose them publicly.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Please describe the issue you are facing and the observed behavior.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Delta Version
+      description: If relevant, please specify the version (e.g., v0.3.1).
+      placeholder: v0.3.1
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: Steps Already Attempted
+      description: (Optional) Describe any actions you've taken, results, or relevant logs.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing discussions and issues to ensure this is not a duplicate.
+          required: true
+        - label: I have not included any tokens, secrets, personal data, or other sensitive information.
+          required: true

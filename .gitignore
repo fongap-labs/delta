@@ -1,0 +1,37 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.coverage
+**/target/
+*.log
+
+# Build outputs (packaging staging and local release artifacts)
+apps/desktop/src-tauri/binaries/
+apps/desktop/src-tauri/target/release/bundle/
+packaging/build/
+packaging/portable/target/
+releases/
+
+# Local secrets (live-smoke BYO keys) — never committed
+.env
+
+# Local diagnostic / runtime artifacts — never commit
+.tmp_*
+*.pid
+*.tmp
+*.bak
+
+# Local portable release build output (generated; carries user DBs/logs/prefs)
+packaging/release/
+
+# Local ruff linter cache
+.ruff_cache/
+
+# Diagnostic / static-analysis reports — produced by local ad-hoc runs.
+# Quality status is proven by CI, not by committed scan artifacts.
+pyright-report*.json
+ruff-report*.json

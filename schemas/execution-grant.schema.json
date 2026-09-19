@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/execution-grant.schema.json",
+  "title": "Execution Grant",
+  "description": "Authorisation contract binding a capability invocation to a run, an execution epoch, a permission scope, and an expiry.",
+  "type": "object",
+  "required": ["run_id", "execution_epoch", "capability_id", "permission_scope", "expires_at"],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Identifier of the run this grant belongs to."
+    },
+    "execution_epoch": {
+      "type": "number",
+      "description": "Unix timestamp (seconds, fractional) when the grant becomes active. Grants are invalid before this time."
+    },
+    "capability_id": {
+      "type": "string",
+      "description": "Fully-qualified capability identifier (e.g. research.statistics.anova)."
+    },
+    "permission_scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered list of permission tokens granted to this invocation."
+    },
+    "expires_at": {
+      "type": "number",
+      "description": "Unix timestamp (seconds, fractional) after which the grant is void."
+    }
+  }
+}

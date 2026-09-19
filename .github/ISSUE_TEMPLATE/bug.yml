@@ -1,0 +1,97 @@
+name: Bug Report
+description: Report a reproducible product defect
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for your feedback. Issues are used to track confirmed, reproducible defects.
+
+        For questions on installation, configuration, model integration, or troubleshooting, please use the "Q&A" category in Discussions.
+        For feature suggestions, interactions, or workflow improvements, please use the "Ideas" category.
+
+  - type: input
+    id: version
+    attributes:
+      label: Delta Version
+      description: Please enter the Delta version you are using (e.g., v0.3.1).
+      placeholder: v0.3.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation Method
+      description: Please select your current setup.
+      options:
+        - Windows Portable
+        - Development Environment
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows Version
+      description: Please enter your Windows version (e.g., Windows 11 24H2).
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened?
+      description: Briefly describe the actual problem encountered.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Please provide the minimal and stable steps to reproduce the issue.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: Describe the correct behavior you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Attach necessary logs or screenshots. Please remove tokens, secrets, and personal data before submitting.
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Is this a regression?
+      description: Did this work in older versions and start failing after an update?
+      options:
+        - No
+        - Yes
+        - Unsure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate.
+          required: true
+        - label: I have removed all tokens, secrets, and personal data from logs and descriptions.
+          required: true

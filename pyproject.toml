@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "delta"
+version = "0.1.0"
+description = "Delta controlled capability workers"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx==0.28.1",
+    "ddgs==9.16.0",
+    # PDF fallback: pypdf extracts text; pypdfium2 rasterizes scanned pages without AGPL PyMuPDF.
+    "pypdf==6.18.1",
+    "pypdfium2==5.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "httpx==0.28.1",
+    # CI tools stay in the project lockfile for reproducible static/audit gates.
+    "pip-audit==2.10.1",
+    "pyright==1.1.414",
+    "ruff==0.16.7",
+]
+browser = ["playwright==1.62.0"]
+[project.scripts]
+delta-connectors = "integrations.connectors.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apps*", "core*", "delta_extension_api*", "integrations*", "packages*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff.lint]
+# Keep the lint surface explicit; expand rule families only in dedicated policy changes.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.pyright]
+# Sub-packages with their own dependencies (pydantic, typer) are excluded
+# from the main project's pyright gate. They have their own pyproject.toml.
+exclude = [
+    "packages/delta_worker_sdk",
+    "integrations/capabilities/file_reader",
+]
+
+[tool.uv]
+# Pin the CI/release resolver for reproducibility across supported platforms.
+required-version = "==0.12.3"

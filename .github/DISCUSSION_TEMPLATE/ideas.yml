@@ -1,0 +1,40 @@
+title: "[Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Welcome! We appreciate your suggestions for improving Delta's features, interactions, workflows, and overall product experience.
+
+        Use this template for ideas that require discussion, value validation, or boundary definition. Once a direction is matured and confirmed for implementation, it will be converted into an Issue for tracking.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your Suggestion
+      description: Please describe what you would like to add, adjust, or remove.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Explain the current pain point, limitation, or specific use case this suggestion addresses.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Experience
+      description: Describe the ideal interaction, workflow, or outcome.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing discussions and issues to ensure this is not a duplicate.
+          required: true
+        - label: This is not a reproducible bug; if it is, I will submit it via the Issues tab.
+          required: true
