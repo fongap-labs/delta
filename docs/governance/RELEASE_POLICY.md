@@ -64,7 +64,7 @@ v1.0.1
 
 发布前至少确认：
 
-1. `main` 对应 Commit 的 `ci-required` 已通过
+1. `main` 对应 Commit 的 `ci-evidence` 已通过
 2. 版本号一致
 3. Release workflow 配置有效
 4. 构建产物可以正常生成
