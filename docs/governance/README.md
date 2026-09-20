@@ -1,30 +1,24 @@
 # Delta Governance
 
-This directory contains public governance for Delta Foundation and its extension
-ecosystem.
+Delta inherits shared engineering governance from [Fongap Labs Action Worker](https://github.com/fongap-labs/action-worker/tree/main/docs). This directory keeps only Delta-specific product, contract, dependency, quality, release and extension rules.
 
-## Baselines
+## Project authority
 
 | Area | Document | Purpose |
 |---|---|---|
-| Architecture | [ARCHITECTURE_GOVERNANCE.md](baseline/ARCHITECTURE_GOVERNANCE.md) | Core architecture and authority rules |
-| Source & licensing | [SOURCE_LICENSING_GOVERNANCE.md](baseline/SOURCE_LICENSING_GOVERNANCE.md) | Foundation source and third-party compliance |
-| Release & compatibility | [RELEASE_VERSIONING_GOVERNANCE.md](baseline/RELEASE_VERSIONING_GOVERNANCE.md) | Foundation and extension compatibility |
-| Extension distribution | [EXTENSION_DISTRIBUTION_GOVERNANCE.md](baseline/EXTENSION_DISTRIBUTION_GOVERNANCE.md) | Extension discovery, isolation and lifecycle |
-| Security | [SECURITY_GOVERNANCE.md](baseline/SECURITY_GOVERNANCE.md) | Security baseline |
-| Telemetry & privacy | [TELEMETRY_PRIVACY_GOVERNANCE.md](baseline/TELEMETRY_PRIVACY_GOVERNANCE.md) | Data and privacy rules |
-| Contributions | [CONTRIBUTION_GOVERNANCE.md](baseline/CONTRIBUTION_GOVERNANCE.md) | Contribution rules |
-| Deprecation | [DEPRECATION_MIGRATION_GOVERNANCE.md](baseline/DEPRECATION_MIGRATION_GOVERNANCE.md) | Compatibility and migration |
+| Product | [../DELTA_BLUEPRINT.md](../DELTA_BLUEPRINT.md) | Long-term product boundary |
+| Architecture | [../architecture/target-architecture.md](../architecture/target-architecture.md) | Long-term system architecture |
+| Runtime | [../architecture/runtime-public-contract.md](../architecture/runtime-public-contract.md) | Current public Runtime contract |
+| Capability | [../architecture/capability-abi.md](../architecture/capability-abi.md) | Capability / Worker boundary |
+| Foundation ↔ extensions | [REPOSITORY_BOUNDARY.md](REPOSITORY_BOUNDARY.md) | Repository and authority boundary |
+| Public contracts | [CONTRACT_GOVERNANCE.md](CONTRACT_GOVERNANCE.md) | Contract evolution |
+| Dependencies | [DEPENDENCY_POLICY.md](DEPENDENCY_POLICY.md) | Delta-specific dependency rules |
+| Quality | [QUALITY_POLICY.md](QUALITY_POLICY.md) | Delta-specific validation requirements |
+| Release | [RELEASE_POLICY.md](RELEASE_POLICY.md) | Delta release compatibility and artifacts |
 
-## Active repository rules
+## Specialized baselines
 
-- [REPOSITORY_BOUNDARY.md](REPOSITORY_BOUNDARY.md) — Foundation ↔ optional extension boundary
-- [CONTRACT_GOVERNANCE.md](CONTRACT_GOVERNANCE.md) — public contract evolution
-- [DEVELOPMENT_POLICY.md](DEVELOPMENT_POLICY.md) — development rules
-- [DEPENDENCY_POLICY.md](DEPENDENCY_POLICY.md) — dependency policy
-- [QUALITY_POLICY.md](QUALITY_POLICY.md) — quality gates
-- [RELEASE_POLICY.md](RELEASE_POLICY.md) — release checks
-- [AI_AGENT_RULES.md](AI_AGENT_RULES.md) — AI coding-agent rules
+The remaining files under `baseline/` cover Delta-specific licensing, security, privacy, extension distribution, contribution and compatibility concerns. They do not define a second architecture authority.
 
 ## Architecture decisions
 
@@ -33,7 +27,18 @@ ecosystem.
 - [0003-capability-over-fork.md](../architecture/adr/0003-capability-over-fork.md)
 - [0004-capability-execution-chain.md](../architecture/adr/0004-capability-execution-chain.md)
 
-## Public boundary in one sentence
+## Authority order
 
-> Delta Foundation owns the product authority; optional extensions add
-> capabilities only through stable public contracts and isolated manifests.
+```text
+Action Worker shared governance
+        ↓
+DELTA_BLUEPRINT / target-architecture
+        ↓
+Runtime / Capability / Repository contracts
+        ↓
+specialized Delta policy
+        ↓
+implementation docs
+```
+
+Delta Foundation owns the product authority. Optional extensions add capabilities only through stable public contracts and isolated manifests.
