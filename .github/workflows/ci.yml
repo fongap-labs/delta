@@ -4,7 +4,7 @@
 # - Pull Requests run checks according to the affected repository area.
 # - Pushes to main always run the full CI suite.
 # - Repository layout invariants always run.
-# - validate-merge remains the single stable Required Check for main.
+# - ci-evidence aggregates project checks; validate-merge remains the single stable Required Check for main.
 #
 # Coverage:
 # - Python runtime tests on supported Linux versions and Windows
@@ -37,7 +37,7 @@
 #   is expected, not a validation gap. If this repo ever allows direct pushes
 #   to main outside of PR merges, this assumption must be revisited.
 #
-# validate-merge maintenance note:
+# ci-evidence maintenance note:
 # - The "which jobs are required" logic is intentionally duplicated in two
 #   places: each job's own `if:` (whether it *runs*) and the Python block in
 #   `validate-merge` (whether it must *succeed*). These must be changed together.
@@ -638,3 +638,18 @@ jobs:
               sys.exit(1)
           print("all required checks passed")
           PY
+
+  validate-merge:
+    name: validate-merge
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs:
+      - ci-evidence
+    steps:
+      - name: Validate merge policy
+        uses: fongap-labs/action-worker/.github/actions/validate-merge-policy@main
+        with:
+          ci-result: ${{ needs.ci-evidence.result }}
+          head-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          require-pr-governance: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
