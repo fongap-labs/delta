@@ -15,7 +15,7 @@ The goal is:
 
 - Keep Core stable.
 - Enable extensibility.
-- Allow Foundation and Suite to share the same architecture model.
+- Allow Foundation and optional extensions to share the same architecture model.
 
 
 ---
@@ -220,10 +220,10 @@ Foundation capabilities must remain general-purpose.
 
 ---
 
-# 8. Suite Capability
+# 8. Extension Capability
 
 
-Delta Suite provides:
+Optional extensions may provide:
 
 
 - Advanced capabilities
@@ -231,7 +231,7 @@ Delta Suite provides:
 - Official maintained extensions
 
 
-Suite capabilities MUST use:
+Extension capabilities MUST use:
 
 - Delta SDK
 - Delta Contracts
