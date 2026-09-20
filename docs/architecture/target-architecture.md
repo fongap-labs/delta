@@ -2,7 +2,7 @@
 
 > 本文定义 Delta 的长期目标形态。它描述稳定的产品边界、逻辑模块、语言职责和依赖方向，不等同于当前物理目录，也不把尚未完成的迁移写成当前事实。
 >
-> 当前实现见 `runtime-public-contract.md`、`repository-layout.md`、ADR 与 CHANGELOG；R6 当前执行状态见 `../governance/r6-execution-plan.md`。
+> 当前实现见 `runtime-public-contract.md`、`repository-layout.md`、ADR 与 CHANGELOG。
 
 ## 1. 总体形态
 

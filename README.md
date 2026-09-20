@@ -14,7 +14,7 @@ Productivity · Research & analysis · Content creation
 [![CodeQL](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml)
 ![License](https://img.shields.io/github/license/fongap-labs/delta?label=License)
 
-[Architecture](docs/architecture/target-architecture.md) · [Extension Boundary](docs/governance/REPOSITORY_BOUNDARY.md) · [Development Policy](docs/governance/DEVELOPMENT_POLICY.md)
+[Architecture](docs/architecture/target-architecture.md) · [Extension Boundary](docs/governance/REPOSITORY_BOUNDARY.md)
 
 </div>
 
@@ -121,7 +121,7 @@ Target-repository credentials are not stored in this repository.
 
 ## Documentation
 
-[Blueprint](docs/DELTA_BLUEPRINT.md) · [Target Architecture](docs/architecture/target-architecture.md) · [Runtime Contract](docs/architecture/runtime-public-contract.md) · [Capability ABI](docs/architecture/capability-abi.md) · [Repository Layout](docs/architecture/repository-layout.md) · [Development Policy](docs/governance/DEVELOPMENT_POLICY.md)
+[Blueprint](docs/DELTA_BLUEPRINT.md) · [Target Architecture](docs/architecture/target-architecture.md) · [Runtime Contract](docs/architecture/runtime-public-contract.md) · [Capability ABI](docs/architecture/capability-abi.md) · [Repository Layout](docs/architecture/repository-layout.md)
 
 English is canonical. [简体中文](README.zh-CN.md) is maintained for Chinese readers.
 
