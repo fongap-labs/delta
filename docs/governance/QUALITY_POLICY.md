@@ -18,7 +18,7 @@ Delta 的质量控制应尽量通过自动化验证完成。
 
 ## Required Check
 
-`validate-merge` 是 `main` 的稳定 Required Check。
+`validate-merge` 是 `main` 的稳定 Required Check；`ci-evidence` 聚合项目本地验证，`validate-merge` 在 Pull Request 上同时要求中央 `PR Governance` 成功。
 
 内部 CI job 可以演进，但应保持 `validate-merge` 名称稳定，避免 Ruleset 因内部 job 重命名失效。
 
@@ -176,7 +176,7 @@ Worker / Skill / Connector / Learning 还必须验证不能绕过 Trust 或获�
 
 进入 `main` 前至少满足：
 
-1. `ci-required` 通过；
+1. `ci-evidence` 通过；
 2. 关键 contract / regression tests 通过；
 3. 无已知未处理安全问题；
 4. 没有通过放宽检查掩盖失败；
