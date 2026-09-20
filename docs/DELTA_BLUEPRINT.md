@@ -555,38 +555,7 @@ Workspace
 
 ---
 
-## 10. R5.1 后的收敛方向
-
-R5.1 完成 Runtime correctness 和 Human Control 基础，不等于最终语言 / 进程架构已经完成。
-
-后续 R6 固定目标：
-
-```text
-1. 产品减法：删除 Coding 产品面
-2. 冻结 Python 控制面新增
-3. Rust Runtime Host
-4. TypeScript → Rust direct IPC
-5. Session / Scheduler / Application Control Plane 迁移
-6. Agent Loop 迁移
-7. Python Office / Research / Media Worker 化
-8. 删除常驻 Python Backend 和重复 Provider / facade
-9. Rust + TypeScript hard-cut
-```
-
-R6 期间不顺手：
-
-- 新造 WorkItem；
-- 建复杂 Multi-Agent；
-- 大改 UI 设计系统；
-- 新增第三模型协议；
-- 扩 Coding 产品；
-- 同时把三个产品域全部功能做满。
-
-迁移目标是减少控制面和重复实现，不是机械提高 Rust 行数占比。
-
----
-
-## 11. 开发过滤器
+## 10. 开发过滤器
 
 任何新能力进入主线前必须回答：
 
@@ -602,7 +571,7 @@ R6 期间不顺手：
 
 ---
 
-## 12. 长期成功标准
+## 11. 长期成功标准
 
 Delta 的成功不按：
 
