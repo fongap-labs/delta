@@ -104,7 +104,7 @@ extern "system" {
 
 /// The tray has no i18n store of its own and is created before the webview (and its
 /// backend-stored locale preference) exists, so the OS UI language is the correct proxy
-/// for localizing tray labels — Chinese systems get 打开 Delta / 设置 / 退出, everything
+/// for localizing tray labels — Chinese systems get Open Delta / Settings / Quit, everything
 /// else keeps the English labels. (Windows: `GetUserDefaultUILanguage` LANGID, primary
 /// language 0x04 = Chinese. Other platforms: `LANG`/`LC_ALL` prefix.)
 fn is_tray_chinese() -> bool {
@@ -350,8 +350,8 @@ fn voice_input_compatibility() -> (bool, String, Option<String>) {
 #[cfg(target_os = "windows")]
 fn voice_input_compatibility() -> (bool, String, Option<String>) {
     // `cmd /C ver` prints the localised "Windows [Version …]" line in the OEM codepage
-    // (e.g. GBK/CP936 on Chinese Windows); naive UTF-8 decoding turns '版本'/'Version'
-    // into replacement chars. We only need the ASCII "10.0.x" run, so broadcast-decode the
+    // (e.g. GBK/CP936 on Chinese Windows); naive UTF-8 decoding turns the localized
+    // "Version" word into replacement chars. We only need the ASCII "10.0.x" run, so broadcast-decode the
     // bytes as CP936 (with lossy fallback) and pull the numeric tokens out of that — the
     // number itself is pure ASCII and identical under any codepage.
     let decode = |bytes: &[u8]| {
@@ -831,7 +831,7 @@ pub fn run() {
             });
 
             // 3. System tray: Open / Settings / Quit. Tray labels follow the OS UI language
-            // (Chinese systems get 打开 Delta / 设置 / 退出) so nothing English surfaces in a
+            // (Chinese systems get Open Delta / Settings / Quit) so nothing English surfaces in a
             // Chinese environment; the menu handles stay language-neutral.
             let zh = is_tray_chinese();
             let open_label = if zh { "打开 Delta" } else { "Open Delta" };
