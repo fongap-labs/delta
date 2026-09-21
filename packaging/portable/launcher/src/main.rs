@@ -71,8 +71,12 @@ fn run() -> Result<(), String> {
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    cmd.spawn()
-        .map_err(|e| format!("Failed to launch main executable:\n{}\n\n{e}", app_exe.display()))?;
+    cmd.spawn().map_err(|e| {
+        format!(
+            "Failed to launch main executable:\n{}\n\n{e}",
+            app_exe.display()
+        )
+    })?;
     // Bootstrap only: the child inherits the complete environment and current directory at
     // spawn time. Staying resident adds no cleanup or signalling guarantee, so return as
     // soon as launch succeeds.
@@ -82,9 +86,9 @@ fn run() -> Result<(), String> {
 /// ROOT is always the launcher's own parent directory — location-independent by construction.
 fn portable_root() -> Result<PathBuf, String> {
     let exe = env::current_exe().map_err(|e| format!("Failed to locate launcher: {e}"))?;
-    exe.parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "Failed to resolve portable root (launcher has no parent directory)".to_string())
+    exe.parent().map(Path::to_path_buf).ok_or_else(|| {
+        "Failed to resolve portable root (launcher has no parent directory)".to_string()
+    })
 }
 
 /// Initialize `Data`: writability probe, first-run `DefaultData` seed, and the standard
@@ -94,8 +98,12 @@ fn init_data(root: &Path, data_dir: &Path) -> Result<(), String> {
     // existing user data is never touched, overwritten, or merged back into.
     let first_run = !data_dir.exists();
 
-    std::fs::create_dir_all(data_dir)
-        .map_err(|e| format!("Failed to create data directory:\n{}\n\n{e}", data_dir.display()))?;
+    std::fs::create_dir_all(data_dir).map_err(|e| {
+        format!(
+            "Failed to create data directory:\n{}\n\n{e}",
+            data_dir.display()
+        )
+    })?;
 
     // Writable probe: if we can't write a marker file, the ROOT is not portable-safe
     // (e.g. Program Files or a read-only share). Show it clearly instead of failing later
