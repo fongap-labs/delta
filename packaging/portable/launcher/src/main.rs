@@ -27,7 +27,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn main() {
     if let Err(msg) = run() {
-        show_error("Delta Portable 启动失败", &msg);
+        show_error("Delta Portable failed to start", &msg);
         std::process::exit(1);
     }
 }
@@ -37,7 +37,7 @@ fn run() -> Result<(), String> {
     let app_exe = root.join("App").join("Delta").join("Delta.exe");
     if !app_exe.is_file() {
         return Err(format!(
-            "未找到主程序：\n{}\n\n便携版目录结构已损坏，请重新解压整个文件夹。",
+            "Main executable not found:\n{}\n\nThe portable directory structure is corrupted. Please re-extract the entire folder.",
             app_exe.display()
         ));
     }
@@ -72,7 +72,7 @@ fn run() -> Result<(), String> {
     cmd.creation_flags(CREATE_NO_WINDOW);
 
     cmd.spawn()
-        .map_err(|e| format!("无法启动主程序：\n{}\n\n{e}", app_exe.display()))?;
+        .map_err(|e| format!("Failed to launch main executable:\n{}\n\n{e}", app_exe.display()))?;
     // Bootstrap only: the child inherits the complete environment and current directory at
     // spawn time. Staying resident adds no cleanup or signalling guarantee, so return as
     // soon as launch succeeds.
@@ -81,10 +81,10 @@ fn run() -> Result<(), String> {
 
 /// ROOT is always the launcher's own parent directory — location-independent by construction.
 fn portable_root() -> Result<PathBuf, String> {
-    let exe = env::current_exe().map_err(|e| format!("无法定位启动器自身：{e}"))?;
+    let exe = env::current_exe().map_err(|e| format!("Failed to locate launcher: {e}"))?;
     exe.parent()
         .map(Path::to_path_buf)
-        .ok_or_else(|| "无法解析便携版根目录（启动器没有父目录）".to_string())
+        .ok_or_else(|| "Failed to resolve portable root (launcher has no parent directory)".to_string())
 }
 
 /// Initialize `Data`: writability probe, first-run `DefaultData` seed, and the standard
@@ -95,7 +95,7 @@ fn init_data(root: &Path, data_dir: &Path) -> Result<(), String> {
     let first_run = !data_dir.exists();
 
     std::fs::create_dir_all(data_dir)
-        .map_err(|e| format!("无法创建数据目录：\n{}\n\n{e}", data_dir.display()))?;
+        .map_err(|e| format!("Failed to create data directory:\n{}\n\n{e}", data_dir.display()))?;
 
     // Writable probe: if we can't write a marker file, the ROOT is not portable-safe
     // (e.g. Program Files or a read-only share). Show it clearly instead of failing later
@@ -103,7 +103,7 @@ fn init_data(root: &Path, data_dir: &Path) -> Result<(), String> {
     let probe = data_dir.join(".write-probe");
     if let Err(e) = std::fs::write(&probe, b"ok") {
         return Err(format!(
-            "便携版目录不可写：\n{}\n\n{e}\n\n请将整个文件夹移动到可写位置（不要放在 Program Files 等系统目录，本程序不会请求管理员权限）。",
+            "Portable directory is not writable:\n{}\n\n{e}\n\nPlease move the entire folder to a writable location (do not place it in system directories like Program Files; this program will not request administrator privileges).",
             data_dir.display()
         ));
     }
@@ -118,7 +118,7 @@ fn init_data(root: &Path, data_dir: &Path) -> Result<(), String> {
 
     for sub in ["workspace", "logs", "scratch", "cache"] {
         std::fs::create_dir_all(data_dir.join(sub))
-            .map_err(|e| format!("无法创建数据子目录 {sub}：{e}"))?;
+            .map_err(|e| format!("Failed to create data subdirectory {sub}: {e}"))?;
     }
     Ok(())
 }
@@ -126,19 +126,19 @@ fn init_data(root: &Path, data_dir: &Path) -> Result<(), String> {
 /// Recursively copy `src` into `dst`, only creating directories and copying files that do
 /// not yet exist at the destination. Missing-file-only semantics: idempotent and non-destructive.
 fn copy_tree_missing(src: &Path, dst: &Path) -> Result<(), String> {
-    for entry in std::fs::read_dir(src).map_err(|e| format!("读取 DefaultData 失败：{e}"))? {
-        let entry = entry.map_err(|e| format!("读取 DefaultData 条目失败：{e}"))?;
+    for entry in std::fs::read_dir(src).map_err(|e| format!("Failed to read DefaultData: {e}"))? {
+        let entry = entry.map_err(|e| format!("Failed to read DefaultData entry: {e}"))?;
         let s = entry.path();
         let d = dst.join(entry.file_name());
         let meta = entry
             .file_type()
-            .map_err(|e| format!("读取 DefaultData 条目类型失败：{e}"))?;
+            .map_err(|e| format!("Failed to read DefaultData entry type: {e}"))?;
         if meta.is_dir() {
             std::fs::create_dir_all(&d)
-                .map_err(|e| format!("创建目录失败：{} {e}", d.display()))?;
+                .map_err(|e| format!("Failed to create directory: {} {e}", d.display()))?;
             copy_tree_missing(&s, &d)?;
         } else if meta.is_file() && !d.exists() {
-            std::fs::copy(&s, &d).map_err(|e| format!("复制 {} 失败：{e}", d.display()))?;
+            std::fs::copy(&s, &d).map_err(|e| format!("Failed to copy {}: {e}", d.display()))?;
         }
     }
     Ok(())

@@ -160,7 +160,7 @@ fn classify_impl(input: &RetryClassifyInput) -> ErrorClass {
 
     // Stream truncation markers — NOT retried.
     if text.contains("finish_reason")
-        && (text.contains("truncat") || text.contains("上游流式响应被截断"))
+        && (text.contains("truncat") || text.contains("upstream streaming response truncated"))
     {
         return ErrorClass::StreamTruncated;
     }

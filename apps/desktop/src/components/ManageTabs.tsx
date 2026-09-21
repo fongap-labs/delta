@@ -90,7 +90,7 @@ export function ModelsTab() {
   const knownNames = ps.providers.map((p) => p.name);
 
   if (ps.sel === null && !ps.isCreating) {
-    // "你的服务商" first once any custom provider exists; the add-provider
+    // "Your providers" first once any custom provider exists; the add-provider
     // entry sits below as a quiet one-line link (no large card, no always-on
     // copy). The form only appears when the user opts in.
     const hasCustom = ps.orderedCustom.length > 0;
@@ -209,9 +209,9 @@ export function ModelsTab() {
         )
       )}
 
-      {/* Danger zone — always the LAST block on the page (spec: 删除服务商必须位于
-          整个页面最下方), with an explicit two-step confirm instead of a bare red
-          link that deletes on click. */}
+      {/* Danger zone — always the LAST block on the page (spec: delete-provider
+          must sit at the very bottom of the page), with an explicit two-step
+          confirm instead of a bare red link that deletes on click. */}
       {ps.sel && !ps.isCreating && (info?.custom || ps.credentialed) && (
         <DangerZone
           label={info?.custom ? info.alias || info.name : info?.title || ""}
@@ -223,8 +223,9 @@ export function ModelsTab() {
   );
 }
 
-/** 危险操作 — delete-this-provider block with an inline two-step confirmation
-    ("删除 FongAI？该服务商的连接配置和模型设置将被移除。此操作无法撤销。"). */
+/** Danger zone — delete-this-provider block with an inline two-step confirmation
+    ("Remove FongAI? This provider's connection config and model settings will be
+    removed. This action cannot be undone."). */
 function DangerZone({
   label,
   custom,
