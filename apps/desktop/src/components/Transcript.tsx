@@ -638,7 +638,7 @@ export function Transcript({ items, running, streamingText, onRetry, onUndoMemor
             return (
               <div className="group bubble-assistant" key={bi}>
                 {/* No "assistant" speaker label — mainstream chat UIs distinguish by
-                    alignment alone, and the label read as a stray "智能体" tag. */}
+                    alignment alone, and the label read as a stray "Agent" tag. */}
                 {item.reasoning && <ThinkingBlock text={item.reasoning} />}
                 <Markdown text={item.text} />
                 <BubbleMeta text={item.text} ts={item.ts} align="left" />

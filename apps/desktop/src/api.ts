@@ -1238,7 +1238,7 @@ export async function removeCustomProvider(
 
 /**
  * Fetch a configured (or just-entered) custom provider's model list and auto-add
- * each id as `alias:{id}` per "按前缀自动加入". Returns the bare ids plus what was
+ * each id as `alias:{id}` per the "auto-add by prefix" rule. Returns the bare ids plus what was
  * newly added.
  */
 export async function fetchModels(

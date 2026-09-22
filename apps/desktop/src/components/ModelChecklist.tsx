@@ -6,8 +6,9 @@ import { useI18n } from "@delta/i18n/I18nContext";
 //   checkbox = shown in the composer's model picker (display)
 //   radio    = the model new sessions start with (default; exactly one)
 // The default model can never be unchecked — the backend rejects it and the row
-// explains why (spec: 默认模型不能处于隐藏状态). Manual adds live behind a collapsed
-// "＋ 手动添加模型" row so discovery-first flow stays clean. Shared by Onboarding
+// explains why (spec: the default model cannot be hidden). Manual adds live behind a
+// collapsed "+ Add model manually" row so discovery-first flow stays clean. Shared by
+// Onboarding
 // and Settings ▸ Models.
 export function ModelChecklist({
   provider,
@@ -106,8 +107,8 @@ export function ModelChecklist({
               {t("models.defaultCannotHide", undefined, "Pick a new default model before hiding this one.")}
             </div>
           )}
-          {/* One shared column header (使用 | 模型 | 默认) instead of repeating the
-              "默认" label on every row; aria-hidden — the inputs carry real labels. */}
+          {/* One shared column header (Use | Model | Default) instead of repeating the
+              "Default" label on every row; aria-hidden — the inputs carry real labels. */}
           <div className="mlist-head" aria-hidden="true">
             <span>{t("models.colUse", undefined, "Use")}</span>
             <span>{t("models.colModel", undefined, "Model")}</span>

@@ -177,7 +177,7 @@ export interface ProviderSetupState {
   // on the form when verify fails — a custom provider is first-class the moment it's named,
   // so a failing test is not a reason to discard it. Returns true on verify success.
   runCustomCreate: () => Promise<boolean>;
-  // Fetch the provider's model list and auto-add each id as `alias:{id}` (按前缀自动加入).
+  // Fetch the provider's model list and auto-add each id as alias:{id} (auto-add by prefix).
   fetchCustomModels: () => Promise<void>;
   isFetching: boolean;
   fetchMsg: { state: "ok" | "error"; text: string } | null;
@@ -390,7 +390,7 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     return true;
   };
 
-  // Fetch a provider's model list and auto-add each id as `alias:{id}` (按前缀自动加入).
+  // Fetch a provider's model list and auto-add each id as alias:{id} (auto-add by prefix).
   // Works from the edit form (sel set) or the create form (alias still being authored) —
   // in create mode the alias is registered first since fetchModels resolves its descriptor.
   const fetchCustomModels = async (): Promise<void> => {
@@ -780,7 +780,7 @@ export function ProviderForm({
 
       <div className="rounded-xl border border-line bg-panel p-4">
       {/* Identity is fixed at creation: the alias IS the model routing prefix. Rendered
-          read-only under its honest name (路由标识) — "服务名称" implied it was editable. */}
+          read-only under its honest name (routing identifier) — "service name" implied it was editable. */}
       {info?.custom && (
         <>
           <div className="mb-3">

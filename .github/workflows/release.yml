@@ -233,7 +233,7 @@ jobs:
             $env:DELTA_STATE_DIR = $oldStateDir
           }
 
-          $unicodeRoot = Join-Path $env:RUNNER_TEMP "测试 Delta\Delta 移动测试\Delta"
+          $unicodeRoot = Join-Path $env:RUNNER_TEMP "test-Delta\Delta move-test\Delta"
 
           if (Test-Path -LiteralPath $unicodeRoot) {
             Remove-Item -LiteralPath $unicodeRoot -Recurse -Force

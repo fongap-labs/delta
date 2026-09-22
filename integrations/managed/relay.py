@@ -9,7 +9,7 @@ is implemented, it will live in `integrations/managed/adapters/<provider>.py`
 and provide a `RelayTransport` implementation.
 
 When no managed relay is configured, NullRelayTransport is used and the relay
-stays disconnected — manual Socket Mode / PAT paths are unaffected.
+stays disconnected — manual Socket Mode / TOKEN paths are unaffected.
 """
 
 from __future__ import annotations
