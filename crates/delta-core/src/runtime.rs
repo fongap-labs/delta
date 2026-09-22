@@ -673,6 +673,11 @@ enum RuntimeCommand {
         change: ModelChange,
         reply: mpsc::Sender<Result<Option<String>, String>>,
     },
+    RefreshRuntime {
+        config: Box<RuntimeConfig>,
+        tools: Value,
+        reply: mpsc::Sender<Result<Option<String>, String>>,
+    },
     Truncate {
         index: usize,
         reply: mpsc::Sender<Result<usize, String>>,
@@ -1035,6 +1040,11 @@ impl RuntimeHost {
         self.tools = Some(tools);
         self
     }
+
+    fn replace_tools(&mut self, tools: Value) {
+        self.tools = Some(tools);
+    }
+
     pub fn with_tool_executor(mut self, executor: Arc<dyn ToolExecutor>) -> Self {
         self.tool_executor = executor;
         self
@@ -2970,6 +2980,31 @@ impl RuntimeHandle {
             .map_err(|_| "runtime worker did not acknowledge model switch".to_string())?
     }
 
+    pub fn refresh_runtime(
+        &self,
+        config: RuntimeConfig,
+        tools: Value,
+    ) -> Result<Option<String>, String> {
+        let state = self.state.lock().unwrap();
+        if state.is_active() {
+            return Err(format!(
+                "cannot refresh runtime: session {} has an active run ({state:?})",
+                self.session_id
+            ));
+        }
+        let (reply, response) = mpsc::channel();
+        self.command_tx
+            .send(RuntimeCommand::RefreshRuntime {
+                config: Box::new(config),
+                tools,
+                reply,
+            })
+            .map_err(|_| "runtime worker is unavailable".to_string())?;
+        response
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_| "runtime worker did not acknowledge runtime refresh".to_string())?
+    }
+
     pub fn truncate_messages(&self, index: usize) -> Result<usize, String> {
         let state = self.state.lock().unwrap();
         if state.is_active() {
@@ -3014,6 +3049,18 @@ fn runtime_worker(
                     ModelChange::LegacyId(model) => host.switch_model(&model),
                     ModelChange::Resolved(config) => host.switch_runtime_config(*config),
                 };
+                sync_message_snapshot(&host, &messages);
+                let result = host.ensure_event_delivery().map(|_| notice);
+                let _ = reply.send(result);
+            }
+            RuntimeCommand::RefreshRuntime {
+                config,
+                tools,
+                reply,
+            } => {
+                host.clear_event_error();
+                let notice = host.switch_runtime_config(*config);
+                host.replace_tools(tools);
                 sync_message_snapshot(&host, &messages);
                 let result = host.ensure_event_delivery().map(|_| notice);
                 let _ = reply.send(result);
@@ -3174,6 +3221,17 @@ mod tests {
         assert!(notice.is_some());
         assert_eq!(host.model(), "claude-sonnet-4-6");
         assert!(host.switch_model("claude-sonnet-4-6").is_none());
+    }
+
+    #[test]
+    fn test_replace_tools() {
+        let mut host = RuntimeHost::new("s1", RuntimeConfig::default())
+            .with_tools(json!([{"type": "function", "function": {"name": "old"}}]));
+        host.replace_tools(json!([{"type": "function", "function": {"name": "new"}}]));
+        assert_eq!(
+            host.tools,
+            Some(json!([{"type": "function", "function": {"name": "new"}}]))
+        );
     }
 
     #[test]

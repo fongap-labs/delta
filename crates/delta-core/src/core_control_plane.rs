@@ -459,6 +459,19 @@ impl CoreControlPlane {
             }
         }
 
+        let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
+                    let Some(connector) = registration
+                        .metadata
+                        .get("connector")
+                        .and_then(Value::as_str)
+                    else {
+                        return true;
+                    };
+                    self.application
+                        .tool_available(connector, &registration.tool_name, Some(&session_id))
+                        .unwrap_or(false)
+                });
+
         let mut hosts = match self.hosts.lock() {
             Ok(hosts) => hosts,
             Err(_) => return json!({"ok": false, "error": "runtime host registry lock poisoned"}),
@@ -470,25 +483,14 @@ impl CoreControlPlane {
                     "error": format!("session {session_id} already has an active run")
                 });
             }
-            if let Err(error) = existing.switch_runtime_config(config) {
+            if let Err(error) = existing.refresh_runtime(config, visible_tools.clone()) {
                 return json!({"ok": false, "error": error});
             }
             existing
         } else {
             let mut host = RuntimeHost::new(&session_id, config)
                 .with_authorities(self.authorities.clone())
-                .with_tools(self.capabilities.tool_schemas_filtered(|registration| {
-                    let Some(connector) = registration
-                        .metadata
-                        .get("connector")
-                        .and_then(Value::as_str)
-                    else {
-                        return true;
-                    };
-                    self.application
-                        .tool_available(connector, &registration.tool_name, Some(&session_id))
-                        .unwrap_or(false)
-                }))
+                .with_tools(visible_tools)
                 .with_tool_executor(self.capabilities.clone())
                 .with_event_sink(sink);
             if let Ok(messages) = control_plane::get_session_messages(&self.state_dir, &session_id)
