@@ -460,17 +460,17 @@ impl CoreControlPlane {
         }
 
         let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
-                    let Some(connector) = registration
-                        .metadata
-                        .get("connector")
-                        .and_then(Value::as_str)
-                    else {
-                        return true;
-                    };
-                    self.application
-                        .tool_available(connector, &registration.tool_name, Some(&session_id))
-                        .unwrap_or(false)
-                });
+            let Some(connector) = registration
+                .metadata
+                .get("connector")
+                .and_then(Value::as_str)
+            else {
+                return true;
+            };
+            self.application
+                .tool_available(connector, &registration.tool_name, Some(&session_id))
+                .unwrap_or(false)
+        });
 
         let mut hosts = match self.hosts.lock() {
             Ok(hosts) => hosts,
