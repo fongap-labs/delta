@@ -5,6 +5,8 @@
 //! contract (base.py) so the engine keeps working unchanged.
 
 use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -22,6 +24,42 @@ pub struct ProviderRequest {
     pub base_url: String,
     #[serde(default)]
     pub timeout_secs: Option<f64>,
+}
+
+// Model capabilities matrix loaded from JSON file
+#[derive(Debug, Deserialize, Clone)]
+pub struct ModelCapabilityEntry {
+    pub id: String,
+    #[serde(default)]
+    pub base: Option<String>,
+    pub tools: Option<bool>,
+    pub vision: Option<bool>,
+    pub pdf: Option<bool>,
+    pub parallel_tool_calls: Option<bool>,
+    pub streaming: Option<bool>,
+    pub context_window: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CapabilityMatrix {
+    defaults: serde_json::Value,
+    matrix: Vec<ModelCapabilityEntry>,
+    heuristics: Vec<serde_json::Value>,
+}
+
+static CAPABILITY_MATRIX: OnceLock<CapabilityMatrix> = OnceLock::new();
+
+fn load_capability_matrix() -> &'static CapabilityMatrix {
+    CAPABILITY_MATRIX.get_or_init(|| {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = PathBuf::from(manifest_dir).join("model_capabilities.json");
+        let content = std::fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
+        serde_json::from_str(&content).unwrap_or_else(|_| CapabilityMatrix {
+            defaults: serde_json::json!({}),
+            matrix: vec![],
+            heuristics: vec![],
+        })
+    })
 }
 
 fn versioned_endpoint(base_url: &str, endpoint: &str) -> String {
@@ -1006,205 +1044,6 @@ pub fn stream(
 
 // -- Capabilities (matrix + heuristics) ------------------------------------
 
-#[allow(dead_code)]
-struct MatrixEntry {
-    id: &'static str,
-    tools: bool,
-    vision: bool,
-    pdf: bool,
-    parallel_tool_calls: bool,
-    streaming: bool,
-    context_window: Option<i64>,
-}
-
-const AGENTIC: MatrixEntry = MatrixEntry {
-    id: "",
-    tools: true,
-    vision: false,
-    pdf: false,
-    parallel_tool_calls: true,
-    streaming: true,
-    context_window: None,
-};
-const AGENTIC_VISION: MatrixEntry = MatrixEntry {
-    id: "",
-    tools: true,
-    vision: true,
-    pdf: true,
-    parallel_tool_calls: true,
-    streaming: true,
-    context_window: None,
-};
-
-const MATRIX: &[MatrixEntry] = &[
-    MatrixEntry {
-        id: "gpt-5.6-sol",
-        context_window: Some(400_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "gpt-5.6-terra",
-        context_window: Some(400_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "gpt-5.6-luna",
-        context_window: Some(400_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "gpt-5.5",
-        context_window: Some(400_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "anthropic:claude-fable-5",
-        context_window: Some(1_000_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "anthropic:claude-opus-4-8",
-        context_window: Some(200_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "anthropic:claude-sonnet-4-6",
-        context_window: Some(200_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "anthropic:claude-haiku-4-5",
-        context_window: Some(200_000),
-        ..AGENTIC_VISION
-    },
-    MatrixEntry {
-        id: "meta:muse-spark-1.1",
-        tools: true,
-        vision: true,
-        pdf: false,
-        parallel_tool_calls: true,
-        streaming: true,
-        context_window: None,
-    },
-    MatrixEntry {
-        id: "zai:glm-5.2",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "deepseek:deepseek-v4-flash",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "deepseek:deepseek-v4-pro",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "kimi:kimi-k2.6",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "minimax:MiniMax-M2.5",
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "qwen:qwen3-max",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "xai:grok-4.3",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "mistral:mistral-large-latest",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "together:thinkingmachines/Inkling",
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "together:zai-org/GLM-5.2",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "together:moonshotai/Kimi-K3",
-        tools: true,
-        vision: true,
-        pdf: false,
-        parallel_tool_calls: true,
-        streaming: true,
-        context_window: Some(1_000_000),
-    },
-    MatrixEntry {
-        id: "together:moonshotai/Kimi-K2.7-Code",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "together:moonshotai/Kimi-K2.6",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "together:deepseek-ai/DeepSeek-V4-Pro",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "together:meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-        context_window: Some(1_000_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "fireworks:accounts/fireworks/models/glm-5p2",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "fireworks:accounts/fireworks/models/kimi-k2p6",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "fireworks:accounts/fireworks/models/deepseek-v4-pro",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "fireworks:accounts/fireworks/models/llama4-maverick-instruct-basic",
-        context_window: Some(1_000_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "openrouter:z-ai/glm-5.2",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "openrouter:moonshotai/kimi-k2.6",
-        context_window: Some(256_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "openrouter:deepseek/deepseek-v4-pro",
-        context_window: Some(128_000),
-        ..AGENTIC
-    },
-    MatrixEntry {
-        id: "openrouter:meta-llama/llama-4-maverick",
-        context_window: Some(1_000_000),
-        ..AGENTIC
-    },
-];
-
 fn caps_json(
     has_tools: bool,
     has_vision: bool,
@@ -1226,21 +1065,84 @@ fn caps_json(
     })
 }
 
-pub fn capabilities_for(model: &str) -> Value {
-    if let Some(entry) = MATRIX.iter().find(|e| e.id == model) {
-        return caps_json(
-            entry.tools,
-            entry.vision,
-            entry.pdf,
-            entry.parallel_tool_calls,
-            entry.streaming,
+fn get_base_caps(base: &str, matrix: &CapabilityMatrix) -> (bool, bool, bool, bool, bool) {
+    if base == "agentic" {
+        let d = &matrix.defaults["agentic"];
+        return (
+            d["tools"].as_bool().unwrap_or(true),
+            d["vision"].as_bool().unwrap_or(false),
+            d["pdf"].as_bool().unwrap_or(false),
+            d["parallel_tool_calls"].as_bool().unwrap_or(true),
+            d["streaming"].as_bool().unwrap_or(true),
         );
     }
+    if base == "agentic_vision" {
+        let d = &matrix.defaults["agentic_vision"];
+        return (
+            d["tools"].as_bool().unwrap_or(true),
+            d["vision"].as_bool().unwrap_or(true),
+            d["pdf"].as_bool().unwrap_or(true),
+            d["parallel_tool_calls"].as_bool().unwrap_or(true),
+            d["streaming"].as_bool().unwrap_or(true),
+        );
+    }
+    // Default fallback
+    (true, false, false, true, true)
+}
+
+pub fn capabilities_for(model: &str) -> Value {
+    let matrix = load_capability_matrix();
+    
+    // Check exact match in matrix
+    if let Some(entry) = matrix.matrix.iter().find(|e| e.id == model) {
+        let (tools, vision, pdf, parallel, streaming) = if let Some(base) = &entry.base {
+            get_base_caps(base, matrix)
+        } else {
+            (true, false, false, true, true)
+        };
+        let tools = entry.tools.unwrap_or(tools);
+        let vision = entry.vision.unwrap_or(vision);
+        let pdf = entry.pdf.unwrap_or(pdf);
+        let parallel = entry.parallel_tool_calls.unwrap_or(parallel);
+        let streaming = entry.streaming.unwrap_or(streaming);
+        return caps_json(tools, vision, pdf, parallel, streaming);
+    }
+    
+    // Heuristics based on provider/name
     let (provider, name) = if let Some((p, n)) = model.split_once(':') {
         (p.to_lowercase(), n.to_lowercase())
     } else {
         (String::new(), model.to_lowercase())
     };
+    
+    // Check heuristics
+    for heuristic in &matrix.heuristics {
+        if let Some(provider_h) = heuristic.get("provider") {
+            if provider_h.as_str() == Some(provider.as_str()) {
+                if let Some(caps) = heuristic.get("caps") {
+                    let caps_str = caps.as_str().unwrap_or("");
+                    let (tools, vision, pdf, parallel, streaming) = if caps_str == "agentic" {
+                        get_base_caps("agentic", matrix)
+                    } else if caps_str == "agentic_vision" {
+                        get_base_caps("agentic_vision", matrix)
+                    } else if let Some(obj) = caps.as_object() {
+                        (
+                            obj.get("tools").and_then(|v| v.as_bool()).unwrap_or(true),
+                            obj.get("vision").and_then(|v| v.as_bool()).unwrap_or(false),
+                            obj.get("pdf").and_then(|v| v.as_bool()).unwrap_or(false),
+                            obj.get("parallel_tool_calls").and_then(|v| v.as_bool()).unwrap_or(true),
+                            obj.get("streaming").and_then(|v| v.as_bool()).unwrap_or(true),
+                        )
+                    } else {
+                        continue;
+                    };
+                    return caps_json(tools, vision, pdf, parallel, streaming);
+                }
+            }
+        }
+    }
+    
+    // Fallback heuristics
     if provider == "anthropic" {
         return caps_json(true, true, true, true, true);
     }
@@ -1317,7 +1219,7 @@ pub fn health_record(
     ttft_ms: Option<f64>,
     duration_ms: Option<f64>,
     error_class: Option<&str>,
-) -> Value {
+) -> Result<Value, Value> {
     let ok = is_ok;
     let p = std::path::PathBuf::from(path);
     let mut store: Value = match std::fs::read_to_string(&p) {
@@ -1398,8 +1300,13 @@ pub fn health_record(
     if let Some(parent) = p.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&p, serde_json::to_string_pretty(&store).unwrap_or_default());
-    json!({"ok": true})
+    // Atomic write: write to temp file then rename (atomic on POSIX and Windows).
+    let tmp_path = p.with_extension("tmp");
+    std::fs::write(&tmp_path, serde_json::to_string_pretty(&store).unwrap_or_default())
+        .map_err(|e| json!({"ok": false, "error": e.to_string()}))?;
+    std::fs::rename(&tmp_path, &p)
+        .map_err(|e| json!({"ok": false, "error": e.to_string()}))?;
+    Ok(json!({"ok": true}))
 }
 
 pub fn health_profile(path: &str, endpoint: &str, model: &str) -> Value {

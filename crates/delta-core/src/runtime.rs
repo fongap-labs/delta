@@ -701,6 +701,7 @@ pub struct RuntimeHandle {
     messages: Arc<RwLock<Vec<Value>>>,
     approvals: Arc<ApprovalController>,
     interactions: Arc<InteractionController>,
+    last_activity: Arc<Mutex<std::time::Instant>>,
 }
 
 fn now_ts() -> f64 {
@@ -714,15 +715,19 @@ fn uuid_v4() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+/// Structured error classification for retry decisions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetryableErrorClass {
+    RateLimit,
+    ServerError,
+    TTFTTimeout,
+    ConnectionError,
+    Unknown,
+}
+
 fn is_retryable_error(e: &str) -> bool {
-    let lower = e.to_lowercase();
-    lower.contains("429")
-        || lower.contains("502")
-        || lower.contains("503")
-        || lower.contains("504")
-        || lower.contains("connection")
-        || lower.contains("timeout")
-        || lower.contains("transport")
+    let err = classify_transient_error(e);
+    matches!(err.as_str(), "RateLimit" | "ServerError" | "TTFTTimeout" | "ConnectionError")
 }
 
 fn classify_transient_error(e: &str) -> String {
@@ -2772,6 +2777,7 @@ impl RuntimeHandle {
             messages,
             approvals,
             interactions,
+            last_activity: Arc::new(Mutex::new(std::time::Instant::now())),
         })
     }
 
@@ -2785,6 +2791,16 @@ impl RuntimeHandle {
 
     pub fn messages(&self) -> Vec<Value> {
         self.messages.read().unwrap().clone()
+    }
+
+    /// Returns the time since the last activity on this handle.
+    pub fn last_activity(&self) -> std::time::Duration {
+        self.last_activity.lock().unwrap().elapsed()
+    }
+
+    /// Updates the last activity timestamp to now.
+    pub fn touch(&self) {
+        *self.last_activity.lock().unwrap() = std::time::Instant::now();
     }
 
     pub fn resolve_approval(
@@ -2846,6 +2862,7 @@ impl RuntimeHandle {
     }
 
     fn enqueue_operation(&self, operation: RuntimeOperation) -> Result<(), String> {
+        self.touch();
         let mut state = self.state.lock().unwrap();
         if state.is_active() {
             return Err(format!(

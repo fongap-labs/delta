@@ -397,11 +397,16 @@ pub fn enforce_plan_mode(level: RiskLevel, mut decision: Decision) -> Decision {
         decision.needs_user = false;
         decision.rule = String::new();
         decision.reason = format!(
-            "plan mode is active: only read-only capabilities are permitted; this call is {level:?} (mutation / external / destructive / secret / network write){}",
+            "plan mode is active: only read-only capabilities are permitted; this call is {level:?} (mutation / external / destructive / secret / network write). Plan mode is a hard constraint — not a prompt suggestion — so the call is rejected without offering approval.{}{}",
             if !decision.reason.is_empty() {
                 format!("; was: {}", decision.reason)
             } else {
                 String::new()
+            },
+            if level >= RiskLevel::L4 {
+                " (L4 irreversible actions are never auto-allowed even outside plan mode)"
+            } else {
+                ""
             }
         );
     }

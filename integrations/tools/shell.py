@@ -114,6 +114,10 @@ class _BackgroundTask:
         self.id = task_id
         self.command = command
         self.should_detach = should_detach
+        # TOCTOU mitigation: validate cwd is still a directory before spawning
+        cwd_path = Path(cwd)
+        if not cwd_path.is_dir():
+            raise OSError(f"working directory does not exist or is not a directory: {cwd}")
         if _IS_WINDOWS:
             argv = ["powershell.exe", "-NoProfile", "-Command", command]
             spawn_kwargs: dict[str, Any] = {
@@ -480,6 +484,9 @@ class LocalExecutor(Executor):
             task.proc.wait(timeout=5)
         except (subprocess.TimeoutExpired, OSError):
             pass
+        # Wait for the reader thread to finish draining the pipe
+        if task._reader.is_alive():
+            task._reader.join(timeout=2)
         self._emit_process_event("process.killed", task)
         return {
             "task_id": task_id,

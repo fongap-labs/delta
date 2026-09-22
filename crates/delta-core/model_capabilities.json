@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "defaults": {
+    "agentic": {
+      "tools": true,
+      "vision": false,
+      "pdf": false,
+      "parallel_tool_calls": true,
+      "streaming": true,
+      "context_window": null
+    },
+    "agentic_vision": {
+      "tools": true,
+      "vision": true,
+      "pdf": true,
+      "parallel_tool_calls": true,
+      "streaming": true,
+      "context_window": null
+    }
+  },
+  "matrix": [
+    {"id": "gpt-5.6-sol", "base": "agentic_vision", "context_window": 400000},
+    {"id": "gpt-5.6-terra", "base": "agentic_vision", "context_window": 400000},
+    {"id": "gpt-5.6-luna", "base": "agentic_vision", "context_window": 400000},
+    {"id": "gpt-5.5", "base": "agentic_vision", "context_window": 400000},
+    {"id": "anthropic:claude-fable-5", "base": "agentic_vision", "context_window": 1000000},
+    {"id": "anthropic:claude-opus-4-8", "base": "agentic_vision", "context_window": 200000},
+    {"id": "anthropic:claude-sonnet-4-6", "base": "agentic_vision", "context_window": 200000},
+    {"id": "anthropic:claude-haiku-4-5", "base": "agentic_vision", "context_window": 200000},
+    {"id": "meta:muse-spark-1.1", "tools": true, "vision": true, "pdf": false, "parallel_tool_calls": true, "streaming": true, "context_window": null},
+    {"id": "zai:glm-5.2", "base": "agentic", "context_window": 128000},
+    {"id": "deepseek:deepseek-v4-flash", "base": "agentic", "context_window": 128000},
+    {"id": "deepseek:deepseek-v4-pro", "base": "agentic", "context_window": 128000},
+    {"id": "kimi:kimi-k2.6", "base": "agentic", "context_window": 256000},
+    {"id": "minimax:MiniMax-M2.5", "base": "agentic"},
+    {"id": "qwen:qwen3-max", "base": "agentic", "context_window": 256000},
+    {"id": "xai:grok-4.3", "base": "agentic", "context_window": 256000},
+    {"id": "mistral:mistral-large-latest", "base": "agentic", "context_window": 128000},
+    {"id": "together:thinkingmachines/Inkling", "base": "agentic"},
+    {"id": "together:zai-org/GLM-5.2", "base": "agentic", "context_window": 128000},
+    {"id": "together:moonshotai/Kimi-K3", "tools": true, "vision": true, "pdf": false, "parallel_tool_calls": true, "streaming": true, "context_window": 1000000},
+    {"id": "together:moonshotai/Kimi-K2.7-Code", "base": "agentic", "context_window": 256000},
+    {"id": "together:moonshotai/Kimi-K2.6", "base": "agentic", "context_window": 256000},
+    {"id": "together:deepseek-ai/DeepSeek-V4-Pro", "base": "agentic", "context_window": 128000},
+    {"id": "together:meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", "base": "agentic", "context_window": 1000000},
+    {"id": "fireworks:accounts/fireworks/models/glm-5p2", "base": "agentic", "context_window": 128000},
+    {"id": "fireworks:accounts/fireworks/models/kimi-k2p6", "base": "agentic", "context_window": 256000},
+    {"id": "fireworks:accounts/fireworks/models/deepseek-v4-pro", "base": "agentic", "context_window": 128000},
+    {"id": "fireworks:accounts/fireworks/models/llama4-maverick-instruct-basic", "base": "agentic", "context_window": 1000000},
+    {"id": "openrouter:z-ai/glm-5.2", "base": "agentic", "context_window": 128000},
+    {"id": "openrouter:moonshotai/kimi-k2.6", "base": "agentic", "context_window": 256000},
+    {"id": "openrouter:deepseek/deepseek-v4-pro", "base": "agentic", "context_window": 128000},
+    {"id": "openrouter:meta-llama/llama-4-maverick", "base": "agentic", "context_window": 1000000}
+  ],
+  "heuristics": [
+    {"provider": "anthropic", "caps": "agentic_vision"},
+    {"provider": "gpt-5", "caps": "agentic_vision"},
+    {"provider": "gpt-4", "caps": "agentic_vision"},
+    {"provider": "o1", "caps": {"tools": true, "vision": false, "pdf": false, "parallel_tool_calls": false, "streaming": true}},
+    {"provider": "o3", "caps": {"tools": true, "vision": false, "pdf": false, "parallel_tool_calls": false, "streaming": true}},
+    {"provider": "o4", "caps": {"tools": true, "vision": false, "pdf": false, "parallel_tool_calls": false, "streaming": true}},
+    {"provider": "deepseek", "caps": "agentic"},
+    {"provider": "glm", "caps": "agentic"},
+    {"provider": "kimi", "caps": "agentic"},
+    {"provider": "minimax", "caps": "agentic"},
+    {"provider": "qwen", "caps": "agentic"},
+    {"provider": "grok", "caps": "agentic"},
+    {"provider": "mistral", "caps": "agentic"},
+    {"provider": "magistral", "caps": "agentic"}
+  ]
+}

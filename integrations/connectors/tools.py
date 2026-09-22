@@ -8,6 +8,7 @@ providers and never become Foundation policy.
 from __future__ import annotations
 
 import importlib
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -128,18 +129,33 @@ def _resolve_within(path: str, bases: list[Path]) -> Path | None:
     return None
 
 
+# Browser pool for _render_html_png to avoid launching a new browser each time.
+# Protected by a lock to ensure thread safety.
+_BROWSER_POOL: dict[str, Any] = {}
+_BROWSER_POOL_LOCK = threading.Lock()
+
+def _get_browser() -> Any:
+    """Get or create a shared browser instance."""
+    with _BROWSER_POOL_LOCK:
+        if "default" not in _BROWSER_POOL:
+            sync_playwright = importlib.import_module("playwright.sync_api").sync_playwright
+            playwright = sync_playwright().start()
+            browser = playwright.chromium.launch()
+            _BROWSER_POOL["default"] = (playwright, browser)
+        return _BROWSER_POOL["default"][1]
+
+
 def _render_html_png(path: Path) -> bytes:
-    """Compatibility renderer; concrete browser automation remains separately pluggable."""
-    sync_playwright = importlib.import_module("playwright.sync_api").sync_playwright
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch()
-        try:
-            page = browser.new_page(viewport={"width": 1280, "height": 800})
-            page.goto(path.as_uri())
-            page.wait_for_timeout(500)
-            return page.screenshot(full_page=False)
-        finally:
-            browser.close()
+    """Compatibility renderer; concrete browser automation remains separately pluggable.
+    Uses a shared browser instance for efficiency."""
+    browser = _get_browser()
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    try:
+        page.goto(path.as_uri())
+        page.wait_for_timeout(500)
+        return page.screenshot(full_page=False)
+    finally:
+        page.close()
 
 
 def build_send_file(

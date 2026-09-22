@@ -149,6 +149,14 @@ def file_tools(
                 return {"error": "path escapes the workspace"}
         if not target.is_file():
             return {"error": f"not a file: {path}"}
+        # TOCTOU mitigation: ensure target is not a symlink after resolution.
+        # On POSIX, we could use os.open with O_NOFOLLOW, but Python's open
+        # doesn't expose that flag portably. A best-effort check:
+        try:
+            if target.is_symlink():
+                return {"error": "symlinks are not allowed"}
+        except OSError:
+            pass
 
         selected: list[str] = []
         has_more = False
