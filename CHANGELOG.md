@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: refresh model-visible tool schemas for reused session runtimes after Connector state changes.
+
 - refactor [breaking, migration]: hard cut the central governance dispatch credential and derive its repository target.
 
 - fix: stabilize Windows persistent shell result parsing after directory changes.
