@@ -24,7 +24,7 @@ dev = [
     # CI tools stay in the project lockfile for reproducible static/audit gates.
     "pip-audit==2.10.1",
     "pyright==1.1.414",
-    "ruff==0.16.7",
+    "ruff==0.16.8",
 ]
 browser = ["playwright==1.63.0"]
 [project.scripts]
