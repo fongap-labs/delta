@@ -2325,7 +2325,8 @@ fn handle(cmd: Command, cache: &Mutex<ConnCache>) -> Value {
             ttft_ms,
             duration_ms,
             error_class.as_deref(),
-        ).map_err(|e| e.to_string()),
+        )
+        .map_err(|e| e.to_string()),
         Command::HealthProfile {
             path,
             endpoint,

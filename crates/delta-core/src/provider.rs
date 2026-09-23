@@ -1092,7 +1092,7 @@ fn get_base_caps(base: &str, matrix: &CapabilityMatrix) -> (bool, bool, bool, bo
 
 pub fn capabilities_for(model: &str) -> Value {
     let matrix = load_capability_matrix();
-    
+
     // Check exact match in matrix
     if let Some(entry) = matrix.matrix.iter().find(|e| e.id == model) {
         let (tools, vision, pdf, parallel, streaming) = if let Some(base) = &entry.base {
@@ -1107,14 +1107,14 @@ pub fn capabilities_for(model: &str) -> Value {
         let streaming = entry.streaming.unwrap_or(streaming);
         return caps_json(tools, vision, pdf, parallel, streaming);
     }
-    
+
     // Heuristics based on provider/name
     let (provider, name) = if let Some((p, n)) = model.split_once(':') {
         (p.to_lowercase(), n.to_lowercase())
     } else {
         (String::new(), model.to_lowercase())
     };
-    
+
     // Check heuristics
     for heuristic in &matrix.heuristics {
         if let Some(provider_h) = heuristic.get("provider") {
@@ -1130,8 +1130,12 @@ pub fn capabilities_for(model: &str) -> Value {
                             obj.get("tools").and_then(|v| v.as_bool()).unwrap_or(true),
                             obj.get("vision").and_then(|v| v.as_bool()).unwrap_or(false),
                             obj.get("pdf").and_then(|v| v.as_bool()).unwrap_or(false),
-                            obj.get("parallel_tool_calls").and_then(|v| v.as_bool()).unwrap_or(true),
-                            obj.get("streaming").and_then(|v| v.as_bool()).unwrap_or(true),
+                            obj.get("parallel_tool_calls")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(true),
+                            obj.get("streaming")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(true),
                         )
                     } else {
                         continue;
@@ -1141,7 +1145,7 @@ pub fn capabilities_for(model: &str) -> Value {
             }
         }
     }
-    
+
     // Fallback heuristics
     if provider == "anthropic" {
         return caps_json(true, true, true, true, true);
@@ -1302,10 +1306,12 @@ pub fn health_record(
     }
     // Atomic write: write to temp file then rename (atomic on POSIX and Windows).
     let tmp_path = p.with_extension("tmp");
-    std::fs::write(&tmp_path, serde_json::to_string_pretty(&store).unwrap_or_default())
-        .map_err(|e| json!({"ok": false, "error": e.to_string()}))?;
-    std::fs::rename(&tmp_path, &p)
-        .map_err(|e| json!({"ok": false, "error": e.to_string()}))?;
+    std::fs::write(
+        &tmp_path,
+        serde_json::to_string_pretty(&store).unwrap_or_default(),
+    )
+    .map_err(|e| json!({"ok": false, "error": e.to_string()}))?;
+    std::fs::rename(&tmp_path, &p).map_err(|e| json!({"ok": false, "error": e.to_string()}))?;
     Ok(json!({"ok": true}))
 }
 

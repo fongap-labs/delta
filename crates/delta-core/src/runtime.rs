@@ -727,7 +727,10 @@ pub enum RetryableErrorClass {
 
 fn is_retryable_error(e: &str) -> bool {
     let err = classify_transient_error(e);
-    matches!(err.as_str(), "RateLimit" | "ServerError" | "TTFTTimeout" | "ConnectionError")
+    matches!(
+        err.as_str(),
+        "RateLimit" | "ServerError" | "TTFTTimeout" | "ConnectionError"
+    )
 }
 
 fn classify_transient_error(e: &str) -> String {

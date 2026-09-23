@@ -115,7 +115,7 @@ impl CoreControlPlane {
             }
         });
 
-let mut this = Self {
+        let mut this = Self {
             hosts: Mutex::new(HashMap::new()),
             models: Mutex::new(ModelAuthority::open(&state_dir)?),
             authorities: RuntimeAuthorities::open(&state_dir)?,
@@ -129,7 +129,7 @@ let mut this = Self {
             skills: Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?),
             application,
             state_dir,
-_cleanup_task: None,
+            _cleanup_task: None,
         };
         Ok(this)
     }
