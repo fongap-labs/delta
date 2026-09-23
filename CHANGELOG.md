@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- ci: centralize final merge validation through Action Worker while keeping repository-native checks local.
+- fix: make Dependabot uv.lock synchronization follow the current repository instead of a retired owner hardcode.
+
 - fix: refresh model-visible tool schemas for reused session runtimes after Connector state changes.
 
 - refactor [breaking, migration]: hard cut the central governance dispatch credential and derive its repository target.
