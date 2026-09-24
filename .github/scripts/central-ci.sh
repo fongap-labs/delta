@@ -52,6 +52,7 @@ fi
 python3 scripts/check_retired_paths.py
 python3 scripts/check_retired_branding.py
 python3 scripts/check_architecture_boundary.py
+python3 scripts/check_license_policy.py
 
 channel="$(grep '^channel' rust-toolchain.toml | tr -d '\r' | sed 's/.*"\(.*\)"/\1/')"
 rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
@@ -139,10 +140,32 @@ if [ "$rust_required" = "true" ]; then
   python scripts/check_rust_smoke.py --binary crates/delta-core/target/release/delta_core
 fi
 
+cargo install cargo-deny --version 0.20.2 --locked
+
+license_workspaces=(
+  "apps/desktop/src-tauri"
+  "packaging/portable/launcher"
+  "crates/delta-stt"
+  "crates/delta-core"
+)
+for workspace in "${license_workspaces[@]}"; do
+  (
+    cd "$workspace"
+    cargo deny --config "$TARGET_ROOT/deny.toml" check licenses
+  )
+done
+
 if [ "$rust_required" = "true" ] || [ "$rust_advisories_required" = "true" ]; then
-  cargo install cargo-deny --version 0.20.2 --locked
-  for workspace in     apps/desktop/src-tauri     packaging/portable/launcher     crates/delta-stt     crates/delta-core     crates/delta-sdk     crates/delta-connect     crates/delta-sync
-  do
+  advisory_workspaces=(
+    "apps/desktop/src-tauri"
+    "packaging/portable/launcher"
+    "crates/delta-stt"
+    "crates/delta-core"
+    "crates/delta-sdk"
+    "crates/delta-connect"
+    "crates/delta-sync"
+  )
+  for workspace in "${advisory_workspaces[@]}"; do
     (
       cd "$workspace"
       cargo deny --config "$TARGET_ROOT/deny.toml" check advisories
