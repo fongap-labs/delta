@@ -13,7 +13,7 @@ import time
 import pytest
 
 from integrations.tools import ToolRegistry
-from integrations.tools.shell import LocalExecutor, shell_tools
+from integrations.tools.shell import LocalExecutor, _parse_cwd, _parse_exit_code, shell_tools
 
 _WIN = sys.platform == "win32"
 
@@ -28,6 +28,16 @@ PRINT_1000 = (
     if _WIN
     else "for i in $(seq 1 1000); do echo line$i; done"
 )
+
+
+def test_marker_parsers_accept_prefixed_windows_output():
+    marker = "__DELTA_DONE_test__"
+    line = f"\x1b[?1h{marker} 0 C:\\work\\sub\r\n"
+    assert _parse_exit_code(line, marker) == 0
+    assert _parse_cwd(line, marker) == "C:\\work\\sub"
+
+    echoed = f"PS> Write-Output ('{marker} ' + $__delta_exit + ' ' + $PWD.Path)"
+    assert _parse_exit_code(echoed, marker) is None
 
 
 @pytest.fixture
