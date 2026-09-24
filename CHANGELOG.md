@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: expose a Foundation-owned browser connection address contract so interactive providers can pin connections to the vetted IP and close DNS rebinding gaps.
+
 - ci: cancel centralized PR work when a pull request is closed.
 
 - chore: remove the obsolete Dependabot auto-merge workflow because repository auto-merge is centrally disabled.

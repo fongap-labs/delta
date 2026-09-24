@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 from integrations.tools import metadata as ai
 from integrations.tools.metadata import attach_tool_metadata
-from integrations.web.guard import check_url
+from integrations.web.guard import check_url, checked_connection_address
 
 
 BrowserTool = Callable[..., Any]
@@ -90,6 +90,11 @@ def browser_url_refusal(url: str) -> Optional[str]:
     """Return a refusal reason when Foundation network policy rejects ``url``."""
 
     return check_url(url)
+
+def browser_connection_address(url: str) -> str:
+    """Return the Foundation-vetted address an interactive browser may connect to."""
+
+    return checked_connection_address(url)
 
 
 def redirect_refusal(requested: str, final: str) -> Optional[str]:
