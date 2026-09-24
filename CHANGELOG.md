@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- fix: make the Windows persistent shell use deterministic Base64 command framing while preserving cwd and environment state.
+- fix: pin address-checked connector HTTP requests to vetted public IPs and preserve request credentials without following redirects.
 
 - perf: run independent Python and Rust central-CI checks with bounded parallelism to reduce full-suite wall time without reducing coverage.
 
