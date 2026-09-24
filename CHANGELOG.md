@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [breaking]: bind release artifacts to explicit source and workflow-run provenance for centralized Release Governance.
+
 - ci: add a lightweight GitHub Actions merge gate for centralized Action Worker evidence.
 
 - ci: add Linux and Windows project entrypoints for Action Worker centralized CI.
