@@ -17,7 +17,7 @@
 - ci: add Linux and Windows project entrypoints for Action Worker centralized CI.
 
 - ci: centralize final merge validation through Action Worker while keeping repository-native checks local.
-- fix: remove retired repository-owner assumptions from Dependabot maintenance workflows.
+- refactor: remove obsolete Dependabot auto-merge automation under the centralized no-auto-merge policy.
 
 - fix: refresh model-visible tool schemas for reused session runtimes after Connector state changes.
 
