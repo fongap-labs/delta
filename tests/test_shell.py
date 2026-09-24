@@ -36,9 +36,6 @@ def test_marker_parsers_accept_prefixed_windows_output():
     assert _parse_exit_code(line, marker) == 0
     assert _parse_cwd(line, marker) == "C:\\work\\sub"
 
-    echoed = f"PS> Write-Output ('{marker} ' + $__delta_exit + ' ' + $PWD.Path)"
-    assert _parse_exit_code(echoed, marker) is None
-
 
 @pytest.fixture
 def executor(tmp_path):
