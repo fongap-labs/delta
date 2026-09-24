@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: pin address-checked connector HTTP requests to vetted public IPs and preserve request credentials without following redirects.
+
 - perf: run independent Python and Rust central-CI checks with bounded parallelism to reduce full-suite wall time without reducing coverage.
 
 - refactor: move Foundation and Rust license policy checks into Action Worker Central CI and remove the repository-local workflow.
