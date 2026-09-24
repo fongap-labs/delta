@@ -136,6 +136,56 @@ def _pinned(url: str, ip: str) -> tuple[str, dict, dict]:
     return request_url, {"Host": host_header}, extensions
 
 
+def request_checked(
+    client,
+    method: str,
+    url: str,
+    *,
+    headers=None,
+    params=None,
+    json=None,
+    auth=None,
+    max_redirects: int = 0,
+):
+    """Issue an address-checked HTTP request pinned to the vetted address.
+
+    Connector calls use a zero redirect budget by default so credentials are never
+    replayed to a redirect target. Every actual connection uses the address returned
+    by the address guard, closing the DNS check/connect gap for both reads and writes.
+    """
+    seen = url
+    verb = str(method or "GET").upper()
+    for _ in range(max_redirects + 1):
+        reason, pin = _vet(seen)
+        if reason:
+            raise PermissionError(reason)
+        request_headers = dict(headers or {})
+        extensions = {}
+        request_url = seen
+        if pin is not None:
+            request_url, pinned_headers, extensions = _pinned(seen, pin)
+            request_headers.update(pinned_headers)
+        response = client.request(
+            verb,
+            request_url,
+            headers=request_headers or None,
+            params=params,
+            json=json,
+            auth=auth,
+            extensions=extensions or None,
+        )
+        if response.status_code not in (301, 302, 303, 307, 308):
+            ext = getattr(response, "extensions", None)
+            if isinstance(ext, dict):
+                ext["logical_url"] = seen
+            return response
+        location = response.headers.get("location")
+        if not location:
+            return response
+        seen = urljoin(seen, location)
+    raise RuntimeError(f"too many redirects (>{max_redirects})")
+
+
 def get_checked(client, url: str, *, max_redirects: int = MAX_REDIRECTS):
     """GET `url`, validating and pinning the address before every hop.
 

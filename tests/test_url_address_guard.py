@@ -204,6 +204,63 @@ def test_ipv6_answers_are_pinned_with_brackets(monkeypatch):
     assert client.requested == ["https://[2606:2800:220:1:248:1893:25c8:1946]/"]
 
 
+class _RequestClient:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def request(self, method, url, **kwargs):
+        self.calls.append({"method": method, "url": url, **kwargs})
+        return self.response
+
+
+def test_checked_post_is_pinned_and_preserves_connector_credentials(monkeypatch):
+    _resolves_to(monkeypatch, "93.184.216.34")
+    response = _Resp(200)
+    response.extensions = {}
+    client = _RequestClient(response)
+    guard.request_checked(
+        client,
+        "POST",
+        "https://git.example.com/api/query",
+        headers={"Authorization": "Bearer secret"},
+        json={"query": "x"},
+    )
+    call = client.calls[0]
+    assert call["url"] == "https://93.184.216.34/api/query"
+    assert call["headers"]["Host"] == "git.example.com"
+    assert call["headers"]["Authorization"] == "Bearer secret"
+    assert call["extensions"]["sni_hostname"] == "git.example.com"
+    assert call["json"] == {"query": "x"}
+
+
+def test_checked_request_blocks_private_target_before_sending(monkeypatch):
+    _resolves_to(monkeypatch, "127.0.0.1")
+    client = _RequestClient(_Resp(200))
+    with pytest.raises(PermissionError, match="loopback"):
+        guard.request_checked(
+            client,
+            "GET",
+            "https://internal.example/api",
+            headers={"Authorization": "Bearer secret"},
+        )
+    assert client.calls == []
+
+
+def test_checked_connector_request_rejects_redirect_without_replaying_credentials(monkeypatch):
+    _resolves_to(monkeypatch, "93.184.216.34")
+    client = _RequestClient(_Resp(302, location="https://other.example/"))
+    with pytest.raises(RuntimeError, match="too many redirects"):
+        guard.request_checked(
+            client,
+            "GET",
+            "https://git.example.com/api",
+            headers={"Authorization": "Bearer secret"},
+            max_redirects=0,
+        )
+    assert len(client.calls) == 1
+
+
 def test_literal_address_urls_are_fetched_unchanged():
     client = _Client([_Resp(200)])
     guard.get_checked(client, "https://93.184.216.34/x")

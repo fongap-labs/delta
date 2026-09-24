@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 from typing import Any, Callable
 
 from integrations.connectors.tool_defs import approval_for_tool, register_runtime_tool
-from integrations.web.guard import get_checked
+from integrations.web.guard import request_checked
 from integrations.tools import metadata as ai
 from integrations.tools.metadata import attach_tool_metadata
 
@@ -83,11 +83,18 @@ def execute_http_request(
 
         with httpx.Client(timeout=30.0, follow_redirects=not should_check_address) as client:
             if should_check_address:
-                if method.upper() != "GET":
-                    return {"error": "address-checked requests must be GET"}
                 try:
-                    response = get_checked(client, url)
-                except PermissionError as exc:
+                    response = request_checked(
+                        client,
+                        method,
+                        url,
+                        headers=headers,
+                        params=params,
+                        json=json,
+                        auth=auth,
+                        max_redirects=0,
+                    )
+                except (PermissionError, RuntimeError) as exc:
                     return {"error": str(exc)}
             else:
                 response = client.request(
