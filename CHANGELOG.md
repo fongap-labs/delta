@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: make the Windows persistent shell use deterministic Base64 command framing while preserving cwd and environment state.
+
 - perf: run independent Python and Rust central-CI checks with bounded parallelism to reduce full-suite wall time without reducing coverage.
 
 - refactor: move Foundation and Rust license policy checks into Action Worker Central CI and remove the repository-local workflow.
