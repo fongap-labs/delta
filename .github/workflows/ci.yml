@@ -1,7 +1,7 @@
 # Delta CI
 #
 # Validation policy:
-# - Pull Requests run checks according to the affected repository area.
+# - Pull Request checks are executed centrally by fongap-labs/action-worker.
 # - Pushes to main always run the full CI suite.
 # - Repository layout invariants always run.
 # - ci-evidence aggregates repository checks; validate-merge remains the single stable Required Check for main.
