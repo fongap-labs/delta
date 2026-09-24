@@ -381,6 +381,23 @@ jobs:
               ]
             }' > dist/release-manifest.json
 
+      - name: Build release provenance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -n \
+            --arg source_repository "$GITHUB_REPOSITORY" \
+            --arg source_sha "$GITHUB_SHA" \
+            --arg artifact_repository "$GITHUB_REPOSITORY" \
+            --argjson artifact_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema_version: "1",
+              source_repository: $source_repository,
+              source_sha: $source_sha,
+              artifact_repository: $artifact_repository,
+              artifact_run_id: $artifact_run_id
+            }' > dist/release-provenance.json
+
       - name: Verify release package
         shell: bash
         run: |
@@ -390,6 +407,7 @@ jobs:
             delta-windows-x64-portable.sbom.cdx.json
             delta-windows-x64-portable.zip
             release-manifest.json
+            release-provenance.json
           )
 
           mapfile -t actual < <(find dist -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)
