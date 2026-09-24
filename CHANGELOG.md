@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: move repository CI execution to Action Worker while retaining CodeQL and repository-native security automation.
+
 - ci: add Linux and Windows project entrypoints for Action Worker centralized CI.
 
 - ci: centralize final merge validation through Action Worker while keeping repository-native checks local.
