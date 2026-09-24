@@ -23,7 +23,7 @@
 
 - refactor [breaking, migration]: hard cut the central governance dispatch credential and derive its repository target.
 
-- fix: stabilize Windows persistent shell result parsing after directory changes.
+- fix: harden Windows persistent-shell trailer parsing against prefixed PowerShell output.
 
 ## [0.1.0] - 2026-09-18
 
