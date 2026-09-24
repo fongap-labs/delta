@@ -589,19 +589,24 @@ class LocalExecutor(Executor):
 
 
 def _parse_exit_code(line: str, marker: str) -> int | None:
-    parts = line.strip().split()
+    _, found, tail = line.partition(marker)
+    if not found:
+        return None
+    parts = tail.strip().split(maxsplit=1)
+    if not parts:
+        return None
     try:
-        return int(parts[parts.index(marker) + 1])
-    except (ValueError, IndexError):
+        return int(parts[0])
+    except ValueError:
         return None
 
 
 def _parse_cwd(line: str, marker: str) -> str | None:
-    parts = line.strip().split()
-    try:
-        return " ".join(parts[parts.index(marker) + 2 :]) or None
-    except (ValueError, IndexError):
+    _, found, tail = line.partition(marker)
+    if not found:
         return None
+    parts = tail.strip().split(maxsplit=1)
+    return parts[1] if len(parts) == 2 and parts[1] else None
 
 
 _RUN_SHELL_SCHEMA = {
