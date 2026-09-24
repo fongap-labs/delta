@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- perf: run independent Python and Rust central-CI checks with bounded parallelism to reduce full-suite wall time without reducing coverage.
+
 - refactor: move Foundation and Rust license policy checks into Action Worker Central CI and remove the repository-local workflow.
 
 - refactor [breaking]: move Delta main CI, Windows Portable release runners, SBOM packaging, attestation, and Release Governance dispatch to Action Worker.
