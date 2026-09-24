@@ -33,6 +33,7 @@ explicit classes:
 
 from __future__ import annotations
 
+import base64
 import os
 import queue
 import signal
@@ -217,9 +218,10 @@ class LocalExecutor(Executor):
         # execution.
         self.process_event_sink: Any | None = None
 
-        # Pick a native shell per-OS. POSIX drives bash line-by-line; Windows drives
-        # PowerShell in `-Command -` mode, which is a true stdin REPL (executes
-        # incrementally, and cwd/env persist across commands).
+        # Pick a native shell per-OS. POSIX drives bash line-by-line. Windows runs
+        # a fixed PowerShell command loop and sends one Base64-encoded user command per
+        # stdin line. The process stays alive, so cwd/environment state persists while
+        # command framing stays independent of interactive stdin echo/control output.
         if shell_path is None:
             shell_path = "powershell.exe" if self._is_windows else "/bin/bash"
         self._shell_path = shell_path
@@ -232,17 +234,36 @@ class LocalExecutor(Executor):
         in the last known `cwd` (in-shell env/vars are lost, but the session continues).
         """
         if self._is_windows:
+            marker = self._marker.replace("'", "''")
+            driver = (
+                "$ErrorActionPreference = 'Continue'; "
+                "while (($__delta_line = [Console]::In.ReadLine()) -ne $null) { "
+                "$__delta_exit = 1; "
+                "try { "
+                "$__delta_command = [Text.Encoding]::UTF8.GetString("
+                "[Convert]::FromBase64String($__delta_line)); "
+                "$global:LASTEXITCODE = 0; "
+                "Invoke-Expression $__delta_command; "
+                "$__delta_success = $?; "
+                "$__delta_exit = if ($__delta_success) { 0 } "
+                "elseif ($LASTEXITCODE -ne 0) { [int]$LASTEXITCODE } else { 1 }; "
+                "} catch { "
+                "Write-Error $_; "
+                "$__delta_exit = 1; "
+                "} "
+                f"Write-Output ('{marker} ' + $__delta_exit + ' ' + $PWD.Path); "
+                "}"
+            )
             argv = [
                 self._shell_path,
                 "-NoProfile",
                 "-NoLogo",
+                "-NonInteractive",
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                "-",
+                driver,
             ]
-            # New process group so a timeout can deliver Ctrl-Break to the child (and only
-            # the child), without signaling our own process.
             spawn_kwargs: dict[str, Any] = {
                 "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined]
             }
@@ -264,12 +285,6 @@ class LocalExecutor(Executor):
         self._queue: queue.Queue[str | None] = queue.Queue()
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
-
-        if self._is_windows and self._proc.stdin is not None:
-            # Silence the REPL prompt so it never pollutes captured command output.
-            with self._io_lock:
-                self._proc.stdin.write("function prompt { '' }\n")
-                self._proc.stdin.flush()
 
     def _read_loop(self) -> None:
         try:
@@ -296,18 +311,8 @@ class LocalExecutor(Executor):
         # from concurrent run() calls would desync the marker stream.
         with self._io_lock:
             if self._is_windows:
-                # PowerShell `-Command -` may evaluate separate stdin lines in
-                # independent command scopes. Make the location restore, user
-                # command, and result trailer one submission so cwd changes are
-                # captured deterministically. The parsed cwd becomes the starting
-                # location for the next call.
-                cwd = self.cwd.replace("'", "''")
-                submission = (
-                    f"Set-Location -LiteralPath '{cwd}'; "
-                    f"{command}; "
-                    f"{self._trailer().rstrip()}"
-                )
-                self._proc.stdin.write(submission + "\n")
+                payload = base64.b64encode(command.encode("utf-8")).decode("ascii")
+                self._proc.stdin.write(payload + "\n")
             else:
                 self._proc.stdin.write(command + "\n" + self._trailer())
             self._proc.stdin.flush()
@@ -362,11 +367,6 @@ class LocalExecutor(Executor):
                     if cwd:
                         self.cwd = cwd
                     break
-                if self._is_windows:
-                    # PowerShell -Command - can echo the submitted command text,
-                    # which itself contains the unique marker. Ignore that echo and
-                    # wait for the actual plain trailer line with an integer exit code.
-                    continue
             lines.append(item)
 
         output = "".join(lines)
@@ -492,16 +492,7 @@ class LocalExecutor(Executor):
         parsed by `_parse_exit_code` / `_parse_cwd`. Reads the exit status of the *preceding*
         command, so it must run as its own statement right after it."""
         if self._is_windows:
-            # Capture the preceding command status before any trailer statement can
-            # overwrite `$?`. Write a plain line instead of relying on expandable-string
-            # formatting, which can produce an unparsable marker on PowerShell runners.
-            marker = self._marker.replace("'", "''")
-            return (
-                "$__delta_success = $?; "
-                "$__delta_exit = if ($__delta_success) { 0 } "
-                "elseif ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 1 }; "
-                f"Write-Output ('{marker} ' + $__delta_exit + ' ' + $PWD.Path)\n"
-            )
+            raise RuntimeError("Windows trailers are emitted by the persistent driver")
         return f'printf "\\n%s %s %s\\n" "{self._marker}" "$?" "$PWD"\n'
 
     def _interrupt(self) -> None:
