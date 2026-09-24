@@ -17,7 +17,7 @@
 - ci: add Linux and Windows project entrypoints for Action Worker centralized CI.
 
 - ci: centralize final merge validation through Action Worker while keeping repository-native checks local.
-- fix: make Dependabot uv.lock synchronization follow the current repository instead of a retired owner hardcode.
+- fix: remove retired repository-owner assumptions from Dependabot maintenance workflows.
 
 - fix: refresh model-visible tool schemas for reused session runtimes after Connector state changes.
 
