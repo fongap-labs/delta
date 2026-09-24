@@ -10,6 +10,88 @@ fi
 
 cd "$TARGET_ROOT"
 
+run_pool() {
+  local limit="$1"
+  local worker="$2"
+  shift 2
+
+  local -a pids=()
+  local -a labels=()
+  local failed=0
+
+  for item in "$@"; do
+    "$worker" "$item" &
+    pids+=("$!")
+    labels+=("$item")
+
+    if [ "${#pids[@]}" -ge "$limit" ]; then
+      if ! wait "${pids[0]}"; then
+        echo "central-ci: $worker failed for ${labels[0]}" >&2
+        failed=1
+      fi
+      pids=("${pids[@]:1}")
+      labels=("${labels[@]:1}")
+    fi
+  done
+
+  local index
+  for index in "${!pids[@]}"; do
+    if ! wait "${pids[$index]}"; then
+      echo "central-ci: $worker failed for ${labels[$index]}" >&2
+      failed=1
+    fi
+  done
+
+  return "$failed"
+}
+
+run_python_version() {
+  local version="$1"
+  local env_dir="$TARGET_ROOT/.venv-ci-${version//./}"
+  (
+    set -Eeuo pipefail
+    trap 'rm -rf "$env_dir"' EXIT
+    echo "central-ci: pytest Python $version"
+    UV_PROJECT_ENVIRONMENT="$env_dir" UV_PYTHON="$version" uv sync --locked --extra dev
+    UV_PYTHON="$version" uv pip check --python "$env_dir/bin/python"
+    DELTA_CORE_BINARY="$TARGET_ROOT/crates/delta-core/target/release/delta_core" \
+      UV_PROJECT_ENVIRONMENT="$env_dir" \
+      UV_PYTHON="$version" \
+      uv run --locked pytest tests -q
+  )
+}
+
+run_rust_workspace() {
+  local workspace="$1"
+  (
+    set -Eeuo pipefail
+    echo "central-ci: Rust workspace $workspace"
+    cd "$workspace"
+    cargo fmt --check
+    cargo check --locked
+    cargo clippy --locked --all-targets -- -D warnings
+    cargo test --locked
+  )
+}
+
+run_license_workspace() {
+  local workspace="$1"
+  (
+    set -Eeuo pipefail
+    cd "$workspace"
+    cargo deny --config "$TARGET_ROOT/deny.toml" check licenses
+  )
+}
+
+run_advisory_workspace() {
+  local workspace="$1"
+  (
+    set -Eeuo pipefail
+    cd "$workspace"
+    cargo deny --config "$TARGET_ROOT/deny.toml" check advisories
+  )
+}
+
 python_required=true
 desktop_required=true
 rust_required=true
@@ -64,12 +146,7 @@ fi
 
 if [ "$python_required" = "true" ]; then
   uv python install 3.11 3.12 3.13
-  for version in 3.11 3.12 3.13; do
-    echo "central-ci: pytest Python $version"
-    UV_PYTHON="$version" uv sync --locked --extra dev
-    UV_PYTHON="$version" uv pip check --python .venv/bin/python
-    DELTA_CORE_BINARY="$TARGET_ROOT/crates/delta-core/target/release/delta_core"       UV_PYTHON="$version" uv run --locked pytest tests -q
-  done
+  run_pool 2 run_python_version 3.11 3.12 3.13
 
   default_python="$(tr -d '\r\n ' < .python-version)"
   UV_PYTHON="$default_python" uv sync --locked --extra dev
@@ -126,16 +203,7 @@ if [ "$rust_required" = "true" ]; then
     "crates/delta-sync"
     "crates/delta-stt"
   )
-  for workspace in "${workspaces[@]}"; do
-    echo "central-ci: Rust workspace $workspace"
-    (
-      cd "$workspace"
-      cargo fmt --check
-      cargo check --locked
-      cargo clippy --locked --all-targets -- -D warnings
-      cargo test --locked
-    )
-  done
+  run_pool 2 run_rust_workspace "${workspaces[@]}"
 
   python scripts/check_rust_smoke.py --binary crates/delta-core/target/release/delta_core
 fi
@@ -148,12 +216,7 @@ license_workspaces=(
   "crates/delta-stt"
   "crates/delta-core"
 )
-for workspace in "${license_workspaces[@]}"; do
-  (
-    cd "$workspace"
-    cargo deny --config "$TARGET_ROOT/deny.toml" check licenses
-  )
-done
+run_pool 2 run_license_workspace "${license_workspaces[@]}"
 
 if [ "$rust_required" = "true" ] || [ "$rust_advisories_required" = "true" ]; then
   advisory_workspaces=(
@@ -165,10 +228,5 @@ if [ "$rust_required" = "true" ] || [ "$rust_advisories_required" = "true" ]; th
     "crates/delta-connect"
     "crates/delta-sync"
   )
-  for workspace in "${advisory_workspaces[@]}"; do
-    (
-      cd "$workspace"
-      cargo deny --config "$TARGET_ROOT/deny.toml" check advisories
-    )
-  done
+  run_pool 2 run_advisory_workspace "${advisory_workspaces[@]}"
 fi
