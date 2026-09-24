@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- ci: cancel centralized PR work when a pull request is closed.
+
 - chore: remove the obsolete Dependabot auto-merge workflow because repository auto-merge is centrally disabled.
 
 - fix: pin address-checked connector HTTP requests to vetted public IPs and preserve request credentials without following redirects.
