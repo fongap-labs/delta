@@ -158,6 +158,34 @@ def test_redirect_loop_is_bounded(monkeypatch):
 
 # -- pinning (DNS rebinding) --------------------------------------------------
 
+def test_checked_connection_address_returns_the_vetted_public_ip(monkeypatch):
+    _resolves_to(monkeypatch, "93.184.216.34")
+    assert guard.checked_connection_address("https://example.com/docs") == "93.184.216.34"
+
+
+def test_checked_connection_address_never_resolves_the_name_twice(monkeypatch):
+    answers = iter(["93.184.216.34", "127.0.0.1"])
+    calls = []
+
+    def flipping(*args, **kwargs):
+        calls.append((args, kwargs))
+        ip = next(answers, "127.0.0.1")
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443))]
+
+    monkeypatch.setattr(guard.socket, "getaddrinfo", flipping)
+    assert guard.checked_connection_address("https://rebind.example.com/") == "93.184.216.34"
+    assert len(calls) == 1
+
+
+def test_checked_connection_address_rejects_private_targets(monkeypatch):
+    _resolves_to(monkeypatch, "127.0.0.1")
+    with pytest.raises(PermissionError, match="loopback"):
+        guard.checked_connection_address("https://internal.example/")
+
+
+def test_checked_connection_address_preserves_public_ip_literals():
+    assert guard.checked_connection_address("https://93.184.216.34/") == "93.184.216.34"
+
 def test_connection_is_pinned_to_the_vetted_address(monkeypatch):
     """The client must be told to connect to the address that was checked, with the
     original name in Host and SNI — never left to resolve the name a second time."""

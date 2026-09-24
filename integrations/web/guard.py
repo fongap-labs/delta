@@ -18,8 +18,9 @@ DNS rebinding is closed by connection-level pinning: `get_checked` rewrites each
 client connects to the exact address that passed the check (name in Host and SNI, so virtual
 hosting and certificate verification still see the name). A record with a ~0 TTL that flips
 to 127.0.0.1 between the check and the connect therefore changes nothing — the client never
-resolves the name itself. `check_url` alone (browser_open_url's pre-check) still carries the
-resolve-twice gap, because the browser owns its own connections and cannot be pinned from here.
+resolves the name itself. `check_url` alone is not a sufficient browser boundary because a browser can resolve the
+name again. Interactive browser providers must obtain the concrete target through
+checked_connection_address and connect only to that vetted address.
 """
 
 from __future__ import annotations
@@ -110,6 +111,32 @@ def check_url(url: str) -> str | None:
     with both a public and a private A record cannot be used to slip through.
     """
     return _vet(url)[0]
+
+def checked_connection_address(url: str) -> str:
+    """Return the exact public address approved for a network connection.
+
+    Hostnames are resolved exactly once through the same address policy used by
+    get_checked. Callers must connect to the returned address rather than resolving the
+    hostname again. Literal public addresses are returned unchanged. A refused or
+    unresolvable target raises PermissionError.
+    """
+    reason, pin = _vet(url)
+    if reason:
+        raise PermissionError(reason)
+    if pin is not None:
+        return pin
+
+    host = urlsplit(url).hostname
+    if not host:
+        raise PermissionError("url has no host")
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise PermissionError(f"could not resolve {host}") from exc
+    mapped = getattr(literal, "ipv4_mapped", None)
+    if mapped is not None:
+        literal = mapped
+    return str(literal)
 
 
 def _pinned(url: str, ip: str) -> tuple[str, dict, dict]:
