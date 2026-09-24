@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [breaking]: move Delta main CI, Windows Portable release runners, SBOM packaging, attestation, and Release Governance dispatch to Action Worker.
+
 - refactor [breaking]: bind release artifacts to explicit source and workflow-run provenance for centralized Release Governance.
 
 - refactor: move pull-request CI to Action Worker while retaining main-branch validation until release source/build execution is centralized.
