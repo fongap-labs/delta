@@ -343,14 +343,14 @@ jobs:
       - name: Build release manifest
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          RELEASE_TARGET_REPOSITORY: ${{ vars.RELEASE_TARGET_REPOSITORY }}
+          DELTA_RELEASE_TARGET_REPOSITORY: ${{ vars.DELTA_RELEASE_TARGET_REPOSITORY }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          target_repository="$RELEASE_TARGET_REPOSITORY"
+          target_repository="$DELTA_RELEASE_TARGET_REPOSITORY"
           [[ "$target_repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
-            echo "::error::RELEASE_TARGET_REPOSITORY is not configured or invalid." >&2
+            echo "::error::DELTA_RELEASE_TARGET_REPOSITORY is not configured or invalid." >&2
             exit 77
           }
 
