@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: move Foundation and Rust license policy checks into Action Worker Central CI and remove the repository-local workflow.
+
 - refactor [breaking]: move Delta main CI, Windows Portable release runners, SBOM packaging, attestation, and Release Governance dispatch to Action Worker.
 
 - refactor [breaking]: bind release artifacts to explicit source and workflow-run provenance for centralized Release Governance.
