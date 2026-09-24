@@ -34,9 +34,10 @@ jobs:
       - name: Dispatch central release governance
         env:
           AW_DISPATCH_TOKEN: ${{ secrets.AW_DISPATCH_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
-          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          ARTIFACT_REPOSITORY: ${{ github.repository }}
+          ARTIFACT_RUN_ID: ${{ github.event.workflow_run.id }}
           REQUEST_ID: release-${{ github.repository_id }}-${{ github.event.workflow_run.id }}-${{ github.run_attempt }}
         shell: bash
         run: |
@@ -45,17 +46,19 @@ jobs:
           payload="$(
             jq -cn \
               --arg request_id "$REQUEST_ID" \
-              --arg repository "$REPOSITORY" \
+              --arg source_repository "$SOURCE_REPOSITORY" \
               --arg source_sha "$SOURCE_SHA" \
-              --argjson source_run_id "$SOURCE_RUN_ID" \
+              --arg artifact_repository "$ARTIFACT_REPOSITORY" \
+              --argjson artifact_run_id "$ARTIFACT_RUN_ID" \
               '{
                 event_type: "run-release",
                 client_payload: {
-                  schema_version: "1",
+                  schema_version: "2",
                   request_id: $request_id,
-                  repository: $repository,
+                  source_repository: $source_repository,
                   source_sha: $source_sha,
-                  source_run_id: $source_run_id,
+                  artifact_repository: $artifact_repository,
+                  artifact_run_id: $artifact_run_id,
                   artifact_name: "delta-release"
                 }
               }'
