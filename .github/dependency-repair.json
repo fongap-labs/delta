@@ -12,7 +12,9 @@
       "output_paths": [
         "uv.lock"
       ],
-      "tool_version": "0.12.3"
+      "tool_version": "0.12.3",
+      "head_prefix": "dependabot/",
+      "working_directory": "."
     }
   ]
 }
