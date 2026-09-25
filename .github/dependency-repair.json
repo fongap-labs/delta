@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "repairs": [
+    {
+      "id": "uv-lock",
+      "adapter": "uv-lock",
+      "runner_profile": "linux-standard",
+      "trusted_actor": "dependabot[bot]",
+      "trigger_paths": [
+        "pyproject.toml"
+      ],
+      "output_paths": [
+        "uv.lock"
+      ],
+      "tool_version": "0.12.3",
+      "head_prefix": "dependabot/",
+      "working_directory": "."
+    }
+  ]
+}
