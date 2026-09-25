@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "operations": {
+    "ci": {
+      "jobs": [
+        {
+          "id": "linux",
+          "runner_profile": "linux-standard",
+          "command": [
+            "bash",
+            "{control_root}/.github/scripts/central-ci.sh",
+            "{target_root}"
+          ],
+          "timeout_minutes": 180,
+          "capability_requests": [
+            "source.read"
+          ]
+        },
+        {
+          "id": "windows",
+          "runner_profile": "windows-build",
+          "command": [
+            "pwsh",
+            "-File",
+            "{control_root}/.github/scripts/central-ci.ps1",
+            "-TargetRoot",
+            "{target_root}"
+          ],
+          "timeout_minutes": 90,
+          "capability_requests": [
+            "source.read"
+          ]
+        }
+      ]
+    }
+  }
+}
