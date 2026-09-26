@@ -2295,16 +2295,16 @@ fn handle(cmd: Command, cache: &Mutex<ConnCache>) -> Value {
         }
         Command::ProviderStream { .. } => Err("streaming commands handled in handle_stream".into()),
         Command::ProviderCapabilities { model } => {
-            Ok(delta_core::provider::capabilities_for(&model))
+            Ok(delta_core::provider_support::capabilities_for(&model))
         }
         Command::EndpointCapsRead { path, endpoint_key } => Ok(
-            delta_core::provider::endpoint_caps_read(&path, &endpoint_key),
+            delta_core::provider_support::endpoint_caps_read(&path, &endpoint_key),
         ),
         Command::EndpointReject {
             path,
             endpoint_key,
             field,
-        } => Ok(delta_core::provider::endpoint_reject(
+        } => Ok(delta_core::provider_support::endpoint_reject(
             &path,
             &endpoint_key,
             &field,
@@ -2317,7 +2317,7 @@ fn handle(cmd: Command, cache: &Mutex<ConnCache>) -> Value {
             ttft_ms,
             duration_ms,
             error_class,
-        } => Ok(delta_core::provider::health_record(
+        } => Ok(delta_core::provider_support::health_record(
             &path,
             &endpoint,
             &model,
@@ -2330,18 +2330,20 @@ fn handle(cmd: Command, cache: &Mutex<ConnCache>) -> Value {
             path,
             endpoint,
             model,
-        } => Ok(delta_core::provider::health_profile(
+        } => Ok(delta_core::provider_support::health_profile(
             &path, &endpoint, &model,
         )),
-        Command::HealthAll { path } => Ok(delta_core::provider::health_all(&path)),
+        Command::HealthAll { path } => Ok(delta_core::provider_support::health_all(&path)),
         Command::ProviderRoutes {
             model,
             providers,
             default,
-        } => Ok(delta_core::provider::route(&model, &providers, &default)),
-        Command::ProviderFriendlyError { model, message } => {
-            Ok(delta_core::provider::friendly_model_error(&model, &message))
-        }
+        } => Ok(delta_core::provider_support::route(
+            &model, &providers, &default,
+        )),
+        Command::ProviderFriendlyError { model, message } => Ok(
+            delta_core::provider_support::friendly_model_error(&model, &message),
+        ),
     };
     match result {
         Ok(v) => serde_json::json!({"ok": true, "result": v}),
