@@ -587,7 +587,6 @@ enum Command {
         api_key: String,
         base_url: String,
     },
-
 }
 
 struct ConnCache {
@@ -2248,7 +2247,6 @@ fn handle(cmd: Command, cache: &Mutex<ConnCache>) -> Value {
             }
         }
         Command::ProviderStream { .. } => Err("streaming commands handled in handle_stream".into()),
-
     };
     match result {
         Ok(v) => serde_json::json!({"ok": true, "result": v}),
