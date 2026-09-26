@@ -956,8 +956,7 @@ fn native_e2e_basic_answer_stream_reaches_product_event_protocol() {
     let provider = MockProvider::start(1);
     let sink = Arc::new(CaptureSink::default());
     let handle =
-        RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
-            .unwrap();
+        RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone())).unwrap();
     let run_id = handle.run("hello".to_string(), None).unwrap();
     provider
         .first_response_started
@@ -1099,8 +1098,7 @@ fn native_e2e_retries_all_transient_provider_failures_before_output() {
     ]);
     let sink = Arc::new(CaptureSink::default());
     let handle =
-        RuntimeHandle::spawn(retry_test_host(provider.base_url.clone(), sink, Some(0.05)))
-            .unwrap();
+        RuntimeHandle::spawn(retry_test_host(provider.base_url.clone(), sink, Some(0.05))).unwrap();
     handle.run("retry timeout".to_string(), None).unwrap();
     wait_for_terminal(&handle);
     assert_eq!(handle.state(), RuntimeState::Completed);
@@ -1222,9 +1220,8 @@ fn runtime_handle_runs_in_background_and_rejects_parallel_run() {
 fn steering_interrupts_provider_and_changes_the_same_run() {
     let provider = MockProvider::start(2);
     let sink = Arc::new(CaptureSink::default());
-    let handle =
-        RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
-            .expect("spawn runtime");
+    let handle = RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
+        .expect("spawn runtime");
     let run_id = handle.run("initial".to_string(), None).expect("start run");
     provider
         .first_response_started
@@ -1255,9 +1252,8 @@ fn steering_interrupts_provider_and_changes_the_same_run() {
 fn follow_up_is_scheduled_as_a_distinct_run() {
     let provider = MockProvider::start(2);
     let sink = Arc::new(CaptureSink::default());
-    let handle =
-        RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
-            .expect("spawn runtime");
+    let handle = RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
+        .expect("spawn runtime");
     let first_run_id = handle.run("first task".to_string(), None).unwrap();
     provider
         .first_response_started
@@ -1286,9 +1282,8 @@ fn follow_up_is_scheduled_as_a_distinct_run() {
 fn cancel_transitions_active_run_to_interrupted() {
     let provider = MockProvider::start(1);
     let sink = Arc::new(CaptureSink::default());
-    let handle =
-        RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
-            .expect("spawn runtime");
+    let handle = RuntimeHandle::spawn(provider_test_host(provider.base_url.clone(), sink.clone()))
+        .expect("spawn runtime");
     handle.run("cancel me".to_string(), None).unwrap();
     provider
         .first_response_started
