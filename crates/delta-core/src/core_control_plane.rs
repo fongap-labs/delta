@@ -312,6 +312,76 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    /// Start one scheduler-claimed automation through the same Core-owned
+    /// Runtime path as interactive sessions. Product shells provide only the
+    /// event sink; model selection, Runtime request construction, and failure
+    /// finalization remain inside the Core authority boundary.
+    pub fn start_claimed_automation(&self, run: &Value, sink: Arc<dyn EventSink>) -> Value {
+        let session_id = run
+            .get("session_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let workspace = run
+            .get("workspace")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let model_id = match self.default_model_id() {
+            Ok(model_id) => model_id,
+            Err(error) => {
+                if let Err(finalization_error) =
+                    self.automation_start_failed(&session_id, Value::String(error.clone()))
+                {
+                    return json!({
+                        "ok": false,
+                        "error": error,
+                        "finalization_error": finalization_error,
+                    });
+                }
+                return json!({"ok": false, "error": error});
+            }
+        };
+
+        let accepted = self.start_runtime(
+            RuntimeStartRequest {
+                session_id: session_id.clone(),
+                model_id,
+                user_input: run
+                    .get("prompt")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                workspace,
+                attachments: None,
+                skill: None,
+                mode: Some("unattended".to_string()),
+                max_iterations: None,
+                max_retries: None,
+                source: Some(json!({
+                    "automation_id": run.get("task_id"),
+                    "trigger": "scheduled",
+                })),
+            },
+            sink,
+        );
+
+        if accepted.get("ok").and_then(Value::as_bool) != Some(true) {
+            let error = accepted.get("error").cloned().unwrap_or_else(|| {
+                Value::String("automation runtime start was not accepted".to_string())
+            });
+            if let Err(finalization_error) =
+                self.automation_start_failed(&session_id, error.clone())
+            {
+                return json!({
+                    "ok": false,
+                    "error": error,
+                    "finalization_error": finalization_error,
+                });
+            }
+        }
+        accepted
+    }
+
     pub fn automation_start_failed(&self, session_id: &str, error: Value) -> Result<(), String> {
         let recovery = json!({
             "event": "error",
