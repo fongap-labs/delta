@@ -1211,4 +1211,30 @@ mod tests {
         assert_eq!(result.validity, CitationValidity::RangeInvalid);
         assert_eq!(result.current_line_count, Some(0));
     }
+
+    #[test]
+    fn non_line_extent_is_not_counted_as_fully_verified() {
+        let dir = tempfile::tempdir().unwrap();
+        let relative = "data.csv";
+        let bytes = b"a,b\n1,2\n";
+        fs::write(dir.path().join(relative), bytes).unwrap();
+        let source = json!({
+            "id": "source-page",
+            "origin": "file",
+            "location": relative,
+            "fingerprint": format!("{:x}", Sha256::digest(bytes)),
+            "status": "current"
+        });
+
+        let result = validate_source_citation(
+            Some(&source),
+            &json!({"kind": "page", "page": 1}),
+            Some(dir.path()),
+        );
+
+        assert_eq!(result.validity, CitationValidity::Valid);
+        assert_eq!(result.reason, "range_unverified");
+        assert_eq!(result.range_valid, None);
+    }
+
 }
