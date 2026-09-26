@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field
 
 class CapabilityInputFile(BaseModel):
     path: str
-    sha256: str
+    sha256: Optional[str] = None
+    size: Optional[int] = None
 
 
 class CapabilityGrants(BaseModel):
@@ -16,14 +17,21 @@ class CapabilityGrants(BaseModel):
     read_roots: list[str] = Field(default_factory=list)
     write_roots: list[str] = Field(default_factory=list)
     secrets: list[str] = Field(default_factory=list)
+    exec: bool = False
+    execution_epoch: Optional[float] = None
+    expires_at: Optional[float] = None
 
 
 class CapabilityBoundary(BaseModel):
     network: list[str] = Field(default_factory=list)
     read_roots: list[str] = Field(default_factory=list)
     write_roots: list[str] = Field(default_factory=list)
+    exec: bool = False
     secrets: list[str] = Field(default_factory=list)
+    destructive: bool = False
     provenance: str = ""
+    execution_epoch: Optional[float] = None
+    expires_at: Optional[float] = None
 
 
 class CapabilityJob(BaseModel):
@@ -49,7 +57,7 @@ class CapabilityProgress(BaseModel):
 class CapabilityArtifact(BaseModel):
     staging_path: str
     relative_path: str
-    kind: str
+    kind: Optional[str] = None
     sha256: Optional[str] = None
     size: Optional[int] = None
     incomplete: bool = False
