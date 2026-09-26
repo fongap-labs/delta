@@ -1502,4 +1502,5 @@ impl RuntimeHost {
 }
 
 #[cfg(test)]
+#[path = "runtime/test_runtime.rs"]
 mod tests;
