@@ -5,6 +5,14 @@
 //! and delegates tool calls through this boundary.
 
 use super::*;
+use std::path::{Component, Path};
+
+use sha2::{Digest, Sha256};
+
+use crate::approval::ApprovalRecordInput;
+use crate::artifact::{ArtifactInput, ArtifactRegistryWriter};
+use crate::tool_lifecycle::{self, PlanAction, ToolLifecyclePlanInput};
+use crate::validation::ValidationWriter;
 
 impl RuntimeHost {
     fn record_approval(
