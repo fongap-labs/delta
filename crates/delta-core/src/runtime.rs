@@ -4021,4 +4021,3 @@ mod tests {
         assert_eq!(report.swept_side_effects.len(), 1);
     }
 }
-
