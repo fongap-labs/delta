@@ -1,23 +1,11 @@
-//! Rust Authority for Source / Citation trusted facts (R2, ADR-027).
+//! Source / Citation trusted-fact authority (R2, ADR-027).
 //!
-//! Before the hard-cut, Source and Citation facts were persisted by the
-//! Python ``SourceStore`` (``core/sources.py``) to a JSON file
-//! (``<workspace>/.delta/sources.json``), with an optional
-//! ``source_citation_delegate.py`` providing a Rust final verdict when
-//! ``DELTA_RUST_AUTHORITY=source_citation`` was set.
-//!
-//! After the hard-cut (ADR-027):
-//!
-//! - **Rust is the sole Source / Citation trusted authority.**
-//! - Python only performs **extraction and candidate construction**
-//!   (file reading, content hashing, fingerprint input, range candidate
-//!   building).
-//! - All trusted facts are persisted as ledger events in the run-event
-//!   ledger (``run_events.db``) via the unified ``delta_core``
-//!   process. The event types are ``source.registered``,
-//!   ``source.revised``, ``source.stale``, and ``citation.marked``.
-//! - No Python fallback, dual-write, shadow production path, or
-//!   migration delegate remains.
+//! - Rust owns the trusted Source / Citation state for this module.
+//! - Python may perform extraction and candidate construction only.
+//! - Trusted facts persist as ledger events in `run_events.db`.
+//! - Event types are `source.registered`, `source.revised`,
+//!   `source.stale`, and `citation.marked`.
+//! - No fallback, dual-write, shadow production path, or migration delegate remains.
 //!
 //! This module contains:
 //!
@@ -65,8 +53,7 @@ pub struct ValidatedCitation {
 }
 
 /// Stable final-verdict vocabulary for a citation bound to one source
-/// revision.  The legacy Python response fields remain available on the
-/// result during migration, but consumers should move to this enum.
+/// revision. Consumers should use this enum as the canonical verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CitationValidity {
@@ -79,7 +66,7 @@ pub enum CitationValidity {
     Unknown,
 }
 
-/// Typed citation verdict returned by the unified ``delta_core`` protocol.
+/// Typed citation verdict returned by the Core Source / Citation authority.
 ///
 /// The four fact fields deliberately keep source existence, revision
 /// agreement, structural validity, and locator bounds separate.  A nullable
@@ -1210,5 +1197,30 @@ mod tests {
 
         assert_eq!(result.validity, CitationValidity::RangeInvalid);
         assert_eq!(result.current_line_count, Some(0));
+    }
+
+    #[test]
+    fn non_line_extent_is_not_counted_as_fully_verified() {
+        let dir = tempfile::tempdir().unwrap();
+        let relative = "data.csv";
+        let bytes = b"a,b\n1,2\n";
+        fs::write(dir.path().join(relative), bytes).unwrap();
+        let source = json!({
+            "id": "source-page",
+            "origin": "file",
+            "location": relative,
+            "fingerprint": format!("{:x}", Sha256::digest(bytes)),
+            "status": "current"
+        });
+
+        let result = validate_source_citation(
+            Some(&source),
+            &json!({"kind": "page", "page": 1}),
+            Some(dir.path()),
+        );
+
+        assert_eq!(result.validity, CitationValidity::Valid);
+        assert_eq!(result.reason, "range_unverified");
+        assert_eq!(result.range_valid, None);
     }
 }
