@@ -10,8 +10,6 @@ Productivity · Research & analysis · Content creation
 
 [**English**](README.md) · [简体中文](README.zh-CN.md)
 
-[![CI](https://github.com/fongap-labs/delta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml)
 ![License](https://img.shields.io/github/license/fongap-labs/delta?label=License)
 
 [Architecture](docs/architecture/target-architecture.md) · [Extension Boundary](docs/governance/REPOSITORY_BOUNDARY.md)
@@ -99,7 +97,7 @@ tests/         Contract, integration, and cross-language tests
 docs/          Architecture and governance
 ```
 
-The long-term core product boundary is **Rust + TypeScript**. Python, PowerShell, and Shell are controlled execution environments, not core authority layers.
+Delta follows a **small core, large framework** architecture. Language is an implementation choice, not an architecture goal: use the language that best fits the module boundary, and reduce unnecessary runtimes when performance, security, functionality, compatibility, and maintainability do not regress. Authority must remain singular even when multiple languages are used.
 
 ## Development
 
@@ -112,12 +110,7 @@ npm run tauri dev
 
 ## Release
 
-The `Portable Release` workflow builds and validates the Windows package, generates
-`release-manifest.json`, and uploads the immutable `delta-release` artifact. A thin
-`workflow_run` dispatcher sends only the source run identity to Action Worker.
-Action Worker revalidates the default-branch commit, CI evidence, manifest, assets,
-and checksums before publishing the `delta-v<semver>` Release to `external-vault`.
-Target-repository credentials are not stored in this repository.
+Release intent is source-owned in `.github/release.manifest.json`. Action Worker checks out the immutable Delta source, runs the declared Windows build on the centrally resolved runner, generates release provenance, validates the source and artifacts, and publishes the `delta-v<semver>` Release to `external-vault`. Target-repository credentials and release authority are not stored in this repository.
 
 ## Documentation
 

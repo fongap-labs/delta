@@ -10,8 +10,6 @@
 
 [English](README.md) · [**简体中文**](README.zh-CN.md)
 
-[![CI](https://github.com/fongap-labs/delta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/fongap-labs/delta/actions/workflows/codeql.yml)
 ![License](https://img.shields.io/github/license/fongap-labs/delta?label=License)
 
 [目标架构](docs/architecture/target-architecture.md) · [扩展边界](docs/governance/REPOSITORY_BOUNDARY.md) · [开发治理](docs/governance/DEVELOPMENT_POLICY.md)
@@ -99,7 +97,7 @@ tests/         契约、集成与跨语言测试
 docs/          架构与治理文档
 ```
 
-长期核心产品边界是 **Rust + TypeScript**。Python、PowerShell、Shell 只作为受控执行环境，不承担核心 Authority。
+Delta 长期采用**小内核、大框架**。语言是实现手段，不是架构目标：按模块边界选择最合适的语言；在性能、安全、功能、兼容性和维护性不下降时，优先减少无必要的语言与运行时。即使存在多语言，同一责任也只能有一个 Authority。
 
 ## 开发
 
