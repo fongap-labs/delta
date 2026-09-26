@@ -1028,7 +1028,10 @@ mod tests {
 
         let reader = LedgerReader::open(&db).unwrap();
         assert_eq!(reader.run_status("run_resume").unwrap(), "resumed");
-        assert!(reader.open_runs().unwrap().contains(&"run_resume".to_string()));
+        assert!(reader
+            .open_runs()
+            .unwrap()
+            .contains(&"run_resume".to_string()));
         drop(reader);
 
         let recovered = writer.recover_stale().unwrap();
@@ -1036,7 +1039,9 @@ mod tests {
 
         let reader = LedgerReader::open(&db).unwrap();
         assert_eq!(reader.run_status("run_resume").unwrap(), "interrupted");
-        assert!(!reader.open_runs().unwrap().contains(&"run_resume".to_string()));
+        assert!(!reader
+            .open_runs()
+            .unwrap()
+            .contains(&"run_resume".to_string()));
     }
-
 }
