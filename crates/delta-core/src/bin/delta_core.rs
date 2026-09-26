@@ -587,53 +587,6 @@ enum Command {
         api_key: String,
         base_url: String,
     },
-    /// Model capabilities (matrix + heuristics).
-    #[serde(rename = "provider.capabilities")]
-    ProviderCapabilities { model: String },
-    /// Read learned endpoint capabilities.
-    #[serde(rename = "endpoint.caps")]
-    EndpointCapsRead { path: String, endpoint_key: String },
-    /// Record a parameter rejection.
-    #[serde(rename = "endpoint.reject")]
-    EndpointReject {
-        path: String,
-        endpoint_key: String,
-        field: String,
-    },
-    /// Record a model-call health outcome.
-    #[serde(rename = "health.record")]
-    HealthRecord {
-        path: String,
-        endpoint: String,
-        model: String,
-        ok: bool,
-        #[serde(default)]
-        ttft_ms: Option<f64>,
-        #[serde(default)]
-        duration_ms: Option<f64>,
-        #[serde(default)]
-        error_class: Option<String>,
-    },
-    /// Read one endpoint/model health profile.
-    #[serde(rename = "health.profile")]
-    HealthProfile {
-        path: String,
-        endpoint: String,
-        model: String,
-    },
-    /// Read all health profiles.
-    #[serde(rename = "health.all")]
-    HealthAll { path: String },
-    /// Resolve a model string to provider and bare model identifiers.
-    #[serde(rename = "provider.routes")]
-    ProviderRoutes {
-        model: String,
-        providers: Vec<String>,
-        default: String,
-    },
-    /// Translate a model access/quota error to a user-facing message.
-    #[serde(rename = "provider.friendly_error")]
-    ProviderFriendlyError { model: String, message: String },
 }
 
 struct ConnCache {
@@ -2294,56 +2247,6 @@ fn handle(cmd: Command, cache: &Mutex<ConnCache>) -> Value {
             }
         }
         Command::ProviderStream { .. } => Err("streaming commands handled in handle_stream".into()),
-        Command::ProviderCapabilities { model } => {
-            Ok(delta_core::provider_support::capabilities_for(&model))
-        }
-        Command::EndpointCapsRead { path, endpoint_key } => Ok(
-            delta_core::provider_support::endpoint_caps_read(&path, &endpoint_key),
-        ),
-        Command::EndpointReject {
-            path,
-            endpoint_key,
-            field,
-        } => Ok(delta_core::provider_support::endpoint_reject(
-            &path,
-            &endpoint_key,
-            &field,
-        )),
-        Command::HealthRecord {
-            path,
-            endpoint,
-            model,
-            ok,
-            ttft_ms,
-            duration_ms,
-            error_class,
-        } => Ok(delta_core::provider_support::health_record(
-            &path,
-            &endpoint,
-            &model,
-            ok,
-            ttft_ms,
-            duration_ms,
-            error_class.as_deref(),
-        )),
-        Command::HealthProfile {
-            path,
-            endpoint,
-            model,
-        } => Ok(delta_core::provider_support::health_profile(
-            &path, &endpoint, &model,
-        )),
-        Command::HealthAll { path } => Ok(delta_core::provider_support::health_all(&path)),
-        Command::ProviderRoutes {
-            model,
-            providers,
-            default,
-        } => Ok(delta_core::provider_support::route(
-            &model, &providers, &default,
-        )),
-        Command::ProviderFriendlyError { model, message } => Ok(
-            delta_core::provider_support::friendly_model_error(&model, &message),
-        ),
     };
     match result {
         Ok(v) => serde_json::json!({"ok": true, "result": v}),
