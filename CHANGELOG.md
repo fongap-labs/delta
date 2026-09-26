@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: move `delta-core` runtime tests into a dedicated submodule so `runtime.rs` contains only production runtime code.
+
 - refactor [breaking]: remove the retired JSONL `delta_core` subprocess server/client path and keep the embedded Rust runtime as the only product Runtime authority.
 
 - refactor: make Foundation connectors consume an injected read-only `SecretSource`, remove dead secret-backed tool enablement state, and keep the concrete file vault only at legacy/headless boundaries.
