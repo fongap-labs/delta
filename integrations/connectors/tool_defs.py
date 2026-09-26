@@ -1,16 +1,14 @@
 """Foundation-owned connector tool contract, registry and approval policy.
 
 Concrete first-party tool catalogs are extension data. Foundation owns the schema,
-registration rules, local enablement state and the final interpretation of read/write
-semantics. Unknown tools remain conservative: their call-site approval default wins.
+registration rules and the final interpretation of read/write semantics. Runtime tool
+enablement is owned by the Rust ApplicationStore. Unknown tools remain conservative: their call-site approval default wins.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable
-
-from packages.credential_store import CredentialStore as SecretStore
+from typing import Iterable
 
 
 @dataclass(frozen=True)
@@ -212,34 +210,6 @@ def connector_for_tool(tool_name: str) -> str | None:
     return TOOL_TO_CONNECTOR.get(tool_name)
 
 
-def load_tool_settings(secrets: SecretStore, connector: str) -> dict[str, bool]:
-    raw = secrets.get(f"{connector}:tools") or {}
-    enabled = raw.get("enabled") if isinstance(raw, dict) else None
-    return {str(k): bool(v) for k, v in (enabled or {}).items()}
-
-
-def tool_enabled(secrets: SecretStore, connector: str, tool_name: str) -> bool:
-    overrides = load_tool_settings(secrets, connector)
-    if tool_name in overrides:
-        return overrides[tool_name]
-    tool = _BY_NAME.get(tool_name)
-    return bool(tool.is_enabled_default) if tool and tool.connector == connector else False
-
-
-def patch_tool_settings(
-    secrets: SecretStore, connector: str, enabled: dict[str, Any]
-) -> dict[str, Any]:
-    known = {tool.name for tool in TOOLS_BY_CONNECTOR.get(connector, [])}
-    if not known:
-        return {"ok": False, "error": "unknown connector or no tools"}
-    current = load_tool_settings(secrets, connector)
-    for name, value in enabled.items():
-        if name in known:
-            current[name] = bool(value)
-    secrets.put(f"{connector}:tools", {"enabled": current})
-    return {"ok": True, "tools": current}
-
-
 def mcp_tool_defs(connector: str) -> list[ConnectorToolDef]:
     return [
         tool
@@ -252,30 +222,6 @@ def mcp_pinned_tools(connector: str) -> list[str]:
     prefix = f"mcp__{connector}__"
     return [tool.name.removeprefix(prefix) for tool in mcp_tool_defs(connector)]
 
-
-def active_tool_defs(secrets: SecretStore, connector: str) -> list[ConnectorToolDef]:
-    defs = list(TOOLS_BY_CONNECTOR.get(connector, []))
-    mcp = [tool for tool in defs if tool.name.startswith("mcp__")]
-    api = [tool for tool in defs if not tool.name.startswith("mcp__")]
-    if not mcp or not api:
-        return defs
-    profile = secrets.get(f"{connector}:default") or {}
-    return mcp if profile.get("mode") == "mcp" else api
-
-
-def tool_dicts(secrets: SecretStore, connector: str) -> list[dict[str, Any]]:
-    overrides = load_tool_settings(secrets, connector)
-    return [
-        {
-            "name": tool.name,
-            "label": tool.label,
-            "kind": tool.kind,
-            "description": tool.description,
-            "enabled": bool(overrides.get(tool.name, tool.is_enabled_default)),
-            "requires_approval": tool.kind != "read",
-        }
-        for tool in active_tool_defs(secrets, connector)
-    ]
 
 
 _register_foundation_baseline()
