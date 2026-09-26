@@ -9,6 +9,7 @@ import pytest
 from delta_worker_sdk import (
     CAPABILITY_ABI_VERSION,
     WorkerContext,
+    run_persistent_worker,
     run_worker,
     CapabilityJob,
     CapabilityResult,
@@ -290,6 +291,109 @@ def test_run_worker_rejects_non_result_handler_value():
             assert terminal.diagnostics is not None
             assert terminal.diagnostics.error_code == "worker_protocol"
             assert CapabilityResult.model_validate_json(mock_stdout.getvalue().strip()).state == "failed"
+
+
+
+def test_run_persistent_worker_handles_multiple_jobs():
+    first = make_job(job_id="job-1", arguments={"value": 1})
+    second = make_job(job_id="job-2", arguments={"value": 2})
+    stdin_data = (
+        first.model_dump_json()
+        + "\n{}\n"
+        + second.model_dump_json()
+        + "\n{}\n"
+    )
+
+    with patch("sys.stdin", StringIO(stdin_data)):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            code = run_persistent_worker(
+                lambda ctx: ctx.result(result=ctx.arguments),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+
+    assert code == 0
+    results = [
+        CapabilityResult.model_validate_json(line)
+        for line in mock_stdout.getvalue().splitlines()
+    ]
+    assert [result.job_id for result in results] == ["job-1", "job-2"]
+    assert [result.result for result in results] == [{"value": 1}, {"value": 2}]
+
+
+def test_run_persistent_worker_recovers_after_invalid_job_frame():
+    valid = make_job(job_id="job-2", arguments={"ok": True})
+    stdin_data = "{not-json}\n{}\n" + valid.model_dump_json() + "\n{}\n"
+
+    with patch("sys.stdin", StringIO(stdin_data)):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            code = run_persistent_worker(
+                lambda ctx: ctx.result(result=ctx.arguments),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+
+    assert code == 0
+    results = [
+        CapabilityResult.model_validate_json(line)
+        for line in mock_stdout.getvalue().splitlines()
+    ]
+    assert len(results) == 2
+    assert results[0].state == "failed"
+    assert results[0].diagnostics is not None
+    assert results[0].diagnostics.error_code == "worker_input"
+    assert results[1].state == "completed"
+    assert results[1].job_id == "job-2"
+
+
+def test_run_persistent_worker_recovers_after_invalid_secret_frame():
+    first = make_job(job_id="job-1")
+    second = make_job(job_id="job-2")
+    stdin_data = (
+        first.model_dump_json()
+        + "\n[]\n"
+        + second.model_dump_json()
+        + '\n{"API_KEY":"secret"}\n'
+    )
+
+    with patch("sys.stdin", StringIO(stdin_data)):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            code = run_persistent_worker(
+                lambda ctx: ctx.result(result={"secret": ctx.secret("API_KEY")}),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+
+    assert code == 0
+    results = [
+        CapabilityResult.model_validate_json(line)
+        for line in mock_stdout.getvalue().splitlines()
+    ]
+    assert results[0].state == "failed"
+    assert results[0].diagnostics is not None
+    assert results[0].diagnostics.error_code == "worker_input"
+    assert results[1].state == "completed"
+    assert results[1].result == {"secret": "secret"}
+
+
+def test_run_persistent_worker_reports_missing_secret_frame():
+    job = make_job(job_id="job-1")
+
+    with patch("sys.stdin", StringIO(job.model_dump_json() + "\n")):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            code = run_persistent_worker(
+                lambda ctx: ctx.result(),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+
+    assert code == 0
+    result = CapabilityResult.model_validate_json(mock_stdout.getvalue().strip())
+    assert result.state == "failed"
+    assert result.job_id == "job-1"
+    assert result.diagnostics is not None
+    assert result.diagnostics.error_code == "worker_input"
+    assert result.diagnostics.error_message == "missing secret payload"
 
 
 def test_run_worker_progress_emission():
