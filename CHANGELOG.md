@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add a canonical persistent Worker SDK loop so long-lived workers share the same Job, secret-frame, ABI negotiation, and terminal-result contract as one-shot workers.
+
 - fix: add the packaged Delta Worker SDK README required by Git subdirectory installs.
 
 - fix: make the Python Worker SDK fail closed with typed results for malformed jobs, malformed secret payloads, and invalid handler returns.

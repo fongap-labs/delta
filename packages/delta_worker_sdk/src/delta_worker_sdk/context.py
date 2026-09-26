@@ -227,47 +227,41 @@ def _input_error(job_id: str, message: str) -> CapabilityResult:
     )
 
 
-def run_worker(
+def _parse_job(job_line: str) -> tuple[Optional[CapabilityJob], Optional[CapabilityResult]]:
+    try:
+        return CapabilityJob.model_validate_json(job_line), None
+    except Exception:
+        return None, _input_error("", "invalid capability job")
+
+
+def _parse_secret_values(
+    job_id: str,
+    secrets_line: str,
+) -> tuple[Optional[dict[str, str]], Optional[CapabilityResult]]:
+    try:
+        parsed_secrets = json.loads(secrets_line)
+    except json.JSONDecodeError:
+        return None, _input_error(job_id, "invalid secret payload")
+    if not isinstance(parsed_secrets, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in parsed_secrets.items()
+    ):
+        return None, _input_error(job_id, "invalid secret payload")
+    return parsed_secrets, None
+
+
+def _execute_job(
+    job: CapabilityJob,
+    secret_values: dict[str, str],
     handler: Callable[[WorkerContext], CapabilityResult],
     *,
-    progress_sender: Callable[[CapabilityProgress], None] = _default_progress_sender,
-    cancel_checker: Callable[[], bool] = _default_cancel_checker,
-) -> Optional[CapabilityResult]:
-    """Run one Capability ABI job and emit exactly one terminal result.
-
-    Reads from stdin:
-    - Line 1: CapabilityJob JSON
-    - Line 2: Secret values JSON (object mapping secret key -> string value)
-
-    Returns the same terminal CapabilityResult written to stdout. No input line
-    returns None.
-    """
-    job_line = sys.stdin.readline()
-    if not job_line:
-        return None
-
-    try:
-        job = CapabilityJob.model_validate_json(job_line)
-    except Exception:
-        return _emit_result(_input_error("", "invalid capability job"))
-
-    secrets_line = sys.stdin.readline()
-    secret_values: dict[str, str] = {}
-    if secrets_line:
-        try:
-            parsed_secrets = json.loads(secrets_line)
-        except json.JSONDecodeError:
-            return _emit_result(_input_error(job.job_id, "invalid secret payload"))
-        if not isinstance(parsed_secrets, dict) or not all(
-            isinstance(key, str) and isinstance(value, str)
-            for key, value in parsed_secrets.items()
-        ):
-            return _emit_result(_input_error(job.job_id, "invalid secret payload"))
-        secret_values = parsed_secrets
-
+    progress_sender: Callable[[CapabilityProgress], None],
+    cancel_checker: Callable[[], bool],
+) -> CapabilityResult:
     from . import CAPABILITY_ABI_VERSION
+
     if job.abi_version != CAPABILITY_ABI_VERSION:
-        result = CapabilityResult(
+        return CapabilityResult(
             abi_version=CAPABILITY_ABI_VERSION,
             job_id=job.job_id,
             state="failed",
@@ -284,7 +278,6 @@ def run_worker(
             ),
             finished_at=__import__("time").time(),
         )
-        return _emit_result(result)
 
     ctx = WorkerContext(
         job=job,
@@ -309,12 +302,104 @@ def run_worker(
             "Worker handler did not return CapabilityResult",
             code="worker_protocol",
         )
+    return result
 
-    return _emit_result(result)
+
+def run_worker(
+    handler: Callable[[WorkerContext], CapabilityResult],
+    *,
+    progress_sender: Callable[[CapabilityProgress], None] = _default_progress_sender,
+    cancel_checker: Callable[[], bool] = _default_cancel_checker,
+) -> Optional[CapabilityResult]:
+    """Run one Capability ABI job and emit exactly one terminal result.
+
+    Reads from stdin:
+    - Line 1: CapabilityJob JSON
+    - Line 2: Secret values JSON (object mapping secret key -> string value)
+
+    Returns the same terminal CapabilityResult written to stdout. No input line
+    returns None.
+    """
+    job_line = sys.stdin.readline()
+    if not job_line:
+        return None
+
+    job, job_error = _parse_job(job_line)
+    if job_error is not None:
+        return _emit_result(job_error)
+    assert job is not None
+
+    secrets_line = sys.stdin.readline()
+    if secrets_line:
+        secret_values, secret_error = _parse_secret_values(job.job_id, secrets_line)
+        if secret_error is not None:
+            return _emit_result(secret_error)
+        assert secret_values is not None
+    else:
+        secret_values = {}
+
+    return _emit_result(
+        _execute_job(
+            job,
+            secret_values,
+            handler,
+            progress_sender=progress_sender,
+            cancel_checker=cancel_checker,
+        )
+    )
+
+
+def run_persistent_worker(
+    handler: Callable[[WorkerContext], CapabilityResult],
+    *,
+    progress_sender: Callable[[CapabilityProgress], None] = _default_progress_sender,
+    cancel_checker: Callable[[], bool] = _default_cancel_checker,
+) -> int:
+    """Run Capability ABI jobs until stdin reaches EOF.
+
+    Each job frame is two JSON lines: CapabilityJob then secret values.
+    Invalid frames emit a typed terminal failure and do not terminate the
+    persistent worker. A clean EOF between frames returns 0.
+    """
+    while True:
+        job_line = sys.stdin.readline()
+        if not job_line:
+            return 0
+
+        secrets_line = sys.stdin.readline()
+        if not secrets_line:
+            job, job_error = _parse_job(job_line)
+            job_id = job.job_id if job is not None else ""
+            _emit_result(job_error or _input_error(job_id, "missing secret payload"))
+            return 0
+
+        job, job_error = _parse_job(job_line)
+        if job_error is not None:
+            _emit_result(job_error)
+            continue
+        assert job is not None
+
+        secret_values, secret_error = _parse_secret_values(job.job_id, secrets_line)
+        if secret_error is not None:
+            _emit_result(secret_error)
+            continue
+        assert secret_values is not None
+
+        _emit_result(
+            _execute_job(
+                job,
+                secret_values,
+                handler,
+                progress_sender=progress_sender,
+                cancel_checker=cancel_checker,
+            )
+        )
+
 
 __all__ = [
     "WorkerContext",
     "run_worker",
+    "run_persistent_worker",
     "Grants",
     "Boundary",
     "CapabilityArtifact",

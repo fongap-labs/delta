@@ -483,7 +483,7 @@ MCP / Connector / External Service
 
 ## 19. 版本兼容
 
-Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（发布名 `delta-worker-sdk`）。不得在 Foundation 中维护第二套并行 Worker SDK、复制 ABI model，或让测试专门保活废弃协议实现；所有 Worker/Extension 共享同一 SDK contract tests。
+Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（发布名 `delta-worker-sdk`）。不得在 Foundation 中维护第二套并行 Worker SDK、复制 ABI model，或让测试专门保活废弃协议实现；所有 Worker/Extension 共享同一 SDK contract tests。 One-shot Worker 使用 `run_worker`；需要复用进程或 session 的 Worker 使用 `run_persistent_worker`。不得在 Extension 内再次实现 Job/secret frame 解析、ABI 版本协商或终态 Result 序列化。
 
 Capability ABI 必须版本化，至少定义：
 
