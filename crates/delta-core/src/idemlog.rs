@@ -733,4 +733,33 @@ mod tests {
         let b = args_sha256(&serde_json::json!({"a": 2, "b": 1}));
         assert_eq!(a, b);
     }
+
+    #[test]
+    fn committed_identity_rejects_different_arguments() {
+        let writer = IdempotencyWriter::open_in_memory().unwrap();
+        let original = serde_json::json!({"path": "a.txt"});
+        let changed = serde_json::json!({"path": "different.txt"});
+
+        writer
+            .record_planned("run_collision", "tool_1", "write_file", &original)
+            .unwrap();
+        writer
+            .mark_executing("run_collision", "tool_1")
+            .unwrap();
+        writer
+            .commit(
+                "run_collision",
+                "tool_1",
+                "write_file",
+                &original,
+                &serde_json::json!({"ok": true}),
+            )
+            .unwrap();
+
+        let error = writer
+            .record_planned("run_collision", "tool_1", "write_file", &changed)
+            .unwrap_err();
+        assert!(error.to_string().contains("identity_collision"));
+    }
+
 }
