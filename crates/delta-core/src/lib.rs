@@ -33,6 +33,7 @@ pub mod memory;
 pub mod model_authority;
 pub mod persistent_worker;
 pub mod policy;
+mod product_settings;
 pub mod provider;
 pub mod retry;
 pub mod runtime;

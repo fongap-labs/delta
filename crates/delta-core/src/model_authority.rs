@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 use crate::durability::atomic_write_private;
+use crate::product_settings::ProductSettings;
 use crate::RuntimeConfig;
 
 const DEFAULT_OPENAI_URL: &str = "https://api.openai.com/v1";
@@ -383,7 +384,8 @@ impl ModelAuthority {
             .iter()
             .filter_map(|(id, _, window)| window.map(|value| ((*id).to_string(), json!(value))))
             .collect();
-        Ok(json!({
+        let product_settings = ProductSettings::snapshot(prefs);
+        let mut settings = json!({
             "provider": "openai",
             "model": default_model,
             "models": models,
@@ -393,19 +395,12 @@ impl ModelAuthority {
             "model_ready": !default_model.is_empty()
                 && self.provider_configured(&self.route_model(&default_model, prefs).0, prefs, secrets)?,
             "source": if env_key { Value::String("env".to_string()) } else if stored_key { Value::String("store".to_string()) } else { Value::Null },
-            "onboarded": prefs.get("onboarded").and_then(Value::as_bool).unwrap_or(false),
-            "language": prefs.get("language").cloned().unwrap_or(Value::Null),
-            "sessions_peek": bounded_i64(prefs.get("sessions_peek"), 5, 1, 50),
-            "context_bar": prefs.get("context_bar").and_then(Value::as_bool).unwrap_or(false),
-            "scratch_base": prefs.get("scratch_base").and_then(Value::as_str).unwrap_or("~/Delta"),
             "secrets_path": self.authority_path().to_string_lossy(),
-            "pdf_fallback": match prefs.get("pdf_fallback").and_then(Value::as_str) { Some("images") => "images", _ => "text" },
-            "pdf_max_pages": bounded_i64(prefs.get("pdf_max_pages"), 20, 1, 100),
-            "pdf_max_mb": bounded_i64(prefs.get("pdf_max_mb"), 10, 1, 10),
-            "compaction_threshold_pct": bounded_f64(prefs.get("compaction_threshold_pct"), 0.8, 0.10, 0.95),
-            "compaction_cap_tokens": bounded_i64(prefs.get("compaction_cap_tokens"), 250_000, 10_000, 2_000_000),
-            "compaction_model": prefs.get("compaction_model").and_then(Value::as_str).unwrap_or(""),
-        }))
+        });
+        if let Some(settings_map) = settings.as_object_mut() {
+            settings_map.extend(product_settings);
+        }
+        Ok(settings)
     }
 
     pub fn protocols(&self) -> Value {
@@ -641,81 +636,50 @@ impl ModelAuthority {
     }
 
     pub fn set_onboarded(&self, is_onboarded: bool) -> Result<Value, String> {
-        let value = is_onboarded;
-        self.set_pref("onboarded", json!(value))?;
-        Ok(json!({"ok": true, "onboarded": value}))
+        let mut file = self.read_authority()?;
+        ProductSettings::set_onboarded(&mut file.prefs, is_onboarded);
+        self.write_authority(&file)?;
+        Ok(json!({"ok": true, "onboarded": is_onboarded}))
     }
 
     pub fn set_language(&self, language: &str) -> Result<Value, String> {
-        let value = language.trim();
         let mut file = self.read_authority()?;
-        if value.is_empty() {
-            file.prefs.remove("language");
-        } else {
-            file.prefs.insert("language".to_string(), json!(value));
-        }
+        ProductSettings::set_language(&mut file.prefs, language);
         self.write_authority(&file)?;
         self.settings().map(with_ok)
     }
 
     pub fn set_context_bar(&self, is_shown: bool) -> Result<Value, String> {
-        let shown = is_shown;
-        self.set_pref("context_bar", json!(shown))?;
-        Ok(json!({"ok": true, "context_bar": shown}))
+        let mut file = self.read_authority()?;
+        ProductSettings::set_context_bar(&mut file.prefs, is_shown);
+        self.write_authority(&file)?;
+        Ok(json!({"ok": true, "context_bar": is_shown}))
     }
 
     pub fn set_sessions_peek(&self, count: i64) -> Result<Value, String> {
-        let value = count.clamp(1, 50);
-        self.set_pref("sessions_peek", json!(value))?;
+        let mut file = self.read_authority()?;
+        let value = ProductSettings::set_sessions_peek(&mut file.prefs, count);
+        self.write_authority(&file)?;
         Ok(json!({"ok": true, "sessions_peek": value}))
     }
 
     pub fn set_scratch_base(&self, path: &str) -> Result<Value, String> {
-        let value = path.trim();
-        self.set_pref("scratch_base", json!(value))?;
+        let mut file = self.read_authority()?;
+        let value = ProductSettings::set_scratch_base(&mut file.prefs, path).to_string();
+        self.write_authority(&file)?;
         Ok(json!({"ok": true, "scratch_base": value}))
     }
 
     pub fn set_pdf_settings(&self, patch: &Value) -> Result<Value, String> {
         let mut file = self.read_authority()?;
-        let prefs = &mut file.prefs;
-        if let Some(mode) = patch.get("pdf_fallback").and_then(Value::as_str) {
-            if !matches!(mode, "text" | "images") {
-                return Err("pdf_fallback must be 'text' or 'images'".to_string());
-            }
-            prefs.insert("pdf_fallback".to_string(), json!(mode));
-        }
-        if let Some(value) = patch.get("pdf_max_pages").and_then(Value::as_i64) {
-            prefs.insert("pdf_max_pages".to_string(), json!(value.clamp(1, 100)));
-        }
-        if let Some(value) = patch.get("pdf_max_mb").and_then(Value::as_i64) {
-            prefs.insert("pdf_max_mb".to_string(), json!(value.clamp(1, 10)));
-        }
+        ProductSettings::set_pdf_settings(&mut file.prefs, patch)?;
         self.write_authority(&file)?;
         self.settings().map(with_ok)
     }
 
     pub fn set_compaction_settings(&self, patch: &Value) -> Result<Value, String> {
         let mut file = self.read_authority()?;
-        let prefs = &mut file.prefs;
-        if let Some(value) = patch
-            .get("compaction_threshold_pct")
-            .and_then(Value::as_f64)
-        {
-            if !(0.10..=0.95).contains(&value) {
-                return Err("compaction_threshold_pct must be between 0.10 and 0.95".to_string());
-            }
-            prefs.insert("compaction_threshold_pct".to_string(), json!(value));
-        }
-        if let Some(value) = patch.get("compaction_cap_tokens").and_then(Value::as_i64) {
-            prefs.insert(
-                "compaction_cap_tokens".to_string(),
-                json!(value.clamp(10_000, 2_000_000)),
-            );
-        }
-        if let Some(value) = patch.get("compaction_model").and_then(Value::as_str) {
-            prefs.insert("compaction_model".to_string(), json!(value));
-        }
+        ProductSettings::set_compaction_settings(&mut file.prefs, patch)?;
         self.write_authority(&file)?;
         Ok(json!({"ok": true}))
     }
@@ -961,12 +925,6 @@ impl ModelAuthority {
         if !MODEL_MATRIX.iter().any(|(id, _, _)| *id == model) {
             push_unique(prefs, "models", model);
         }
-    }
-
-    fn set_pref(&self, key: &str, value: Value) -> Result<(), String> {
-        let mut file = self.read_authority()?;
-        file.prefs.insert(key.to_string(), value);
-        self.write_authority(&file)
     }
 }
 
@@ -1214,20 +1172,6 @@ fn with_ok(mut value: Value) -> Value {
         object.insert("ok".to_string(), json!(true));
     }
     value
-}
-
-fn bounded_i64(value: Option<&Value>, default: i64, min: i64, max: i64) -> i64 {
-    value
-        .and_then(Value::as_i64)
-        .unwrap_or(default)
-        .clamp(min, max)
-}
-
-fn bounded_f64(value: Option<&Value>, default: f64, min: f64, max: f64) -> f64 {
-    value
-        .and_then(Value::as_f64)
-        .unwrap_or(default)
-        .clamp(min, max)
 }
 
 fn join_api_path(base_url: &str, endpoint: &str) -> String {
