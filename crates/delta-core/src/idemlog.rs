@@ -739,9 +739,7 @@ mod tests {
         writer
             .record_planned("run_collision", "tool_1", "write_file", &original)
             .unwrap();
-        writer
-            .mark_executing("run_collision", "tool_1")
-            .unwrap();
+        writer.mark_executing("run_collision", "tool_1").unwrap();
         writer
             .commit(
                 "run_collision",
@@ -757,5 +755,4 @@ mod tests {
             .unwrap_err();
         assert!(error.to_string().contains("identity_collision"));
     }
-
 }
