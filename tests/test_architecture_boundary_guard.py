@@ -37,6 +37,7 @@ def repository(tmp_path: Path) -> Path:
         ("core/engine.py", "class TurnEngine:\n    pass\n", "python-turn-authority"),
         ("core/runner.py", "from providers.router import ProviderRouter\n", "python-provider-authority"),
         ("core/runner.py", "import aisuite\n", "aisuite-application-runtime"),
+        ("integrations/connectors/gateway.py", "from packages.credential_store import CredentialStore\nstore = CredentialStore()\n", "connector-concrete-secret-store"),
         ("apps/desktop/src/view.tsx", "export const PersonaView = () => null;\n", "persona-platform"),
         ("apps/desktop/src-tauri/src/runtime_ipc.rs", "let _ = ModelAuthority::open(path);\n", "tauri-direct-authority-construction"),
         ("apps/desktop/src-tauri/src/runtime_ipc.rs", "control_plane::list_sessions(path, None);\n", "tauri-direct-control-plane"),

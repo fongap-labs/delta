@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.browser_automation import build_browser_tools
 from integrations.connectors.email_tools import make_email_tools
 from integrations.connectors.tool_runtime import (
@@ -53,7 +53,7 @@ def build_browser_reader() -> Callable[..., Any]:
 
 
 def build_connector_tools(
-    secrets: SecretStore,
+    secrets: SecretSource,
     *,
     enabled_connectors: set[str] | None = None,
     enabled_tools: set[str] | None = None,

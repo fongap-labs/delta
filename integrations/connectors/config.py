@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.base import SessionSource
 
 
@@ -47,7 +47,7 @@ def is_authorized(settings: ConnectorSettings, source: SessionSource) -> bool:
 
 
 def load_settings(
-    secrets: SecretStore | None = None,
+    secrets: SecretSource,
 ) -> dict[str, ConnectorSettings]:
     """Load settings supplied by installed messaging providers.
 
@@ -56,7 +56,6 @@ def load_settings(
     """
     from integrations.connectors.messaging_providers import messaging_provider_settings
 
-    secrets = secrets or SecretStore()
     provided = messaging_provider_settings(secrets)
     out: dict[str, ConnectorSettings] = {}
     for platform, settings in provided.items():
