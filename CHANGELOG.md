@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: align the Python worker SDK result contract with the Capability ABI so any JSON value can be returned.
+
 - fix: expose a Foundation-owned browser connection address contract so interactive providers can pin connections to the vetted IP and close DNS rebinding gaps.
 
 - ci: cancel centralized PR work when a pull request is closed.
