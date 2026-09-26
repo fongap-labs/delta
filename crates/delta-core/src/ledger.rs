@@ -1,8 +1,7 @@
-//! Read-only shadow access to the Python Runtime's run-event ledger.
+//! Run-event ledger persistence, lifecycle state, and hash-chain verification.
 //!
-//! The Python `core/ledger.py` `RunEventLedger` writes hash-chained events
-//! to a SQLite table `run_events`. This module opens the same DB file
-//! read-only and verifies the chain from Rust.
+//! The Runtime stores authoritative run events in the SQLite `run_events`
+//! table. This module owns the Rust read/write contract used by the Core.
 //!
 //! Contract: `docs/architecture/runtime-public-contract.md` §2.3.
 
