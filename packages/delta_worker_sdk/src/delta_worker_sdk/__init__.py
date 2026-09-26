@@ -14,7 +14,7 @@ for Python capability workers. It handles:
 It is NOT a runtime, agent, scheduler, state manager, or permission manager.
 """
 
-from .context import WorkerContext, run_worker
+from .context import WorkerContext, run_persistent_worker, run_worker
 from .protocol import (
     CapabilityJob,
     CapabilityGrants,
@@ -33,6 +33,7 @@ __all__ = [
     "CAPABILITY_ABI_VERSION",
     "WorkerContext",
     "run_worker",
+    "run_persistent_worker",
     "CapabilityJob",
     "CapabilityGrants",
     "CapabilityBoundary",
