@@ -154,7 +154,7 @@ class WorkerContext:
     def result(
         self,
         output: Optional[str] = None,
-        result: Optional[dict[str, Any]] = None,
+        result: Optional[Any] = None,
         artifacts: Optional[list[CapabilityArtifact]] = None,
     ) -> CapabilityResult:
         """Build a completed result."""
