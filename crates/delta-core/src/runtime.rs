@@ -18,25 +18,21 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs;
 use std::io::Write;
-use std::path::{Component, Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 
-use crate::approval::{ApprovalController, ApprovalDecision, ApprovalRecordInput, ApprovalWriter};
-use crate::artifact::{ArtifactInput, ArtifactRegistryWriter};
+use crate::approval::{ApprovalController, ApprovalDecision, ApprovalWriter};
 use crate::capability::CapabilityProgress;
 use crate::checkpoint::{CheckpointReader, CheckpointRegisterInput, CheckpointWriter};
 use crate::idemlog::{IdempotencyWriter, SideEffectEntry};
 use crate::inbox::InboxStore;
 use crate::policy::{self, Decision, PolicyEvaluateInput, RiskLevel, RootEntry, ToolMetadata};
 use crate::provider::{self, ProviderRequest};
-use crate::tool_lifecycle::{self, PlanAction, ToolLifecyclePlanInput};
-use crate::validation::ValidationWriter;
 use crate::LedgerWriter;
 
 mod tool_execution;
