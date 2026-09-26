@@ -13,6 +13,9 @@ from delta_worker_sdk import (
     CapabilityJob,
     CapabilityResult,
     CapabilityGrants,
+    CapabilityBoundary,
+    CapabilityInputFile,
+    CapabilityArtifact,
 )
 
 
@@ -27,6 +30,48 @@ def make_job(**overrides) -> CapabilityJob:
     }
     base.update(overrides)
     return CapabilityJob(**base)
+
+
+def test_protocol_fields_match_capability_abi():
+    input_file = CapabilityInputFile(path="input.txt", sha256=None, size=12)
+    assert input_file.sha256 is None
+    assert input_file.size == 12
+
+    grants = CapabilityGrants(
+        read_roots=["/read"],
+        write_roots=["/write"],
+        network=["https://api.example.test:443"],
+        secrets=["API_KEY"],
+        exec=True,
+        execution_epoch=100.0,
+        expires_at=200.0,
+    )
+    assert grants.exec is True
+    assert grants.execution_epoch == 100.0
+    assert grants.expires_at == 200.0
+
+    boundary = CapabilityBoundary(
+        read_roots=["/read"],
+        write_roots=["/write"],
+        network=["https://api.example.test:443"],
+        exec=True,
+        secrets=["API_KEY"],
+        destructive=True,
+        provenance="approval:test",
+        execution_epoch=100.0,
+        expires_at=200.0,
+    )
+    assert boundary.exec is True
+    assert boundary.destructive is True
+    assert boundary.provenance == "approval:test"
+    assert boundary.execution_epoch == 100.0
+    assert boundary.expires_at == 200.0
+
+    artifact = CapabilityArtifact(
+        staging_path="/tmp/out",
+        relative_path="out.txt",
+    )
+    assert artifact.kind is None
 
 
 def test_context_reads_arguments():
