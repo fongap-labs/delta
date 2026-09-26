@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: remove the retired parallel Worker SDK and keep `delta-worker-sdk` as the single Python Capability ABI implementation.
+
 - fix: align Python worker SDK grants, boundaries, input files, and artifacts with the Rust Capability ABI.
 
 - fix: align the Python worker SDK result contract with the Capability ABI so any JSON value can be returned.
