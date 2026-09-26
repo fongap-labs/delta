@@ -159,6 +159,17 @@ RULES = (
         and _under(rel, "apps", "core", "packages", "services", "integrations"),
     ),
     Rule(
+        "connector-concrete-secret-store",
+        "Foundation connector code depends on the concrete file-backed CredentialStore",
+        re.compile(
+            r"^\s*from\s+packages\.credential_store\s+import\s+CredentialStore\b|"
+            r"\bCredentialStore\s*\("
+        , re.M),
+        lambda rel: _python(rel)
+        and _under(rel, "integrations/connectors")
+        and rel != "integrations/connectors/cli.py",
+    ),
+    Rule(
         "aisuite-application-runtime",
         "aisuite used outside a controlled capability definition",
         re.compile(r"^\s*(?:from\s+aisuite\b|import\s+aisuite\b)", re.M),
