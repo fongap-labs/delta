@@ -483,6 +483,8 @@ MCP / Connector / External Service
 
 ## 19. 版本兼容
 
+Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（发布名 `delta-worker-sdk`）。不得在 Foundation 中维护第二套并行 Worker SDK、复制 ABI model，或让测试专门保活废弃协议实现；所有 Worker/Extension 共享同一 SDK contract tests。
+
 Capability ABI 必须版本化，至少定义：
 
 ```text
