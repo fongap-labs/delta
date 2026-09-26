@@ -152,6 +152,8 @@ R6 目标是删除不再需要的 Python Provider control / SDK fallback，而�
 - Skill 不直接获得额外权限；
 - MCP / Connector 不绕过 Policy / Approval / Ledger / Validation；
 - Python capability 通过受控 Capability ABI 使用。
+- Connector / provider 代码只依赖只读 `SecretSource`，不得自行创建文件型 `CredentialStore`；具体 vault 只允许出现在 headless/operator 兼容入口。
+- Connector 工具启用状态由 Rust `ApplicationStore` 统一拥有，不得写入 `secrets.json` 或由 Extension 维护第二套状态。
 
 ## `extensions/`
 

@@ -10,7 +10,7 @@ import logging
 from collections import OrderedDict
 from typing import Callable
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.base import (
     BasePlatformAdapter,
     InteractionEvent,
@@ -35,15 +35,20 @@ class Gateway:
     def __init__(
         self,
         *,
-        secrets: SecretStore | None = None,
+        secrets: SecretSource | None = None,
         settings: dict[str, ConnectorSettings] | None = None,
         handler: MessageHandler | None = None,
         reply_resolver: Callable[[MessageEvent], bool] | None = None,
         interaction_handler: Callable | None = None,
         on_unauthorized: Callable | None = None,
     ) -> None:
-        self.secrets = secrets or SecretStore()
-        self.settings = settings if settings is not None else load_settings(self.secrets)
+        self.secrets = secrets
+        if settings is None:
+            if secrets is None:
+                raise ValueError("secrets is required when connector settings are not supplied")
+            self.settings = load_settings(secrets)
+        else:
+            self.settings = settings
         self._handler = handler
         self._reply_resolver = reply_resolver
         self._interaction_handler = interaction_handler
@@ -140,6 +145,12 @@ class Gateway:
                 continue
             adapter = self._adapters.get(platform)
             if adapter is None:
+                if self.secrets is None:
+                    logger.warning(
+                        "messaging provider %s requires an injected secret source",
+                        platform,
+                    )
+                    continue
                 adapter = make_messaging_adapter(platform, self.secrets)
                 if adapter is not None:
                     self.register(adapter)
