@@ -18,6 +18,7 @@ from integrations.connectors.config import ConnectorSettings, TeamAuth, is_autho
 from integrations.connectors.descriptors import ConnectorDescriptor, get_descriptor, list_descriptors
 from integrations.connectors.fake import FakeAdapter
 from integrations.connectors.gateway import Gateway
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.connector_tools import build_connector_tools
 from integrations.connectors.messaging_providers import (
     MessagingProvider,
@@ -43,6 +44,7 @@ __all__ = [
     "MessageType",
     "MessagingProvider",
     "SendResult",
+    "SecretSource",
     "SessionSource",
     "TeamAuth",
     "clear_messaging_providers",
