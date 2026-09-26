@@ -5,8 +5,9 @@ credentials from the Rust CapabilityHost. The concrete store alias remains here
 for legacy/headless extension contracts and tests.
 """
 
+from integrations.connectors.secret_source import SecretSource
 from packages.credential_store import CredentialStore
 
 SecretStore = CredentialStore
 
-__all__ = ["CredentialStore", "SecretStore"]
+__all__ = ["CredentialStore", "SecretSource", "SecretStore"]

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.messaging_providers import messaging_operation
 
 
-def outbound_prefix(store: SecretStore, target: str) -> str:
+def outbound_prefix(store: SecretSource, target: str) -> str:
     fn = messaging_operation("slack", "outbound_prefix")
     if fn is None:
         return ""

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 def test_public_extension_api_imports() -> None:
-    from delta_extension_api import CredentialStore, SecretStore
+    from delta_extension_api import CredentialStore, SecretSource, SecretStore
     from delta_extension_api.browser import (
         BrowserAutomationProvider,
         browser_tool_schema,
@@ -36,6 +36,7 @@ def test_public_extension_api_imports() -> None:
     )
 
     assert SecretStore is CredentialStore
+    assert SecretSource is not None
     assert BrowserAutomationProvider is not None
     assert callable(browser_tool_schema)
     assert callable(register_browser_provider)

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: make Foundation connectors consume an injected read-only `SecretSource`, remove dead secret-backed tool enablement state, and keep the concrete file vault only at legacy/headless boundaries.
+
 - feat: add a canonical persistent Worker SDK loop so long-lived workers share the same Job, secret-frame, ABI negotiation, and terminal-result contract as one-shot workers.
 
 - fix: add the packaged Delta Worker SDK README required by Git subdirectory installs.

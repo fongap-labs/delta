@@ -11,7 +11,7 @@ from collections.abc import Callable
 from threading import RLock
 from typing import Any, Protocol
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 
 
 Tool = Callable[..., Any]
@@ -20,7 +20,7 @@ Tool = Callable[..., Any]
 class ConnectorToolFactory(Protocol):
     def __call__(
         self,
-        secrets: SecretStore,
+        secrets: SecretSource,
         *,
         enabled_connectors: set[str] | None = None,
         enabled_tools: set[str] | None = None,
@@ -70,7 +70,7 @@ def registered_tool_factories() -> tuple[str, ...]:
 
 
 def make_extension_tools(
-    secrets: SecretStore,
+    secrets: SecretSource,
     *,
     enabled_connectors: set[str] | None = None,
     enabled_tools: set[str] | None = None,

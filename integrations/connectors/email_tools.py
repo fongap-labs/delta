@@ -2,7 +2,7 @@
 
 One connector covers Gmail, iCloud, Fastmail, and custom IMAP servers: the user enters
 an address + app password and servers are inferred from the address domain (advanced
-fields override). Credentials are read from the SecretStore at execution time and never
+fields override). Credentials are read from the SecretSource at execution time and never
 enter prompts. All mailbox reads are non-destructive (read-only SELECT / PEEK fetches,
 so the user's unread flags never flip) and v1 ships no delete/move/flag tools. Sending
 and attachment download require approval. Sending is deliberately single-shot — SMTP
@@ -32,7 +32,7 @@ from integrations.tools import metadata as ai
 
 from core.roots import RootDir
 from integrations.tools.metadata import attach_tool_metadata
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 
 _TIMEOUT = 30.0
 _BODY_CHAR_LIMIT = 20_000
@@ -363,7 +363,7 @@ def _attach(
 
 # -- the tools ----------------------------------------------------------------------
 def make_email_tools(
-    secrets: SecretStore,
+    secrets: SecretSource,
     *,
     roots: Optional[list[RootDir]] = None,
     imap_factory: Callable[[str, int], imaplib.IMAP4] = _default_imap_factory,

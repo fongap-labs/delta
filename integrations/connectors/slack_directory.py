@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.messaging_providers import call_messaging_operation
 
 
 def list_members(
-    secrets: SecretStore,
+    secrets: SecretSource,
     team_id: str,
     query: str = "",
     limit: int = 25,
@@ -22,7 +22,7 @@ def list_members(
 
 
 def list_channels(
-    secrets: SecretStore,
+    secrets: SecretSource,
     team_id: str,
     query: str = "",
     limit: int = 25,

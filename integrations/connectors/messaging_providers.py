@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from threading import RLock
 from typing import Any
 
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.base import (
     BasePlatformAdapter,
     InteractionEvent,
@@ -20,13 +20,13 @@ from integrations.connectors.base import (
     parse_target,
 )
 
-MessageSender = Callable[[SecretStore, str, str, str | None], SendResult]
+MessageSender = Callable[[SecretSource, str, str, str | None], SendResult]
 FileSender = Callable[
-    [SecretStore, str, str | None, str, bytes, str | None, str | None], SendResult
+    [SecretSource, str, str | None, str, bytes, str | None, str | None], SendResult
 ]
-BareTargetParser = Callable[[SecretStore, str], tuple[str, str | None] | None]
-AdapterFactory = Callable[[SecretStore], BasePlatformAdapter | None]
-SettingsLoader = Callable[[SecretStore], Any]
+BareTargetParser = Callable[[SecretSource, str], tuple[str, str | None] | None]
+AdapterFactory = Callable[[SecretSource], BasePlatformAdapter | None]
+SettingsLoader = Callable[[SecretSource], Any]
 InteractionRejector = Callable[[InteractionEvent, str], Awaitable[None]]
 ProviderOperation = Callable[..., Any]
 
@@ -84,7 +84,7 @@ def registered_messaging_providers() -> tuple[str, ...]:
         return tuple(sorted(_PROVIDERS))
 
 
-def messaging_provider_settings(secrets: SecretStore) -> dict[str, Any]:
+def messaging_provider_settings(secrets: SecretSource) -> dict[str, Any]:
     """Load platform settings contributed by registered providers."""
     with _LOCK:
         providers = tuple(sorted(_PROVIDERS.items()))
@@ -117,7 +117,7 @@ def call_messaging_operation(
 
 
 def resolve_messaging_target(
-    secrets: SecretStore, target: str
+    secrets: SecretSource, target: str
 ) -> tuple[str, str, str | None]:
     """Resolve an explicit `platform:chat[:thread]` target or a provider-owned bare target."""
     raw = str(target or "").strip()
@@ -146,7 +146,7 @@ def resolve_messaging_target(
 
 
 def make_messaging_adapter(
-    platform: str, secrets: SecretStore
+    platform: str, secrets: SecretSource
 ) -> BasePlatformAdapter | None:
     provider = messaging_provider(platform)
     if provider is None or provider.make_adapter is None:
