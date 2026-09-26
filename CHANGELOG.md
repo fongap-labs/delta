@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: add the packaged Delta Worker SDK README required by Git subdirectory installs.
+
 - fix: make the Python Worker SDK fail closed with typed results for malformed jobs, malformed secret payloads, and invalid handler returns.
 
 - refactor: remove the retired parallel Worker SDK and keep `delta-worker-sdk` as the single Python Capability ABI implementation.
