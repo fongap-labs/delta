@@ -1223,5 +1223,4 @@ mod tests {
         assert_eq!(result.reason, "range_unverified");
         assert_eq!(result.range_valid, None);
     }
-
 }
