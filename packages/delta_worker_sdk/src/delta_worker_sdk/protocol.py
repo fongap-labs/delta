@@ -65,7 +65,7 @@ class CapabilityResult(BaseModel):
     abi_version: int
     job_id: str
     state: Literal["completed", "failed", "cancelled", "timed_out"]
-    result: Optional[dict[str, Any]] = None
+    result: Optional[Any] = None
     output: Optional[str] = None
     artifacts: list[CapabilityArtifact] = Field(default_factory=list)
     diagnostics: Optional[CapabilityDiagnostics] = None

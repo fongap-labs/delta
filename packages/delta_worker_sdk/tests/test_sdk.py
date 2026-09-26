@@ -83,6 +83,19 @@ def test_context_result_completed():
     assert result.output == "done"
 
 
+def test_context_result_accepts_any_json_value():
+    job = make_job()
+    ctx = WorkerContext(
+        job=job,
+        secret_values={},
+        progress_sender=lambda p: None,
+        cancel_checker=lambda: False,
+    )
+    assert ctx.result(result="ok").result == "ok"
+    assert ctx.result(result=[1, "two", True]).result == [1, "two", True]
+    assert ctx.result(result=42).result == 42
+
+
 def test_context_result_error():
     job = make_job()
     ctx = WorkerContext(
