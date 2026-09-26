@@ -75,38 +75,13 @@ pub fn start_scheduler(app: AppHandle) {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                let workspace = run
-                    .get("workspace")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-                let accepted = match state.default_model_id() {
-                    Err(error) => json!({"ok": false, "error": error}),
-                    Ok(model_id) => state.start_runtime(
-                        RuntimeStartRequest {
-                            session_id: session_id.clone(),
-                            model_id,
-                            user_input: run
-                                .get("prompt")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string(),
-                            workspace,
-                            attachments: None,
-                            skill: None,
-                            mode: Some("unattended".to_string()),
-                            max_iterations: None,
-                            max_retries: None,
-                            source: Some(json!({
-                                "automation_id": run.get("task_id"),
-                                "trigger": "scheduled"
-                            })),
-                        },
-                        Arc::new(TauriEventSink {
-                            app: app.clone(),
-                            core: state.inner().clone(),
-                        }),
-                    ),
-                };
+                let accepted = state.start_claimed_automation(
+                    &run,
+                    Arc::new(TauriEventSink {
+                        app: app.clone(),
+                        core: state.inner().clone(),
+                    }),
+                );
                 if accepted.get("ok").and_then(Value::as_bool) == Some(true) {
                     let sequence = APP_EVENT_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
                     let _ = app.emit(
@@ -122,11 +97,14 @@ pub fn start_scheduler(app: AppHandle) {
                             }
                         }),
                     );
-                } else if let Err(error) = state.automation_start_failed(
-                    &session_id,
-                    accepted.get("error").cloned().unwrap_or(Value::Null),
-                ) {
-                    eprintln!("automation start failure finalization deferred: {error}");
+                } else {
+                    eprintln!(
+                        "automation runtime start failed: {}",
+                        accepted
+                            .get("error")
+                            .map(Value::to_string)
+                            .unwrap_or_else(|| "unknown error".to_string())
+                    );
                 }
             }
             std::thread::sleep(Duration::from_secs(15));
@@ -308,7 +286,6 @@ pub fn runtime_truncate(
 }
 
 // ---------------------------------------------------------------------------
-// R6 Provider / Model / Settings / Secrets authority.// ---------------------------------------------------------------------------
 // R6 Provider / Model / Settings / Secrets authority.
 // ---------------------------------------------------------------------------
 
