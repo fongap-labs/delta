@@ -4,9 +4,20 @@
 //! module owns execution adapters only: in-process native functions, controlled
 //! subprocess workers, and MCP worker bridging.
 
-use super::*;
+use std::collections::{BTreeMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
+
+use serde_json::Value;
+
+use super::abi::{
+    CapabilityExitState, CapabilityJob, CapabilityProgress, CapabilityResult,
+    CAPABILITY_ABI_VERSION,
+};
+use super::registry::{CapabilityControl, CapabilityRunner};
 
 type NativeHandler =
     dyn Fn(&CapabilityJob, &CapabilityControl) -> CapabilityResult + Send + Sync + 'static;
