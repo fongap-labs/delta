@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from integrations.tools import metadata as ai
 from integrations.tools.metadata import attach_tool_metadata
-from packages.credential_store import CredentialStore as SecretStore
+from integrations.connectors.secret_source import SecretSource
 from integrations.connectors.messaging_providers import (
     messaging_provider,
     resolve_messaging_target,
@@ -43,7 +43,7 @@ _MESSAGE_SCHEMA = {
 }
 
 
-def build_send_message(secrets: SecretStore) -> Callable[..., Any]:
+def build_send_message(secrets: SecretSource) -> Callable[..., Any]:
     """Build the approval-gated outbound messaging tool."""
 
     def send_message(target: str, text: str) -> dict[str, Any]:
@@ -143,7 +143,7 @@ def _render_html_png(path: Path) -> bytes:
 
 
 def build_send_file(
-    secrets: SecretStore,
+    secrets: SecretSource,
     *,
     workspace: Path | None = None,
     roots: list | None = None,
