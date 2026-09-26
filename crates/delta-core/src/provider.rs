@@ -1006,7 +1006,10 @@ pub fn stream(
 
 #[cfg(test)]
 mod tests {
-    use super::versioned_endpoint;
+    use super::{
+        parse_anthropic_response, parse_openai_chat, parse_openai_responses, versioned_endpoint,
+    };
+    use serde_json::json;
 
     #[test]
     fn versioned_endpoint_never_duplicates_v1() {
@@ -1018,5 +1021,86 @@ mod tests {
             versioned_endpoint("https://api.example.test", "messages"),
             "https://api.example.test/v1/messages"
         );
+    }
+
+    #[test]
+    fn openai_chat_parser_preserves_reasoning_usage_and_tools() {
+        let parsed = parse_openai_chat(&json!({
+            "choices": [{
+                "message": {
+                    "content": "Hello",
+                    "reasoning_content": "thinking",
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "function": {"name": "lookup", "arguments": "{\"q\":\"delta\"}"}
+                    }]
+                },
+                "finish_reason": "tool_calls"
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "prompt_tokens_details": {"cached_tokens": 2}
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(parsed["text"], "Hello");
+        assert_eq!(parsed["reasoning"], "thinking");
+        assert_eq!(parsed["finish_reason"], "tool_calls");
+        assert_eq!(parsed["tool_calls"][0]["name"], "lookup");
+        assert_eq!(parsed["tool_calls"][0]["arguments"]["q"], "delta");
+        assert_eq!(parsed["usage"]["input"], 8);
+        assert_eq!(parsed["usage"]["cache_read"], 2);
+        assert_eq!(parsed["usage"]["output"], 5);
+    }
+
+    #[test]
+    fn anthropic_parser_preserves_reasoning_usage_and_tools() {
+        let parsed = parse_anthropic_response(&json!({
+            "content": [
+                {"type": "thinking", "thinking": "reason"},
+                {"type": "text", "text": "Hello"},
+                {"type": "tool_use", "id": "tool_1", "name": "lookup", "input": {"q": "delta"}}
+            ],
+            "stop_reason": "tool_use",
+            "usage": {
+                "input_tokens": 50,
+                "output_tokens": 20,
+                "cache_creation_input_tokens": 5,
+                "cache_read_input_tokens": 3
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(parsed["text"], "Hello");
+        assert_eq!(parsed["reasoning"], "reason");
+        assert_eq!(parsed["finish_reason"], "tool_calls");
+        assert_eq!(parsed["tool_calls"][0]["arguments"]["q"], "delta");
+        assert_eq!(parsed["usage"]["input"], 50);
+        assert_eq!(parsed["usage"]["output"], 20);
+        assert_eq!(parsed["usage"]["cache_read"], 3);
+        assert_eq!(parsed["usage"]["cache_write"], 5);
+    }
+
+    #[test]
+    fn openai_responses_parser_preserves_reasoning_usage_and_tools() {
+        let parsed = parse_openai_responses(&json!({
+            "output": [
+                {"type": "message", "content": [{"type": "output_text", "text": "Hello"}]},
+                {"type": "reasoning", "summary": [{"text": "reason"}]},
+                {"type": "function_call", "id": "call_1", "name": "lookup", "arguments": {"q": "delta"}}
+            ],
+            "incomplete_details": null,
+            "usage": {"input_tokens": 30, "output_tokens": 10}
+        }))
+        .unwrap();
+
+        assert_eq!(parsed["text"], "Hello");
+        assert_eq!(parsed["reasoning"], "reason");
+        assert_eq!(parsed["finish_reason"], "tool_calls");
+        assert_eq!(parsed["tool_calls"][0]["arguments"]["q"], "delta");
+        assert_eq!(parsed["usage"]["input"], 30);
+        assert_eq!(parsed["usage"]["output"], 10);
     }
 }

@@ -1,8 +1,7 @@
-//! Read-only shadow access to the Python Runtime's run-event ledger.
+//! Run-event ledger persistence, lifecycle state, and hash-chain verification.
 //!
-//! The Python `core/ledger.py` `RunEventLedger` writes hash-chained events
-//! to a SQLite table `run_events`. This module opens the same DB file
-//! read-only and verifies the chain from Rust.
+//! The Runtime stores authoritative run events in the SQLite `run_events`
+//! table. This module owns the Rust read/write contract used by the Core.
 //!
 //! Contract: `docs/architecture/runtime-public-contract.md` §2.3.
 
@@ -986,5 +985,63 @@ mod tests {
             )
             .unwrap_err();
         assert!(err.to_string().contains("illegal run transition"));
+    }
+
+    #[test]
+    fn resumed_run_reopens_and_is_recoverable_after_second_crash() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let db = dir.path().join("ledger.db");
+        let writer = LedgerWriter::open(&db).unwrap();
+
+        writer
+            .transition(
+                "run_resume",
+                "run.started",
+                "user",
+                1.0,
+                &serde_json::json!({}),
+                "",
+            )
+            .unwrap();
+        writer
+            .transition(
+                "run_resume",
+                "run.interrupted",
+                "system",
+                2.0,
+                &serde_json::json!({"reason": "crashed"}),
+                "",
+            )
+            .unwrap();
+        writer
+            .transition(
+                "run_resume",
+                "run.resumed",
+                "system",
+                3.0,
+                &serde_json::json!({}),
+                "",
+            )
+            .unwrap();
+
+        let reader = LedgerReader::open(&db).unwrap();
+        assert_eq!(reader.run_status("run_resume").unwrap(), "resumed");
+        assert!(reader
+            .open_runs()
+            .unwrap()
+            .contains(&"run_resume".to_string()));
+        drop(reader);
+
+        let recovered = writer.recover_stale().unwrap();
+        assert_eq!(recovered.len(), 1);
+
+        let reader = LedgerReader::open(&db).unwrap();
+        assert_eq!(reader.run_status("run_resume").unwrap(), "interrupted");
+        assert!(!reader
+            .open_runs()
+            .unwrap()
+            .contains(&"run_resume".to_string()));
     }
 }
