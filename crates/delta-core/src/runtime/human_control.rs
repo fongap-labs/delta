@@ -21,7 +21,12 @@ impl InteractionController {
         Ok(receiver)
     }
 
-    pub(super) fn resolve(&self, kind: &str, id: Option<&str>, value: Value) -> Result<String, String> {
+    pub(super) fn resolve(
+        &self,
+        kind: &str,
+        id: Option<&str>,
+        value: Value,
+    ) -> Result<String, String> {
         let mut pending = self.pending.lock().unwrap();
         let key = if let Some(id) = id {
             id.to_string()
