@@ -1,9 +1,7 @@
-//! Read-only shadow access to the Python Runtime's side-effect idempotency log.
+//! Side-effect idempotency persistence and lifecycle state.
 //!
-//! The Python `core/idemlog.py` `IdempotencyLog` writes a state machine
-//! for every consequential tool call to a SQLite table `side_effects`.
-//! This module opens the same DB file read-only and inspects the
-//! state machine from Rust.
+//! Consequential tool calls are recorded in the SQLite `side_effects` table.
+//! This module owns the Rust read/write contract used by the Core.
 //!
 //! Contract: `docs/architecture/runtime-public-contract.md` §2.4.
 
@@ -265,9 +263,7 @@ fn write_canonical(value: &Value, buf: &mut String) {
 
 /// Read-write handle to a `side-effects.db` file.
 ///
-/// Mirrors the Python `IdempotencyLog` write path. When
-/// `DELTA_RUST_AUTHORITY=1` is set, the Python `IdempotencyLog` will
-/// delegate writes to this writer via the `write_idemlog` binary.
+/// Core side-effect lifecycle operations use this writer directly.
 pub struct IdempotencyWriter {
     conn: Connection,
 }
@@ -732,5 +728,31 @@ mod tests {
         let a = args_sha256(&serde_json::json!({"b": 1, "a": 2}));
         let b = args_sha256(&serde_json::json!({"a": 2, "b": 1}));
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn committed_identity_rejects_different_arguments() {
+        let writer = IdempotencyWriter::open_in_memory().unwrap();
+        let original = serde_json::json!({"path": "a.txt"});
+        let changed = serde_json::json!({"path": "different.txt"});
+
+        writer
+            .record_planned("run_collision", "tool_1", "write_file", &original)
+            .unwrap();
+        writer.mark_executing("run_collision", "tool_1").unwrap();
+        writer
+            .commit(
+                "run_collision",
+                "tool_1",
+                "write_file",
+                &original,
+                &serde_json::json!({"ok": true}),
+            )
+            .unwrap();
+
+        let error = writer
+            .record_planned("run_collision", "tool_1", "write_file", &changed)
+            .unwrap_err();
+        assert!(error.to_string().contains("identity_collision"));
     }
 }

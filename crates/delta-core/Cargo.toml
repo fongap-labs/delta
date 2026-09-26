@@ -43,10 +43,6 @@ path = "src/bin/inspect_citation.rs"
 name = "inspect_validation"
 path = "src/bin/inspect_validation.rs"
 
-[[bin]]
-name = "delta_core"
-path = "src/bin/delta_core.rs"
-
 [dependencies]
 base64 = "0.22"
 csv = "1"

@@ -37,18 +37,6 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv python install $pythonVersion
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$channelLine = (Select-String -Path rust-toolchain.toml -Pattern '^channel').Line
-$channel = [regex]::Match($channelLine, '"([^"]+)"').Groups[1].Value
-if (-not $channel) {
-  throw "central-ci: Rust toolchain channel is missing"
-}
-
-rustup toolchain install $channel --profile minimal
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-cargo build --release --bin delta_core --manifest-path crates/delta-core/Cargo.toml
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
 $env:UV_PYTHON = $pythonVersion
 uv sync --locked --extra dev
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -56,6 +44,5 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv pip check --python .venv\Scripts\python.exe
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$env:DELTA_CORE_BINARY = Join-Path $TargetRoot "crates\delta-core\target\release\delta_core.exe"
 uv run --locked pytest tests -q
 exit $LASTEXITCODE

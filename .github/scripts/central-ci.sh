@@ -54,8 +54,7 @@ run_python_version() {
     echo "central-ci: pytest Python $version"
     UV_PROJECT_ENVIRONMENT="$env_dir" UV_PYTHON="$version" uv sync --locked --extra dev
     UV_PYTHON="$version" uv pip check --python "$env_dir/bin/python"
-    DELTA_CORE_BINARY="$TARGET_ROOT/crates/delta-core/target/release/delta_core" \
-      UV_PROJECT_ENVIRONMENT="$env_dir" \
+    UV_PROJECT_ENVIRONMENT="$env_dir" \
       UV_PYTHON="$version" \
       uv run --locked pytest tests -q
   )
@@ -140,9 +139,6 @@ channel="$(grep '^channel' rust-toolchain.toml | tr -d '\r' | sed 's/.*"\(.*\)"/
 rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
 python -m pip install --disable-pip-version-check uv==0.12.3
 
-if [ "$python_required" = "true" ] || [ "$rust_required" = "true" ]; then
-  cargo build --release --bin delta_core --manifest-path crates/delta-core/Cargo.toml
-fi
 
 if [ "$python_required" = "true" ]; then
   uv python install 3.11 3.12 3.13
@@ -204,8 +200,6 @@ if [ "$rust_required" = "true" ]; then
     "crates/delta-stt"
   )
   run_pool 2 run_rust_workspace "${workspaces[@]}"
-
-  python scripts/check_rust_smoke.py --binary crates/delta-core/target/release/delta_core
 fi
 
 cargo install cargo-deny --version 0.20.2 --locked
