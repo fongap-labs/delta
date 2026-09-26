@@ -222,6 +222,76 @@ def test_run_worker_secrets_delivered():
             assert result.state == "completed"
 
 
+def test_run_worker_returns_terminal_result():
+    job = make_job()
+    stdin_data = job.model_dump_json() + "\n{}\n"
+
+    with patch("sys.stdin", StringIO(stdin_data)):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            terminal = run_worker(
+                lambda ctx: ctx.result(result={"ok": True}),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+            assert terminal is not None
+            assert terminal.state == "completed"
+            assert terminal.result == {"ok": True}
+            assert CapabilityResult.model_validate_json(mock_stdout.getvalue().strip()).state == "completed"
+
+
+def test_run_worker_rejects_invalid_job_json():
+    with patch("sys.stdin", StringIO("{not-json}\n{}\n")):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            terminal = run_worker(
+                lambda ctx: ctx.result(),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+            assert terminal is not None
+            assert terminal.state == "failed"
+            assert terminal.diagnostics is not None
+            assert terminal.diagnostics.error_code == "worker_input"
+            assert terminal.job_id == ""
+            assert CapabilityResult.model_validate_json(mock_stdout.getvalue().strip()).state == "failed"
+
+
+def test_run_worker_rejects_invalid_secret_payload():
+    job = make_job()
+    stdin_data = job.model_dump_json() + "\n[]\n"
+
+    with patch("sys.stdin", StringIO(stdin_data)):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            terminal = run_worker(
+                lambda ctx: ctx.result(),
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+            assert terminal is not None
+            assert terminal.state == "failed"
+            assert terminal.diagnostics is not None
+            assert terminal.diagnostics.error_code == "worker_input"
+            assert terminal.job_id == "job-1"
+            assert CapabilityResult.model_validate_json(mock_stdout.getvalue().strip()).state == "failed"
+
+
+def test_run_worker_rejects_non_result_handler_value():
+    job = make_job()
+    stdin_data = job.model_dump_json() + "\n{}\n"
+
+    with patch("sys.stdin", StringIO(stdin_data)):
+        with patch("sys.stdout", StringIO()) as mock_stdout:
+            terminal = run_worker(
+                lambda ctx: {"ok": True},  # type: ignore[return-value]
+                progress_sender=lambda p: None,
+                cancel_checker=lambda: False,
+            )
+            assert terminal is not None
+            assert terminal.state == "failed"
+            assert terminal.diagnostics is not None
+            assert terminal.diagnostics.error_code == "worker_protocol"
+            assert CapabilityResult.model_validate_json(mock_stdout.getvalue().strip()).state == "failed"
+
+
 def test_run_worker_progress_emission():
     job = make_job()
 
