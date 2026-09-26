@@ -202,38 +202,69 @@ def _default_progress_sender(progress: CapabilityProgress) -> None:
     sys.stdout.flush()
 
 
+def _emit_result(result: CapabilityResult) -> CapabilityResult:
+    sys.stdout.write(result.model_dump_json() + "\n")
+    sys.stdout.flush()
+    return result
+
+
+def _input_error(job_id: str, message: str) -> CapabilityResult:
+    from . import CAPABILITY_ABI_VERSION
+
+    return CapabilityResult(
+        abi_version=CAPABILITY_ABI_VERSION,
+        job_id=job_id,
+        state="failed",
+        result=None,
+        output=None,
+        artifacts=[],
+        diagnostics=CapabilityDiagnostics(
+            stderr_lines=[],
+            error_code="worker_input",
+            error_message=message,
+        ),
+        finished_at=__import__("time").time(),
+    )
+
+
 def run_worker(
     handler: Callable[[WorkerContext], CapabilityResult],
     *,
     progress_sender: Callable[[CapabilityProgress], None] = _default_progress_sender,
     cancel_checker: Callable[[], bool] = _default_cancel_checker,
-) -> None:
-    """Run a capability worker.
+) -> Optional[CapabilityResult]:
+    """Run one Capability ABI job and emit exactly one terminal result.
 
     Reads from stdin:
     - Line 1: CapabilityJob JSON
-    - Line 2: Secret values JSON (object mapping secret key -> value)
+    - Line 2: Secret values JSON (object mapping secret key -> string value)
 
-    Calls handler with WorkerContext, writes CapabilityResult JSON to stdout.
+    Returns the same terminal CapabilityResult written to stdout. No input line
+    returns None.
     """
-    import sys
-
-    # Read job (line 1)
     job_line = sys.stdin.readline()
     if not job_line:
-        return
-    job = CapabilityJob.model_validate_json(job_line)
+        return None
 
-    # Read secret values (line 2)
+    try:
+        job = CapabilityJob.model_validate_json(job_line)
+    except Exception:
+        return _emit_result(_input_error("", "invalid capability job"))
+
     secrets_line = sys.stdin.readline()
     secret_values: dict[str, str] = {}
     if secrets_line:
         try:
-            secret_values = json.loads(secrets_line)
+            parsed_secrets = json.loads(secrets_line)
         except json.JSONDecodeError:
-            pass
+            return _emit_result(_input_error(job.job_id, "invalid secret payload"))
+        if not isinstance(parsed_secrets, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in parsed_secrets.items()
+        ):
+            return _emit_result(_input_error(job.job_id, "invalid secret payload"))
+        secret_values = parsed_secrets
 
-    # ABI version check
     from . import CAPABILITY_ABI_VERSION
     if job.abi_version != CAPABILITY_ABI_VERSION:
         result = CapabilityResult(
@@ -253,9 +284,7 @@ def run_worker(
             ),
             finished_at=__import__("time").time(),
         )
-        sys.stdout.write(result.model_dump_json() + "\n")
-        sys.stdout.flush()
-        return
+        return _emit_result(result)
 
     ctx = WorkerContext(
         job=job,
@@ -268,16 +297,20 @@ def run_worker(
         result = handler(ctx)
     except KeyboardInterrupt:
         result = ctx.error("Job cancelled", code="cancelled")
-    except Exception as e:
+    except Exception as exc:
         result = ctx.error(
-            f"Worker error: {e}",
+            f"Worker error: {exc}",
             code="worker_error",
-            stderr_lines=[str(e)],
+            stderr_lines=[str(exc)],
         )
 
-    sys.stdout.write(result.model_dump_json() + "\n")
-    sys.stdout.flush()
+    if not isinstance(result, CapabilityResult):
+        result = ctx.error(
+            "Worker handler did not return CapabilityResult",
+            code="worker_protocol",
+        )
 
+    return _emit_result(result)
 
 __all__ = [
     "WorkerContext",
