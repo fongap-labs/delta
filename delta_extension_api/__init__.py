@@ -6,6 +6,6 @@ The facade is intentionally narrow: Foundation may reorganize internals without
 breaking installed extensions as long as this surface remains compatible.
 """
 
-from .credentials import CredentialStore, SecretStore
+from .credentials import CredentialStore, SecretSource, SecretStore
 
-__all__ = ["CredentialStore", "SecretStore"]
+__all__ = ["CredentialStore", "SecretSource", "SecretStore"]
