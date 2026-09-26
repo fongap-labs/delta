@@ -31,6 +31,7 @@ pub mod mcp;
 pub mod mcp_runtime;
 pub mod memory;
 pub mod model_authority;
+mod model_catalog;
 pub mod persistent_worker;
 pub mod policy;
 mod product_settings;
