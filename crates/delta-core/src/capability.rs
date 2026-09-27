@@ -50,6 +50,7 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
     use std::path::PathBuf;
 
     #[test]
