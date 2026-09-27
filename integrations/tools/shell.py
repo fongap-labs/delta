@@ -287,6 +287,36 @@ class LocalExecutor(Executor):
         self._queue: queue.Queue[str | None] = queue.Queue()
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
+        if self._is_windows:
+            self._warmup()
+
+    def _warmup(self) -> None:
+        """Send a no-op command and drain its marker so the first real command
+        doesn't pay the PowerShell startup cost inside its own timeout budget.
+        On a cold CI runner the first ``[Console]::In.ReadLine()`` round-trip
+        can take several seconds; without a warmup the first ``run()`` call
+        may time out before the shell processes the command.
+        """
+        payload = base64.b64encode(b"Write-Output ''").decode("ascii")
+        stdin = self._proc.stdin
+        if stdin is None:
+            return
+        try:
+            stdin.write(payload + "\n")
+            stdin.flush()
+        except (OSError, ValueError):
+            return
+        deadline = time.monotonic() + 30.0
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            try:
+                item = self._queue.get(timeout=min(remaining, 0.5))
+            except queue.Empty:
+                continue
+            if item is None or self._marker in item:
+                return
 
     def _read_loop(self) -> None:
         try:
