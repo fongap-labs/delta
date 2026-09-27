@@ -4,6 +4,8 @@
 
 - fix: warm up the Windows PowerShell persistent-shell driver before the first real command so cold CI runners do not time out on the first `[Console]::In.ReadLine()` round-trip.
 
+- refactor: move `delta-core` runtime tests into a dedicated submodule so `runtime.rs` contains only production runtime code.
+
 - refactor [breaking]: remove the retired JSONL `delta_core` subprocess server/client path and keep the embedded Rust runtime as the only product Runtime authority.
 
 - refactor: make Foundation connectors consume an injected read-only `SecretSource`, remove dead secret-backed tool enablement state, and keep the concrete file vault only at legacy/headless boundaries.
