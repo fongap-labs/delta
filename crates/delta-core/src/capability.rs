@@ -39,7 +39,7 @@ use runners::{drain_worker_lines, WorkerLine};
 #[cfg(test)]
 use std::collections::BTreeMap;
 #[cfg(test)]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(test)]

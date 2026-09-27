@@ -57,7 +57,7 @@ fn http_error(e: ureq::Error) -> String {
         ureq::Error::Status(code, response) => {
             let body = response.into_string().unwrap_or_default();
             let truncated: &str = if body.len() > 800 {
-                &body[..800]
+                &body[..body.floor_char_boundary(800)]
             } else {
                 &body
             };
