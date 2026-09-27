@@ -39,7 +39,7 @@ use runners::{drain_worker_lines, WorkerLine};
 #[cfg(test)]
 use std::collections::BTreeMap;
 #[cfg(test)]
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[cfg(test)]
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(test)]
@@ -50,6 +50,7 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn abi_version_constant() {
