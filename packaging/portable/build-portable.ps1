@@ -132,13 +132,13 @@ Build entry: packaging\portable\build_portable.ps1
 Runtime: React -> Tauri IPC/events -> embedded Rust Runtime -> controlled capabilities.
 "@
 Set-Content -LiteralPath (Join-Path $HelpDir "PORTABLE.txt") -Encoding utf8 -Value @"
-Delta Portable — 绿色便携版（免安装）
+Delta Portable — green portable build (no installer)
 
-1. 解压完整的 Delta 文件夹到任意可写位置。
-2. 双击 Delta.exe 启动。应用不写注册表，个人数据均在 Data\ 中。
-3. 复制、移动或重命名整个文件夹后仍可运行。
+1. Extract the full Delta folder to any writable location.
+2. Double-click Delta.exe to start. The app does not touch the registry; all user data lives under Data\.
+3. Copy, move, or rename the whole folder; it still runs.
 
-便携版内置 Rust Runtime，不依赖 Python 应用服务。需要系统已安装 WebView2 Runtime。
+The portable build ships the Rust Runtime and does not depend on the Python application service. WebView2 Runtime must be installed on the system.
 "@
 
 $AppInfoXml = Join-Path $AppInfoDir "appinfo.xml"

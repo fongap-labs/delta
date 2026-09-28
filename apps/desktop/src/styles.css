@@ -36,7 +36,7 @@
 /* Horizontal-left-aligned tooltip: grows rightward from the element's left edge instead
    of centering over it — search icon at the sidebar's right edge was getting clipped. */
 .tip.tip-start::after { left: 0; transform: none; }
-/* Single-line (横排) tooltip: no wrapping, so short labels never stack vertically. */
+/* Single-line (horizontal) tooltip: no wrapping, so short labels never stack vertically. */
 .tip.tip-nowrap::after { white-space: nowrap; max-width: none; }
 
 :root {
@@ -856,7 +856,7 @@ button.btn.danger { color: var(--accent); }
 .seg button.active { background: var(--accent-soft); color: var(--ink); }
 
 /* Model checklist (Onboarding + Configure Models): stable three-column grid rows
-   (使用 | 模型 | 默认) so the checkbox, name, and default radio read as one line.
+   (use | model | default) so the checkbox, name, and default radio read as one line.
    checkbox = shown in the picker (display) · radio = default for new sessions.
    The list is width-capped so the two controls never drift to the card edges. */
 .mlist { display: flex; flex-direction: column; gap: 1px; margin: 6px 0 4px; max-width: 560px; }
