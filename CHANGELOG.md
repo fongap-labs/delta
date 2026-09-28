@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: truncate provider error bodies on a UTF-8 character boundary instead of a raw byte slice and restore the missing PathBuf test import in the capability contract tests.
+
 - fix: warm up the Windows PowerShell persistent-shell driver before the first real command so cold CI runners do not time out on the first `[Console]::In.ReadLine()` round-trip.
 
 - refactor: move `delta-core` runtime tests into a dedicated submodule so `runtime.rs` contains only production runtime code.
