@@ -3,7 +3,6 @@
 # Policy:
 # - Runtime/production dependencies are updated individually.
 # - Development-only dependencies may be grouped to reduce PR noise.
-# - GitHub Actions updates are grouped together.
 # - Rust workspaces are tracked independently.
 # - Update windows are staggered to avoid unnecessary CI contention.
 # - Open PR counts are bounded.
@@ -16,25 +15,6 @@
 version: 2
 
 updates:
-  # GitHub Actions
-  #
-  # Workflow actions are SHA-pinned in the repository. Dependabot keeps those
-  # immutable references current as one maintenance group.
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Asia/Shanghai"
-
-    groups:
-      github-actions:
-        patterns:
-          - "*"
-
-    open-pull-requests-limit: 5
-
   # Desktop GUI — npm
   #
   # Production dependencies intentionally remain ungrouped so React, Tauri,
@@ -98,9 +78,9 @@ updates:
 
     open-pull-requests-limit: 5
 
-  # Local STT service
+  # Local STT engine
   - package-ecosystem: "cargo"
-    directory: "/services/stt"
+    directory: "/crates/delta-stt"
     schedule:
       interval: "weekly"
       day: "monday"
