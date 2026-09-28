@@ -7,7 +7,7 @@ the agent how to continue reading. Read-only, workspace-scoped.
 """
 
 # (tool-builder module: attaches aisuite's dynamic metadata attributes
-# (__aisuite_tool_metadata__ / __delta_schema__) to plain functions 鈥?
+# (__aisuite_tool_metadata__ / __delta_schema__) to plain functions —
 # the framework's plugin protocol, not a type error.)
 
 from __future__ import annotations

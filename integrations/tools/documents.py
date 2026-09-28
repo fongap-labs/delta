@@ -1,4 +1,4 @@
-"""Multi-format document reader (P2 实用 — DELTA_BLUEPRINT §7.2).
+"""Multi-format document reader (P2 utility — DELTA_BLUEPRINT §7.2).
 
 The single ``read_document`` tool handles PDF / DOCX / XLSX and returns a
 typed block locator. The Rust Runtime owns authoritative source registration.

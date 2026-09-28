@@ -36,7 +36,8 @@ function renderList(provider: string) {
 }
 
 async function addTyped(id: string) {
-  // The manual-add row is collapsed by default (spec: 手动添加模型改为折叠式操作) —
+  // The manual-add row is collapsed by default (spec: the manual model-add
+  // form uses a collapsed state) —
   // open it, then type into the revealed Model ID field. Add() collapses the form
   // again asynchronously, so wait for the toggle to come back between adds.
   fireEvent.click(screen.getByTestId("mlist-add-toggle"));

@@ -526,7 +526,7 @@ export function Composer(props: Props) {
             aria-label="调整当前任务"
           />
           <div className="px-2.5 pb-2.5 pt-1 flex items-center gap-1.5">
-            <span className="text-[11.5px] text-faint px-1">调整当前任务</span>
+            <span className="text-[11.5px] text-faint px-1">{"调整当前任务"}</span>
             <span className="ml-auto" />
             {props.onReasoningEffortChange && (
               <ReasoningMenu
