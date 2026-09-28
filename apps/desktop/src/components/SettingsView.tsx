@@ -55,6 +55,7 @@ import { SkillsTab } from "./SkillsTab";
 type SetTab = "appearance" | "models" | "skills" | "voice" | "memory";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
+const ZH_CN_LABEL = "简体中文";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
 const FIELD_HELP = "text-[12px] text-muted mt-1.5 leading-relaxed";
 const INPUT =
@@ -429,7 +430,7 @@ function AppearanceSection() {
               className={l === locale ? "active" : ""}
               onClick={() => setLocale(l)}
             >
-              {l === "zh-CN" ? "简体中文" : "English"}
+              {l === "zh-CN" ? ZH_CN_LABEL : "English"}
             </button>
           ))}
         </div>

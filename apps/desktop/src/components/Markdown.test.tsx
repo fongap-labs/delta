@@ -41,14 +41,14 @@ describe("Markdown artifact links", () => {
     const listener = (e: Event) => seen.push((e as CustomEvent).detail.path);
     window.addEventListener(OPEN_ARTIFACT_EVENT, listener);
 
-    const encoded = encodeURIComponent("二女伺夫改写_定稿.md");
+    const encoded = encodeURIComponent("sample-fixture.md");
     render(
-      <Markdown text={`[二女伺夫改写_定稿.md](artifact:out/${encoded})`} />
+      <Markdown text={`[sample-fixture.md](artifact:out/${encoded})`} />
     );
     const chip = screen.getByTestId("artifact-chip");
-    expect(chip.textContent).toContain("二女伺夫改写_定稿.md");
+    expect(chip.textContent).toContain("sample-fixture.md");
     fireEvent.click(chip);
-    expect(seen).toEqual([`out/二女伺夫改写_定稿.md`]);
+    expect(seen).toEqual([`out/sample-fixture.md`]);
 
     window.removeEventListener(OPEN_ARTIFACT_EVENT, listener);
   });

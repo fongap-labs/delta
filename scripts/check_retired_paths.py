@@ -1,21 +1,22 @@
 """Retired-path consistency gate.
 
-用于阻止仓库重新引用已经迁移或废弃的文件路径。
+Blocks the repository from re-referencing migrated or retired file paths.
 
-当前代码、Workflow、配置、测试以及 docs 下的有效文档都必须使用当前规范路径。
-历史路径只允许出现在 CHANGELOG.md 中；其他历史信息通过 Git 和 Pull Request 追溯。
+Current code, workflows, configuration, tests, and valid docs must use the
+current canonical paths. Historical paths are allowed only in CHANGELOG.md;
+other historical context is traced via Git and Pull Requests.
 
-检查范围：
-  - 扫描所有 Git tracked files（git ls-files）。
-  - 忽略构建输出、依赖目录和其他非源码目录。
-  - 使用精确的文件级规则检查废弃路径。
-  - 顶层非法目录仍由 CI 中的 layout-check 负责检查。
+Scope:
+  - Scans all Git tracked files (git ls-files).
+  - Ignores build output, dependency directories, and other non-source trees.
+  - Uses precise file-level rules for retired paths.
+  - Invalid top-level directories remain checked by the CI layout-check.
 
-运行：
+Run:
 
     python scripts/check_retired_paths.py
 
-发现废弃路径时返回 exit code 1。
+Exits with code 1 when a retired path is found.
 """
 
 from __future__ import annotations
@@ -29,11 +30,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 
 
-# 废弃路径 -> 当前规范路径。
+# Retired path -> current canonical path.
 #
-# 使用 [\\/] 同时匹配 Windows 和 POSIX 路径形式。
-# 规则应保持精确，不使用单独的目录名等宽泛模式，
-# 避免误伤 apps/desktop/src 等当前合法路径。
+# [\\/] matches both Windows and POSIX path separators.
+# Rules must stay precise; avoid broad patterns such as a bare directory
+# name, which would hit currently valid paths like apps/desktop/src.
 FORBIDDEN: dict[str, str] = {
     # --- retired Python server packaging ---
     r"packaging[/\\]delta-server-version\.txt": (
@@ -58,14 +59,14 @@ FORBIDDEN: dict[str, str] = {
 }
 
 
-# CHANGELOG 是唯一允许保留历史路径的当前文件。
+# CHANGELOG.md is the only current file allowed to keep historical paths.
 #
-# governance、architecture、operations、UPSTREAM 等均属于当前有效文档，
-# 不得继续引用已经废弃的路径。
+# governance, architecture, operations, UPSTREAM, etc. are all current
+# valid documents and must not reference retired paths again.
 HISTORY_EXEMPT = ("CHANGELOG.md",)
 
 
-# 不需要扫描的构建输出和依赖目录。
+# Build output and dependency directories that do not need scanning.
 _SKIP_PARTS = {
     ".git",
     "node_modules",
@@ -78,7 +79,7 @@ _SKIP_PARTS = {
 
 
 def _tracked_files() -> list[Path]:
-    """返回仓库中所有 Git tracked files。"""
+    """Returns all Git tracked files in the repository."""
     out = subprocess.run(
         ["git", "ls-files"],
         cwd=REPO,
@@ -91,13 +92,13 @@ def _tracked_files() -> list[Path]:
 
 
 def _is_exempt(path: Path) -> bool:
-    """判断文件是否属于允许保留历史路径的例外。"""
+    """Returns whether the file is exempt from the retired-path history rule."""
     rel = path.relative_to(REPO).as_posix()
     return rel in HISTORY_EXEMPT
 
 
 def violations_for(text: str, rel_path: str) -> list[str]:
-    """返回单个文件中的废弃路径引用。"""
+    """Returns retired path references found in a single file."""
     return [
         (
             f"{rel_path}:{text.count(chr(10), 0, match.start()) + 1}: "
@@ -109,7 +110,7 @@ def violations_for(text: str, rel_path: str) -> list[str]:
 
 
 def find_violations() -> list[str]:
-    """扫描仓库并返回所有废弃路径引用。"""
+    """Scans the repository and returns all retired path references."""
     violations: list[str] = []
 
     for path in _tracked_files():
