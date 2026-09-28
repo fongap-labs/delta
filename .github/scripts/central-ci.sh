@@ -7,6 +7,10 @@ if [ -z "$TARGET_ROOT" ] || [ ! -d "$TARGET_ROOT" ]; then
   echo "central-ci: target root is required" >&2
   exit 64
 fi
+if [ -z "${CENTRAL_CI_AW_ROOT:-}" ] || [ ! -f "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" ]; then
+  echo "central-ci: CENTRAL_CI_AW_ROOT must point to the action-worker checkout" >&2
+  exit 64
+fi
 
 cd "$TARGET_ROOT"
 
@@ -124,7 +128,7 @@ for d in surfaces coworker assets src stt; do
   fi
 done
 
-if grep -rn     "openwork-theme\|openwork:theme-pref"     apps core integrations packages services tests scripts     --include='*.ts' --include='*.tsx' --include='*.html' --include='*.rs'     --include='*.py' --include='*.js' --include='*.json' --include='*.css'     2>/dev/null   | grep -v 'apps/desktop/src/theme.ts'   | grep -v 'apps/desktop/index.html'   | grep -v 'apps/desktop/src-tauri/src/lib.rs'
+if grep -rn     "openwork-theme\|openwork:theme-pref"     apps core integrations packages services scripts     --include='*.ts' --include='*.tsx' --include='*.html' --include='*.rs'     --include='*.py' --include='*.js' --include='*.json' --include='*.css'     2>/dev/null   | grep -v 'apps/desktop/src/theme.ts'   | grep -v 'apps/desktop/index.html'   | grep -v 'apps/desktop/src-tauri/src/lib.rs'
 then
   echo "central-ci: retired theme runtime key found in source" >&2
   exit 1
@@ -146,7 +150,7 @@ if [ "$python_required" = "true" ]; then
 
   default_python="$(tr -d '\r\n ' < .python-version)"
   UV_PYTHON="$default_python" uv sync --locked --extra dev
-  UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages tests --select E9,F63,F7,F82
+  UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages --select E9,F63,F7,F82
   UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages tests --output-format=json > ruff-report.json || true
   UV_PYTHON="$default_python" uv run --locked python - <<'PY'
 import json

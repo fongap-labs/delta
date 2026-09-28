@@ -93,7 +93,7 @@ packages/      Shared foundations and worker helpers
 resources/     Brand and product resources
 schemas/       Contract schemas
 scripts/       Validation and maintenance
-tests/         Contract, integration, and cross-language tests
+(no tests/)   Python contract/integration suites live in fongap-labs/action-worker (tests/packs/delta); Rust and desktop tests stay beside their code
 docs/          Architecture and governance
 ```
 
