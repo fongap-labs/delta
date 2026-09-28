@@ -44,5 +44,5 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv pip check --python .venv\Scripts\python.exe
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-node "$env:CENTRAL_CI_AW_ROOT	estsun-pack.mjs" delta "$TargetRoot"
+node "$env:CENTRAL_CI_AW_ROOT\tests\run-pack.mjs" delta "$TargetRoot"
 exit $LASTEXITCODE
