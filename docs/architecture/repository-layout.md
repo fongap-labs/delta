@@ -91,7 +91,7 @@ delta-artifact
 | `resources/` | 品牌、截图等非代码资源 |
 | `packaging/` | 构建、打包、发布 |
 | `schemas/` | JSON Schema 合约数据结构定义 |
-| `tests/` | 跨语言与兼容测试 |
+| （无 `tests/`） | Python 契约与兼容测试位于 `fongap-labs/action-worker` 的 `tests/packs/delta/`；Rust 与桌面端测试仍与代码同目录 |
 | `docs/` | 产品、架构、治理、审计、运维文档 |
 | `scripts/` | 仓库维护和验证脚本 |
 | `.github/` | GitHub 配置与自动化 |

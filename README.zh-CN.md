@@ -93,7 +93,7 @@ packages/      公共基础与 Worker 辅助模块
 resources/     品牌与产品资源
 schemas/       契约 Schema
 scripts/       校验与维护脚本
-tests/         契约、集成与跨语言测试
+（无 tests/）  Python 契约与集成测试位于 fongap-labs/action-worker 的 tests/packs/delta；Rust 与桌面端测试仍与代码同目录
 docs/          架构与治理文档
 ```
 
