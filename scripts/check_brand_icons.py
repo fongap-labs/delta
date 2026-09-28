@@ -136,13 +136,13 @@ def require_brand_source() -> None:
         sys.exit(2)
 
 
-def check_artifact(artifact: Artifact, verify_stale: bool) -> tuple[bool, str]:
+def check_artifact(artifact: Artifact, should_verify_stale: bool) -> tuple[bool, str]:
     """Return (ok, detail) for one artifact. Never raises."""
     path = artifact.abspath
     if not os.path.isfile(path):
         return False, "MISSING"
 
-    if verify_stale:
+    if should_verify_stale:
         # "Stale" means older than the brand source by more than the tolerance window: the
         # icon is genuinely out of date and must be regenerated to match the canonical logo.
         source_mtime = os.path.getmtime(BRAND_SOURCE)
@@ -152,38 +152,38 @@ def check_artifact(artifact: Artifact, verify_stale: bool) -> tuple[bool, str]:
     return True, "ok"
 
 
-def run_checks(verify_stale: bool) -> bool:
+def run_checks(should_verify_stale: bool) -> bool:
     """Run provenance checks over the whole manifest. Returns True if all pass."""
     require_brand_source()
     source_mtime = os.path.getmtime(BRAND_SOURCE)
     print(f"Brand source of truth : {os.path.relpath(BRAND_SOURCE, REPO_ROOT)}")
     print(f"Brand directory      : {os.path.relpath(BRAND_DIR, REPO_ROOT)}")
     print(f"Source mtime         : {source_mtime}")
-    print(f"Mode                 : {'--verify (stale check on)' if verify_stale else 'existence check'}")
+    print(f"Mode                 : {'--verify (stale check on)' if should_verify_stale else 'existence check'}")
     print()
 
-    all_ok = True
+    is_all_ok = True
     missing = 0
     stale = 0
     for artifact in MANIFEST:
-        ok, status = check_artifact(artifact, verify_stale)
+        ok, status = check_artifact(artifact, should_verify_stale)
         marker = "ok   " if ok else "FAIL "
         if status == "MISSING":
             missing += 1
         elif status == "STALE":
             stale += 1
         if not ok:
-            all_ok = False
+            is_all_ok = False
         print(f"  [{marker}] {artifact.relpath}  ({status})")
 
     print()
     total = len(MANIFEST)
     print(f"Checked {total} generated artifacts: "
           f"{total - missing - stale} ok, {missing} missing, {stale} stale.")
-    if not all_ok:
+    if not is_all_ok:
         print("Run `python scripts/check_brand_icons.py --regenerate` for the documented "
               "toolchain commands to rebuild the failing artifacts from the source.")
-    return all_ok
+    return is_all_ok
 
 
 def print_regenerate() -> None:
@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         print_regenerate()
         return 0
 
-    ok = run_checks(verify_stale=args.verify)
+    ok = run_checks(should_verify_stale=args.verify)
     return 0 if ok else 1
 
 

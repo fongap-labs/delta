@@ -1,4 +1,4 @@
-"""P2 follow-up B: scanned PDF image fallback (ADR-006 续).
+"""P2 follow-up B: scanned PDF image fallback (ADR-006 continuation).
 
 When ``read_document`` encounters a scanned PDF (pages where pypdf's
 ``extract_text`` returns ``""``), the page is rasterized via
