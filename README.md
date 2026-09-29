@@ -102,7 +102,7 @@ Delta follows a **small core, large framework** architecture. Language is an imp
 ## Development
 
 ```bash
-uv sync --locked --extra dev --extra messaging
+uv sync --locked --extra dev
 cd apps/desktop
 npm install
 npm run tauri dev

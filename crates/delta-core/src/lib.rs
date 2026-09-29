@@ -9,8 +9,7 @@
 //! Approval authority (ADR-031) persists approval audit events.
 //!
 //! See:
-//!   - docs/architecture/adr/ADR-009-delta-core-architecture.md
-//!   - docs/architecture/adr/ADR-051-rust-core-control-plane-authority.md
+//!   - docs/architecture/adr/README.md (index of the ADR numbers cited in code, incl. ADR-009 and ADR-051)
 //!   - docs/architecture/runtime-public-contract.md
 
 pub mod agent;

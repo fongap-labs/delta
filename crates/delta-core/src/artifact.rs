@@ -20,7 +20,7 @@
 //!   trimmed `path` / `sha256` / `size` payload) events. Activated
 //!   through the Rust artifact authority.
 //!
-//! Contract: ``docs/architecture/adr/ADR-005-reliable-task-runtime.md``
+//! Contract: ADR-005 (reliable task runtime); see ``docs/architecture/adr/README.md``.
 //! See `docs/architecture/runtime-public-contract.md` for the authority boundary.
 
 use std::path::{Path, PathBuf};

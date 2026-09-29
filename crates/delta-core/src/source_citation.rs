@@ -21,7 +21,7 @@
 //!    reconstructs the current SourceRef register and citation
 //!    relations from the ledger event stream.
 //!
-//! Contract: ``docs/architecture/adr/ADR-027-r2-source-citation-hard-cut.md``.
+//! Contract: ADR-027 (R2 source/citation hard cut); see ``docs/architecture/adr/README.md``.
 //!
 //! CitationRange kinds and required fields (must match Python,
 //! kind names are the canonical strings defined in ``core/sources.py``):

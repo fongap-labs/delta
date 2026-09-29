@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- fix [security]: the desktop CSP no longer allows inline scripts (`script-src 'self'`); the pre-paint theme script moved from `index.html` into `public/theme-init.js`, and `tauri dev` keeps the previous policy through `devCsp` so Vite's dev preamble still runs.
+
+- fix: the README install command no longer asks for a non-existent `messaging` extra (`uv sync --locked --extra dev` is the command CI runs).
+
+- fix: `read_file_lines` capped its window with the per-line character limit by coincidence; it now uses its own `_READ_FILE_LINES_HARD_MAX` (same value, 500).
+
+- ci: the desktop contract-test list is declared once in `central-ci.sh`, every entry must exist, and the two stale entries (`src/api.contract.test.ts`, `src/api.auth.test.ts`) are gone.
+
+- docs: add `docs/architecture/adr/README.md`, an index of the ADR numbers cited in code but stored elsewhere, and point the Rust doc comments at it instead of at files that do not exist.
+
 - ci: add the approved thin PR dispatcher so pull request events reach central governance within about a minute; it runs no PR code and skips Dependabot.
 
 - test: run the Python contract and integration suites from the central Action Worker test pack (`tests/packs/delta`); Rust and desktop tests stay beside their code.
