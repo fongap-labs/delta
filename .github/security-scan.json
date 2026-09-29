@@ -5,7 +5,8 @@
   "build_mode": "none",
   "languages": [
     "javascript-typescript",
-    "python"
+    "python",
+    "rust"
   ],
   "pull_requests": true,
   "default_branch": true
