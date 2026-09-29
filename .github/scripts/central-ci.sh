@@ -10,9 +10,10 @@
 #   checks       repository rules and the path selector regression test
 #   python       pytest on three Python versions, ruff, pyright and pip-audit
 #   desktop      desktop typecheck, unit tests, npm audit and end-to-end tests
-#   rust-app     Rust checks for the desktop shell and the portable launcher
-#   rust-crates  Rust checks for the delta crates
-#   deny         cargo-deny license and advisory checks
+#   rust-app-lint   rustfmt and clippy for the desktop shell and the portable launcher
+#   rust-app-test   cargo test for the desktop shell and the portable launcher
+#   rust-crates     rustfmt, clippy and cargo test for the delta crates
+#   deny            cargo-deny license and advisory checks
 set -Eeuo pipefail
 
 TARGET_ROOT="${1:-}"
@@ -26,7 +27,7 @@ if [ -z "${CENTRAL_CI_AW_ROOT:-}" ] || [ ! -f "$CENTRAL_CI_AW_ROOT/tests/run-pac
   exit 64
 fi
 case "$SHARD" in
-  all | checks | python | desktop | rust-app | rust-crates | deny) ;;
+  all | checks | python | desktop | rust-app-lint | rust-app-test | rust-crates | deny) ;;
   *)
     echo "central-ci: unknown shard: $SHARD" >&2
     exit 64
@@ -101,15 +102,35 @@ run_python_version() {
 
 # cargo clippy --all-targets compiles every target that cargo check would, so a separate
 # cargo check pass only repeated work.
+run_rust_lint_workspace() {
+  local workspace="$1"
+  (
+    set -Eeuo pipefail
+    echo "central-ci: Rust lint $workspace"
+    cd "$workspace"
+    cargo fmt --check
+    cargo clippy --locked --all-targets -- -D warnings
+  )
+}
+
+run_rust_test_workspace() {
+  local workspace="$1"
+  (
+    set -Eeuo pipefail
+    echo "central-ci: Rust test $workspace"
+    cd "$workspace"
+    cargo test --locked
+  )
+}
+
+# Lint and test back to back, for a shard that keeps both on one runner. Both calls are plain
+# statements so that set -e stops at the first failure.
 run_rust_workspace() {
   local workspace="$1"
   (
     set -Eeuo pipefail
-    echo "central-ci: Rust workspace $workspace"
-    cd "$workspace"
-    cargo fmt --check
-    cargo clippy --locked --all-targets -- -D warnings
-    cargo test --locked
+    run_rust_lint_workspace "$workspace"
+    run_rust_test_workspace "$workspace"
   )
 }
 
@@ -137,9 +158,17 @@ install_rust_toolchain() {
   rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
 }
 
-install_rust_system_packages() {
+# The desktop shell links GTK, WebKit and the tray libraries.
+install_rust_app_system_packages() {
   sudo apt-get update -qq
   sudo apt-get install -y     libwebkit2gtk-4.1-dev     libgtk-3-dev     libayatana-appindicator3-dev     librsvg2-dev     patchelf     libasound2-dev     pkg-config
+}
+
+# The delta crates need only the audio library of delta-stt. No crate depends on GTK or WebKit,
+# and rusqlite builds its own SQLite.
+install_rust_crates_system_packages() {
+  sudo apt-get update -qq
+  sudo apt-get install -y libasound2-dev pkg-config
 }
 
 # Building cargo-deny from source on every run took minutes. On Linux x86_64 the pinned upstream
@@ -226,7 +255,7 @@ needs_rust_toolchain=false
 if run_shard deny; then
   needs_rust_toolchain=true
 fi
-if [ "$rust_required" = "true" ] && { run_shard rust-app || run_shard rust-crates; }; then
+if [ "$rust_required" = "true" ] && { run_shard rust-app-lint || run_shard rust-app-test || run_shard rust-crates; }; then
   needs_rust_toolchain=true
 fi
 if [ "$needs_rust_toolchain" = "true" ]; then
@@ -294,15 +323,29 @@ if run_shard desktop && [ "$desktop_required" = "true" ]; then
 fi
 
 if [ "$rust_required" = "true" ]; then
-  if run_shard rust-app || run_shard rust-crates; then
-    phase_begin rust-system-packages
-    install_rust_system_packages
+  if run_shard rust-app-lint || run_shard rust-app-test; then
+    phase_begin rust-app-system-packages
+    install_rust_app_system_packages
+    phase_end
+  fi
+  # A run of all shards already installed the larger set above.
+  if [ "$SHARD" = "rust-crates" ]; then
+    phase_begin rust-crates-system-packages
+    install_rust_crates_system_packages
     phase_end
   fi
 
-  if run_shard rust-app; then
-    phase_begin rust-app
-    run_pool 2 run_rust_workspace \
+  if run_shard rust-app-lint; then
+    phase_begin rust-app-lint
+    run_pool 2 run_rust_lint_workspace \
+      "apps/desktop/src-tauri" \
+      "packaging/portable/launcher"
+    phase_end
+  fi
+
+  if run_shard rust-app-test; then
+    phase_begin rust-app-test
+    run_pool 2 run_rust_test_workspace \
       "apps/desktop/src-tauri" \
       "packaging/portable/launcher"
     phase_end
