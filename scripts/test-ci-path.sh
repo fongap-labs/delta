@@ -89,6 +89,13 @@ assert "true" "full" ".github/workflows/ci.yml"
 result="$(printf '%s\n' ".github/workflows/ci.yml" | bash "$SELECTOR")"
 echo "$result" | grep -q "^rust=true" || { echo "FAIL: full did not force rust=true" >&2; FAIL=$((FAIL + 1)); }
 
+# 9b. CI control paths force full, so a change to the central CI script is
+# exercised by every phase it can affect.
+assert "true" "full" ".github/execution-manifest.json"
+assert "true" "full" ".github/scripts/central-ci.sh"
+assert "true" "full" ".github/test-pack.json"
+assert "false" "full" ".github/CODEOWNERS"
+
 # 10. deny.toml forces rust_advisories
 assert "true" "rust_advisories" "deny.toml"
 

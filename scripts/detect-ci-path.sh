@@ -23,8 +23,9 @@ full=false
 
 while IFS= read -r path; do
   case "$path" in
-    # CI workflow changes are validated against the complete suite.
-    .github/workflows/*)
+    # CI workflow and CI control changes (the execution manifest, the central CI scripts and the
+    # test pack pin) are validated against the complete suite.
+    .github/workflows/*|.github/execution-manifest.json|.github/scripts/*|.github/test-pack.json)
       full=true
       ;;
 
