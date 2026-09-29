@@ -17,7 +17,8 @@
               "checks",
               "python",
               "desktop",
-              "rust-app",
+              "rust-app-lint",
+              "rust-app-test",
               "rust-crates",
               "deny"
             ]
