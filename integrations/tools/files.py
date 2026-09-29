@@ -21,7 +21,8 @@ from integrations.tools.metadata import attach_tool_metadata
 
 _DEFAULT_MAX_LINES = 2000
 _DEFAULT_LINES_WINDOW = 100  # tighter than read_file so "give me a slice" stays cheap
-_MAX_LINE_CHARS = 500
+_MAX_LINE_CHARS = 500  # characters kept per line before it is truncated
+_READ_FILE_LINES_HARD_MAX = 500  # most lines one read_file_lines call may return
 
 _SCHEMA = {
     "type": "function",
@@ -211,7 +212,7 @@ def file_tools(
         # path-resolution rules, same Source/Citation chokepoint, same kind =
         # "lines" citation; only the default + hard cap are tighter.
         return _windowed_read(
-            path, start_line, max_lines, _DEFAULT_LINES_WINDOW, _MAX_LINE_CHARS
+            path, start_line, max_lines, _DEFAULT_LINES_WINDOW, _READ_FILE_LINES_HARD_MAX
         )
 
     read_file.__name__ = "read_file"

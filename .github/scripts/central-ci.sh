@@ -314,8 +314,15 @@ if run_shard desktop && [ "$desktop_required" = "true" ]; then
     npm ci
     npm audit --omit=dev --audit-level=high
     npx tsc --noEmit
-    npx vitest run src/api.contract.test.ts src/runtime-contract.test.ts src/api.auth.test.ts
-    npm test --       --exclude src/api.contract.test.ts       --exclude src/runtime-contract.test.ts       --exclude src/api.auth.test.ts
+    # Contract tests run first; every listed file must exist so a rename cannot silently empty this list.
+    contract_tests=(src/runtime-contract.test.ts)
+    exclude_contract_tests=()
+    for contract_test in "${contract_tests[@]}"; do
+      [ -f "$contract_test" ] || { echo "central-ci: missing desktop contract test: $contract_test" >&2; exit 1; }
+      exclude_contract_tests+=(--exclude "$contract_test")
+    done
+    npx vitest run "${contract_tests[@]}"
+    npm test -- "${exclude_contract_tests[@]}"
     npx playwright install --with-deps chromium
     npm run e2e
   )
