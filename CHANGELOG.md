@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- ci: add the approved thin PR dispatcher so pull request events reach central governance within about a minute; it runs no PR code and skips Dependabot.
+
 - test: run the Python contract and integration suites from the central Action Worker test pack (`tests/packs/delta`); Rust and desktop tests stay beside their code.
 
 - fix: truncate provider error bodies on a UTF-8 character boundary instead of a raw byte slice and restore the missing PathBuf test import in the capability contract tests.
