@@ -35,7 +35,6 @@ where = ["."]
 include = ["apps*", "core*", "delta_extension_api*", "integrations*", "packages*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.ruff.lint]
