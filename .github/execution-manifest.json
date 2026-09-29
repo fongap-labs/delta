@@ -9,8 +9,19 @@
           "command": [
             "bash",
             "{control_root}/.github/scripts/central-ci.sh",
-            "{target_root}"
+            "{target_root}",
+            "{matrix.shard}"
           ],
+          "matrix": {
+            "shard": [
+              "checks",
+              "python",
+              "desktop",
+              "rust-app",
+              "rust-crates",
+              "deny"
+            ]
+          },
           "timeout_minutes": 180,
           "capability_requests": [
             "source.read"

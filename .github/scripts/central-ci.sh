@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 # Central execution contract: invoked by fongap-labs/action-worker.
+#
+# Usage: central-ci.sh <target-root> [shard]
+#
+# Without a shard, or with "all", one process runs every phase. With a shard, only that shard's
+# phases run, so the shards declared under matrix.shard in .github/execution-manifest.json can run
+# as parallel jobs. Every phase belongs to exactly one shard.
+#
+#   checks       repository rules and the path selector regression test
+#   python       pytest on three Python versions, ruff, pyright and pip-audit
+#   desktop      desktop typecheck, unit tests, npm audit and end-to-end tests
+#   rust-app     Rust checks for the desktop shell and the portable launcher
+#   rust-crates  Rust checks for the delta crates
+#   deny         cargo-deny license and advisory checks
 set -Eeuo pipefail
 
 TARGET_ROOT="${1:-}"
+SHARD="${2:-all}"
 if [ -z "$TARGET_ROOT" ] || [ ! -d "$TARGET_ROOT" ]; then
   echo "central-ci: target root is required" >&2
   exit 64
@@ -11,6 +25,13 @@ if [ -z "${CENTRAL_CI_AW_ROOT:-}" ] || [ ! -f "$CENTRAL_CI_AW_ROOT/tests/run-pac
   echo "central-ci: CENTRAL_CI_AW_ROOT must point to the action-worker checkout" >&2
   exit 64
 fi
+case "$SHARD" in
+  all | checks | python | desktop | rust-app | rust-crates | deny) ;;
+  *)
+    echo "central-ci: unknown shard: $SHARD" >&2
+    exit 64
+    ;;
+esac
 
 cd "$TARGET_ROOT"
 
@@ -49,6 +70,20 @@ run_pool() {
   return "$failed"
 }
 
+run_shard() {
+  [ "$SHARD" = "all" ] || [ "$SHARD" = "$1" ]
+}
+
+# A failed phase ends the script before phase_end; the log is printed on failure anyway.
+phase_begin() {
+  PHASE_LABEL="$1"
+  PHASE_STARTED=$SECONDS
+}
+
+phase_end() {
+  echo "central-ci: $SHARD/$PHASE_LABEL finished in $((SECONDS - PHASE_STARTED))s"
+}
+
 run_python_version() {
   local version="$1"
   local env_dir="$TARGET_ROOT/.venv-ci-${version//./}"
@@ -64,6 +99,8 @@ run_python_version() {
   )
 }
 
+# cargo clippy --all-targets compiles every target that cargo check would, so a separate
+# cargo check pass only repeated work.
 run_rust_workspace() {
   local workspace="$1"
   (
@@ -71,7 +108,6 @@ run_rust_workspace() {
     echo "central-ci: Rust workspace $workspace"
     cd "$workspace"
     cargo fmt --check
-    cargo check --locked
     cargo clippy --locked --all-targets -- -D warnings
     cargo test --locked
   )
@@ -93,6 +129,48 @@ run_advisory_workspace() {
     cd "$workspace"
     cargo deny --config "$TARGET_ROOT/deny.toml" check advisories
   )
+}
+
+install_rust_toolchain() {
+  local channel
+  channel="$(grep '^channel' rust-toolchain.toml | tr -d '\r' | sed 's/.*"\(.*\)"/\1/')"
+  rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
+}
+
+install_rust_system_packages() {
+  sudo apt-get update -qq
+  sudo apt-get install -y     libwebkit2gtk-4.1-dev     libgtk-3-dev     libayatana-appindicator3-dev     librsvg2-dev     patchelf     libasound2-dev     pkg-config
+}
+
+# Building cargo-deny from source on every run took minutes. On Linux x86_64 the pinned upstream
+# release binary is installed instead, and it is used only if its SHA-256 matches. Any other
+# platform keeps building the same version from source.
+install_cargo_deny() {
+  local version="0.20.2"
+  local asset="cargo-deny-${version}-x86_64-unknown-linux-musl"
+  local sha256="9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"
+  if [ "$(uname -s)-$(uname -m)" != "Linux-x86_64" ]; then
+    cargo install cargo-deny --version "$version" --locked
+    return
+  fi
+
+  local work binary bin_dir
+  work="$(mktemp -d)"
+  curl -fsSL --retry 3 --retry-delay 2 \
+    --output "$work/$asset.tar.gz" \
+    "https://github.com/EmbarkStudios/cargo-deny/releases/download/${version}/${asset}.tar.gz"
+  echo "$sha256  $work/$asset.tar.gz" | sha256sum --check --strict -
+  tar -xzf "$work/$asset.tar.gz" -C "$work"
+  binary="$(find "$work" -type f -name cargo-deny | head -n 1)"
+  if [ -z "$binary" ]; then
+    echo "central-ci: cargo-deny binary not found in the release archive" >&2
+    exit 1
+  fi
+  bin_dir="${CARGO_HOME:-$HOME/.cargo}/bin"
+  mkdir -p "$bin_dir"
+  install -m 0755 "$binary" "$bin_dir/cargo-deny"
+  rm -rf "$work"
+  cargo deny --version
 }
 
 python_required=true
@@ -118,41 +196,60 @@ if [ "${CENTRAL_CI_PR_NUMBER:-0}" != "0" ]; then
   rust_advisories_required="${rust_advisories:-false}"
 fi
 
-bash scripts/test-ci-path.sh
-python3 scripts/check_naming.py
+if run_shard checks; then
+  phase_begin checks
+  bash scripts/test-ci-path.sh
+  python3 scripts/check_naming.py
 
-for d in surfaces coworker assets src stt; do
-  if [ -d "$d" ]; then
-    echo "central-ci: forbidden top-level directory '$d' present" >&2
+  for d in surfaces coworker assets src stt; do
+    if [ -d "$d" ]; then
+      echo "central-ci: forbidden top-level directory '$d' present" >&2
+      exit 1
+    fi
+  done
+
+  if grep -rn     "openwork-theme\|openwork:theme-pref"     apps core integrations packages services scripts     --include='*.ts' --include='*.tsx' --include='*.html' --include='*.rs'     --include='*.py' --include='*.js' --include='*.json' --include='*.css'     2>/dev/null   | grep -v 'apps/desktop/src/theme.ts'   | grep -v 'apps/desktop/index.html'   | grep -v 'apps/desktop/src-tauri/src/lib.rs'
+  then
+    echo "central-ci: retired theme runtime key found in source" >&2
     exit 1
   fi
-done
 
-if grep -rn     "openwork-theme\|openwork:theme-pref"     apps core integrations packages services scripts     --include='*.ts' --include='*.tsx' --include='*.html' --include='*.rs'     --include='*.py' --include='*.js' --include='*.json' --include='*.css'     2>/dev/null   | grep -v 'apps/desktop/src/theme.ts'   | grep -v 'apps/desktop/index.html'   | grep -v 'apps/desktop/src-tauri/src/lib.rs'
-then
-  echo "central-ci: retired theme runtime key found in source" >&2
-  exit 1
+  python3 scripts/check_retired_paths.py
+  python3 scripts/check_retired_branding.py
+  python3 scripts/check_architecture_boundary.py
+  python3 scripts/check_license_policy.py
+  phase_end
 fi
 
-python3 scripts/check_retired_paths.py
-python3 scripts/check_retired_branding.py
-python3 scripts/check_architecture_boundary.py
-python3 scripts/check_license_policy.py
+# The license check always needs cargo; the Rust shards need it only when Rust must be built.
+needs_rust_toolchain=false
+if run_shard deny; then
+  needs_rust_toolchain=true
+fi
+if [ "$rust_required" = "true" ] && { run_shard rust-app || run_shard rust-crates; }; then
+  needs_rust_toolchain=true
+fi
+if [ "$needs_rust_toolchain" = "true" ]; then
+  phase_begin rust-toolchain
+  install_rust_toolchain
+  phase_end
+fi
 
-channel="$(grep '^channel' rust-toolchain.toml | tr -d '\r' | sed 's/.*"\(.*\)"/\1/')"
-rustup toolchain install "$channel" --profile minimal --component rustfmt --component clippy
-python -m pip install --disable-pip-version-check uv==0.12.3
+if run_shard python && { [ "$python_required" = "true" ] || [ "$python_advisories_required" = "true" ]; }; then
+  phase_begin python-tools
+  python -m pip install --disable-pip-version-check uv==0.12.3
+  phase_end
 
+  if [ "$python_required" = "true" ]; then
+    phase_begin python
+    uv python install 3.11 3.12 3.13
+    run_pool 2 run_python_version 3.11 3.12 3.13
 
-if [ "$python_required" = "true" ]; then
-  uv python install 3.11 3.12 3.13
-  run_pool 2 run_python_version 3.11 3.12 3.13
-
-  default_python="$(tr -d '\r\n ' < .python-version)"
-  UV_PYTHON="$default_python" uv sync --locked --extra dev
-  UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages --select E9,F63,F7,F82
-  UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages --output-format=json > ruff-report.json || true
-  UV_PYTHON="$default_python" uv run --locked python - <<'PY'
+    default_python="$(tr -d '\r\n ' < .python-version)"
+    UV_PYTHON="$default_python" uv sync --locked --extra dev
+    UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages --select E9,F63,F7,F82
+    UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages --output-format=json > ruff-report.json || true
+    UV_PYTHON="$default_python" uv run --locked python - <<'PY'
 import json
 with open("ruff-report.json", "r", encoding="utf-8") as fh:
     findings = json.load(fh)
@@ -167,17 +264,22 @@ if findings:
         )
     raise SystemExit(f"ruff findings {len(findings)} > 0")
 PY
-  UV_PYTHON="$default_python" uv run --locked pyright core integrations packages
+    UV_PYTHON="$default_python" uv run --locked pyright core integrations packages
+    phase_end
+  fi
+
+  if [ "$python_advisories_required" = "true" ]; then
+    phase_begin python-advisories
+    default_python="$(tr -d '\r\n ' < .python-version)"
+    UV_PYTHON="$default_python" uv sync --locked --extra dev
+    UV_PYTHON="$default_python" uv pip check --python .venv/bin/python
+    UV_PYTHON="$default_python" uv run --locked pip-audit --skip-editable
+    phase_end
+  fi
 fi
 
-if [ "$python_advisories_required" = "true" ]; then
-  default_python="$(tr -d '\r\n ' < .python-version)"
-  UV_PYTHON="$default_python" uv sync --locked --extra dev
-  UV_PYTHON="$default_python" uv pip check --python .venv/bin/python
-  UV_PYTHON="$default_python" uv run --locked pip-audit --skip-editable
-fi
-
-if [ "$desktop_required" = "true" ]; then
+if run_shard desktop && [ "$desktop_required" = "true" ]; then
+  phase_begin desktop
   (
     cd apps/desktop
     npm ci
@@ -188,43 +290,63 @@ if [ "$desktop_required" = "true" ]; then
     npx playwright install --with-deps chromium
     npm run e2e
   )
+  phase_end
 fi
 
 if [ "$rust_required" = "true" ]; then
-  sudo apt-get update -qq
-  sudo apt-get install -y     libwebkit2gtk-4.1-dev     libgtk-3-dev     libayatana-appindicator3-dev     librsvg2-dev     patchelf     libasound2-dev     pkg-config
+  if run_shard rust-app || run_shard rust-crates; then
+    phase_begin rust-system-packages
+    install_rust_system_packages
+    phase_end
+  fi
 
-  workspaces=(
-    "apps/desktop/src-tauri"
-    "packaging/portable/launcher"
-    "crates/delta-core"
-    "crates/delta-sdk"
-    "crates/delta-connect"
-    "crates/delta-sync"
-    "crates/delta-stt"
-  )
-  run_pool 2 run_rust_workspace "${workspaces[@]}"
+  if run_shard rust-app; then
+    phase_begin rust-app
+    run_pool 2 run_rust_workspace \
+      "apps/desktop/src-tauri" \
+      "packaging/portable/launcher"
+    phase_end
+  fi
+
+  if run_shard rust-crates; then
+    phase_begin rust-crates
+    run_pool 2 run_rust_workspace \
+      "crates/delta-core" \
+      "crates/delta-sdk" \
+      "crates/delta-connect" \
+      "crates/delta-sync" \
+      "crates/delta-stt"
+    phase_end
+  fi
 fi
 
-cargo install cargo-deny --version 0.20.2 --locked
+if run_shard deny; then
+  phase_begin cargo-deny-install
+  install_cargo_deny
+  phase_end
 
-license_workspaces=(
-  "apps/desktop/src-tauri"
-  "packaging/portable/launcher"
-  "crates/delta-stt"
-  "crates/delta-core"
-)
-run_pool 2 run_license_workspace "${license_workspaces[@]}"
-
-if [ "$rust_required" = "true" ] || [ "$rust_advisories_required" = "true" ]; then
-  advisory_workspaces=(
+  license_workspaces=(
     "apps/desktop/src-tauri"
     "packaging/portable/launcher"
     "crates/delta-stt"
     "crates/delta-core"
-    "crates/delta-sdk"
-    "crates/delta-connect"
-    "crates/delta-sync"
   )
-  run_pool 2 run_advisory_workspace "${advisory_workspaces[@]}"
+  phase_begin cargo-deny-licenses
+  run_pool 2 run_license_workspace "${license_workspaces[@]}"
+  phase_end
+
+  if [ "$rust_required" = "true" ] || [ "$rust_advisories_required" = "true" ]; then
+    advisory_workspaces=(
+      "apps/desktop/src-tauri"
+      "packaging/portable/launcher"
+      "crates/delta-stt"
+      "crates/delta-core"
+      "crates/delta-sdk"
+      "crates/delta-connect"
+      "crates/delta-sync"
+    )
+    phase_begin cargo-deny-advisories
+    run_pool 2 run_advisory_workspace "${advisory_workspaces[@]}"
+    phase_end
+  fi
 fi
