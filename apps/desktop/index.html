@@ -4,24 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Delta</title>
-    <!-- Resolve the theme before first paint (no white flash for dark users).
-         Must match src/theme.ts: key "delta-theme" (legacy "openwork-theme" read and
-         migrated once), absent/invalid = auto = follow macOS. -->
-    <script>
-      try {
-        var t = localStorage.getItem("delta-theme");
-        if (t !== "light" && t !== "dark") {
-          var legacy = localStorage.getItem("openwork-theme");
-          if (legacy === "light" || legacy === "dark") {
-            localStorage.setItem("delta-theme", legacy);
-            localStorage.removeItem("openwork-theme");
-            t = legacy;
-          }
-        }
-        var dark = t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.dataset.theme = dark ? "dark" : "light";
-      } catch (e) {}
-    </script>
+    <!-- Resolves the theme before first paint (no white flash for dark users); see
+         public/theme-init.js. External, so the desktop CSP needs no 'unsafe-inline' scripts. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

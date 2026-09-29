@@ -21,8 +21,8 @@
 //! - `csv_required_headers`: first row of CSV must contain all headers
 //! - `min_valid_citations`: external counter >= criteria.min_valid_citations
 //!
-//! See ``docs/architecture/adr/ADR-005-reliable-task-runtime.md``
-//! (WS3: Validation) and ``docs/architecture/adr/ADR-019-r2-pre-plumbing.md``.
+//! See ADR-005 (reliable task runtime, WS3: Validation) and ADR-019 (R2 pre-plumbing) in
+//! ``docs/architecture/adr/README.md``.
 
 use std::collections::HashMap;
 use std::path::Path;
