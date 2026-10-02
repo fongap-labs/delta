@@ -2,7 +2,7 @@
 
 **Version:** v1.0
 **Status:** Governance Baseline — Final / Frozen
-**Scope:** All contributions to the public `fongap/delta` Foundation repository.
+**Scope:** All contributions to the public `fongap-labs/delta` Foundation repository.
 
 ---
 

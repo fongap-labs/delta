@@ -508,7 +508,7 @@ fn show_main(app: &tauri::AppHandle) {
 // else — no global plugin JS): check, background pre-download, install. Update
 // artifacts are minisign-verified against the pubkey in tauri.conf.json before
 // anything is installed; the manifest lives at the endpoint configured there
-// (the fongap/delta GitHub releases latest.json).
+// (the fongap-labs/delta GitHub releases latest.json).
 
 #[derive(serde::Serialize)]
 struct UpdateInfo {
