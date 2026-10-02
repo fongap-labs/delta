@@ -127,7 +127,7 @@ $AppInfoDir = Join-Path $Other "AppInfo"
 New-Item -ItemType Directory -Force -Path $SourceDir, $HelpDir, $LicenseDir, $AppInfoDir | Out-Null
 Copy-Item -LiteralPath (Join-Path $RepoRoot "LICENSE") -Destination (Join-Path $LicenseDir "LICENSE.txt") -Force
 Set-Content -LiteralPath (Join-Path $SourceDir "BUILD.txt") -Encoding utf8 -Value @"
-This Delta Windows Portable was built from https://github.com/fongap/delta.
+This Delta Windows Portable was built from https://github.com/fongap-labs/delta.
 Build entry: packaging\portable\build_portable.ps1
 Runtime: React -> Tauri IPC/events -> embedded Rust Runtime -> controlled capabilities.
 "@
