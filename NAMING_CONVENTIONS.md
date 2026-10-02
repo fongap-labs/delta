@@ -2,7 +2,7 @@
 
 Canonical cross-repository naming rules are maintained in:
 
-- https://github.com/fongap/action-worker/blob/main/docs/NAMING_CONVENTIONS.md
+- https://github.com/fongap-labs/action-worker/blob/main/docs/NAMING_CONVENTIONS.md
 
 This repository does not duplicate the central naming specification.
 

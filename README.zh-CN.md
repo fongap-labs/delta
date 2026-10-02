@@ -12,7 +12,7 @@
 
 ![License](https://img.shields.io/github/license/fongap-labs/delta?label=License)
 
-[目标架构](docs/architecture/target-architecture.md) · [扩展边界](docs/governance/REPOSITORY_BOUNDARY.md) · [开发治理](docs/governance/DEVELOPMENT_POLICY.md)
+[目标架构](docs/architecture/target-architecture.md) · [扩展边界](docs/governance/REPOSITORY_BOUNDARY.md)
 
 </div>
 
@@ -102,7 +102,7 @@ Delta 长期采用**小内核、大框架**。语言是实现手段，不是架�
 ## 开发
 
 ```bash
-uv sync --locked --extra dev --extra messaging
+uv sync --locked --extra dev
 cd apps/desktop
 npm install
 npm run tauri dev
@@ -110,7 +110,7 @@ npm run tauri dev
 
 ## 文档
 
-[产品蓝图](docs/DELTA_BLUEPRINT.md) · [目标架构](docs/architecture/target-architecture.md) · [Runtime Contract](docs/architecture/runtime-public-contract.md) · [Capability ABI](docs/architecture/capability-abi.md) · [仓库结构](docs/architecture/repository-layout.md) · [开发治理](docs/governance/DEVELOPMENT_POLICY.md)
+[产品蓝图](docs/DELTA_BLUEPRINT.md) · [目标架构](docs/architecture/target-architecture.md) · [Runtime Contract](docs/architecture/runtime-public-contract.md) · [Capability ABI](docs/architecture/capability-abi.md) · [仓库结构](docs/architecture/repository-layout.md)
 
 英文文档是规范来源；简体中文 README 面向中文读者维护。
 

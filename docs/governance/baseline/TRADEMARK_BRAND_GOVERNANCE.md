@@ -19,7 +19,7 @@ Third parties may make accurate descriptive references such as:
 - "fork of Delta".
 
 Do not imply endorsement, official status, sponsorship or ownership by Fongap
-Studio without permission.
+Labs without permission.
 
 ## 3. Product naming
 
