@@ -2,7 +2,7 @@
 
 **Version:** v1.0
 **Status:** Governance Baseline — Final / Frozen
-**Scope:** Governance of the Delta open-source community, maintainer roles, decision-making processes, and conflict resolution for `fongap/delta`.
+**Scope:** Governance of the Delta open-source community, maintainer roles, decision-making processes, and conflict resolution for `fongap-labs/delta`.
 
 ---
 
@@ -22,7 +22,7 @@ This document establishes the governance model for the Delta open-source project
 | **Transparent Decisions** | Public rationale for architectural/strategic decisions. |
 | **Inclusive but Decisive** | Broad input; clear ownership for final decisions. |
 | **Architecture Supremacy** | Frozen Architecture Governance (v1.0) cannot be overridden by community vote. |
-| **Commercial/Community Boundary** | Suite direction set by Delta (fongap); Foundation direction collaborative. |
+| **Commercial/Community Boundary** | Suite direction set by Fongap Labs; Foundation direction collaborative. |
 
 ---
 
@@ -32,7 +32,7 @@ This document establishes the governance model for the Delta open-source project
 
 | Role | Scope | Selection | Term |
 |------|-------|-----------|------|
-| **Project Lead** | Overall project health; final tie-breaker; represents Delta to external orgs | Appointed by fongap (founder) | Indefinite |
+| **Project Lead** | Overall project health; final tie-breaker; represents Delta to external orgs | Appointed by Fongap Labs (founder) | Indefinite |
 | **Architecture Review Board (ARB)** | Architecture Governance enforcement; ADR decisions; security architecture | Project Lead + 2-4 Maintainers (invited) | Indefinite |
 | **Maintainer** | Merge rights; code review; module ownership (CODEOWNERS); release management | ARB nomination + consensus | 2 years, renewable |
 | **Security Lead** | Vulnerability response; security architecture; kill-switch authority | Project Lead appointment | Indefinite |
@@ -51,7 +51,7 @@ This document establishes the governance model for the Delta open-source project
 | **Security patch release** | Security Lead + Release Manager | ARB notification |
 | **Code of Conduct enforcement** | Community Moderators | Appeal to ARB |
 | **Trademark license approval** | Project Lead | Legal review |
-| **Suite strategy/direction** | fongap (commercial) | N/A (private) |
+| **Suite strategy/direction** | Fongap Labs (commercial) | N/A (private) |
 
 ---
 
@@ -184,9 +184,9 @@ This document establishes the governance model for the Delta open-source project
 
 | Source | Use | Governance |
 |--------|-----|------------|
-| **fongap Commercial Revenue** | Core team salaries, infrastructure, security audits | fongap controls; transparency report annually |
+| **Fongap Labs Commercial Revenue** | Core team salaries, infrastructure, security audits | Fongap Labs controls; transparency report annually |
 | **GitHub Sponsors / Open Collective** | Community events, bounties, swag | Community Moderators allocate; ARB oversight |
-| **Enterprise Support Contracts** | Dedicated engineering, SLA | fongap sales; no community governance |
+| **Enterprise Support Contracts** | Dedicated engineering, SLA | Fongap Labs sales; no community governance |
 
 ### 8.2 Financial Transparency
 

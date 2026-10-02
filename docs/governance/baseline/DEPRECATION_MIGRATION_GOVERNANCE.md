@@ -2,7 +2,7 @@
 
 **Version:** v1.0
 **Status:** Governance Baseline — Final / Frozen
-**Scope:** All public APIs, contracts, schemas, SDKs, capability interfaces, and user-facing Foundation features in `fongap/delta`.
+**Scope:** All public APIs, contracts, schemas, SDKs, capability interfaces, and user-facing Foundation features in `fongap-labs/delta`.
 
 ---
 

@@ -35,10 +35,10 @@ SOURCE_SUFFIXES = {
 
 FORBIDDEN_PATTERNS = {
     "Suite repository reference": re.compile(
-        r"fongap/delta-suite|github\.com/fongap/delta-suite", re.I
+        r"fongap(?:-labs)?/delta-suite|github\.com/fongap(?:-labs)?/delta-suite", re.I
     ),
     "retired repository identity": re.compile(
-        r"fongap/delta-commercial|github\.com/fongap/delta-commercial|\bdelta-commercial\b", re.I
+        r"fongap(?:-labs)?/delta-commercial|github\.com/fongap(?:-labs)?/delta-commercial|\bdelta-commercial\b", re.I
     ),
     "Suite/Core dependency": re.compile(
         r"private-sdk|suite-core|commercial-core|enterprise-core|pro-core|delta-suite-app|delta-commercial-app|delta-pro-app",

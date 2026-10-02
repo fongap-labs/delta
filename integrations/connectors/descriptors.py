@@ -1,7 +1,7 @@
 """Connector descriptor contract and registry.
 
 Delta Foundation owns the descriptor schema and registration mechanism. It does
-not ship Fongap-maintained vendor catalogs or vendor validation logic; those are
+not ship Fongap Labs-maintained vendor catalogs or vendor validation logic; those are
 extension implementations.
 """
 
