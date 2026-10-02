@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
+
 - fix: retired `fongap/delta` references are repaired — the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.
 
 - build [security]: upgrade the dev-only `urllib3` from 2.7.0 to 2.8.0 for published advisories, and resolve every desktop npm package from `registry.npmjs.org` instead of a third-party mirror (integrity hashes unchanged).

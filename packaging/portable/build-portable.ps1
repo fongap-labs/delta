@@ -128,7 +128,7 @@ New-Item -ItemType Directory -Force -Path $SourceDir, $HelpDir, $LicenseDir, $Ap
 Copy-Item -LiteralPath (Join-Path $RepoRoot "LICENSE") -Destination (Join-Path $LicenseDir "LICENSE.txt") -Force
 Set-Content -LiteralPath (Join-Path $SourceDir "BUILD.txt") -Encoding utf8 -Value @"
 This Delta Windows Portable was built from https://github.com/fongap-labs/delta.
-Build entry: packaging\portable\build_portable.ps1
+Build entry: packaging\portable\build-portable.ps1
 Runtime: React -> Tauri IPC/events -> embedded Rust Runtime -> controlled capabilities.
 "@
 Set-Content -LiteralPath (Join-Path $HelpDir "PORTABLE.txt") -Encoding utf8 -Value @"
@@ -185,7 +185,7 @@ if ($BadEntries.Count) {
 
 # ---- 4. Relocatability gate ---------------------------------------------------
 Write-Host "==> [4/5] relocatability scan" -ForegroundColor Cyan
-$ScanScript = Join-Path $Here "scan_portable_paths.ps1"
+$ScanScript = Join-Path $Here "scan-portable-paths.ps1"
 & $ScanScript -Root $Portable
 if ($LASTEXITCODE -ne 0) { throw "portable relocatability scan failed" }
 
