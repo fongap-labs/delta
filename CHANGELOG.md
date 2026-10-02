@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- build [security]: upgrade the dev-only `urllib3` from 2.7.0 to 2.8.0 for published advisories, and resolve every desktop npm package from `registry.npmjs.org` instead of a third-party mirror (integrity hashes unchanged).
+
 - ci: add Rust to the CodeQL scan so the Rust core runtime (`delta-core`) is covered by static analysis, not only the TypeScript and Python code.
 
 - fix [security]: the desktop CSP no longer allows inline scripts (`script-src 'self'`); the pre-paint theme script moved from `index.html` into `public/theme-init.js`, and `tauri dev` keeps the previous policy through `devCsp` so Vite's dev preamble still runs.
