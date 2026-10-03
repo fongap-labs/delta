@@ -1,7 +1,7 @@
 {
     "schema_version": 1,
     "artifact_name": "delta-release",
-    "target_repository": "fongap-labs/external-vault",
+    "target_repository": "fongap-labs/delta",
     "release_key": "delta",
     "release_name": "Delta",
     "release_notes": "Delta Windows portable release.",

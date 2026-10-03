@@ -110,7 +110,7 @@ npm run tauri dev
 
 ## Release
 
-Release intent is source-owned in `.github/release.manifest.json`. Action Worker checks out the immutable Delta source, runs the declared Windows build on the centrally resolved runner, generates release provenance, validates the source and artifacts, and publishes the `delta-v<semver>` Release to `external-vault`. Target-repository credentials and release authority are not stored in this repository.
+Release intent is source-owned in `.github/release.manifest.json`. Action Worker checks out the immutable Delta source, runs the declared Windows build on the centrally resolved runner, generates release provenance, validates the source and artifacts, and publishes the `delta-v<semver>` Release to this repository's GitHub Releases. Target-repository credentials and release authority are not stored in this repository.
 
 ## Documentation
 
