@@ -25,6 +25,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -70,28 +71,128 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     return entries
 
 
+def _system_tool(name: str) -> str:
+    """Full path of a Windows system tool; PATH may start with Git or MSYS tools of the same name."""
+    root = os.environ.get("SystemRoot", r"C:\Windows")
+    return str(Path(root) / "System32" / f"{name}.exe")
+
+
+def _current_user_sid() -> str | None:
+    """SID of the current Windows user from ``whoami /user`` (same on every system language).
+
+    None when it cannot be determined; callers then fall back to the account name.
+    """
+    try:
+        proc = subprocess.run(
+            [_system_tool("whoami"), "/user", "/fo", "csv", "/nh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    match = re.search(r"S-1-\d+(?:-\d+)+", proc.stdout or "")
+    return match.group(0) if match else None
+
+
+def _trustee_is_user(trustee: str, user_sid: str) -> bool:
+    """True when an SDDL trustee is the user, given as a SID or as the alias SDDL uses for it.
+
+    SDDL abbreviates the local Administrator (RID 500) as ``LA`` and the local Guest (RID 501) as
+    ``LG``; the built-in administrator account of a CI runner is written that way.
+    """
+    if trustee.upper() == user_sid.upper():
+        return True
+    rid = user_sid.rsplit("-", 1)[-1]
+    return (trustee.upper() == "LA" and rid == "500") or (trustee.upper() == "LG" and rid == "501")
+
+
+def _dacl_grants_only(sddl: str, user_sid: str) -> bool:
+    """True when the DACL is protected, has no inherited entry and grants only ``user_sid``.
+
+    ``sddl`` is one security descriptor, e.g. ``D:PAI(A;;FA;;;S-1-5-21-...)``.  Trustees are
+    compared as SIDs, never by account name, so the answer does not depend on the Windows language.
+    """
+    start = sddl.find("D:")
+    if start < 0:
+        return False
+    dacl = sddl[start + 2 :]
+    first = dacl.find("(")
+    flags = dacl if first < 0 else dacl[:first]
+    if "P" not in flags:
+        return False
+    grants = 0
+    for entry in re.findall(r"\(([^)]*)\)", dacl):
+        fields = entry.split(";")
+        if len(fields) < 6:
+            return False
+        ace_type, ace_flags, trustee = fields[0], fields[1], fields[5]
+        if "ID" in ace_flags:
+            return False
+        if ace_type.startswith("A"):
+            if not _trustee_is_user(trustee, user_sid):
+                return False
+            grants += 1
+    return grants > 0
+
+
+def _read_windows_sddl(path: Path) -> str | None:
+    """Security descriptor of ``path`` as SDDL text via ``icacls /save`` (None if unreadable)."""
+    handle, saved = tempfile.mkstemp(suffix=".acl")
+    os.close(handle)
+    try:
+        proc = subprocess.run(
+            [_system_tool("icacls"), str(path), "/save", saved, "/q"],
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        raw = Path(saved).read_bytes()
+    except OSError:
+        return None
+    finally:
+        try:
+            os.unlink(saved)
+        except OSError:
+            pass
+    if raw.startswith(b"\xff\xfe") or raw[1:2] == b"\x00":
+        text = raw.decode("utf-16", errors="replace")
+    else:
+        text = raw.decode("utf-8", errors="replace")
+    # Line 1 is the path (it can contain "D:"), so only later lines are descriptors.
+    lines = text.splitlines()[1:]
+    return next((line for line in lines if "D:" in line), None)
+
+
 def _apply_user_restriction(path: Path, *, is_dir: bool) -> bool:
     """Restrict a path to the current user and verify it took effect.
 
     POSIX uses mode bits (0700 dir / 0600 file).  Windows has no mode bits --
     ``os.chmod`` only toggles read-only, so an ACL is required: strip inherited
-    entries and grant the current user alone.  Best-effort on Windows so a
+    entries and grant the current user alone, by SID.  Best-effort on Windows so a
     transient ``icacls`` failure never blocks saving a key.
 
     Returns True when the restriction is verified in place, False when applied
     best-effort but unconfirmed (degraded -- callers should surface that).
     """
     if _ON_WINDOWS:
-        username = os.environ.get("USERNAME")
-        if not username:
-            return False
-        domain = os.environ.get("USERDOMAIN")
-        account = f"{domain}\\{username}" if domain else username
+        sid = _current_user_sid()
+        if sid:
+            account = f"*{sid}"
+        else:
+            username = os.environ.get("USERNAME")
+            if not username:
+                return False
+            domain = os.environ.get("USERDOMAIN")
+            account = f"{domain}\\{username}" if domain else username
         # Directory grants must be inheritable ((OI)(CI)) so child files inherit.
         grant = f"{account}:(OI)(CI)F" if is_dir else f"{account}:F"
         try:
             subprocess.run(
-                ["icacls", str(path), "/inheritance:r", "/grant:r", grant],
+                [_system_tool("icacls"), str(path), "/inheritance:r", "/grant:r", grant],
                 capture_output=True,
                 check=False,
             )
@@ -106,21 +207,24 @@ def _apply_user_restriction(path: Path, *, is_dir: bool) -> bool:
 
 
 def _verify_windows_acl(path: Path) -> bool:
-    """Re-read the ACL via ``icacls`` and confirm only the current user is granted."""
-    try:
-        proc = subprocess.run(
-            ["icacls", str(path)], capture_output=True, text=True, check=False
-        )
-    except OSError:
+    """Re-read the ACL and confirm that only the current user's SID is granted access."""
+    sid = _current_user_sid()
+    if sid is None:
         return False
-    if proc.returncode != 0:
-        return False
-    output = proc.stdout
-    user = os.environ.get("USERNAME", "")
-    if not user or user not in output:
-        return False
-    # Inherited broad principals must be gone after /inheritance:r.
-    return "NT AUTHORITY\\SYSTEM" not in output and "BUILTIN\\Administrators" not in output
+    sddl = _read_windows_sddl(path)
+    return sddl is not None and _dacl_grants_only(sddl, sid)
+
+
+def _create_private_file(path: Path, content: str) -> None:
+    """Create ``path`` fresh, owner-only from the first byte on POSIX (mode 0600, ``O_EXCL``).
+
+    On Windows the new file inherits the folder's access, which the caller has restricted first,
+    and is then restricted itself by ``_apply_user_restriction``.
+    """
+    path.unlink(missing_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(content)
 
 
 def write_private_text(path: str | Path, content: str) -> Path:
@@ -132,7 +236,7 @@ def write_private_text(path: str | Path, content: str) -> Path:
     except OSError:
         pass
     tmp = target.with_name(target.name + ".tmp")
-    tmp.write_text(content, encoding="utf-8")
+    _create_private_file(tmp, content)
     _apply_user_restriction(tmp, is_dir=False)
     os.replace(tmp, target)
     return target
@@ -199,6 +303,7 @@ class CredentialStore:
                     "type": data.get("type"),
                     "account": data.get("account_id"),
                     "expired": bool(expired),
+                    "acl_unprotected": self.acl_unprotected(),
                 }
             )
         return out
@@ -228,15 +333,19 @@ class CredentialStore:
 
     def _persist(self, vault: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # The folder is restricted first so the new file is not briefly visible to others. A folder
+        # that cannot be restricted (or keeps extra grants) is logged, not hidden; the file's own
+        # restriction decides the reported state, because that is what protects the secrets.
         try:
-            _apply_user_restriction(self.path.parent, is_dir=True)
-        except OSError:
-            pass
+            if not _apply_user_restriction(self.path.parent, is_dir=True):
+                logger.warning("the credential folder %s is not confirmed owner-only", self.path.parent)
+        except OSError as error:
+            logger.warning("could not restrict the credential folder %s: %s", self.path.parent, error)
         tmp = self.path.with_name(self.path.name + ".tmp")
-        tmp.write_text(json.dumps(vault, indent=2), encoding="utf-8")
-        protected = _apply_user_restriction(tmp, is_dir=False)
+        _create_private_file(tmp, json.dumps(vault, indent=2))
+        is_file_protected = _apply_user_restriction(tmp, is_dir=False)
         os.replace(tmp, self.path)
-        self._record_acl_state(protected)
+        self._record_acl_state(is_file_protected)
 
     def _record_acl_state(self, ok: bool) -> None:
         """Persist whether the vault file is ACL-protected so callers/UI can surface it."""
