@@ -4,8 +4,7 @@
 input is untrusted by design — it reads web pages, email and Slack messages, all of which
 are documented as "data, not instructions". A page that talks the agent into fetching
 `http://169.254.169.254/` or `http://127.0.0.1:11434/` turns a read-only research tool into
-a probe of the machine's own network position, and `web_fetch` is `requires_approval=False`,
-so no prompt ever appears.
+a probe of the machine's own network position, even though `web_fetch` asks for approval.
 
 This blocks the ranges that are only reachable *because* Delta runs on the user's
 machine: loopback, RFC1918 and other private space, link-local (which covers the cloud
@@ -25,6 +24,7 @@ checked_connection_address and connect only to that vetted address.
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import socket
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -37,9 +37,36 @@ MAX_REDIRECTS = 5
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")
 
 
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> list[ipaddress.IPv4Address]:
+    """IPv4 addresses an IPv6 address carries: IPv4-mapped, 6to4, Teredo (client) and NAT64.
+
+    A gateway that translates these forwards the connection to the embedded IPv4 address, so
+    `[64:ff9b::7f00:1]` can reach 127.0.0.1 from a dual-stack host even though the IPv6 address
+    itself looks public.
+    """
+    found: list[ipaddress.IPv4Address] = []
+    if ip.ipv4_mapped is not None:
+        found.append(ip.ipv4_mapped)
+    if ip.sixtofour is not None:
+        found.append(ip.sixtofour)
+    if ip.teredo is not None:
+        found.extend(ip.teredo)  # (server, client): both are addresses a relay will contact
+    if ip in _NAT64:
+        found.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+    return found
+
+
 def _blocked_reason(
     ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> str | None:
+    if isinstance(ip, ipaddress.IPv6Address):
+        for inner in _embedded_ipv4(ip):
+            reason = _blocked_reason(inner)
+            if reason:
+                return f"{reason} (carried inside an IPv6 address)"
     if ip.is_loopback:
         return "loopback"
     if ip.is_link_local:
@@ -69,6 +96,10 @@ def _vet(url: str) -> tuple[str | None, str | None]:
     host = parts.hostname
     if not host:
         return "url has no host", None
+    # Credentials in the URL are never needed to read a page, and parsers disagree about where the host
+    # ends (`http://127.0.0.1\@example.com/` is example.com to urllib and 127.0.0.1 to a browser).
+    if "@" in parts.netloc or "\\" in parts.netloc:
+        return "url must not contain credentials or backslashes in the host part", None
 
     # A literal address needs no lookup.
     try:
@@ -92,10 +123,7 @@ def _vet(url: str) -> tuple[str | None, str | None]:
             ip = ipaddress.ip_address(raw)
         except ValueError:
             continue
-        # ::ffff:127.0.0.1 and friends must be judged as the v4 address they carry.
-        mapped = getattr(ip, "ipv4_mapped", None)
-        if mapped is not None:
-            ip = mapped
+        # ::ffff:127.0.0.1, 6to4, Teredo and NAT64 addresses are judged as the v4 address they carry.
         reason = _blocked_reason(ip)
         if reason:
             return f"refusing to fetch {host} ({ip}): {reason}", None
@@ -152,8 +180,7 @@ def _pinned(url: str, ip: str) -> tuple[str, dict, dict]:
     if host is None:
         raise ValueError("url has no host")
     addr = f"[{ip}]" if ":" in ip else ip
-    userinfo, _, _ = parts.netloc.rpartition("@")
-    netloc = (f"{userinfo}@" if userinfo else "") + addr
+    netloc = addr  # _vet refuses URLs with credentials, so there is no userinfo to carry
     host_header = host
     if parts.port is not None:
         netloc += f":{parts.port}"
@@ -209,6 +236,39 @@ def request_checked(
         location = response.headers.get("location")
         if not location:
             return response
+        seen = urljoin(seen, location)
+    raise RuntimeError(f"too many redirects (>{max_redirects})")
+
+
+@contextlib.contextmanager
+def stream_checked(client, url: str, *, max_redirects: int = MAX_REDIRECTS):
+    """Like `get_checked`, but the final response is open and its body has not been read.
+
+    Use it as a context manager and read the body in bounded pieces (`resp.iter_bytes()`), so a
+    server that never stops sending cannot fill memory. Every hop is vetted and pinned exactly as in
+    `get_checked`; redirect responses are closed before the next hop is requested. `client` must be
+    built with `follow_redirects=False`.
+    """
+    seen = url
+    for _ in range(max_redirects + 1):
+        reason, pin = _vet(seen)
+        if reason:
+            raise PermissionError(reason)
+        if pin is None:
+            request_url, headers, extensions = seen, {}, {}
+        else:
+            request_url, headers, extensions = _pinned(seen, pin)
+        with client.stream(
+            "GET", request_url, headers=headers or None, extensions=extensions or None
+        ) as resp:
+            location = resp.headers.get("location")
+            if resp.status_code not in (301, 302, 303, 307, 308) or not location:
+                ext = getattr(resp, "extensions", None)
+                if isinstance(ext, dict):
+                    ext["logical_url"] = seen
+                yield resp
+                return
+        # A relative Location stays on the logical host, not on the pinned address.
         seen = urljoin(seen, location)
     raise RuntimeError(f"too many redirects (>{max_redirects})")
 
