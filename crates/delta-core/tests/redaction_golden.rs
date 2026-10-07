@@ -18,11 +18,28 @@ fn github_token() -> String {
     format!("{}{}", "ghp_", "a".repeat(36))
 }
 
+fn nvidia_key() -> String {
+    format!("{}{}", "nvapi-", "b".repeat(24))
+}
+
+fn jwt() -> String {
+    [
+        "eyJ",
+        "hbGciOiJIUzI1NiJ9.",
+        "eyJ",
+        "zdWIiOiIxMjM0NTY3ODkwIn0.",
+        "dBjftJeZ4CVPmB92K27uhbUJU1p1r",
+    ]
+    .concat()
+}
+
 fn expand(value: &Value) -> Value {
     match value {
         Value::String(text) => Value::String(
             text.replace("<<AWS_KEY>>", &aws_key())
-                .replace("<<GITHUB_TOKEN>>", &github_token()),
+                .replace("<<GITHUB_TOKEN>>", &github_token())
+                .replace("<<NVIDIA_KEY>>", &nvidia_key())
+                .replace("<<JWT>>", &jwt()),
         ),
         Value::Array(items) => Value::Array(items.iter().map(expand).collect()),
         Value::Object(map) => {
@@ -78,6 +95,8 @@ fn no_golden_result_still_contains_the_secrets_it_was_given() {
         "sk-abcdefghijklmnopqrstuvwxyz0123".to_string(),
         aws_key(),
         github_token(),
+        nvidia_key(),
+        jwt(),
         "dBjftJeZ4CVPm".to_string(),
     ];
     for (name, _, expected) in cases() {
@@ -94,9 +113,14 @@ fn no_golden_result_still_contains_the_secrets_it_was_given() {
 #[test]
 fn the_placeholders_really_stand_for_credential_shaped_text() {
     let text = redact_value(&Value::String(format!(
-        "k {} {}",
+        "k {} {} {} {}",
         aws_key(),
-        github_token()
+        github_token(),
+        nvidia_key(),
+        jwt()
     )));
-    assert_eq!(text, Value::String("k [redacted] [redacted]".to_string()));
+    assert_eq!(
+        text,
+        Value::String("k [redacted] [redacted] [redacted] [redacted]".to_string())
+    );
 }

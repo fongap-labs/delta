@@ -129,7 +129,7 @@
     {
       "name": "well-known token shapes in free text",
       "input": {
-        "output": "keys: sk-abcdefghijklmnopqrstuvwxyz0123 <<GITHUB_TOKEN>> <<AWS_KEY>> nvapi-bbbbbbbbbbbbbbbbbbbbbbbb xoxb-1234567890-abcdef eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r"
+        "output": "keys: sk-abcdefghijklmnopqrstuvwxyz0123 <<GITHUB_TOKEN>> <<AWS_KEY>> <<NVIDIA_KEY>> xoxb-1234567890-abcdef <<JWT>>"
       },
       "expected": {
         "output": "keys: [redacted] [redacted] [redacted] [redacted] [redacted] [redacted]"
