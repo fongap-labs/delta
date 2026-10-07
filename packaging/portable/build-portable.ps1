@@ -119,6 +119,14 @@ New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
 Copy-Item -LiteralPath $AppExe -Destination (Join-Path $AppDir "$AppName.exe") -Force
 Copy-Item -LiteralPath $LauncherExe -Destination (Join-Path $Portable "$AppName.exe") -Force
 
+# Authenticode: signs both executables when WINDOWS_SIGNING_CERT and WINDOWS_SIGNING_PASSWORD are set,
+# otherwise logs that signing is skipped. It runs before the self-test and the ZIP so that what is
+# tested and archived is what was signed (docs/operations/windows-code-signing.md).
+& (Join-Path $Here "sign-windows.ps1") -Path @(
+    (Join-Path $AppDir "$AppName.exe"),
+    (Join-Path $Portable "$AppName.exe")
+)
+
 $Other = Join-Path $Portable "Other"
 $SourceDir = Join-Path $Other "Source"
 $HelpDir = Join-Path $Other "Help"
