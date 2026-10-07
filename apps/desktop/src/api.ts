@@ -1,5 +1,6 @@
 import type { GroupedQuestion, QuestionOption, SessionInfo, WsEvent } from "./types";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { canOpenWithDefaultApp } from "./artifactOpen";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   RuntimeContractError,
@@ -383,20 +384,27 @@ export async function readArtifact(sessionId: string, path: string): Promise<Art
   return await directReadArtifact(sessionId, path);
 }
 
-/** Show the artifact in the OS file manager ("reveal") or open it with its default app ("open"). */
+/**
+ * Show the artifact in the OS file manager ("reveal") or open it with its default app ("open").
+ * Only documents, text and common images are opened; anything else is revealed instead and the
+ * result says so with `downgraded`.
+ */
 export async function revealArtifact(
   sessionId: string,
   path: string,
   mode: "reveal" | "open" = "reveal",
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; downgraded?: boolean }> {
   const resolved = await resolveArtifactPath(sessionId, path);
   if (!resolved.ok || typeof resolved.path !== "string") {
     return { ok: false, error: resolved.error || "Artifact is unavailable" };
   }
   try {
-    if (mode === "open") await openPath(resolved.path);
-    else await revealItemInDir(resolved.path);
-    return { ok: true };
+    if (mode === "open" && canOpenWithDefaultApp(resolved.path)) {
+      await openPath(resolved.path);
+      return { ok: true };
+    }
+    await revealItemInDir(resolved.path);
+    return mode === "open" ? { ok: true, downgraded: true } : { ok: true };
   } catch (error) {
     return { ok: false, error: String(error) };
   }

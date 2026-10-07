@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [security]: "Open" on an artifact only hands documents, text and common images (`pdf`, `docx`, `xlsx`, `pptx`, `txt`, `md`, `csv`, `png`, `jpg`, `jpeg`, `gif`, `webp`) to the operating system's default application; any other file, including files with no extension, scripts, shortcuts, `.svg`, `.html` and names such as `report.pdf.exe`, is only revealed in the file manager, and the result carries `downgraded: true`. Previously a model-written `.bat` or `.lnk` could be launched by one click.
+
 - fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
 
 - fix: retired `fongap/delta` references are repaired — the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.
