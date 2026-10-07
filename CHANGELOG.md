@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- build: add `packaging/portable/sign-windows.ps1`, an Authenticode signing step that signs the launcher and the app executable before the portable ZIP is built and re-verifies them in the final ZIP, but only when `WINDOWS_SIGNING_CERT` and `WINDOWS_SIGNING_PASSWORD` are present; without them the build logs that signing is skipped and behaves exactly as before.
+
 - fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
 
 - fix: retired `fongap/delta` references are repaired — the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.

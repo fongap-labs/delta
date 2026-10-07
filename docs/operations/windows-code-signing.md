@@ -132,6 +132,26 @@ SHA-256 必须针对最终实际发布的 ZIP 生成。
 * 压缩包内容完整性可验证
 * Release Artifact 与校验值一致
 
+## 脚手架（已实现，默认不生效）
+
+`packaging/portable/sign-windows.ps1` 在两个密钥都存在时才签名：
+
+* `build-portable.ps1` 在复制出主程序与 Launcher 之后、自检与生成 ZIP 之前调用它，对 `Delta.exe`（Launcher）和 `App\Delta\Delta.exe`（主程序）做 SHA-256 签名并带时间戳，随后执行 `signtool verify /pa /all`。
+* `.github/scripts/release-build.ps1` 在解压最终 ZIP 后，对其中的两个可执行文件再验证一次（仅在密钥存在时）。
+* 两个密钥都没有：输出 `code signing: skipped` 并继续，行为与之前完全相同，不签名也不声明已签名。
+* 只有其中一个：直接失败，因为这是配置错误，不是"未配置"。
+* 签名或验证失败：直接失败，不生成发行物。
+* PFX 只解码到临时目录并导入当前用户证书库，密码不出现在命令行；两者在结束时都会删除。
+* 可选环境变量 `WINDOWS_SIGNING_TIMESTAMP_URL` 覆盖默认的时间戳服务。
+
+当前发行物只有便携版 ZIP（`tauri build --no-bundle`），不生成 NSIS 安装包，所以没有安装包需要签名；如果以后发布安装包，需要在生成安装包之后对它调用同一个脚本。
+
+签名密钥应放入受保护的 GitHub Environment，并经中央发布准入传递，不要放在仓库级密钥里。
+
+macOS：当前 `tauri.conf.json` 与 CI 都没有 `signingIdentity` 或公证（notarize）配置，发行目标也只有 `x86_64-pc-windows-msvc`。本文不涉及 macOS。
+
+状态仍然是 `Not configured`：脚手架就位不等于已签名。
+
 ## 未配置签名时
 
 如果正式证书尚未配置：
