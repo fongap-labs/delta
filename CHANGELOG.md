@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: add ADR-0052 (proposed) on credential storage: where API keys and connector credentials are kept today (Rust authority files, Python vault), the Windows gap in the Rust private write, and the options and recommendation, awaiting the owner's decision; nothing is implemented.
+
 - fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
 
 - fix: retired `fongap/delta` references are repaired — the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.
