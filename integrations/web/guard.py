@@ -24,6 +24,7 @@ checked_connection_address and connect only to that vetted address.
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import socket
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -235,6 +236,39 @@ def request_checked(
         location = response.headers.get("location")
         if not location:
             return response
+        seen = urljoin(seen, location)
+    raise RuntimeError(f"too many redirects (>{max_redirects})")
+
+
+@contextlib.contextmanager
+def stream_checked(client, url: str, *, max_redirects: int = MAX_REDIRECTS):
+    """Like `get_checked`, but the final response is open and its body has not been read.
+
+    Use it as a context manager and read the body in bounded pieces (`resp.iter_bytes()`), so a
+    server that never stops sending cannot fill memory. Every hop is vetted and pinned exactly as in
+    `get_checked`; redirect responses are closed before the next hop is requested. `client` must be
+    built with `follow_redirects=False`.
+    """
+    seen = url
+    for _ in range(max_redirects + 1):
+        reason, pin = _vet(seen)
+        if reason:
+            raise PermissionError(reason)
+        if pin is None:
+            request_url, headers, extensions = seen, {}, {}
+        else:
+            request_url, headers, extensions = _pinned(seen, pin)
+        with client.stream(
+            "GET", request_url, headers=headers or None, extensions=extensions or None
+        ) as resp:
+            location = resp.headers.get("location")
+            if resp.status_code not in (301, 302, 303, 307, 308) or not location:
+                ext = getattr(resp, "extensions", None)
+                if isinstance(ext, dict):
+                    ext["logical_url"] = seen
+                yield resp
+                return
+        # A relative Location stays on the logical host, not on the pinned address.
         seen = urljoin(seen, location)
     raise RuntimeError(f"too many redirects (>{max_redirects})")
 
