@@ -8,6 +8,17 @@
 
 use std::path::Path;
 
+/// SDDL writes the local Administrator (RID 500) as `LA` and the local Guest (RID 501) as `LG`;
+/// the built-in administrator account of a CI runner is spelled that way.
+fn trustee_is_user(trustee: &str, user_sid: &str) -> bool {
+    if trustee.eq_ignore_ascii_case(user_sid) {
+        return true;
+    }
+    let rid = user_sid.rsplit('-').next().unwrap_or("");
+    (trustee.eq_ignore_ascii_case("LA") && rid == "500")
+        || (trustee.eq_ignore_ascii_case("LG") && rid == "501")
+}
+
 /// True when the DACL in `sddl` is protected (does not inherit), has no inherited entry and grants
 /// access to `user_sid` only. `sddl` is the text of one security descriptor, for example
 /// `D:PAI(A;;FA;;;S-1-5-21-1-2-3-1001)`.
@@ -38,7 +49,7 @@ pub fn sddl_grants_only(sddl: &str, user_sid: &str) -> bool {
             return false;
         }
         if ace_type.starts_with('A') {
-            if !trustee.eq_ignore_ascii_case(user_sid) {
+            if !trustee_is_user(trustee, user_sid) {
                 return false;
             }
             grants += 1;
@@ -245,6 +256,14 @@ mod tests {
         assert!(!sddl_grants_only("D:P", USER), "no entries at all");
         assert!(!sddl_grants_only("garbage", USER));
         assert!(!sddl_grants_only("D:P(A;;FA;;;", USER), "truncated");
+    }
+
+    #[test]
+    fn the_local_administrator_alias_counts_only_for_rid_500() {
+        let admin = "S-1-5-21-1111-2222-3333-500";
+        assert!(sddl_grants_only("D:PAI(A;;FA;;;LA)", admin));
+        assert!(!sddl_grants_only("D:PAI(A;;FA;;;LA)", USER));
+        assert!(!sddl_grants_only("D:PAI(A;;FA;;;LA)(A;;FA;;;SY)", admin));
     }
 
     #[test]

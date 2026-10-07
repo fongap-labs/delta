@@ -97,6 +97,18 @@ def _current_user_sid() -> str | None:
     return match.group(0) if match else None
 
 
+def _trustee_is_user(trustee: str, user_sid: str) -> bool:
+    """True when an SDDL trustee is the user, given as a SID or as the alias SDDL uses for it.
+
+    SDDL abbreviates the local Administrator (RID 500) as ``LA`` and the local Guest (RID 501) as
+    ``LG``; the built-in administrator account of a CI runner is written that way.
+    """
+    if trustee.upper() == user_sid.upper():
+        return True
+    rid = user_sid.rsplit("-", 1)[-1]
+    return (trustee.upper() == "LA" and rid == "500") or (trustee.upper() == "LG" and rid == "501")
+
+
 def _dacl_grants_only(sddl: str, user_sid: str) -> bool:
     """True when the DACL is protected, has no inherited entry and grants only ``user_sid``.
 
@@ -120,7 +132,7 @@ def _dacl_grants_only(sddl: str, user_sid: str) -> bool:
         if "ID" in ace_flags:
             return False
         if ace_type.startswith("A"):
-            if trustee.upper() != user_sid.upper():
+            if not _trustee_is_user(trustee, user_sid):
                 return False
             grants += 1
     return grants > 0
