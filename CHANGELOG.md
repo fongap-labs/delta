@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- build [security]: update the Tauri family together: `tauri` 2.12.1, `tauri-build` 2.7.1, the dialog, autostart, opener and updater plugins (updater 2.12.0 to 2.13.1) and, with them, the `@tauri-apps/api`, `@tauri-apps/plugin-opener` and `@tauri-apps/cli` packages (all resolved from `registry.npmjs.org`), instead of merging the single Dependabot updates whose Rust and JavaScript halves must match. The update also drops the rust-unic crates, so their five advisory ignores are removed from `deny.toml`.
+
 - docs: add ADR-0052 (proposed) on credential storage: where API keys and connector credentials are kept today (Rust authority files, Python vault), the Windows gap in the Rust private write, and the options and recommendation, awaiting the owner's decision; nothing is implemented.
 - chore: drop the ten ignore entries for the gtk-rs GTK3 advisories (RUSTSEC-2024-0411 to RUSTSEC-2024-0420) from `deny.toml`; the advisory database withdrew them on 2026-08-14 and `cargo deny check advisories` passes in every workspace without them.
 - fix [security]: credential files are now owner-only from creation. On Windows the Rust runtime restricts `model-authority.json`, `application.json` and the MCP state file to the current user's SID (inheritance removed) before the file takes its final name and verifies the result, instead of relying on the folder's access; the Python vault creates files with mode 0600 (`O_EXCL`), compares Windows ACLs by SID instead of English account names, no longer hides a failed folder restriction, and reports `acl_unprotected` in its status rows; the model settings carry `secrets_file_protected`. No data format change (ADR-0052, step 1).
