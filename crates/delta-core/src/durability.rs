@@ -11,7 +11,27 @@ pub fn atomic_write(path: impl AsRef<Path>, bytes: &[u8]) -> Result<(), ShadowRe
 }
 
 pub fn atomic_write_private(path: impl AsRef<Path>, bytes: &[u8]) -> Result<(), ShadowReadError> {
-    write_atomic_private(path.as_ref(), bytes, true)
+    atomic_write_private_checked(path, bytes).map(|_| ())
+}
+
+/// Like [`atomic_write_private`]; the flag says whether owner-only access is confirmed on the
+/// written file (always true on Unix, where the file is created with mode 0600; on Windows the file
+/// is restricted to the current user's SID and the result is verified, so it is false when that could
+/// not be done, for example on a file system without ACLs).
+pub fn atomic_write_private_checked(
+    path: impl AsRef<Path>,
+    bytes: &[u8],
+) -> Result<bool, ShadowReadError> {
+    let path = path.as_ref();
+    write_atomic_private(path, bytes, true)?;
+    #[cfg(windows)]
+    {
+        Ok(crate::private_fs::restrict_to_current_user(path, false))
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(crate::private_fs::is_restricted_to_current_user(path))
+    }
 }
 
 fn write_atomic_private(
@@ -57,6 +77,13 @@ fn write_and_replace(
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
+
+    // Windows files carry their folder's permissions until restricted; do it before the file takes the
+    // final name so it is never visible under that name with broader access (private_fs.rs).
+    #[cfg(windows)]
+    if private {
+        crate::private_fs::restrict_to_current_user(temp_path, false);
+    }
 
     replace_file(temp_path, path)?;
     sync_parent(path)?;
@@ -164,6 +191,25 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn a_private_write_leaves_the_file_owner_only_even_over_a_loose_one() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("authority.json");
+        // A file left by an older build: created with whatever the folder grants.
+        fs::write(&path, b"old").unwrap();
+
+        let is_protected = atomic_write_private_checked(&path, b"new").unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        assert!(is_protected, "the write must report owner-only access");
+        assert!(crate::private_fs::is_restricted_to_current_user(&path));
+        let leftovers = fs::read_dir(temp.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .count();
+        assert_eq!(leftovers, 1, "no temporary file may remain");
     }
 
     #[test]

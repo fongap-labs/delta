@@ -33,6 +33,7 @@ pub mod model_authority;
 mod model_catalog;
 pub mod persistent_worker;
 pub mod policy;
+pub mod private_fs;
 mod product_settings;
 pub mod provider;
 pub mod redact;

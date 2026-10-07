@@ -12,13 +12,14 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use crate::durability::atomic_write_private;
+use crate::durability::atomic_write_private_checked;
 use crate::model_catalog::{
     suggested_models, ProviderDescriptor, ANTHROPIC_PROTOCOL, DEFAULT_ANTHROPIC_URL,
     DEFAULT_OPENAI_URL, MODEL_MATRIX, OPENAI_PROTOCOL, PROVIDERS,
@@ -27,6 +28,10 @@ use crate::product_settings::ProductSettings;
 use crate::RuntimeConfig;
 
 const PROFILE_PREFIX: &str = "provider-profile:";
+
+/// Whether the last write of the authority file could confirm owner-only access. Starts true: nothing
+/// has been written yet, and a file written by an older build is re-restricted on its next write.
+static SECRETS_FILE_IS_PROTECTED: AtomicBool = AtomicBool::new(true);
 
 /// Single persisted authority: product prefs + provider secrets in one file.
 ///
@@ -74,7 +79,16 @@ impl ModelAuthority {
     /// Persist the whole authority (prefs + secrets) in one private atomic write.
     fn write_authority(&self, file: &ModelAuthorityFile) -> Result<(), String> {
         let bytes = serde_json::to_vec_pretty(file).map_err(|error| error.to_string())?;
-        atomic_write_private(self.authority_path(), &bytes).map_err(|error| error.to_string())
+        let is_protected = atomic_write_private_checked(self.authority_path(), &bytes)
+            .map_err(|error| error.to_string())?;
+        SECRETS_FILE_IS_PROTECTED.store(is_protected, Ordering::Relaxed);
+        if !is_protected {
+            eprintln!(
+                "credentials stored WITHOUT confirmed owner-only protection: {}",
+                self.authority_path().display()
+            );
+        }
+        Ok(())
     }
 
     pub fn resolve_runtime_config(&self, requested_model: &str) -> Result<RuntimeConfig, String> {
@@ -221,6 +235,7 @@ impl ModelAuthority {
                 && self.provider_configured(&self.route_model(&default_model, prefs).0, prefs, secrets)?,
             "source": if env_key { Value::String("env".to_string()) } else if stored_key { Value::String("store".to_string()) } else { Value::Null },
             "secrets_path": self.authority_path().to_string_lossy(),
+            "secrets_file_protected": SECRETS_FILE_IS_PROTECTED.load(Ordering::Relaxed),
         });
         if let Some(settings_map) = settings.as_object_mut() {
             settings_map.extend(product_settings);
@@ -999,6 +1014,8 @@ mod tests {
         assert!(!providers.to_string().contains("top-secret"));
         assert_eq!(settings["source"], "store");
         assert_eq!(settings["model_ready"], true);
+        // The write confirmed owner-only access to the authority file, and the status says so.
+        assert_eq!(settings["secrets_file_protected"], true);
         // The secret lives only inside the private authority file.
         let authority_text = fs::read_to_string(temp.path().join("model-authority.json")).unwrap();
         assert!(authority_text.contains("top-secret"));
