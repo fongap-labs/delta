@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [security]: `web_fetch` streams the page and stops at 5 MB after decompression or after 30 seconds, whichever comes first, instead of reading the whole body into memory; a response that is cut short is reported with `truncated: true`. Previously a server that never stopped sending, or a small compressed file that expands to gigabytes, could exhaust the memory of the Delta process. Address checks and pinning on every redirect hop are unchanged (`guard.stream_checked`).
+
 - fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
 
 - fix: retired `fongap/delta` references are repaired — the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.
