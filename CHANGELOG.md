@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- fix [security]: "Open" on an artifact only hands documents, text and common images (`pdf`, `docx`, `xlsx`, `pptx`, `txt`, `md`, `csv`, `png`, `jpg`, `jpeg`, `gif`, `webp`) to the operating system's default application; any other file, including files with no extension, scripts, shortcuts, `.svg`, `.html` and names such as `report.pdf.exe`, is only revealed in the file manager, and the result carries `downgraded: true`. Previously a model-written `.bat` or `.lnk` could be launched by one click.
 - fix [security]: `web_fetch` streams the page and stops at 5 MB after decompression or after 30 seconds, whichever comes first, instead of reading the whole body into memory; a response that is cut short is reported with `truncated: true`. Previously a server that never stopped sending, or a small compressed file that expands to gigabytes, could exhaust the memory of the Delta process. Address checks and pinning on every redirect hop are unchanged (`guard.stream_checked`).
 - fix [security]: the address guard behind `web_fetch` and `browser_read_url` refuses URLs that carry credentials or a backslash in the host part (`http://127.0.0.1@example.com/` was read as example.com by the guard and as 127.0.0.1 by a browser, and `http://user:pw@host/` was passed through to the pinned request), and it judges IPv4 addresses carried by IPv6 (IPv4-mapped, 6to4, Teredo, NAT64) itself instead of relying on the interpreter's address tables. The module comment no longer says `web_fetch` skips approval.
 
