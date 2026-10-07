@@ -202,6 +202,53 @@ pub struct ApprovalRecordOutput {
     pub timestamp: String,
 }
 
+/// `PRAGMA user_version` value of an audit database whose existing rows have been scrubbed.
+const AUDIT_REDACTED_VERSION: i64 = 1;
+
+/// Scrub the argument, preview, reason and resource columns of rows that were written before
+/// `crate::redact` was applied on write. Idempotent: the pass is skipped once `user_version` says it
+/// ran, and running it again changes nothing.
+fn redact_existing_rows(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if version >= AUDIT_REDACTED_VERSION {
+        return Ok(());
+    }
+    let tx = conn.unchecked_transaction()?;
+    let rows: Vec<(i64, String, String, String, String)> = {
+        let mut statement = tx.prepare(
+            "SELECT id, COALESCE(args, ''), COALESCE(result_preview, ''), COALESCE(reason, ''), COALESCE(resource, '') FROM audit_events",
+        )?;
+        let mapped = statement.query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })?;
+        mapped.collect::<rusqlite::Result<_>>()?
+    };
+    for (id, args, preview, reason, resource) in rows {
+        let new_args = crate::redact::redact_json_text(&args);
+        let new_preview = crate::redact::redact_free_text(&preview);
+        let new_reason = crate::redact::redact_free_text(&reason);
+        let new_resource = crate::redact::redact_free_text(&resource);
+        if new_args != args
+            || new_preview != preview
+            || new_reason != reason
+            || new_resource != resource
+        {
+            tx.execute(
+                "UPDATE audit_events SET args = ?, result_preview = ?, reason = ?, resource = ? WHERE id = ?",
+                rusqlite::params![new_args, new_preview, new_reason, new_resource, id],
+            )?;
+        }
+    }
+    tx.execute_batch(&format!("PRAGMA user_version = {AUDIT_REDACTED_VERSION}"))?;
+    tx.commit()
+}
+
 /// Approval audit writer - persists approval events to SQLite.
 pub struct ApprovalWriter {
     conn: rusqlite::Connection,
@@ -241,6 +288,11 @@ impl ApprovalWriter {
             CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);
         ",
         )?;
+        // Rows written before the credential policy existed keep their arguments in clear text. Scrub them
+        // once; a failure is reported and retried on the next start, it never blocks startup.
+        if let Err(error) = redact_existing_rows(&conn) {
+            eprintln!("audit: could not scrub existing audit rows: {error}");
+        }
         Ok(Self { conn })
     }
 
@@ -255,10 +307,16 @@ impl ApprovalWriter {
             .format(&time::format_description::well_known::Rfc3339)
             .unwrap_or_default();
 
+        // The audit table is history that outlives the run: it keeps what happened (tool, stage, status,
+        // level, resource, the shape of the arguments) and drops the credentials and file bodies in them.
         let args_json = input
             .arguments
-            .map(|v| v.to_string())
+            .map(|v| crate::redact::redact_value(&v).to_string())
             .unwrap_or_else(|| "{}".to_string());
+        let result_preview =
+            crate::redact::redact_free_text(&input.result_preview.unwrap_or_default());
+        let reason = crate::redact::redact_free_text(&input.reason.unwrap_or_default());
+        let resource = crate::redact::redact_free_text(&input.resource.unwrap_or_default());
 
         self.conn.execute(
             r"
@@ -276,9 +334,9 @@ impl ApprovalWriter {
                 input.status.unwrap_or_default(),
                 input.approval.unwrap_or_default(),
                 args_json,
-                input.result_preview.unwrap_or_default(),
-                input.reason.unwrap_or_default(),
-                input.resource.unwrap_or_default(),
+                result_preview,
+                reason,
+                resource,
                 input.level.unwrap_or_default(),
                 input.isolation.unwrap_or_default(),
                 timestamp,
@@ -423,6 +481,183 @@ mod tests {
         assert_eq!(events[0]["approval"], "once");
 
         writer.close().unwrap();
+    }
+
+    fn raw_row(db: &std::path::Path) -> (String, String, String, String) {
+        let conn = rusqlite::Connection::open(db).unwrap();
+        conn.query_row(
+            "SELECT args, result_preview, reason, resource FROM audit_events ORDER BY id DESC LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn credentials_and_file_bodies_never_reach_the_audit_table() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("audit.db");
+        let mut writer = ApprovalWriter::open(db_path.to_str().unwrap()).unwrap();
+        let input = |tool: &str, arguments: serde_json::Value| ApprovalRecordInput {
+            session_id: "s1".to_string(),
+            agent: None,
+            workspace: None,
+            connector: None,
+            tool: tool.to_string(),
+            stage: "approval_required".to_string(),
+            status: Some("pending".to_string()),
+            approval: None,
+            arguments: Some(arguments),
+            result_preview: Some("ran: curl -H 'Authorization: Bearer abc123' x".to_string()),
+            reason: Some("needs --password hunter2".to_string()),
+            resource: Some("https://h.example/a?token=xyz".to_string()),
+            level: Some("High".to_string()),
+            isolation: Some("runtime".to_string()),
+            ts: None,
+        };
+
+        writer
+            .record(
+                input(
+                    "write_file",
+                    serde_json::json!({"path": "notes.txt", "content": "token = s3cret"}),
+                ),
+                0.0,
+                "ws",
+            )
+            .unwrap();
+        let (args, preview, reason, resource) = raw_row(&db_path);
+        assert!(
+            !args.contains("s3cret")
+                && args.contains("notes.txt")
+                && args.contains("[redacted body]"),
+            "{args}"
+        );
+        assert!(
+            !preview.contains("abc123") && preview.contains("Authorization"),
+            "{preview}"
+        );
+        assert!(
+            !reason.contains("hunter2") && reason.contains("--password"),
+            "{reason}"
+        );
+        assert_eq!(resource, "https://h.example/a?token=[redacted]");
+
+        writer
+            .record(
+                input(
+                    "run_shell",
+                    serde_json::json!({"command": "curl -H \"Authorization: Bearer abc123\" https://h/x?token=xyz --password hunter2"}),
+                ),
+                0.0,
+                "ws",
+            )
+            .unwrap();
+        let (args, ..) = raw_row(&db_path);
+        for (index, secret) in ["abc123", "xyz", "hunter2"].iter().enumerate() {
+            assert!(
+                !args.contains(secret),
+                "credential #{index} leaked into the stored args"
+            );
+        }
+        assert!(
+            args.contains("curl") && args.contains("Authorization"),
+            "{args}"
+        );
+
+        // The audit view keeps what an operator needs: tool, stage, status and level.
+        let events = writer.list(10, Some("s1"), None, None).unwrap();
+        assert_eq!(events[0]["tool"], "run_shell");
+        assert_eq!(events[0]["stage"], "approval_required");
+        assert_eq!(events[0]["level"], "High");
+    }
+
+    #[test]
+    fn existing_rows_are_scrubbed_once_and_the_pass_is_marked_done() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("audit.db");
+        // A database written by an older build: clear-text arguments, no user_version.
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT, session_id TEXT, agent TEXT, workspace TEXT, connector TEXT, tool TEXT, stage TEXT, status TEXT, approval TEXT, args TEXT, result_preview TEXT, reason TEXT, resource TEXT, level TEXT DEFAULT '', isolation TEXT DEFAULT '');",
+            )
+            .unwrap();
+            for (args, preview) in [
+                (
+                    r#"{"command":"mysql --password hunter2","content":"file text"}"#,
+                    "Cookie: sid=1",
+                ),
+                ("not json at all --token abc123", ""),
+                ("{}", ""),
+            ] {
+                conn.execute(
+                    "INSERT INTO audit_events (session_id, tool, stage, args, result_preview) VALUES ('s', 't', 'x', ?, ?)",
+                    rusqlite::params![args, preview],
+                )
+                .unwrap();
+            }
+        }
+        let first = ApprovalWriter::open(db_path.to_str().unwrap()).unwrap();
+        drop(first);
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let dump: String = conn
+            .query_row(
+                "SELECT group_concat(args || '|' || result_preview, ';') FROM audit_events",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        for (index, secret) in ["hunter2", "abc123", "file text", "sid=1"]
+            .iter()
+            .enumerate()
+        {
+            assert!(
+                !dump.contains(secret),
+                "sensitive value #{index} survived in the audit table"
+            );
+        }
+        assert!(
+            dump.contains("mysql --password [redacted]") && dump.contains("[redacted body]"),
+            "{dump}"
+        );
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 1);
+        drop(conn);
+
+        // A second open changes nothing.
+        drop(ApprovalWriter::open(db_path.to_str().unwrap()).unwrap());
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let again: String = conn
+            .query_row(
+                "SELECT group_concat(args || '|' || result_preview, ';') FROM audit_events",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(again, dump);
+    }
+
+    #[test]
+    fn a_scrub_that_cannot_run_does_not_stop_the_database_opening() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("audit.db");
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            // A table without the columns the scrub reads: the pass fails, the writer still opens.
+            conn.execute_batch("CREATE TABLE audit_events (id INTEGER PRIMARY KEY, timestamp TEXT, session_id TEXT, tool TEXT, stage TEXT, status TEXT, approval TEXT, args TEXT);").unwrap();
+        }
+        assert!(ApprovalWriter::open(db_path.to_str().unwrap()).is_ok());
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            version, 0,
+            "a failed pass must be retried on the next start"
+        );
     }
 
     #[test]
