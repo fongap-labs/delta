@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [security, migration]: the audit database and the run event ledger no longer keep tool arguments and results in clear text. A new `delta_core::redact` module applies the policy of `packages/sanitize.py` (secret-shaped keys, credential headers, `body`/`content`/`html` fields, URL credential parameters) and also scrubs shell command text and tool results for `Authorization:`/`Cookie:` headers, `--password`/`--token` style flags, `?token=` parameters and well-known token shapes (`sk-`, `ghp_`, `AKIA`, JWT). It runs on every audit row written and on every tool event the runtime appends to the ledger; tool names, stages, statuses, levels, resources and the shape of the arguments stay. Audit rows written by older builds are scrubbed once on the next start (`PRAGMA user_version`; a failure never blocks startup). Checkpoints, which hold what is needed to resume a run, are deliberately unchanged, and ledger events written before this change are not rewritten because they are hash chained. Python and Rust are tested against one shared fixture, `crates/delta-core/tests/fixtures/redaction_golden.json`.
+
 - fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
 
 - fix: retired `fongap/delta` references are repaired — the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.

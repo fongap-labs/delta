@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "description": "Shared by packages/sanitize.py and crates/delta-core/src/redact.rs; both must produce `expected` for every `input`.",
+  "cases": [
+    {
+      "name": "secret keys are redacted at any depth",
+      "input": {
+        "bot_token": "xoxb-1",
+        "nested": {
+          "api_key": "k",
+          "deeper": [
+            {
+              "access_token": "t"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "bot_token": "[redacted]",
+        "nested": {
+          "api_key": "[redacted]",
+          "deeper": [
+            {
+              "access_token": "[redacted]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sensitive headers are redacted by name",
+      "input": {
+        "request": {
+          "headers": {
+            "Authorization": "Bearer abc",
+            "Accept": "text/html"
+          }
+        },
+        "response_cookies": {
+          "Set-Cookie": "sid=1"
+        }
+      },
+      "expected": {
+        "request": {
+          "headers": {
+            "Authorization": "[redacted]",
+            "Accept": "text/html"
+          }
+        },
+        "response_cookies": {
+          "Set-Cookie": "[redacted]"
+        }
+      }
+    },
+    {
+      "name": "body keys are redacted wholesale and recursion continues elsewhere",
+      "input": {
+        "body": "<html>anything</html>",
+        "result_body": "also hidden",
+        "note": "kept",
+        "items": [
+          "kept too",
+          {
+            "content": "hidden"
+          }
+        ]
+      },
+      "expected": {
+        "body": "[redacted body]",
+        "result_body": "[redacted body]",
+        "note": "kept",
+        "items": [
+          "kept too",
+          {
+            "content": "[redacted body]"
+          }
+        ]
+      }
+    },
+    {
+      "name": "url credentials in strings",
+      "input": {
+        "url": "https://example.com/callback?code=abc&access_token=secret&state=xyz",
+        "ftp": "ftp://h/?token=x",
+        "text": "plain text"
+      },
+      "expected": {
+        "url": "https://example.com/callback?code=abc&access_token=[redacted]&state=xyz",
+        "ftp": "ftp://h/?token=[redacted]",
+        "text": "plain text"
+      }
+    },
+    {
+      "name": "shell command with a bearer header and a query token",
+      "input": {
+        "command": "curl -H \"Authorization: Bearer abc123\" https://x.example/a?token=xyz&page=2"
+      },
+      "expected": {
+        "command": "curl -H \"Authorization: [redacted]\" https://x.example/a?token=[redacted]&page=2"
+      }
+    },
+    {
+      "name": "shell command with a cookie header",
+      "input": {
+        "command": "curl -H 'Cookie: sid=abc; theme=dark' https://x.example/"
+      },
+      "expected": {
+        "command": "curl -H 'Cookie: [redacted]' https://x.example/"
+      }
+    },
+    {
+      "name": "secret flags with a space, an equals sign and quotes",
+      "input": {
+        "command": "mysql --password hunter2 -h db --token=abc123 --secret 'a b c' --api-key AbCdEf12345"
+      },
+      "expected": {
+        "command": "mysql --password [redacted] -h db --token=[redacted] --secret [redacted] --api-key [redacted]"
+      }
+    },
+    {
+      "name": "query credentials without a scheme",
+      "input": {
+        "command": "curl 'example.com/x?api_key=AAA&name=bob&sig=ZZZ'"
+      },
+      "expected": {
+        "command": "curl 'example.com/x?api_key=[redacted]&name=bob&sig=[redacted]'"
+      }
+    },
+    {
+      "name": "well-known token shapes in free text",
+      "input": {
+        "output": "keys: sk-abcdefghijklmnopqrstuvwxyz0123 <<GITHUB_TOKEN>> <<AWS_KEY>> nvapi-bbbbbbbbbbbbbbbbbbbbbbbb xoxb-1234567890-abcdef eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r"
+      },
+      "expected": {
+        "output": "keys: [redacted] [redacted] [redacted] [redacted] [redacted] [redacted]"
+      }
+    },
+    {
+      "name": "ledger tool.proposed payload",
+      "input": {
+        "tool_call_id": "c1",
+        "tool": "write_file",
+        "level": "Medium",
+        "arguments": {
+          "path": "C:/work/notes.txt",
+          "content": "token = s3cret",
+          "mode": "w"
+        }
+      },
+      "expected": {
+        "tool_call_id": "c1",
+        "tool": "write_file",
+        "level": "Medium",
+        "arguments": {
+          "path": "C:/work/notes.txt",
+          "content": "[redacted body]",
+          "mode": "w"
+        }
+      }
+    },
+    {
+      "name": "ledger tool.completed payload",
+      "input": {
+        "tool_call_id": "c2",
+        "tool": "run_shell",
+        "result": {
+          "exit_code": 0,
+          "stdout": "Authorization: Bearer abcdef0123456789",
+          "stderr": ""
+        }
+      },
+      "expected": {
+        "tool_call_id": "c2",
+        "tool": "run_shell",
+        "result": {
+          "exit_code": 0,
+          "stdout": "Authorization: [redacted]",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "name": "values that are not secrets stay readable",
+      "input": {
+        "path": "C:/Users/me/Documents/report final.docx",
+        "command": "ls -la /tmp --port 8080 --verbose",
+        "count": 3,
+        "ok": true,
+        "missing": null,
+        "ratio": 0.5,
+        "list": [
+          1,
+          2,
+          "three"
+        ]
+      },
+      "expected": {
+        "path": "C:/Users/me/Documents/report final.docx",
+        "command": "ls -la /tmp --port 8080 --verbose",
+        "count": 3,
+        "ok": true,
+        "missing": null,
+        "ratio": 0.5,
+        "list": [
+          1,
+          2,
+          "three"
+        ]
+      }
+    },
+    {
+      "name": "secret-looking keys hide numbers too",
+      "input": {
+        "max_tokens": 100,
+        "password": 12345
+      },
+      "expected": {
+        "max_tokens": "[redacted]",
+        "password": "[redacted]"
+      }
+    },
+    {
+      "name": "unicode and empty strings pass through",
+      "input": {
+        "title": "测试文件 ünïcödé",
+        "empty": "",
+        "space": " "
+      },
+      "expected": {
+        "title": "测试文件 ünïcödé",
+        "empty": "",
+        "space": " "
+      }
+    },
+    {
+      "name": "already redacted text is left alone",
+      "input": {
+        "command": "curl -H 'Authorization: [redacted]' 'x.example/a?token=[redacted]' --password [redacted]"
+      },
+      "expected": {
+        "command": "curl -H 'Authorization: [redacted]' 'x.example/a?token=[redacted]' --password [redacted]"
+      }
+    },
+    {
+      "name": "lists of strings",
+      "input": {
+        "argv": [
+          "curl",
+          "--header",
+          "x-api-key: AbC123",
+          "https://h/?key=zzz"
+        ]
+      },
+      "expected": {
+        "argv": [
+          "curl",
+          "--header",
+          "x-api-key: [redacted]",
+          "https://h/?key=[redacted]"
+        ]
+      }
+    }
+  ]
+}

@@ -287,6 +287,104 @@ fn tool_execution_composes_policy_lifecycle_validation_checkpoint_and_ledger() {
     assert_eq!(approvals[0]["status"], "auto_approved");
 }
 
+struct SecretOutputExecutor;
+
+impl ToolExecutor for SecretOutputExecutor {
+    fn execute(&self, call: &ToolCall, _context: &ToolExecutionContext) -> ToolResult {
+        ToolResult::success(
+            &call.id,
+            json!({"stdout": "Authorization: Bearer abc123", "path": "report.md"}),
+        )
+    }
+}
+
+#[test]
+fn history_keeps_what_happened_but_not_the_credentials_in_it() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let mut host = RuntimeHost::new("session-s", RuntimeConfig::default())
+        .with_authorities(authorities.clone())
+        .with_tools(tool_contract("low", false))
+        .with_tool_executor(Arc::new(SecretOutputExecutor));
+    host.set_run_id("run-s".to_string());
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-s".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({
+            "path": "report.md",
+            "content": "api_token = s3cret-body",
+            "note": "curl -H 'Authorization: Bearer abc123' https://h/x?token=xyz --password hunter2",
+        }),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+
+    let ledger = authorities.ledger.lock().unwrap();
+    let reader = ledger.reader().unwrap();
+    let events = reader.events("run-s").unwrap();
+    let history =
+        serde_json::to_string(&events.iter().map(|e| e.payload.clone()).collect::<Vec<_>>())
+            .unwrap();
+    // Tool events carry no credential or file body ...
+    for event in events
+        .iter()
+        .filter(|e| e.r#type == "tool.proposed" || e.r#type == "tool.completed")
+    {
+        let text = event.payload.to_string();
+        for secret in ["s3cret-body", "abc123", "xyz", "hunter2"] {
+            assert!(
+                !text.contains(secret),
+                "{secret} in {} payload: {text}",
+                event.r#type
+            );
+        }
+    }
+    let proposed = events.iter().find(|e| e.r#type == "tool.proposed").unwrap();
+    assert_eq!(proposed.payload["tool"], "write_report");
+    assert_eq!(proposed.payload["arguments"]["path"], "report.md");
+    assert_eq!(proposed.payload["arguments"]["content"], "[redacted body]");
+    let completed = events
+        .iter()
+        .find(|e| e.r#type == "tool.completed")
+        .unwrap();
+    assert_eq!(completed.payload["result"]["path"], "report.md");
+    assert_eq!(
+        completed.payload["result"]["stdout"],
+        "Authorization: [redacted]"
+    );
+    assert!(
+        history.contains("checkpoint.registered")
+            || events.iter().any(|e| e.r#type == "checkpoint.registered")
+    );
+    // ... the chain still verifies, and so does the checkpoint.
+    assert!(reader.verify("run-s").unwrap());
+    let checkpoint = events
+        .iter()
+        .find(|e| e.r#type == "checkpoint.registered")
+        .unwrap();
+    let id = checkpoint.payload["id"].as_str().unwrap();
+    let checkpoints =
+        crate::checkpoint::CheckpointReader::open(temp.path().join("run_events.db")).unwrap();
+    let validation = checkpoints.validate(id).unwrap();
+    assert!(validation.valid, "{validation:?}");
+    drop(ledger);
+
+    // The audit table agrees.
+    let approvals = authorities
+        .approvals
+        .lock()
+        .unwrap()
+        .list(10, Some("session-s"), None, Some("write_report"))
+        .unwrap();
+    let audit = serde_json::to_string(&approvals).unwrap();
+    for secret in ["s3cret-body", "abc123", "xyz", "hunter2"] {
+        assert!(
+            !audit.contains(secret),
+            "{secret} in the audit table: {audit}"
+        );
+    }
+    assert_eq!(approvals[0]["tool"], "write_report");
+}
+
 #[test]
 fn post_execution_artifact_failure_becomes_uncertain_and_never_reexecutes() {
     let temp = tempfile::tempdir().unwrap();
