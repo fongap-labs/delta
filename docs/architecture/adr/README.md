@@ -8,6 +8,7 @@
 | [0002](0002-foundation-suite-boundary.md) | Foundation / extension boundary (historical file name) |
 | [0003](0003-capability-over-fork.md) | Capability over fork |
 | [0004](0004-capability-execution-chain.md) | Capability execution chain |
+| [0052](0052-credential-storage.md) | Credential storage (proposed; numbered 0052 so it does not collide with the earlier ADR-005 ... ADR-051 numbers cited in code) |
 
 ## Numbers cited in code but not stored here
 

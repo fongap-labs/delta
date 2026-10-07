@@ -112,6 +112,16 @@ foreach ($relativePath in $requiredFiles) {
   }
 }
 
+# The executables are signed inside build-portable.ps1 (only when the signing secrets are present).
+# Check the signatures on what is actually inside the final ZIP, so a release can never claim
+# signing that did not make it into the archive.
+if ($env:WINDOWS_SIGNING_CERT -and $env:WINDOWS_SIGNING_PASSWORD) {
+  & ".\packaging\portable\sign-windows.ps1" -VerifyOnly -Path @(
+    (Join-Path $verifyRoot "Delta\Delta.exe"),
+    (Join-Path $verifyRoot "Delta\App\Delta\Delta.exe")
+  )
+}
+
 [xml]$appInfo = Get-Content -LiteralPath (Join-Path $verifyRoot "Delta\Other\AppInfo\appinfo.xml") -Raw
 $actualVersion = [string]$appInfo.appinfo.version
 $declaredVersion = (

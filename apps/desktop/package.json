@@ -14,19 +14,19 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-opener": "^2.5.5",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-opener": "^2.7.0",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.2.8",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "simple-icons": "^16.32.0"
+    "simple-icons": "^16.34.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@tauri-apps/cli": "^2.11.5",
+    "@tauri-apps/cli": "^2.12.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
