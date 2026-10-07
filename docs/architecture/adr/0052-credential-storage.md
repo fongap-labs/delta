@@ -2,7 +2,7 @@
 
 Status:
 
-**Proposed. Waiting for the owner's decision; nothing is implemented.** (Audit finding DL-002.)
+**Step 1 accepted and implemented** (owner, 2026-10-07; delta PR "fix: create credential files owner-only and judge Windows ACLs by SID"). **Step 2 is proposed and waits for the owner's decision.** (Audit finding DL-002.)
 
 ## Context
 
