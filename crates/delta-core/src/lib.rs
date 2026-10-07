@@ -35,6 +35,7 @@ pub mod persistent_worker;
 pub mod policy;
 mod product_settings;
 pub mod provider;
+pub mod redact;
 pub mod retry;
 pub mod runtime;
 pub mod skills;

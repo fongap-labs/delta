@@ -343,8 +343,12 @@ impl LedgerWriter {
     /// Append one event, extending the run's hash chain.
     ///
     /// Mirrors `core/ledger.py` `RunEventLedger.append()`. ``payload`` is
-    /// expected pre-sanitized by the caller. Returns the stored row as a
-    /// JSON object.
+    /// expected pre-sanitized by the caller (`crate::redact`); the runtime does
+    /// so for its tool events in `RuntimeHost::ledger_append`. The payload is
+    /// stored exactly as given because checkpoint events live in the same
+    /// ledger and carry the arguments needed to resume a run, and their
+    /// snapshot hash is checked against the stored payload. Returns the stored
+    /// row as a JSON object.
     pub fn append(
         &self,
         run_id: &str,
@@ -631,6 +635,27 @@ mod tests {
     fn format_ts_repr_fractional() {
         let s = format_ts_repr(1725523456.123456);
         assert!(s.contains("1725523456"));
+    }
+
+    #[test]
+    fn the_writer_stores_a_payload_exactly_as_given() {
+        // Scrubbing is the caller's job (the runtime does it for tool events). The writer must not alter a
+        // payload: checkpoint events share this ledger and carry what is needed to resume a run.
+        use tempfile::tempdir;
+        let dir = tempdir().unwrap();
+        let db = dir.path().join("ledger.db");
+        let writer = LedgerWriter::open(&db).unwrap();
+        let payload = serde_json::json!({
+            "tool": "run_shell",
+            "arguments": {"command": "curl --password hunter2", "content": "body text"},
+        });
+        let row = writer
+            .append("run_s", "tool.proposed", "model", 1000.0, &payload, "ws")
+            .unwrap();
+        assert_eq!(row["payload"], payload);
+        let reader = writer.reader().unwrap();
+        assert!(reader.verify("run_s").unwrap());
+        assert_eq!(reader.events("run_s").unwrap()[0].payload, payload);
     }
 
     #[test]
