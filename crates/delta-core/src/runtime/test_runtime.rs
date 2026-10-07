@@ -330,10 +330,13 @@ fn history_keeps_what_happened_but_not_the_credentials_in_it() {
         .filter(|e| e.r#type == "tool.proposed" || e.r#type == "tool.completed")
     {
         let text = event.payload.to_string();
-        for secret in ["s3cret-body", "abc123", "xyz", "hunter2"] {
+        for (index, secret) in ["s3cret-body", "abc123", "xyz", "hunter2"]
+            .iter()
+            .enumerate()
+        {
             assert!(
                 !text.contains(secret),
-                "{secret} in {} payload: {text}",
+                "sensitive value #{index} in a {} payload",
                 event.r#type
             );
         }
@@ -376,10 +379,13 @@ fn history_keeps_what_happened_but_not_the_credentials_in_it() {
         .list(10, Some("session-s"), None, Some("write_report"))
         .unwrap();
     let audit = serde_json::to_string(&approvals).unwrap();
-    for secret in ["s3cret-body", "abc123", "xyz", "hunter2"] {
+    for (index, secret) in ["s3cret-body", "abc123", "xyz", "hunter2"]
+        .iter()
+        .enumerate()
+    {
         assert!(
             !audit.contains(secret),
-            "{secret} in the audit table: {audit}"
+            "sensitive value #{index} in the audit table"
         );
     }
     assert_eq!(approvals[0]["tool"], "write_report");

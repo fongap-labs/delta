@@ -554,8 +554,11 @@ mod tests {
             )
             .unwrap();
         let (args, ..) = raw_row(&db_path);
-        for secret in ["abc123", "xyz", "hunter2"] {
-            assert!(!args.contains(secret), "{secret} leaked into {args}");
+        for (index, secret) in ["abc123", "xyz", "hunter2"].iter().enumerate() {
+            assert!(
+                !args.contains(secret),
+                "credential #{index} leaked into the stored args"
+            );
         }
         assert!(
             args.contains("curl") && args.contains("Authorization"),
@@ -605,8 +608,14 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        for secret in ["hunter2", "abc123", "file text", "sid=1"] {
-            assert!(!dump.contains(secret), "{secret} survived in {dump}");
+        for (index, secret) in ["hunter2", "abc123", "file text", "sid=1"]
+            .iter()
+            .enumerate()
+        {
+            assert!(
+                !dump.contains(secret),
+                "sensitive value #{index} survived in the audit table"
+            );
         }
         assert!(
             dump.contains("mysql --password [redacted]") && dump.contains("[redacted body]"),

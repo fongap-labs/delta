@@ -82,10 +82,10 @@ fn no_golden_result_still_contains_the_secrets_it_was_given() {
     ];
     for (name, _, expected) in cases() {
         let text = expected.to_string();
-        for secret in &secrets {
+        for (index, secret) in secrets.iter().enumerate() {
             assert!(
                 !text.contains(secret.as_str()),
-                "case {name} leaks {secret}"
+                "case {name} leaks sensitive value #{index}"
             );
         }
     }
