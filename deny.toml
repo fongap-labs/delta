@@ -8,16 +8,6 @@
 [advisories]
 unmaintained = "all"
 ignore = [
-    { id = "RUSTSEC-2024-0411", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0412", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0413", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0414", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0415", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0416", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0417", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0418", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0419", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
-    { id = "RUSTSEC-2024-0420", reason = "gtk-rs GTK3 binding, transitive via Tauri 2 (Linux); unmaintained upstream, no maintained alternative in Tauri 2 yet" },
     { id = "RUSTSEC-2025-0075", reason = "unic-char-range 0.9.0, rust-unic family via URL/IDNA; unmaintained upstream, no drop-in yet" },
     { id = "RUSTSEC-2025-0080", reason = "unic-common 0.9.0, rust-unic family via URL/IDNA; unmaintained upstream, no drop-in yet" },
     { id = "RUSTSEC-2025-0081", reason = "unic-char-property 0.9.0, rust-unic family via URL/IDNA; unmaintained upstream, no drop-in yet" },
