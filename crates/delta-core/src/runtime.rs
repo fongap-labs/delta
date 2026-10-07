@@ -1184,6 +1184,10 @@ impl RuntimeHost {
     }
 
     fn ledger_append(&self, event_type: &str, actor: &str, payload: Value) -> Result<(), String> {
+        // Tool arguments and results end up in this history; keep what happened, drop the credentials and
+        // file bodies in it. Checkpoints (`register_checkpoint`) deliberately bypass this: they hold what is
+        // needed to resume a run, and their hash covers the exact content.
+        let payload = crate::redact::redact_value(&payload);
         if let Some(authorities) = &self.authorities {
             let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
             let workspace = self.config.workspace.clone().unwrap_or_default();
