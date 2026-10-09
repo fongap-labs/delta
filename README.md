@@ -121,3 +121,4 @@ English is canonical. [简体中文](README.zh-CN.md) is maintained for Chinese 
 ## License
 
 Delta-owned Foundation source is licensed under the [Apache License 2.0](LICENSE). Third-party code and assets retain their original licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [NOTICE](NOTICE), and [LICENSES/](LICENSES/).
+
