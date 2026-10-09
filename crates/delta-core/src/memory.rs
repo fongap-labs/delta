@@ -26,6 +26,8 @@ impl MemoryStore {
 
     fn connection(&self) -> Result<Connection, ShadowReadError> {
         let conn = Connection::open(&self.db_path)?;
+        // Owner-only hardening like the other authority stores (private_fs.rs).
+        let _ = crate::private_fs::harden_sqlite_files(&self.db_path);
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

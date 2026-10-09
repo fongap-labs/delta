@@ -119,7 +119,9 @@ fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
 impl TaskStore {
     /// Open (or create) a `tasks.db` for read-write access.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, ShadowReadError> {
-        let conn = Connection::open(path)?;
+        let conn = Connection::open(path.as_ref())?;
+        // Owner-only hardening like the other authority stores (private_fs.rs).
+        let _ = crate::private_fs::harden_sqlite_files(path.as_ref());
         init_schema(&conn)?;
         Ok(Self { conn })
     }

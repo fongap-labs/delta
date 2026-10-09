@@ -290,6 +290,10 @@ impl LedgerWriter {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, ShadowReadError> {
         let path = path.as_ref().to_path_buf();
         let conn = Connection::open(&path)?;
+        // The db and its sidecars hold unredacted ledger payloads; owner-only
+        // access from the first open (private_fs.rs). Best effort: platforms
+        // without ACLs log a warning and continue.
+        let _ = crate::private_fs::harden_sqlite_files(&path);
         conn.execute_batch(
             r#"CREATE TABLE IF NOT EXISTS run_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

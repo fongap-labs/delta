@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::{durability::atomic_write, ShadowReadError};
+use crate::{durability::atomic_write_private_checked, ShadowReadError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboxItem {
@@ -89,7 +89,14 @@ impl InboxStore {
         let bytes = serde_json::to_vec_pretty(&InboxFile {
             items: items.to_vec(),
         })?;
-        atomic_write(&self.path, &bytes)?;
+        // inbox.json holds pending approvals; owner-only like the other
+        // authority stores (private_fs.rs).
+        if !atomic_write_private_checked(&self.path, &bytes)? {
+            eprintln!(
+                "[delta-core] warning: could not confirm owner-only access for {}",
+                self.path.display()
+            );
+        }
         Ok(())
     }
 

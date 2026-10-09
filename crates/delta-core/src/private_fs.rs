@@ -6,7 +6,7 @@
 //! check compares SIDs read from the saved DACL, never account names, so it does not depend on the
 //! language of the system.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// SDDL writes the local Administrator (RID 500) as `LA` and the local Guest (RID 501) as `LG`;
 /// the built-in administrator account of a CI runner is spelled that way.
@@ -67,6 +67,35 @@ pub fn restrict_to_current_user(path: &Path, is_directory: bool) -> bool {
 /// Verify, without changing anything, that `path` is restricted to the current user.
 pub fn is_restricted_to_current_user(path: &Path) -> bool {
     imp::is_restricted(path)
+}
+
+/// Restrict a SQLite database file and its `-wal`/`-shm` sidecar files to the current user, and
+/// on Windows also the containing directory so files SQLite creates later inherit the same
+/// restriction (closing the window between a sidecar being created and the next hardening pass).
+/// Unix copies the database file's mode to the sidecars it creates, so hardening the main file
+/// covers them. Best effort like [`restrict_to_current_user`]: `false` means "applied, could not
+/// confirm" (for example on a file system without ACLs), never an error.
+pub fn harden_sqlite_files(path: &Path) -> bool {
+    let mut verified = restrict_to_current_user(path, false);
+    for suffix in ["-wal", "-shm"] {
+        let mut name = path.as_os_str().to_os_string();
+        name.push(suffix);
+        let sidecar = PathBuf::from(name);
+        if sidecar.exists() {
+            verified &= restrict_to_current_user(&sidecar, false);
+        }
+    }
+    #[cfg(windows)]
+    if let Some(dir) = path.parent() {
+        verified &= restrict_to_current_user(dir, true);
+    }
+    if !verified {
+        eprintln!(
+            "[delta-core] warning: could not confirm owner-only access for {}",
+            path.display()
+        );
+    }
+    verified
 }
 
 #[cfg(unix)]
@@ -287,5 +316,44 @@ mod tests {
             std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
             assert!(!is_restricted_to_current_user(&file));
         }
+    }
+
+    #[test]
+    fn sqlite_hardening_covers_the_database_and_existing_sidecars() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("run_events.db");
+        std::fs::write(&db, b"").unwrap();
+        std::fs::write(dir.path().join("run_events.db-wal"), b"").unwrap();
+        assert!(harden_sqlite_files(&db));
+        assert!(is_restricted_to_current_user(&db));
+        assert!(is_restricted_to_current_user(
+            &dir.path().join("run_events.db-wal")
+        ));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&db).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            assert_eq!(
+                std::fs::metadata(dir.path().join("run_events.db-wal"))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+    }
+
+    #[test]
+    fn sqlite_hardening_skips_missing_sidecars() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("side-effects.db");
+        std::fs::write(&db, b"").unwrap();
+        assert!(harden_sqlite_files(&db));
+        assert!(is_restricted_to_current_user(&db));
+        assert!(!dir.path().join("side-effects.db-wal").exists());
     }
 }
