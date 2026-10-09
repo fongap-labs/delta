@@ -262,6 +262,9 @@ impl ApprovalWriter {
             std::fs::create_dir_all(parent)?;
         }
         let conn = rusqlite::Connection::open(&path)?;
+        // The audit log records approval decisions; owner-only from the first
+        // open (private_fs.rs).
+        let _ = crate::private_fs::harden_sqlite_files(&path);
         conn.execute_batch(
             r"
             CREATE TABLE IF NOT EXISTS audit_events (

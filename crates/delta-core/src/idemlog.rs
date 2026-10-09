@@ -271,7 +271,9 @@ pub struct IdempotencyWriter {
 impl IdempotencyWriter {
     /// Open (or create) a `side-effects.db` for read-write access.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, ShadowReadError> {
-        let conn = Connection::open(path)?;
+        let conn = Connection::open(path.as_ref())?;
+        // Same owner-only hardening as the ledger (private_fs.rs).
+        let _ = crate::private_fs::harden_sqlite_files(path.as_ref());
         init_schema(&conn)?;
         Ok(Self { conn })
     }

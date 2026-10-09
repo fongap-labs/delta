@@ -35,6 +35,8 @@ fn open_conn(db_path: &Path) -> Result<Connection, ShadowReadError> {
         fs::create_dir_all(parent)?;
     }
     let conn = Connection::open(db_path)?;
+    // Owner-only hardening like the other authority stores (private_fs.rs).
+    let _ = crate::private_fs::harden_sqlite_files(db_path);
     conn.prepare(SESSIONS_TABLE)?.execute(params![])?;
     conn.prepare(WORKSPACES_TABLE)?.execute(params![])?;
     for (name, ddl) in [
