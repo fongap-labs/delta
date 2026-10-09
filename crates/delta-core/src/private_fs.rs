@@ -326,7 +326,9 @@ mod tests {
         std::fs::write(dir.path().join("run_events.db-wal"), b"").unwrap();
         assert!(harden_sqlite_files(&db));
         assert!(is_restricted_to_current_user(&db));
-        assert!(is_restricted_to_current_user(&dir.path().join("run_events.db-wal")));
+        assert!(is_restricted_to_current_user(
+            &dir.path().join("run_events.db-wal")
+        ));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
