@@ -456,7 +456,7 @@ export interface McpServer {
 }
 
 export async function getMcpServers(): Promise<McpServer[]> {
-  return (await directListMcp()).servers ?? [];
+  return throwOnError(await directListMcp()).servers ?? [];
 }
 
 export async function addMcpServer(name: string, config: Record<string, any>) {
@@ -593,7 +593,7 @@ export interface ConnectorTool {
 }
 
 export async function getConnectors(): Promise<Connector[]> {
-  return (await directListConnectors()).connectors ?? [];
+  return throwOnError(await directListConnectors()).connectors ?? [];
 }
 
 export async function connectConnector(
@@ -870,7 +870,7 @@ export interface SkillUploadPreview {
 }
 
 export async function listSkills(workspace?: string): Promise<SkillRow[]> {
-  return (await directListSkills(workspace)).skills ?? [];
+  return throwOnError(await directListSkills(workspace)).skills ?? [];
 }
 
 export async function createSkill(body: {
@@ -1364,7 +1364,7 @@ export interface AutomationRun {
 }
 
 export async function getAutomations(): Promise<Automation[]> {
-  return (await directListAutomations()).tasks ?? [];
+  return throwOnError(await directListAutomations()).tasks ?? [];
 }
 
 // Fired after any automation mutation the sidebar should reflect immediately

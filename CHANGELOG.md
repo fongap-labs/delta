@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the Automations, Skills, MCP servers and Connectors lists no longer present a failed read as an empty list ("No skills yet", no servers, an empty connector catalogue, the automation quickstart as if none existed). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow; a later failed refresh keeps the list already on screen. The four read functions throw when the runtime reports an error instead of returning an empty result.
+
 - feat: the trust strip under an artifact shows "Read N sources in this run" when the runtime recorded sources (`source.read`) for the run that made the file, and expands to each source's location and short SHA-256. It states only that the run read them: it never says the answer relied on or cited them (an entry is labelled Cited only when the runtime holds a validated citation for that run, which nothing writes yet), file paths are shown as recorded and URLs without their query and fragment. A new read-only runtime query `run_sources_list` serves it; if it fails or finds nothing the chip is simply absent.
 
 - feat: the runtime records which files a read tool read. After a successful `read_file` call it registers the file as a source and appends a `source.read` event (source id, location relative to the workspace, SHA-256 of the file as hashed before the read, tool and call id) to the run's own ledger stream, before `tool.completed`. Only inputs the capability host verified itself are recorded, only for tools declared `category: read`; a failed, cancelled or replayed call adds nothing, and if the record cannot be written the call fails. `SourceCitationReader::sources_read(run_id)` lists them per run. Nothing in the UI shows this yet.

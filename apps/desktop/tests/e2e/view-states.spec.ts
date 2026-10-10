@@ -60,3 +60,57 @@ test("Memory: a failed read says so instead of 'Nothing yet'", async ({ page }) 
   await page.getByRole("button", { name: /^Memory/ }).first().click();
   await expect(page.getByTestId("load-error")).toContainText("Couldn't load memory");
 });
+
+// The same split for the other list views: a failed read says so (with Retry) instead of showing
+// the empty message, and the empty message still shows when the list really is empty.
+
+async function openWith(page: import("@playwright/test").Page, command: string, handler: string) {
+  await overrideMockCommand(page, command, handler);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByPlaceholder(/Ask Delta/)).toBeVisible();
+}
+
+test("Automations: a failed read says so and Retry loads the list", async ({ page }) => {
+  await openWith(
+    page,
+    "automations_list",
+    `(args) => { if ($state.automationsFail) throw new Error("boom"); return { tasks: $state.automations }; }`,
+  );
+  await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.automationsFail = true; });
+  await page.getByRole("button", { name: /^Automations/ }).first().click();
+  await expect(page.getByTestId("load-error")).toContainText("Couldn't load automations");
+  await expect(page.getByText("New automation")).toBeVisible(); // header actions stay usable
+
+  await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.automationsFail = false; });
+  await page.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
+});
+
+test("Skills: a failed read says so instead of 'No skills yet'", async ({ page }) => {
+  await openWith(page, "skills_list", FAIL);
+  await page.getByTestId("sidebar-footer-settings").click();
+  await page.getByRole("button", { name: "Skills", exact: true }).click();
+  await expect(page.getByTestId("load-error")).toContainText("Couldn't load skills");
+  await expect(page.getByText(/No skills yet/)).toHaveCount(0);
+});
+
+test("Skills: an empty list is the empty message, not an error", async ({ page }) => {
+  await openWith(page, "skills_list", `(args) => ({ skills: [] })`);
+  await page.getByTestId("sidebar-footer-settings").click();
+  await page.getByRole("button", { name: "Skills", exact: true }).click();
+  await expect(page.getByText(/No skills yet/)).toBeVisible();
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
+});
+
+test("MCP servers: a failed read says so instead of 'no servers'", async ({ page }) => {
+  await openWith(page, "mcp_list", FAIL);
+  await page.getByTestId("sidebar-footer-integrations").click();
+  await page.getByRole("button", { name: "MCP servers", exact: true }).click();
+  await expect(page.getByTestId("load-error")).toContainText("Couldn't load MCP servers");
+});
+
+test("Connectors: a failed read says so instead of an empty catalogue", async ({ page }) => {
+  await openWith(page, "connectors_list", FAIL);
+  await page.getByTestId("sidebar-footer-integrations").click();
+  await expect(page.getByTestId("load-error")).toContainText("Couldn't load connectors");
+});

@@ -12,6 +12,7 @@ import {
   type SkillUploadPreview,
 } from "../api";
 import { Icon } from "./Icon";
+import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 // Settings ▸ Skills (SKILLS-SPEC §5/§6) — the management home: the LIST is the page; every
@@ -105,7 +106,17 @@ export function SkillsTab({
     "removed. If a conversation already used it, start a new one for a completely clean slate.",
   );
 
-  const refresh = () => listSkills().then(setRows);
+  // Loading, failed and empty are different: a failed read must not show "No skills yet".
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
+  const refresh = () =>
+    listSkills()
+      .then((list) => {
+        setRows(list);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   useEffect(() => {
     refresh();
   }, []);
@@ -401,7 +412,17 @@ export function SkillsTab({
       ) : null}
 
       <div className={`${CARD} divide-y divide-line`}>
-        {rows.length === 0 && !editor ? (
+        {rows.length === 0 && !editor && hasFailed ? (
+          <LoadError
+            what={t("state.what.skills", undefined, "skills")}
+            onRetry={() => {
+              setLoading(true);
+              refresh();
+            }}
+          />
+        ) : rows.length === 0 && !editor && isLoading ? (
+          <LoadingRows count={2} />
+        ) : rows.length === 0 && !editor ? (
           <div className="p-5 text-[13px] text-muted">
             {t(
               "skills.empty",

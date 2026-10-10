@@ -25,6 +25,7 @@ import {
 import { ModelChecklist } from "./ModelChecklist";
 import { CustomCreateForm, ProviderCards, ProviderForm, useProviderSetup } from "../providers/ProviderSetup";
 import { Toggle } from "./Toggle";
+import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 type T = (key: string, vars?: Record<string, string | number>) => string;
@@ -317,7 +318,17 @@ export function McpTab() {
   const [isAdding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = () => getMcpServers().then(setServers).catch(() => setServers([]));
+  // A failed read is not "no servers": it shows an error with a retry, and a later failed poll keeps the list.
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
+  const refresh = () =>
+    getMcpServers()
+      .then((list) => {
+        setServers(list);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   useEffect(() => {
     refresh();
   }, []);
@@ -354,7 +365,17 @@ export function McpTab() {
         .
       </p>
 
-      {servers.length === 0 && !isAdding ? (
+      {servers.length === 0 && hasFailed ? (
+        <LoadError
+          what={t("state.what.mcp", undefined, "MCP servers")}
+          onRetry={() => {
+            setLoading(true);
+            refresh();
+          }}
+        />
+      ) : servers.length === 0 && isLoading ? (
+        <LoadingRows count={2} />
+      ) : servers.length === 0 && !isAdding ? (
         <div className={CARD + " p-4 text-[13px] text-muted"}>
           {t("connectors.noMcpServers")}
           <button className="text-primary font-medium" onClick={() => setAdding(true)}>

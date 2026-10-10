@@ -8,6 +8,7 @@ import { ConnectorsList } from "./ConnectorsList";
 import { StructuredDetail } from "./StructuredDetail";
 import { WorkspaceChatDetail } from "./WorkspaceChatDetail";
 import { GRP } from "./ui";
+import { LoadError, LoadingRows } from "../../../components/ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 // Connectors surface = LIST ⇄ per-connector DETAIL SUBPAGE (UX-DECISIONS §21). The
@@ -53,8 +54,22 @@ export function ConnectorsSection() {
   const [detail, setDetail] = useState<string | null>(null);
   const [connectors, setConnectors] = useState<Connector[]>([]);
 
+  // A failed read is not "no connectors": it shows an error with a retry, and a later failed poll
+  // keeps the list already on screen.
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
   const refresh = () => {
-    getConnectors().then(setConnectors).catch(() => setConnectors([]));
+    getConnectors()
+      .then((list) => {
+        setConnectors(list);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  };
+  const retry = () => {
+    setLoading(true);
+    refresh();
   };
   useEffect(() => {
     refresh();
@@ -77,7 +92,11 @@ export function ConnectorsSection() {
           ‹ {t("connectors.title")}
         </button>
         {!c ? (
-          <div className="text-[13px] text-muted">{t("common.loading")}</div>
+          hasFailed ? (
+            <LoadError what={t("state.what.connectors", undefined, "connectors")} onRetry={retry} />
+          ) : (
+            <div className="text-[13px] text-muted">{t("common.loading")}</div>
+          )
         ) : !c.connected ? (
           <AvailableDetail c={c} onChanged={refresh} />
         ) : Page ? (
@@ -88,6 +107,11 @@ export function ConnectorsSection() {
       </div>
     );
   }
+
+  if (connectors.length === 0 && hasFailed) {
+    return <LoadError what={t("state.what.connectors", undefined, "connectors")} onRetry={retry} />;
+  }
+  if (connectors.length === 0 && isLoading) return <LoadingRows count={3} />;
 
   return (
     <ConnectorsList connectors={connectors} onOpen={setDetail} onChanged={refresh} />
