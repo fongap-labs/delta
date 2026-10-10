@@ -6,8 +6,10 @@ import {
   getSessionMessages,
   readArtifact,
   revealArtifact,
+  getRunSources,
   type ArtifactContent,
   type ArtifactInfo,
+  type RunSource,
 } from "../api";
 import { artifactTrustFromMessages, type ArtifactTrust } from "../artifactTrust";
 import { useEscapeDismiss } from "../useEscapeDismiss";
@@ -321,11 +323,23 @@ function ArtifactViewer({
   useEscapeDismiss(true, onBack, { shouldIgnoreFields: true });
   // Trust facts the runtime recorded on the tool result that produced this file (if any).
   const [trust, setTrust] = useState<ArtifactTrust | null>(null);
+  // Sources the producing run read. A failed read shows no chip (it does not claim "none read").
+  const [sources, setSources] = useState<RunSource[]>([]);
   useEffect(() => {
     let isCurrent = true;
+    setSources([]);
     getSessionMessages(sessionId)
       .then((messages) => {
-        if (isCurrent) setTrust(artifactTrustFromMessages(messages, artifact.path));
+        if (!isCurrent) return;
+        const found = artifactTrustFromMessages(messages, artifact.path);
+        setTrust(found);
+        if (found?.runId) {
+          getRunSources(found.runId)
+            .then((read) => {
+              if (isCurrent) setSources(read);
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {
         if (isCurrent) setTrust(null);
@@ -392,7 +406,7 @@ function ArtifactViewer({
           </button>
         </div>
       </div>
-      {trust && <TrustStrip trust={trust} />}
+      {trust && <TrustStrip trust={trust} sources={sources} />}
       <div className="artifact-preview">
         {!content ? (
           <div className="rail-muted">{t("common.loading")}</div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artifactTrustFromMessages, summarizeChecks } from "./artifactTrust";
+import { artifactTrustFromMessages, displaySourceLocation, summarizeChecks } from "./artifactTrust";
 
 const produced = (overrides: Record<string, unknown> = {}) => ({
   artifacts: [{ path: "reports/q3.docx", sha256: "ab12cd34ef56", run_id: "run-1" }],
@@ -55,5 +55,24 @@ describe("artifactTrustFromMessages", () => {
 
   it("ignores malformed content", () => {
     expect(artifactTrustFromMessages([{ role: "tool", tool_call_id: "c", content: "not json" }], "a.txt")).toBeNull();
+  });
+});
+
+describe("run id and source locations", () => {
+  it("keeps the run that registered the artifact, to look up the sources it read", () => {
+    const trust = artifactTrustFromMessages(messages(produced()), "reports/q3.docx");
+    expect(trust?.runId).toBe("run-1");
+  });
+
+  it("shows a workspace file as recorded", () => {
+    expect(displaySourceLocation("notes/plan.md")).toBe("notes/plan.md");
+  });
+
+  it("drops the query and fragment of a URL, which can carry tokens", () => {
+    expect(displaySourceLocation("https://example.com/a/b?token=secret#top")).toBe("https://example.com/a/b");
+  });
+
+  it("falls back to cutting at ? or # when a URL does not parse", () => {
+    expect(displaySourceLocation("https://exa mple.com/x?token=secret")).toBe("https://exa mple.com/x");
   });
 });

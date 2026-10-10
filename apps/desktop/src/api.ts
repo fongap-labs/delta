@@ -74,6 +74,7 @@ import {
   directUpdateAutomation,
   finalizeAutomationRun as finalizeAutomationRuntime,
   directListAudit,
+  directListRunSources,
   directListMcp,
   directPutMcp,
   directPatchMcp,
@@ -643,6 +644,22 @@ export async function getAudit(params: {
     tool: params.tool,
   }));
   return out.events ?? [];
+}
+
+/** A source the runtime recorded as read by a run (`source.read`). */
+export interface RunSource {
+  source_id: string;
+  origin: string;
+  location: string;
+  fingerprint: string;
+  read_at: string;
+  /** True only for a validated citation naming this run; "read" is all the other fields claim. */
+  cited: boolean;
+}
+
+export async function getRunSources(runId: string): Promise<RunSource[]> {
+  const out = throwOnError(await directListRunSources(runId));
+  return out.sources ?? [];
 }
 
 export interface BrowserState {

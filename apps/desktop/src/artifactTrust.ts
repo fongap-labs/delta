@@ -11,6 +11,8 @@ export interface TrustCheck {
 }
 
 export interface ArtifactTrust {
+  /** The run that registered the artifact; the key for the sources that run read. */
+  runId?: string;
   /** Name of the tool call that produced the artifact (when the thread still has it). */
   producedBy?: string;
   sha256?: string;
@@ -76,6 +78,7 @@ export function artifactTrustFromMessages(messages: RawMessage[], path: string):
     const producer = (message.tool_call_id && toolNames.get(message.tool_call_id)) || message.name;
     if (producer) trust.producedBy = producer;
     if (typeof entry.sha256 === "string" && entry.sha256) trust.sha256 = entry.sha256;
+    if (typeof entry.run_id === "string" && entry.run_id) trust.runId = entry.run_id;
     const validation = asRecord(output.validation);
     if (validation) {
       const checks = parseChecks(validation);
@@ -92,4 +95,18 @@ export function artifactTrustFromMessages(messages: RawMessage[], path: string):
 export function summarizeChecks(trust: ArtifactTrust): { passed: number; total: number } | null {
   if (!trust.checks) return null;
   return { passed: trust.checks.filter((check) => check.isOk).length, total: trust.checks.length };
+}
+
+/**
+ * How a source location is shown: a URL loses its query and fragment (they can carry tokens or
+ * personal data), a file keeps the workspace-relative path the runtime recorded.
+ */
+export function displaySourceLocation(location: string): string {
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(location)) return location;
+  try {
+    const url = new URL(location);
+    return url.origin + url.pathname;
+  } catch {
+    return location.split(/[?#]/)[0];
+  }
 }

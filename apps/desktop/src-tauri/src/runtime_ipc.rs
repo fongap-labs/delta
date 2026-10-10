@@ -755,6 +755,11 @@ pub fn audit_list(
 }
 
 #[tauri::command]
+pub fn run_sources_list(state: State<'_, RuntimeRegistry>, run_id: String) -> Value {
+    state.run_sources_list(&run_id)
+}
+
+#[tauri::command]
 pub fn sources_list(state: State<'_, RuntimeRegistry>) -> Value {
     state.sources_list()
 }

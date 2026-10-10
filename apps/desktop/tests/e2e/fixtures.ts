@@ -362,6 +362,7 @@ function commandSources(): Record<string, string> {
 
     audit_list: `(args) => ({ events: [] })`,
     sources_list: `(args) => ({ sources: [] })`,
+    run_sources_list: `(args) => ({ sources: ($state.runSources || {})[args.runId] || [] })`,
     validations_list: `(args) => ({ validations: [] })`,
 
     skills_list: `(args) => ({ skills: $state.skills })`,
