@@ -148,7 +148,7 @@ export function Sidebar(props: Props) {
   const [isRecentExpanded, setRecentExpanded] = useState(false);
   const [shouldShowArchived, setShowArchived] = useState(false);
   // Projects: named groups of tasks, kept on this device (see sessionGroups.ts).
-  const proj = useProjects();
+  const projectStore = useProjects();
   const [isCreatingProject, setCreatingProject] = useState(false);
   const [projectDraft, setProjectDraft] = useState("");
   // When set, the new project is filed with this task as soon as it is created (row menu path).
@@ -184,11 +184,11 @@ export function Sidebar(props: Props) {
   const pinned = real.filter((session) => session.pinned && !session.archived);
   const byRecency = (a: SessionInfo, b: SessionInfo) => (b.updated_at || "").localeCompare(a.updated_at || "");
   // Pinned wins over a project; a task filed in a project leaves the date-grouped Recent list.
-  const filed = (session: SessionInfo) => !!proj.assign[session.session_id];
+  const filed = (session: SessionInfo) => !!projectStore.assign[session.session_id];
   const recent = real.filter((session) => !session.pinned && !session.archived && !filed(session)).sort(byRecency);
   const inProject = (projectId: string) =>
     real
-      .filter((session) => !session.pinned && !session.archived && proj.assign[session.session_id] === projectId)
+      .filter((session) => !session.pinned && !session.archived && projectStore.assign[session.session_id] === projectId)
       .sort(byRecency);
   const archived = real.filter((session) => session.archived);
   const totalAttention = real.reduce((sum, session) => sum + (session.attention || 0), 0);
@@ -197,8 +197,8 @@ export function Sidebar(props: Props) {
   const commitNewProject = () => {
     const name = projectDraft.trim();
     if (name) {
-      const id = proj.create(name);
-      if (pendingMoveId) proj.move(pendingMoveId, id);
+      const id = projectStore.create(name);
+      if (pendingMoveId) projectStore.move(pendingMoveId, id);
     }
     setCreatingProject(false);
     setProjectDraft("");
@@ -286,8 +286,8 @@ export function Sidebar(props: Props) {
                     <div className="px-2.5 pt-1.5 pb-1 text-[10.5px] uppercase tracking-wide text-faint">
                       {t("nav.moveToProject", undefined, "Project")}
                     </div>
-                    {proj.projects.map((p) => {
-                      const current = proj.assign[session.session_id] === p.id;
+                    {projectStore.projects.map((p) => {
+                      const current = projectStore.assign[session.session_id] === p.id;
                       return (
                         <button
                           key={p.id}
@@ -297,7 +297,7 @@ export function Sidebar(props: Props) {
                           data-testid={"row-menu-project-" + p.id}
                           onClick={() => {
                             closeRowMenu();
-                            proj.move(session.session_id, current ? null : p.id);
+                            projectStore.move(session.session_id, current ? null : p.id);
                           }}
                         >
                           <span className="w-3.5 shrink-0 text-primary">{current ? "✓" : ""}</span>
@@ -305,14 +305,14 @@ export function Sidebar(props: Props) {
                         </button>
                       );
                     })}
-                    {proj.assign[session.session_id] && (
+                    {projectStore.assign[session.session_id] && (
                       <button
                         className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper text-muted"
                         role="menuitem"
                         data-testid="row-menu-no-project"
                         onClick={() => {
                           closeRowMenu();
-                          proj.move(session.session_id, null);
+                          projectStore.move(session.session_id, null);
                         }}
                       >
                         <span className="w-3.5 shrink-0" />
@@ -458,7 +458,7 @@ export function Sidebar(props: Props) {
               ))}
             </TaskBand>
           )}
-          {(proj.projects.length > 0 || isCreatingProject) && (
+          {(projectStore.projects.length > 0 || isCreatingProject) && (
             <TaskBand title={t("nav.projects", undefined, "Projects")} testid="projects-band">
               {isCreatingProject && (
                 <input
@@ -481,7 +481,7 @@ export function Sidebar(props: Props) {
                   }}
                 />
               )}
-              {proj.projects.map((p) => {
+              {projectStore.projects.map((p) => {
                 const members = inProject(p.id);
                 const editingName = editingProjectId === p.id;
                 const toggleLabel = p.collapsed
@@ -497,13 +497,13 @@ export function Sidebar(props: Props) {
                           autoFocus
                           onChange={(event) => setProjectEditValue(event.target.value)}
                           onBlur={() => {
-                            proj.rename(p.id, projectEditValue);
+                            projectStore.rename(p.id, projectEditValue);
                             setEditingProjectId(null);
                           }}
                           onKeyDown={(event) => {
                             event.stopPropagation();
                             if (event.key === "Enter") {
-                              proj.rename(p.id, projectEditValue);
+                              projectStore.rename(p.id, projectEditValue);
                               setEditingProjectId(null);
                             }
                             if (event.key === "Escape") setEditingProjectId(null);
@@ -514,7 +514,7 @@ export function Sidebar(props: Props) {
                           className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 py-1.5 text-left text-[13px] font-medium"
                           aria-expanded={!p.collapsed}
                           aria-label={toggleLabel}
-                          onClick={() => proj.toggle(p.id)}
+                          onClick={() => projectStore.toggle(p.id)}
                         >
                           <Icon name={p.collapsed ? "chevronRight" : "chevronDown"} size={13} className="shrink-0 text-faint" />
                           <Icon name="folder" size={14} className="shrink-0 text-muted" />
@@ -543,7 +543,7 @@ export function Sidebar(props: Props) {
                             onClick={() => {
                               if (confirmRemoveProjectId === p.id) {
                                 setConfirmRemoveProjectId(null);
-                                proj.remove(p.id);
+                                projectStore.remove(p.id);
                               } else setConfirmRemoveProjectId(p.id);
                             }}
                             onBlur={() => setConfirmRemoveProjectId(null)}

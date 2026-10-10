@@ -38,12 +38,12 @@ export function groupByDate<T extends { updated_at?: string | null }>(
 ): { bucket: DateBucket; items: T[] }[] {
   const map = new Map<DateBucket, T[]>();
   for (const item of items) {
-    const b = dateBucket(item.updated_at, now);
-    const list = map.get(b);
+    const bucket = dateBucket(item.updated_at, now);
+    const list = map.get(bucket);
     if (list) list.push(item);
-    else map.set(b, [item]);
+    else map.set(bucket, [item]);
   }
-  return DATE_BUCKETS.filter((b) => map.has(b)).map((bucket) => ({ bucket, items: map.get(bucket)! }));
+  return DATE_BUCKETS.filter((bucket) => map.has(bucket)).map((bucket) => ({ bucket, items: map.get(bucket)! }));
 }
 
 // ---- projects -------------------------------------------------------------------------------
@@ -76,8 +76,8 @@ export function parseProjectStore(raw: string | null): ProjectStore {
     const ids = new Set(projects.map((p) => p.id));
     const assign: Record<string, string> = {};
     if (v?.assign && typeof v.assign === "object") {
-      for (const [sid, pid] of Object.entries(v.assign)) {
-        if (typeof pid === "string" && ids.has(pid)) assign[sid] = pid;
+      for (const [sessionId, projectId] of Object.entries(v.assign)) {
+        if (typeof projectId === "string" && ids.has(projectId)) assign[sessionId] = projectId;
       }
     }
     return { projects, assign };
@@ -105,28 +105,28 @@ function write(next: ProjectStore) {
 
 /** Pure reducers, so the behaviour is testable without a DOM. */
 export const projectOps = {
-  create(s: ProjectStore, id: string, name: string): ProjectStore {
+  create(store: ProjectStore, id: string, name: string): ProjectStore {
     const clean = name.trim();
-    return clean ? { ...s, projects: [...s.projects, { id, name: clean }] } : s;
+    return clean ? { ...store, projects: [...store.projects, { id, name: clean }] } : store;
   },
-  rename(s: ProjectStore, id: string, name: string): ProjectStore {
+  rename(store: ProjectStore, id: string, name: string): ProjectStore {
     const clean = name.trim();
-    if (!clean) return s;
-    return { ...s, projects: s.projects.map((p) => (p.id === id ? { ...p, name: clean } : p)) };
+    if (!clean) return store;
+    return { ...store, projects: store.projects.map((project) => (project.id === id ? { ...project, name: clean } : project)) };
   },
   /** Removing a project only ungroups its sessions; nothing else is touched. */
-  remove(s: ProjectStore, id: string): ProjectStore {
-    const assign = Object.fromEntries(Object.entries(s.assign).filter(([, pid]) => pid !== id));
-    return { projects: s.projects.filter((p) => p.id !== id), assign };
+  remove(store: ProjectStore, id: string): ProjectStore {
+    const assign = Object.fromEntries(Object.entries(store.assign).filter(([, assignedId]) => assignedId !== id));
+    return { projects: store.projects.filter((project) => project.id !== id), assign };
   },
-  toggle(s: ProjectStore, id: string): ProjectStore {
-    return { ...s, projects: s.projects.map((p) => (p.id === id ? { ...p, collapsed: !p.collapsed } : p)) };
+  toggle(store: ProjectStore, id: string): ProjectStore {
+    return { ...store, projects: store.projects.map((project) => (project.id === id ? { ...project, collapsed: !project.collapsed } : project)) };
   },
-  move(s: ProjectStore, sessionId: string, projectId: string | null): ProjectStore {
-    const assign = { ...s.assign };
-    if (projectId && s.projects.some((p) => p.id === projectId)) assign[sessionId] = projectId;
+  move(store: ProjectStore, sessionId: string, projectId: string | null): ProjectStore {
+    const assign = { ...store.assign };
+    if (projectId && store.projects.some((project) => project.id === projectId)) assign[sessionId] = projectId;
     else delete assign[sessionId];
-    return { ...s, assign };
+    return { ...store, assign };
   },
 };
 
