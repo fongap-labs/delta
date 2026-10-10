@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the settings screen showed the HTML entities `&rsquo;` and `&amp;` literally ("Auto follows your Mac&rsquo;s appearance", "Setup &amp; updates"); the hints now use the characters themselves, and the appearance hint no longer names a single operating system.
+
 - fix: the SQLite authority stores (`run_events.db`, `side-effects.db`, `approvals.db`, `tasks.db`, `core.db`, `memory.db`) and `inbox.json` are now owner-only from the moment they are created or opened, like the JSON credential files. `private_fs.rs` gains `harden_sqlite_files(path)` covering the database file and its `-wal`/`-shm` sidecars; on Windows it also restricts the containing directory so sidecars SQLite creates later inherit the restriction.
 
 - build [security]: update the Tauri family together: `tauri` 2.12.1, `tauri-build` 2.7.1, the dialog, autostart, opener and updater plugins (updater 2.12.0 to 2.13.1) and, with them, the `@tauri-apps/api`, `@tauri-apps/plugin-opener` and `@tauri-apps/cli` packages (all resolved from `registry.npmjs.org`), instead of merging the single Dependabot updates whose Rust and JavaScript halves must match. The update also drops the rust-unic crates, so their five advisory ignores are removed from `deny.toml`.

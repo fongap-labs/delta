@@ -15,6 +15,16 @@ describe("i18n dictionary integrity", () => {
     expect(enKeys.filter((k) => !zhKeys.includes(k))).toEqual([]);
   });
 
+  // Strings are rendered as plain text, so an HTML entity such as "&rsquo;" or "&amp;"
+  // would show up literally. Write the character itself.
+  it("no string contains an HTML entity", () => {
+    const entity = /&(?:[a-zA-Z][a-zA-Z0-9]*|#\d+|#x[0-9a-fA-F]+);/;
+    for (const [name, dict] of Object.entries({ en, zh })) {
+      const bad = Object.entries(dict as Record<string, string>).filter(([, value]) => entity.test(value));
+      expect(bad, `${name} strings with HTML entities`).toEqual([]);
+    }
+  });
+
   it("every registered locale is non-empty and keyed identically to en", () => {
     const enKeys = Object.keys(en).sort();
     for (const locale of Object.keys(dictionaries) as (keyof typeof dictionaries)[]) {
