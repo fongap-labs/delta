@@ -309,13 +309,13 @@ export function InboxItemCard({
 }) {
   const { t } = useI18n();
   const isQuestion = item.kind === "question";
-  const [confirmed, setConfirmed] = useState(false);
+  const [isConfirmed, setConfirmed] = useState(false);
   // Same rule as the live card: outbound actions are confirmed before either approving button.
   const external =
     item.kind === "approval" &&
     !!item.data?.tool &&
     scopeNote(t, item.data.tool, item.data.arguments, item.data.category).external;
-  const locked = external && !confirmed;
+  const locked = external && !isConfirmed;
   return (
     <div
       className={
@@ -358,7 +358,7 @@ export function InboxItemCard({
       {!isQuestion && chip}
       {item.kind === "approval" ? (
         <>
-        {external && <ConfirmCheck checked={confirmed} onChange={setConfirmed} />}
+        {external && <ConfirmCheck checked={isConfirmed} onChange={setConfirmed} />}
         <div className="flex items-center gap-2 mt-2.5 flex-wrap">
           <button
             className={item.data?.tool ? BTN_ACCENT : BTN_PRIMARY}

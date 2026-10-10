@@ -201,14 +201,14 @@ function Buttons({
   external?: boolean;
 }) {
   const { t } = useI18n();
-  const [confirmed, setConfirmed] = useState(false);
-  const locked = external && !confirmed;
+  const [isConfirmed, setConfirmed] = useState(false);
+  const locked = external && !isConfirmed;
   const connector = item.category === "connector";
   const offerStanding = !!(runTask && item.standingTarget);
   const denyText = denyLabel ?? t("approval.deny");
   return (
     <>
-      {external && <ConfirmCheck checked={confirmed} onChange={setConfirmed} />}
+      {external && <ConfirmCheck checked={isConfirmed} onChange={setConfirmed} />}
       <div className="approval-btns">
       <button className="btn approval-primary" disabled={locked} onClick={() => onApprove("once")}>
         {primaryLabel}
