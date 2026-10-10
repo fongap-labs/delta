@@ -465,6 +465,7 @@ export const zh: Record<TranslationKey, string> = {
   "transcript.copyDetails": "复制技术详情",
   "transcript.retrying": "正在重试…",
   "transcript.editMessage": "编辑消息",
+  "transcript.regenerate": "重新生成",
   "transcript.retractMessage": "撤回",
   "transcript.compacting": "正在压缩上下文…",
   "transcript.thoughtProcess": "思考过程",

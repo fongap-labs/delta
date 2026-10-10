@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { ApprovalDecision, Item } from "../types";
+import type { ApprovalDecision, Attachment, Item } from "../types";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
 import { Markdown } from "./Markdown";
@@ -521,6 +521,8 @@ interface Props {
   onUndoMemory?: (id: number, previous?: string) => void;
   // opencode-style revert: truncate from this user message onward + prefill the composer.
   onEditMessage?: (index: number) => void;
+  // Regenerate the last reply: revert to before the last user message and send it again.
+  onRegenerate?: (index: number, attachments?: Attachment[]) => void;
 }
 
 // The transcript index whose notice gets the Retry button: the tail error notice, looking
@@ -536,7 +538,7 @@ export function retryAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, onRetry, onUndoMemory, onEditMessage }: Props) {
+export function Transcript({ items, running, streamingText, onRetry, onUndoMemory, onEditMessage, onRegenerate }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -578,6 +580,22 @@ export function Transcript({ items, running, streamingText, onRetry, onUndoMemor
   flush(!!running);
 
   const lastTurnIndex = blocks.reduce((acc, b, i) => ("turn" in b ? i : acc), -1);
+  // Regenerate is offered only on the final answer of an idle thread whose last user message is
+  // a plain (non-skill) message with a raw index; anywhere else the reply is history.
+  let lastUserPos = -1;
+  let lastAnswerPos = -1;
+  items.forEach((it, pos) => {
+    if (it.kind === "user") lastUserPos = pos;
+    else if (it.kind === "assistant" && it.text) lastAnswerPos = pos;
+  });
+  const lastUser = lastUserPos >= 0 ? (items[lastUserPos] as Extract<Item, { kind: "user" }>) : null;
+  const canRegenerate =
+    !running &&
+    !!onRegenerate &&
+    !!lastUser &&
+    lastUser.index !== undefined &&
+    !lastUser.text.startsWith("/") &&
+    lastAnswerPos > lastUserPos;
   // A block holding one retriable warn notice (a failed provider attempt).
   const isErrNotice = (b: (typeof blocks)[number]): b is { item: Extract<Item, { kind: "notice" }>; i: number } =>
     "item" in b && b.item.kind === "notice" && b.item.tone === "warn" && !!b.item.retriable;
@@ -649,7 +667,24 @@ export function Transcript({ items, running, streamingText, onRetry, onUndoMemor
                     alignment alone, and the label read as a stray "Agent" tag. */}
                 {item.reasoning && <ThinkingBlock text={item.reasoning} />}
                 <Markdown text={item.text} />
-                <BubbleMeta text={item.text} ts={item.ts} align="left" />
+                <BubbleMeta
+                  text={item.text}
+                  ts={item.ts}
+                  align="left"
+                  actions={
+                    canRegenerate && item === items[lastAnswerPos] ? (
+                      <button
+                        className="flex items-center cursor-pointer hover:text-muted"
+                        data-testid="bubble-regenerate"
+                        title={t("transcript.regenerate", undefined, "Regenerate")}
+                        aria-label={t("transcript.regenerate", undefined, "Regenerate")}
+                        onClick={() => onRegenerate!(lastUser!.index!, lastUser!.attachments)}
+                      >
+                        <Icon name="refresh" size={11} />
+                      </button>
+                    ) : undefined
+                  }
+                />
               </div>
             );
           case "dirreq":
