@@ -474,6 +474,8 @@ export const directConnectMcp = (name: string) => invokeAuthority("mcp_connect",
 export const directSignoutMcp = (name: string) => invokeAuthority("mcp_signout", { name });
 export const directListAudit = (params: Record<string, unknown>) =>
   invokeAuthority("audit_list", params);
+export const directListRunSources = (runId: string) =>
+  invokeAuthority("run_sources_list", { runId });
 export const directListSkills = (workspace?: string) =>
   invokeAuthority("skills_list", { workspace });
 export const directCreateSkill = (body: Record<string, unknown>) =>

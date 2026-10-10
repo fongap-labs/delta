@@ -38,7 +38,15 @@ const MESSAGES = [
 ];
 
 test.beforeEach(async ({ page }) => {
-  await patchMockState(page, { sessionMessages: { [SESSION]: MESSAGES } });
+  await patchMockState(page, {
+    sessionMessages: { [SESSION]: MESSAGES },
+    runSources: {
+      "run-1": [
+        { source_id: "s1", origin: "file", location: "data/sales.csv", fingerprint: "ab12cd34ef567890", read_at: "2026-10-10T08:00:00Z", cited: false },
+        { source_id: "s2", origin: "web", location: "https://example.com/report?token=secret#top", fingerprint: "9988776655443322", read_at: "2026-10-10T08:00:05Z", cited: false },
+      ],
+    },
+  });
   await overrideMockCommand(page, "artifacts_list", `(args) => ({ artifacts: ${JSON.stringify(ARTIFACTS)} })`);
   await overrideMockCommand(page, "artifact_read", `(args) => ({ ok: true, path: args.path, kind: "markdown", content: "# " + args.path })`);
 });
@@ -76,4 +84,26 @@ test("an artifact no tool result registered shows no trust strip", async ({ page
   await openArtifact(page, "plain.md");
   await expect(page.getByRole("heading", { name: "notes/plain.md" })).toBeVisible();
   await expect(page.getByTestId("trust-strip")).toHaveCount(0);
+});
+
+test("the strip says what the run read, never that the answer relied on it", async ({ page }) => {
+  await openArtifact(page, "q3.md");
+  const chip = page.getByTestId("trust-sources");
+  await expect(chip).toContainText("Read 2 sources in this run");
+  await expect(page.getByTestId("trust-source-list")).toHaveCount(0);
+  await chip.click();
+  const list = page.getByTestId("trust-source-list");
+  await expect(list).toContainText("data/sales.csv");
+  await expect(list).toContainText("ab12cd34");
+  // URL query and fragment are not shown, and nothing is labelled cited.
+  await expect(list).toContainText("https://example.com/report");
+  await expect(list).not.toContainText("token=secret");
+  await expect(list).not.toContainText("Cited");
+});
+
+test("a run that read nothing shows no sources chip", async ({ page }) => {
+  await patchMockState(page, { runSources: { "run-1": [] } });
+  await openArtifact(page, "q3.md");
+  await expect(page.getByTestId("trust-verdict")).toBeVisible();
+  await expect(page.getByTestId("trust-sources")).toHaveCount(0);
 });

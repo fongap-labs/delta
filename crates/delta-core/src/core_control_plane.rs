@@ -925,6 +925,18 @@ impl CoreControlPlane {
         }
     }
 
+    /// The sources one run read (`source.read`), for the artifact trust strip. Read-only.
+    pub fn run_sources_list(&self, run_id: &str) -> Value {
+        let path = self.state_dir.join("run_events.db");
+        if !path.exists() {
+            return json!({"sources": []});
+        }
+        match SourceCitationReader::open(path).and_then(|reader| reader.sources_read(run_id)) {
+            Ok(sources) => json!({"sources": sources}),
+            Err(error) => json!({"sources": [], "error": error.to_string()}),
+        }
+    }
+
     pub fn validations_list(&self) -> Value {
         let path = self.state_dir.join("run_events.db");
         if !path.exists() {

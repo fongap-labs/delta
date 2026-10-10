@@ -722,6 +722,7 @@ pub fn run() {
             runtime_ipc::mcp_signout,
             runtime_ipc::audit_list,
             runtime_ipc::sources_list,
+            runtime_ipc::run_sources_list,
             runtime_ipc::validations_list,
             runtime_ipc::skills_list,
             runtime_ipc::skill_create,
