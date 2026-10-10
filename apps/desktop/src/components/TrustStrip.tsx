@@ -14,7 +14,7 @@ const CHIP = "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[12px]
 export function TrustStrip({ trust, sources = [] }: { trust: ArtifactTrust; sources?: RunSource[] }) {
   const { t } = useI18n();
   const [isOpen, setOpen] = useState(false);
-  const [areSourcesOpen, setSourcesOpen] = useState(false);
+  const [isSourceListOpen, setSourceListOpen] = useState(false);
   const summary = summarizeChecks(trust);
   if (!summary && !trust.producedBy && !trust.sha256 && sources.length === 0) return null;
 
@@ -63,20 +63,20 @@ export function TrustStrip({ trust, sources = [] }: { trust: ArtifactTrust; sour
           <button
             type="button"
             role="listitem"
-            aria-expanded={areSourcesOpen}
+            aria-expanded={isSourceListOpen}
             data-testid="trust-sources"
             className={CHIP + " cursor-pointer bg-surface-2 text-ink border-transparent"}
-            onClick={() => setSourcesOpen((value) => !value)}
+            onClick={() => setSourceListOpen((value) => !value)}
           >
             <Icon name="book" size={14} />
             {sources.length === 1
               ? t("trust.sourcesReadOne", undefined, "Read 1 source in this run")
               : t("trust.sourcesRead", { count: sources.length }, `Read ${sources.length} sources in this run`)}
-            <Icon name={areSourcesOpen ? "chevronDown" : "chevronRight"} size={12} />
+            <Icon name={isSourceListOpen ? "chevronDown" : "chevronRight"} size={12} />
           </button>
         )}
       </div>
-      {areSourcesOpen && sources.length > 0 && (
+      {isSourceListOpen && sources.length > 0 && (
         <ul className="mt-2.5 flex flex-col gap-1.5" data-testid="trust-source-list">
           {sources.map((source) => (
             <li key={source.source_id} className="flex items-start gap-2 text-[12.5px]">
