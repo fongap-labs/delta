@@ -411,6 +411,10 @@ body {
   .thinking-dots span { animation: none; opacity: 0.6; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Loading placeholders: breathe (no sweeping gradient); still under reduced motion. */
+.skeleton-row { animation: skeleton-breathe 1.2s ease-in-out infinite; }
+@keyframes skeleton-breathe { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton-row { animation: none; } }
 /* Run-status arc: one turn per second; static under "reduce motion" (the word still says Running). */
 .run-spin svg { animation: spin 1s linear infinite; transform-origin: 50% 50%; }
 @media (prefers-reduced-motion: reduce) { .run-spin svg { animation: none; } }

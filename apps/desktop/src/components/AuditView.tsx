@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAudit, type AuditEvent } from "../api";
 import { PanelHead } from "./IntegrationsView";
+import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 // Activity — connector/browser tool history, restructured onto the IntegrationsView page shell
@@ -16,16 +17,24 @@ export function AuditView() {
   const [sessionFilter, setSessionFilter] = useState("");
   const [connectorFilter, setConnectorFilter] = useState("");
   const [toolFilter, setToolFilter] = useState("");
+  // Loading, failed and empty are three different things: a failed request must not read as
+  // "no records".
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
 
-  const refresh = () =>
-    getAudit({
+  const refresh = () => {
+    setFailed(false);
+    setLoading(true);
+    return getAudit({
       limit: 150,
       session_id: sessionFilter.trim() || undefined,
       connector: connectorFilter.trim() || undefined,
       tool: toolFilter.trim() || undefined,
     })
       .then(setEvents)
-      .catch(() => setEvents([]));
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     refresh();
@@ -49,7 +58,11 @@ export function AuditView() {
             </button>
           </div>
 
-          {events.length === 0 ? (
+          {hasFailed ? (
+            <LoadError what={t("state.what.activity", undefined, "activity")} onRetry={refresh} />
+          ) : isLoading && events.length === 0 ? (
+            <LoadingRows />
+          ) : events.length === 0 ? (
             <div className={CARD + " p-4 text-[13px] text-muted"}>{t("activity.empty", undefined, "No audit events yet.")}</div>
           ) : (
             <div className="space-y-2">
