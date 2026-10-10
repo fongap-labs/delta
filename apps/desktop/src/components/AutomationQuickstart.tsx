@@ -33,7 +33,7 @@ const DAYS: Record<string, { label: string; dow: string }> = {
 // §30 connect-state spinner (the app has no other spinner — waits elsewhere are label swaps).
 // Exported for Onboarding page 2's sign-in button (same states, same look).
 export const Spinner = () => (
-  <span className="inline-block w-3 h-3 rounded-full border-[1.5px] border-line border-t-accent animate-spin" />
+  <span className="inline-block w-3 h-3 rounded-full border-[1.5px] border-line border-t-primary animate-spin" />
 );
 
 const cronFor = (dayKey: string, hhmm: string) => {
@@ -257,7 +257,7 @@ export function AutomationQuickstart({
 
   const label = "block text-[12px] text-muted mt-3 mb-1";
   const input =
-    "w-full px-3 py-2 rounded-lg border border-line bg-panel text-[13.5px] outline-none focus:border-accent";
+    "w-full px-3 py-2 rounded-lg border border-line bg-panel text-[13.5px] outline-none focus:border-primary";
 
   return (
     <div className="mb-4">
@@ -274,8 +274,8 @@ export function AutomationQuickstart({
             className={
               "h-full text-left rounded-xl2 border bg-panel p-4 flex flex-col gap-1.5 " +
               (pickedKey === tmpl.key
-                ? "border-accent ring-2 ring-accentSoft"
-                : "border-line hover:border-lineStrong")
+                ? "border-primary ring-2 ring-selected"
+                : "border-line hover:border-line-strong")
             }
             onClick={() => pick(tmpl)}
           >
@@ -317,7 +317,7 @@ export function AutomationQuickstart({
         >
           {/* §30: the card names its template — without this it starts abruptly after the grid. */}
           <div className="flex items-baseline gap-2 pb-2.5 mb-1 border-b border-line">
-            <span className="text-[11px] uppercase tracking-[0.05em] text-accent font-semibold">
+            <span className="text-[11px] uppercase tracking-[0.05em] text-primary font-semibold">
               {t("automation.setUp")}
             </span>
             <span className="text-[14px] font-semibold">{t(picked.tk + ".title")}</span>
@@ -348,7 +348,7 @@ export function AutomationQuickstart({
                     </span>
                   ) : (
                     <button
-                      className="px-3.5 py-1 rounded-full border border-line text-[12.5px] hover:bg-paper"
+                      className="px-3.5 py-1 rounded-full border border-line text-[12.5px] hover:bg-bg"
                       onClick={() => connectConnector(name, {}).catch(() => {})}
                       data-testid={`ob-connect-${name}`}
                     >
@@ -360,7 +360,7 @@ export function AutomationQuickstart({
                     and let Cancel clear the LOCAL state (the browser tab is the user's). */}
                 {flow?.phase === "waiting" && (
                   <div
-                    className="flex items-start gap-2 bg-accentSoft/50 rounded-lg px-3 py-2 mb-2.5 text-[12px] text-muted"
+                    className="flex items-start gap-2 bg-selected/50 rounded-lg px-3 py-2 mb-2.5 text-[12px] text-muted"
                     data-testid="ob-connect-wait"
                   >
                     <span>↗</span>
@@ -384,7 +384,7 @@ export function AutomationQuickstart({
           })}
 
           {allConnected && (
-            <div className={picked.conns.length ? "bg-paper rounded-xl px-4 py-3.5 mt-3" : ""} data-testid="ob-recipe">
+            <div className={picked.conns.length ? "bg-bg rounded-xl px-4 py-3.5 mt-3" : ""} data-testid="ob-recipe">
               {picked.needsRepo && (
                 <>
                   <label className={label}>{t("automation.repository")}</label>
@@ -410,7 +410,7 @@ export function AutomationQuickstart({
                       }
                     />
                   </div>
-                  <p className="text-[11px] text-warnInk mt-1">
+                  <p className="text-[11px] text-warn mt-1">
                     {t("automation.botMember")}
                   </p>
                 </>
@@ -426,7 +426,7 @@ export function AutomationQuickstart({
                   />
                 </div>
                 <input
-                  className="w-28 px-3 py-2 rounded-lg border border-line bg-panel text-[13.5px] outline-none focus:border-accent"
+                  className="w-28 px-3 py-2 rounded-lg border border-line bg-panel text-[13.5px] outline-none focus:border-primary"
                   type="time"
                   aria-label={t("automation.time")}
                   value={time}

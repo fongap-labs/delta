@@ -43,7 +43,7 @@ export function ConnectorsList({
           placeholder={t("common.search")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-44 px-3.5 py-1.5 rounded-full border border-line bg-panel text-[13px] outline-none focus:border-accent"
+          className="w-44 px-3.5 py-1.5 rounded-full border border-line bg-panel text-[13px] outline-none focus:border-primary"
         />
       </div>
 
@@ -57,7 +57,7 @@ export function ConnectorsList({
               <button
                 key={c.name}
                 data-testid={`connector-${c.name}`}
-                className={ROW + " w-full text-left hover:bg-paper/60"}
+                className={ROW + " w-full text-left hover:bg-bg/60"}
                 onClick={() => onOpen(c.name)}
               >
                 <ConnectorBadge connector={c} size={34} title={c.title} />
@@ -81,7 +81,7 @@ export function ConnectorsList({
           <button
             key={c.name}
             data-testid={`connector-${c.name}`}
-            className={ROW + " w-full text-left hover:bg-paper/60"}
+            className={ROW + " w-full text-left hover:bg-bg/60"}
             onClick={() => onOpen(c.name)}
           >
             <ConnectorBadge connector={c} size={34} title={c.title} />

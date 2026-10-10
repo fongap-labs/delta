@@ -77,7 +77,7 @@ export function AvailableDetail({
           <div className={GRP_H}>{t("connectors.tools")}</div>
           <div className={GRP}>
             <button
-              className={ROW + " w-full text-left hover:bg-paper/60 text-[13px]"}
+              className={ROW + " w-full text-left hover:bg-bg/60 text-[13px]"}
               data-testid="available-tools-toggle"
               onClick={() => setShowTools((v) => !v)}
             >

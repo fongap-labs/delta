@@ -70,7 +70,7 @@ export function ConnectorsSection() {
     return (
       <div>
         <button
-          className="text-[13px] text-accent mb-3"
+          className="text-[13px] text-primary mb-3"
           data-testid="connectors-breadcrumb"
           onClick={() => setDetail(null)}
         >

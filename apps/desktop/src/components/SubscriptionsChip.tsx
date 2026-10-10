@@ -196,7 +196,7 @@ export function ChannelPicker({
             <button
               key={c.channel}
               role="option"
-              className="block w-full text-left px-3 py-1.5 hover:bg-paper"
+              className="block w-full text-left px-3 py-1.5 hover:bg-bg"
               onMouseDown={(e) => {
                 e.preventDefault();
                 onChange(c.channel);
@@ -232,7 +232,7 @@ export function ChannelPicker({
             <button
               key={r.address}
               role="option"
-              className="block w-full text-left px-3 py-1.5 hover:bg-paper"
+              className="block w-full text-left px-3 py-1.5 hover:bg-bg"
               data-testid={`roster-channel-${r.address}`}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -253,7 +253,7 @@ export function ChannelPicker({
                 <span className="ml-1.5 text-[11px] text-faint">{r.workspace}</span>
               )}
               {!r.is_member && (
-                <span className="block text-[11px] text-warnInk">
+                <span className="block text-[11px] text-warn">
                   {t("connectors.inviteDelta")}
                 </span>
               )}

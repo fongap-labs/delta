@@ -99,7 +99,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
   const dots = (
     <div className="flex justify-center gap-2 mb-6">
       {[0, 1, 2].map((i) => (
-        <span key={i} className={"w-1.5 h-1.5 rounded-full " + (i <= step ? "bg-accent" : "bg-line")} />
+        <span key={i} className={"w-1.5 h-1.5 rounded-full " + (i <= step ? "bg-primary" : "bg-line")} />
       ))}
     </div>
   );
@@ -129,7 +129,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
                 )}
                 <button
                   type="button"
-                  className="text-[13px] text-accent hover:underline inline-flex items-center gap-1"
+                  className="text-[13px] text-primary hover:underline inline-flex items-center gap-1"
                   onClick={() => ps.openNewCustom()}
                   data-testid="ob-add-provider-link"
                 >
@@ -153,7 +153,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
               ) : (
                 <span className="text-[12.5px] text-muted">
                   {t("onboarding.nothingWorks")}{" "}
-                  <button className="text-accent" onClick={() => finish()}>
+                  <button className="text-primary" onClick={() => finish()}>
                     {t("onboarding.skipAnyway")}
                   </button>
                 </span>
@@ -190,7 +190,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
                 return (
                   <div
                     key={name}
-                    className="flex items-center gap-3 py-2 border-b border-paper last:border-0"
+                    className="flex items-center gap-3 py-2 border-b border-bg last:border-0"
                     data-testid={`ob-tool-${name}`}
                   >
                     <ConnectorBadge connector={c} size={34} title={c.title} />
@@ -204,7 +204,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
                       <span className="text-[12px] text-muted shrink-0">{t("onboarding.checkBrowser")}</span>
                     ) : (
                       <button
-                        className="shrink-0 rounded-full border border-line px-4 py-1.5 text-[12.5px] font-medium hover:border-lineStrong"
+                        className="shrink-0 rounded-full border border-line px-4 py-1.5 text-[12.5px] font-medium hover:border-line-strong"
                         onClick={() => startTool(name)}
                       >
                         {t("connectors.connect")}
@@ -252,7 +252,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
         {step === 2 && (
           <section data-testid="ob-step-done" className="flex-1 min-h-0 flex flex-col overflow-y-auto">
             <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-okSoft text-ok grid place-items-center mx-auto mb-3 text-[22px]">
+              <div className="w-12 h-12 rounded-full bg-ok-soft text-ok grid place-items-center mx-auto mb-3 text-[22px]">
                 ✓
               </div>
               <h1 className="text-[19px] font-semibold mb-1">{t("onboarding.doneTitle")}</h1>
@@ -260,11 +260,11 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
             </div>
 
             <button
-              className="w-full flex items-start gap-3 rounded-xl2 border border-line hover:border-accent bg-panel px-4 py-3.5"
+              className="w-full flex items-start gap-3 rounded-xl2 border border-line hover:border-primary bg-panel px-4 py-3.5"
               onClick={() => finish("automations")}
               data-testid="ob-cta-automation"
             >
-              <span className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center text-[15px] shrink-0">
+              <span className="w-9 h-9 rounded-lg bg-selected text-primary grid place-items-center text-[15px] shrink-0">
                 ◷
               </span>
               <span className="flex-1 min-w-0 text-left">
@@ -276,11 +276,11 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "automations")
               <span className="text-faint self-center">›</span>
             </button>
             <button
-              className="w-full flex items-start gap-3 rounded-xl2 border border-line hover:border-accent bg-panel px-4 py-3.5 mt-2.5"
+              className="w-full flex items-start gap-3 rounded-xl2 border border-line hover:border-primary bg-panel px-4 py-3.5 mt-2.5"
               onClick={() => finish("work")}
               data-testid="ob-start"
             >
-              <span className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center text-[15px] shrink-0">
+              <span className="w-9 h-9 rounded-lg bg-selected text-primary grid place-items-center text-[15px] shrink-0">
                 ✦
               </span>
               <span className="flex-1 min-w-0 text-left">

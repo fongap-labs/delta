@@ -33,7 +33,7 @@ export function WorkspaceTrustPrompt({
         <p className="gate-sub">
           {t("workspace.trust.sub", undefined, "This project asks Delta to run the commands below without individual approval. Trust applies to future configuration changes at this exact folder until you revoke it in Settings.")}
         </p>
-        <div className="rounded-lg border border-line bg-paper px-3 py-2.5 max-h-48 overflow-y-auto">
+        <div className="rounded-lg border border-line bg-bg px-3 py-2.5 max-h-48 overflow-y-auto">
           {request.requested_commands.map((command) => (
             <code key={command} className="block text-[12.5px] py-1 text-ink">
               {command}

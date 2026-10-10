@@ -499,7 +499,7 @@ export function Composer(props: Props) {
   }));
 
   const iconBtn =
-    "w-7 h-7 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-paper shrink-0";
+    "w-7 h-7 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-bg shrink-0";
 
   // The send button is accent only when there's something to send — subtle grey otherwise, so the
   // composer isn't carrying a constant blue dot.
@@ -550,8 +550,8 @@ export function Composer(props: Props) {
               className={
                 "w-7 h-7 rounded-full grid place-items-center shrink-0 transition-colors " +
                 (canSteer
-                  ? "bg-accent text-onAccent hover:brightness-105"
-                  : "bg-paper border border-line text-faint")
+                  ? "bg-primary text-on-primary hover:brightness-105"
+                  : "bg-bg border border-line text-faint")
               }
               onClick={submit}
               disabled={!canSteer}
@@ -582,7 +582,7 @@ export function Composer(props: Props) {
       {(props.externalNotice || attachNotice) && (
         <div
           data-testid="attach-notice"
-          className="max-w-3xl mx-auto mb-1.5 flex items-center gap-2 rounded-lg border border-warnInk/30 bg-warnSoft px-3 py-1.5 text-[12.5px] text-warnInk"
+          className="max-w-3xl mx-auto mb-1.5 flex items-center gap-2 rounded-lg border border-warn/30 bg-warn-soft px-3 py-1.5 text-[12.5px] text-warn"
         >
           <span className="flex-1">{props.externalNotice || attachNotice}</span>
           <button
@@ -639,12 +639,12 @@ export function Composer(props: Props) {
                   aria-selected={i === slashIndex}
                   className={
                     "w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg " +
-                    (i === slashIndex ? "bg-paper" : "hover:bg-paper")
+                    (i === slashIndex ? "bg-bg" : "hover:bg-bg")
                   }
                   onMouseEnter={() => setSlashIndex(i)}
                   onClick={() => pickSkill(s)}
                 >
-                  <span className="text-[13px] font-medium text-accent shrink-0">/{s.name}</span>
+                  <span className="text-[13px] font-medium text-primary shrink-0">/{s.name}</span>
                   <span className="text-[12px] text-faint truncate flex-1">{s.description}</span>
                   <span className="text-[10.5px] px-1.5 py-0.5 rounded-full border border-line text-faint shrink-0">
                     {s.scope}
@@ -670,7 +670,7 @@ export function Composer(props: Props) {
           {/* + attach menu */}
           <div className="relative">
             <button
-              className={iconBtn + (isAttachOpen ? " bg-paper text-ink" : "")}
+              className={iconBtn + (isAttachOpen ? " bg-bg text-ink" : "")}
               title={t("composer.attach", undefined, "Attach files")}
               aria-label={t("composer.attach", undefined, "Attach files")}
               onClick={() => setAttachMenuOpen((v) => !v)}
@@ -733,7 +733,7 @@ export function Composer(props: Props) {
           ) : null}
 
           {dictationBusy === t("composer.transcribing", undefined, "Transcribing…") && (
-            <span className="text-[11.5px] text-accent">{t("composer.transcribing", undefined, "Transcribing…")}</span>
+            <span className="text-[11.5px] text-primary">{t("composer.transcribing", undefined, "Transcribing…")}</span>
           )}
 
           <span className="ml-auto" />
@@ -790,7 +790,7 @@ export function Composer(props: Props) {
             <button
               className={
                 iconBtn +
-                (dictation?.recording ? " bg-dangerSoft text-danger" : "") +
+                (dictation?.recording ? " bg-danger-soft text-danger" : "") +
                 (dictationBusy ? " opacity-60" : "") +
                 (!voiceReady && !dictation?.recording ? " opacity-40" : "")
               }
@@ -815,8 +815,8 @@ export function Composer(props: Props) {
             className={
               "w-7 h-7 rounded-full grid place-items-center shrink-0 transition-colors " +
               (hasContent && !dictation?.recording && !dictationBusy
-                ? "bg-accent text-onAccent hover:brightness-105"
-                : "bg-paper border border-line text-faint")
+                ? "bg-primary text-on-primary hover:brightness-105"
+                : "bg-bg border border-line text-faint")
             }
             onClick={submit}
             disabled={!!dictation?.recording || !!dictationBusy}
@@ -952,7 +952,7 @@ function UsageChip({
   return (
     <div className="relative">
       <button
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11.5px] text-muted hover:text-ink hover:bg-paper shrink-0"
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11.5px] text-muted hover:text-ink hover:bg-bg shrink-0"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={isOpen}
@@ -970,7 +970,7 @@ function UsageChip({
         {showBar ? (
           <span className="w-12 h-1.5 rounded-full bg-line overflow-hidden" aria-hidden="true">
             <span
-              className="block h-full bg-accent transition-all"
+              className="block h-full bg-primary transition-all"
               style={{ width: `${Math.max(pct as number, 4)}%` }}
             />
           </span>
@@ -993,7 +993,7 @@ function UsageChip({
                 </div>
                 <div className="h-1.5 rounded-full bg-line overflow-hidden">
                   <div
-                    className="h-full bg-accent transition-all"
+                    className="h-full bg-primary transition-all"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -1078,7 +1078,7 @@ function ModeMenu({
           comparison): "Ask for approval ⌄" not a generic "Mode ⌄" pill. aria-label stays
           "Mode" so the accessible name is stable across mode changes. */}
       <button
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-muted hover:text-ink hover:bg-paper shrink-0"
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-muted hover:text-ink hover:bg-bg shrink-0"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={isOpen}
@@ -1102,7 +1102,7 @@ function ModeMenu({
             {PERMISSION_OPTIONS.map((o) => (
               <button
                 key={o.value}
-                className="w-full flex flex-col items-start px-2.5 py-1.5 rounded-lg text-left hover:bg-paper"
+                className="w-full flex flex-col items-start px-2.5 py-1.5 rounded-lg text-left hover:bg-bg"
                 onClick={() => {
                   onModeChange(o.value);
                   setOpen(false);
@@ -1110,7 +1110,7 @@ function ModeMenu({
               >
                 <span
                   className={
-                    "text-[13px] " + (o.value === mode ? "font-medium text-accent" : "text-ink")
+                    "text-[13px] " + (o.value === mode ? "font-medium text-primary" : "text-ink")
                   }
                 >
                   {modeLabel(o.value, o.label)}
@@ -1148,7 +1148,7 @@ function ModeMenu({
 function attachItem(icon: "image" | "file" | "fileCode", label: string, onClick: () => void) {
   return (
     <button
-      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left hover:bg-paper"
+      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left hover:bg-bg"
       onClick={onClick}
     >
       <Icon name={icon} size={15} className="shrink-0 text-muted" /> {label}

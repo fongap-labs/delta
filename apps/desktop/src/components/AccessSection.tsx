@@ -41,10 +41,10 @@ const platformOf = (channel: string) => (channel.includes(":") ? channel.split("
 
 const SEC_H = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";
 const TAG_CORE =
-  "text-[10px] px-1.5 py-0.5 rounded-full bg-warnSoft/70 text-warnInk border border-warnInk/15";
-const BTN_ACCENT = "text-[12px] px-2.5 py-1.5 rounded-lg bg-accent text-onAccent shrink-0";
+  "text-[10px] px-1.5 py-0.5 rounded-full bg-warn-soft/70 text-warn border border-warn/15";
+const BTN_ACCENT = "text-[12px] px-2.5 py-1.5 rounded-lg bg-primary text-on-primary shrink-0";
 const BTN_BORDERED =
-  "text-[12px] px-2.5 py-1.5 rounded-lg border border-line bg-paper hover:border-lineStrong shrink-0";
+  "text-[12px] px-2.5 py-1.5 rounded-lg border border-line bg-bg hover:border-line-strong shrink-0";
 
 export function AccessSection({
   sessionId,
@@ -276,7 +276,7 @@ export function AccessSection({
                         </div>
                         {byName[c.connector]?.channels && (
                           <button
-                            className="inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline"
+                            className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
                             onClick={() => {
                               setDraft("");
                               setChannelsFor(c.connector);
@@ -308,7 +308,7 @@ export function AccessSection({
                 {isAdding ? (
                   <div className="mt-1.5">
                     <input
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-line bg-panel text-[12.5px] outline-none focus:border-accent"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-line bg-panel text-[12.5px] outline-none focus:border-primary"
                       placeholder={t("access.searchPlaceholder", undefined, "Search connectors…")}
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
@@ -332,7 +332,7 @@ export function AccessSection({
                       {results.map((c) => (
                         <button
                           key={c.name}
-                          className="w-full flex items-center gap-2 py-1.5 px-0.5 rounded-lg text-left hover:bg-paper"
+                          className="w-full flex items-center gap-2 py-1.5 px-0.5 rounded-lg text-left hover:bg-bg"
                           data-testid={`access-add-${c.name}`}
                           onClick={() => {
                             setAdding(false);
@@ -357,7 +357,7 @@ export function AccessSection({
                   </div>
                 ) : (
                   <button
-                    className="mt-1 text-[12px] text-accent hover:underline text-left"
+                    className="mt-1 text-[12px] text-primary hover:underline text-left"
                     onClick={() => setAdding(true)}
                     data-testid="access-add-source"
                   >
@@ -367,7 +367,7 @@ export function AccessSection({
                 {/* Lives with its list (tester ask 2026-07-26): each group's manage link sits
                     directly under that group, not pooled at the section's bottom. */}
                 <button
-                  className="mt-1.5 block text-[12px] text-accent font-medium hover:underline text-left"
+                  className="mt-1.5 block text-[12px] text-primary font-medium hover:underline text-left"
                   onClick={() => onOpenIntegrations?.()}
                 >
                   {t("access.manageAll", undefined, "Manage all connectors (global) →")}
@@ -437,7 +437,7 @@ export function AccessSection({
                   </div>
                 ) : (
                   <button
-                    className="mt-1 text-[12px] text-accent hover:underline text-left"
+                    className="mt-1 text-[12px] text-primary hover:underline text-left"
                     onClick={() => setAddingFolder(true)}
                   >
                     {t("access.addFolder", undefined, "+ Give access to a folder…")}
@@ -554,7 +554,7 @@ function ChannelsInline({
               </span>
               {s.collision && (
                 <span
-                  className="text-[10.5px] text-warnInk bg-warnSoft/70 border border-warnInk/15 rounded px-1 shrink-0"
+                  className="text-[10.5px] text-warn bg-warn-soft/70 border border-warn/15 rounded px-1 shrink-0"
                   title={t("access.collisionTitle", undefined, "This channel is also this session's Inbox-routing target — inbound and outbound collide.")}
                 >
                   ⚠
@@ -579,7 +579,7 @@ function ChannelsInline({
         </button>
       </div>
       {error && (
-        <p className="text-[11px] text-warnInk mt-1.5 leading-snug" data-testid="channel-add-error">
+        <p className="text-[11px] text-warn mt-1.5 leading-snug" data-testid="channel-add-error">
           {error}
         </p>
       )}

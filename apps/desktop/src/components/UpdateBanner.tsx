@@ -104,13 +104,13 @@ export function UpdateBanner() {
         {t("update.ready", { version: update.version }, `Delta v${update.version} is ready to install.`)}
       </div>
       {phase === "error" && (
-        <div className="text-[11.5px] text-warnInk mt-1.5">
+        <div className="text-[11.5px] text-warn mt-1.5">
           {t("update.installError", undefined, "The update couldn't be installed — it will be offered again next launch.")}
         </div>
       )}
       <div className="flex items-center gap-2 mt-2.5">
         <button
-          className="px-3 py-1.5 rounded-full bg-accent text-onAccent text-[12.5px] disabled:opacity-50"
+          className="px-3 py-1.5 rounded-full bg-primary text-on-primary text-[12.5px] disabled:opacity-50"
           onClick={install}
           disabled={busy}
           data-testid="update-install"

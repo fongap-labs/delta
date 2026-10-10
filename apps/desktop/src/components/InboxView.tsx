@@ -24,14 +24,14 @@ const KIND_TABS: { key: string; label: string }[] = [
 const CHIP = (isActive: boolean) =>
   "text-[11.5px] px-2.5 py-1 rounded-full border " +
   (isActive
-    ? "border-accent text-accent bg-accentSoft"
-    : "border-line text-muted hover:border-lineStrong");
+    ? "border-primary text-primary bg-selected"
+    : "border-line text-muted hover:border-line-strong");
 
 // Page-level tabs (§28): underline style, one visual level ABOVE the filter chips.
 const TAB = (isActive: boolean) =>
   "pb-2 -mb-px text-[13px] border-b-2 flex items-center gap-1.5 " +
   (isActive
-    ? "text-ink font-medium border-accent"
+    ? "text-ink font-medium border-primary"
     : "text-muted border-transparent hover:text-ink");
 
 // The Inbox: pending approvals / questions / notifications from across sessions, including
@@ -115,7 +115,7 @@ export function InboxView({
   const routingLabel = routingName ? `#${routingName}` : routing;
 
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 flex bg-bg">
       <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
         <div className="max-w-4xl mx-auto px-7 py-6">
           <PanelHead
@@ -137,7 +137,7 @@ export function InboxView({
             >
               {t("common.pending")}
               {items.length > 0 && (
-                <span className="text-[11px] px-1.5 rounded-full bg-accentSoft text-accent leading-4">
+                <span className="text-[11px] px-1.5 rounded-full bg-selected text-primary leading-4">
                   {items.length}
                 </span>
               )}
@@ -149,7 +149,7 @@ export function InboxView({
             >
               {t("inbox.tab.configure")}
               {unroutedCount > 0 && (
-                <span className="text-[11px] px-1.5 rounded-full bg-warnSoft text-warnInk leading-4">
+                <span className="text-[11px] px-1.5 rounded-full bg-warn-soft text-warn leading-4">
                   ⚠ {unroutedCount}
                 </span>
               )}
@@ -175,7 +175,7 @@ export function InboxView({
                   <span>{t("inbox.routing.deliveredHereOnlyConnect")}</span>
                 )}
                 <button
-                  className="text-accent hover:underline"
+                  className="text-primary hover:underline"
                   data-testid="inbox-route-configure"
                   onClick={() => setTab("configure")}
                 >

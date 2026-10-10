@@ -97,7 +97,7 @@ export function SearchModal({
         key={s.session_id}
         className={
           "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left " +
-          (isActive ? "bg-accentSoft" : "hover:bg-paper")
+          (isActive ? "bg-selected" : "hover:bg-bg")
         }
         onMouseEnter={() => setActive(idx)}
         onClick={() => choose(s)}
@@ -107,7 +107,7 @@ export function SearchModal({
         </span>
         <span className="text-[12px] text-faint shrink-0">{tagFor(s)}</span>
         {idx < 9 && (
-          <kbd className="text-[10.5px] text-faint bg-paper border border-line rounded px-1.5 py-0.5 shrink-0 font-sans">
+          <kbd className="text-[10.5px] text-faint bg-bg border border-line rounded px-1.5 py-0.5 shrink-0 font-sans">
             ⌘{idx + 1}
           </kbd>
         )}
@@ -128,7 +128,7 @@ export function SearchModal({
             placeholder={t("search.placeholder", undefined, "Search chats")}
             className="flex-1 bg-transparent outline-none text-[15px] text-ink placeholder:text-faint"
           />
-          <kbd className="text-[10.5px] text-faint bg-paper border border-line rounded px-1.5 py-0.5 font-sans">
+          <kbd className="text-[10.5px] text-faint bg-bg border border-line rounded px-1.5 py-0.5 font-sans">
             Esc
           </kbd>
         </div>

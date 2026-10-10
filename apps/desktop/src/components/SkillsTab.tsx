@@ -25,13 +25,13 @@ import { useI18n } from "@delta/i18n/I18nContext";
 const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
 const INPUT =
-  "w-full min-w-0 px-3 py-2 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent";
+  "w-full min-w-0 px-3 py-2 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary";
 const BTN_ACCENT =
-  "text-[12.5px] px-3 py-2 rounded-lg bg-accent text-onAccent shrink-0 disabled:opacity-40";
+  "text-[12.5px] px-3 py-2 rounded-lg bg-primary text-on-primary shrink-0 disabled:opacity-40";
 const BTN_BORDERED =
-  "text-[12.5px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong shrink-0";
+  "text-[12.5px] px-3 py-2 rounded-lg border border-line bg-bg hover:border-line-strong shrink-0";
 const BADGE =
-  "text-[11px] px-2 py-0.5 rounded-full border border-line bg-paper text-muted shrink-0";
+  "text-[11px] px-2 py-0.5 rounded-full border border-line bg-bg text-muted shrink-0";
 
 type Editor = {
   mode: "new" | "edit";
@@ -203,7 +203,7 @@ export function SkillsTab({
               >
                 <button
                   role="menuitem"
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-paper"
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-bg"
                   onClick={() => {
                     setAddOpen(false);
                     setEditor(emptyEditor());
@@ -218,7 +218,7 @@ export function SkillsTab({
                 </button>
                 <button
                   role="menuitem"
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-paper"
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-bg"
                   onClick={() => {
                     setAddOpen(false);
                     fileInput.current?.click();
@@ -237,7 +237,7 @@ export function SkillsTab({
                 </button>
                 <button
                   role="menuitem"
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-paper disabled:opacity-40"
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-bg disabled:opacity-40"
                   disabled={!onCreateSkill}
                   onClick={() => {
                     setAddOpen(false);
@@ -320,7 +320,7 @@ export function SkillsTab({
               — {upload.description || t("skills.noDescription", undefined, "no description")}
             </span>
           </div>
-          <pre className="text-[12px] bg-paper border border-line rounded-lg p-3 whitespace-pre-wrap max-h-64 overflow-y-auto mb-2">
+          <pre className="text-[12px] bg-bg border border-line rounded-lg p-3 whitespace-pre-wrap max-h-64 overflow-y-auto mb-2">
             {upload.instructions}
           </pre>
           {upload.files?.length ? (
@@ -423,7 +423,7 @@ export function SkillsTab({
                     text hid the affordance). */}
                 {row.files ? (
                   <button
-                    className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md border border-line bg-paper text-muted hover:text-ink hover:border-lineStrong shrink-0"
+                    className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md border border-line bg-bg text-muted hover:text-ink hover:border-line-strong shrink-0"
                     title={t("skills.showFolder", undefined, "Show folder")}
                     onClick={() => revealSkill(row.name)}
                   >
