@@ -464,6 +464,7 @@ export const en = {
   "transcript.copyDetails": "Copy details",
   "transcript.retrying": "Retrying…",
   "transcript.editMessage": "Edit",
+  "transcript.regenerate": "Regenerate",
   "transcript.retractMessage": "Retract",
   "transcript.compacting": "Compacting context…",
   "transcript.thoughtProcess": "Thought process",
