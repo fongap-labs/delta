@@ -235,9 +235,16 @@ function CollapsibleNotice({
   );
 }
 
+/** One quiet line for the collapsed disclosure: the first non-empty line, flattened and clipped. */
+export function thinkingSummary(text: string, max = 80): string {
+  const first = text.split(/\r?\n/).map((l) => l.replace(/^[#>*\-\s]+/, "").replace(/\s+/g, " ").trim()).find(Boolean) ?? "";
+  return first.length > max ? first.slice(0, max - 1).trimEnd() + "…" : first;
+}
+
 export function ThinkingBlock({ text, isLive }: { text: string; isLive?: boolean }) {
   const { t } = useI18n();
   const [isOpen, setOpen] = useState(false);
+  const summary = !isOpen && !isLive ? thinkingSummary(text) : "";
   return (
     <div className="thinking">
       <button
@@ -250,6 +257,7 @@ export function ThinkingBlock({ text, isLive }: { text: string; isLive?: boolean
           {isLive ? t("transcript.thinkingLive", undefined, "Thinking") : t("transcript.thoughtProcess", undefined, "Thought process")}
           {isLive && <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>}
         </span>
+        {summary && <span className="thinking-sum">{summary}</span>}
       </button>
       {isOpen && (
         <div className="thinking-body" data-testid="thinking-body">
@@ -365,7 +373,7 @@ function StepRow({ tool, approval }: { tool: ToolItem; approval?: ApprovalItem }
         {approval && <ApprovalChip resolved={approval.resolved} />}
         {!!tool.standingRule && (
           <span
-            className="text-[10.5px] px-1.5 rounded-full bg-tealSoft text-tealInk shrink-0"
+            className="text-[10.5px] px-1.5 rounded-full bg-surface-2 text-ink border border-line-strong shrink-0"
             data-testid="tool-standing-rule"
             title={t("transcript.autoAllowedTitle", { rule: tool.standingRule }, `Auto-allowed by this automation's standing approval: ${tool.standingRule}. Revoke on its Automations page.`)}
           >

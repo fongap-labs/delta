@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type Connector } from "../../../api";
 import { ConnectorBadge } from "../ConnectorIcon";
+import { Icon } from "../../../components/Icon";
 import { AddConnectionModal } from "./AddConnectionModal";
 import { CHIP_OK, GRP, GRP_H, FOOT, PILL_QUIET, ROW } from "./ui";
 import { useI18n } from "@delta/i18n/I18nContext";
@@ -137,6 +138,12 @@ function statusLine(c: Connector, t: T): string {
 }
 
 function healthChip(c: Connector, t: T) {
-  if (c.two_way && c.connected) return <span className={CHIP_OK}>{t("connectors.healthLive")}</span>;
-  return <span className={CHIP_OK}>{t("connectors.healthReady")}</span>;
+  // Success is never colour alone: the check icon travels with the word.
+  const key = c.two_way && c.connected ? "connectors.healthLive" : "connectors.healthReady";
+  return (
+    <span className={CHIP_OK + " inline-flex items-center gap-1"}>
+      <Icon name="check" size={11} />
+      {t(key)}
+    </span>
+  );
 }
