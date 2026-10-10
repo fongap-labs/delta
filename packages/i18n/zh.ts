@@ -491,6 +491,7 @@ export const zh: Record<TranslationKey, string> = {
   "run.detail.thinking": "正在思考…",
   "run.detail.generating": "正在生成回答…",
   "run.detail.executing": "正在执行…",
+  "run.detail.awaiting": "等待你的决定",
   "todo.status.done": "已完成",
   "todo.status.in_progress": "进行中",
   "todo.status.pending": "待开始",

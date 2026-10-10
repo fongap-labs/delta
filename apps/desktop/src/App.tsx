@@ -1066,6 +1066,7 @@ export function App() {
   const pendingDirReq = [...items].reverse().find((i) => i.kind === "dirreq" && !i.resolved);
   const pendingPlan = [...items].reverse().find((i) => i.kind === "planreq" && !i.resolved);
   const pendingQuestion = [...items].reverse().find((i) => i.kind === "question" && !i.resolved);
+  const isAwaitingUser = !!(pendingApproval || pendingDirReq || pendingPlan || pendingQuestion);
   const activeInfo = sessions.find((s) => s.session_id === sessionId);
   const activeTitle = activeInfo?.title || tr("nav.newSession");
 
@@ -1470,7 +1471,13 @@ export function App() {
               placeholder={tr("composer.placeholderDelta")}
               statusSlot={
                 isRunning ? (
-                  <RunStatusBar status={runningStatusLabel(isRunning)} active={isRunning} />
+                  // The run is blocked on the user whenever an approval, folder request, plan or
+                  // question is pending: say so instead of "Running".
+                  <RunStatusBar
+                    state={isAwaitingUser ? "awaiting" : "running"}
+                    status={isAwaitingUser ? tr("run.detail.awaiting") : runningStatusLabel(isRunning)}
+                    active={isRunning}
+                  />
                 ) : null
               }
               approvalSlot={

@@ -490,6 +490,7 @@ export const en = {
   "run.detail.thinking": "Thinking…",
   "run.detail.generating": "Writing the answer…",
   "run.detail.executing": "Working…",
+  "run.detail.awaiting": "Waiting for your decision",
   "todo.status.done": "Done",
   "todo.status.in_progress": "In progress",
   "todo.status.pending": "Not started",
