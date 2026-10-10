@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the Activity page, the Inbox and the Memory page no longer present a failed read as an empty list ("No audit events yet", an empty queue, "Nothing yet"). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow. The read functions throw when the runtime reports an error instead of returning an empty result.
+
 - fix: while a run is waiting for an approval, a folder request, a plan decision or a question, the run status bar now says "Awaiting approval" with a hand icon instead of "Running", so a blocked run is no longer shown as working.
 - feat: the artifact viewer shows a trust strip when the runtime recorded how the file was made: the validation verdict (checks passed or failed, expandable to each check and its reason), the tool that produced it, and the SHA-256 registered with it. It is read from the producing tool result already stored in the conversation, so nothing is inferred and a file without such a record shows no strip. Sources and versions are not shown yet.
 

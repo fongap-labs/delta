@@ -12,6 +12,7 @@ import {
 } from "../api";
 import { Icon } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
+import { LoadError, LoadingRows } from "./ViewStates";
 import { Toggle } from "./Toggle";
 import { useI18n } from "@delta/i18n/I18nContext";
 
@@ -32,10 +33,13 @@ export function MemorySection() {
   // State-change copy (§5.3): shown under the toggle / list after an action.
   const [toggleMsg, setToggleMsg] = useState<string | null>(null);
   const [listMsg, setListMsg] = useState<string | null>(null);
+  // A failed read is not an empty memory: it shows an error with a retry instead of "Nothing yet".
+  const [hasFailed, setFailed] = useState(false);
 
   const refresh = () => {
-    getMemorySettings().then(setSettings).catch(() => setSettings(null));
-    getMemory().then(setEntries).catch(() => setEntries([]));
+    setFailed(false);
+    getMemorySettings().then(setSettings).catch(() => setFailed(true));
+    getMemory().then(setEntries).catch(() => setFailed(true));
   };
   useEffect(refresh, []);
   // Stay current while the screen is open: a save/edit landing in a conversation, or
@@ -76,8 +80,9 @@ export function MemorySection() {
     refresh();
   };
 
-  if (!settings || entries === null)
-    return <div className="text-[13px] text-muted">{t("common.loading", undefined, "Loading…")}</div>;
+  if (hasFailed && (!settings || entries === null))
+    return <LoadError what={t("state.what.memory", undefined, "memory")} onRetry={refresh} />;
+  if (!settings || entries === null) return <LoadingRows count={2} />;
 
   return (
     <section>

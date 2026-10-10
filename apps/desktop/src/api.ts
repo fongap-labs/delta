@@ -636,12 +636,12 @@ export async function getAudit(params: {
   connector?: string;
   tool?: string;
 } = {}): Promise<AuditEvent[]> {
-  const out = await directListAudit({
+  const out = throwOnError(await directListAudit({
     limit: params.limit,
     sessionId: params.session_id,
     connector: params.connector,
     tool: params.tool,
-  });
+  }));
   return out.events ?? [];
 }
 
@@ -969,8 +969,16 @@ export interface InboxItem {
   session_exists?: boolean;
 }
 
+// A read that fails comes back as a response carrying `error` (the transport turns a rejected
+// command into `{ ok: false, error }`, and the runtime reports its own read errors the same way).
+// Views must be able to tell "could not read" from "nothing there", so these reads throw on it.
+function throwOnError<T extends { error?: unknown }>(out: T): T {
+  if (out && out.error) throw new Error(String(out.error));
+  return out;
+}
+
 export async function getInbox(sessionId?: string, state?: string): Promise<InboxItem[]> {
-  const out = await directListInbox(sessionId, state);
+  const out = throwOnError(await directListInbox(sessionId, state));
   return out.items ?? [];
 }
 
@@ -1123,7 +1131,7 @@ export function announceMemoryChanged() {
 }
 
 export async function getMemory(): Promise<MemoryEntry[]> {
-  return (await directListMemory()).memory ?? [];
+  return throwOnError(await directListMemory()).memory ?? [];
 }
 
 export async function updateMemory(
@@ -1142,7 +1150,7 @@ export async function deleteAllMemory(): Promise<{ ok: boolean; deleted: number 
 }
 
 export async function getMemorySettings(): Promise<MemorySettings> {
-  return await fetchMemorySettings();
+  return throwOnError(await fetchMemorySettings());
 }
 
 export async function setMemorySettings(

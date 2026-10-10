@@ -13,6 +13,7 @@ import { Icon } from "./Icon";
 import { InboxItemCard } from "./InboxItemCard";
 import { InboxConfigure } from "./InboxConfigure";
 import { PanelHead } from "./IntegrationsView";
+import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 const KIND_TABS: { key: string; label: string }[] = [
@@ -56,9 +57,19 @@ export function InboxView({
   const [recent, setRecent] = useState<RecentChannel[]>([]);
   const [unroutedCount, setUnroutedCount] = useState(0);
   const [kind, setKind] = useState<string>("all");
+  // Only the first load can show "loading" or "failed": once items are on screen, a later failed
+  // poll keeps them rather than replacing the queue with an error.
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
 
   const load = () => {
-    getInbox(undefined, "pending").then(setItems).catch(() => {});
+    getInbox(undefined, "pending")
+      .then((pending) => {
+        setItems(pending);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
     getUnrouted().then((u) => setUnroutedCount(u.length)).catch(() => setUnroutedCount(0));
   };
   const loadRouting = () =>
@@ -191,7 +202,17 @@ export function InboxView({
                 ))}
               </div>
 
-              {visible.length === 0 ? (
+              {hasFailed && items.length === 0 ? (
+                <LoadError
+                  what={t("state.what.inbox", undefined, "the inbox")}
+                  onRetry={() => {
+                    setLoading(true);
+                    load();
+                  }}
+                />
+              ) : isLoading && items.length === 0 ? (
+                <LoadingRows />
+              ) : visible.length === 0 ? (
                 <div className="manage-empty">
                   {items.length === 0
                     ? t("inbox.empty.nothingPending")
