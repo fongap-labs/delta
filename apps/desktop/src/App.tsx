@@ -46,6 +46,7 @@ import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
 import { InboxItemCard } from "./components/InboxItemCard";
 import { isTauri, platformOS, startWindowDrag } from "./tauri";
+import { setThemePref } from "./theme";
 import { shouldShowOverlay } from "./overlay";
 import { Icon } from "./components/Icon";
 import { Sidebar } from "./components/Sidebar";
@@ -224,11 +225,22 @@ export function App() {
       navBeforePreview.current = null;
     }
   }, [navCollapsed]);
+  // startNewSession is declared further down; the handler reads it through a ref.
+  const newTaskRef = useRef<() => void>(() => {});
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
         e.preventDefault();
         toggleNav();
+      }
+      // ⌘/Ctrl+N — new task. ⌘/Ctrl+Shift+L — flip light/dark (Auto becomes an explicit pin).
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        newTaskRef.current();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setThemePref(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
       }
       // ⌘, — the platform Settings shortcut (advertised in the account menu, §26).
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
@@ -810,10 +822,11 @@ export function App() {
   }, [surface, sessionId, browserRefreshKey, markUnattended]);
 
   const runningStatusLabel = (_running: boolean): string => {
-    // R5.1 C3: human-readable lightweight run status (Chinese-first per product).
-    if (reasoningStream) return "正在思考…";
-    if (streaming) return "正在生成回答…";
-    return "正在执行…";
+    // R5.1 C3: human-readable lightweight run status, localized (the run-state word itself is
+    // rendered by RunStatusBar).
+    if (reasoningStream) return tr("run.detail.thinking");
+    if (streaming) return tr("run.detail.generating");
+    return tr("run.detail.executing");
   };
 
   const send = (text: string, attachments?: Attachment[], skill?: string) => {
@@ -884,6 +897,7 @@ export function App() {
     setBranch(null);
     activateSession(newId());
   };
+  newTaskRef.current = startNewSession;
   // Inbox → task: the item carries its native workspace, so open it directly.
   // UX-026: 5s top-right toast when a SCHEDULED automation run starts (never for
   // manual Run-now — the user is already watching). Rides the app-wide /ws/events
@@ -1342,12 +1356,6 @@ export function App() {
                 </button>
               </div>
             )}
-            {isRunning && (
-              <RunStatusBar
-                status={runningStatusLabel(isRunning)}
-                active={isRunning}
-              />
-            )}
             <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
               {idle ? (
                 <SessionIntro />
@@ -1443,6 +1451,11 @@ export function App() {
               contextWindow={modelContextWindows[model]}
               contextBar={hasContextBar}
               placeholder={tr("composer.placeholderDelta")}
+              statusSlot={
+                isRunning ? (
+                  <RunStatusBar status={runningStatusLabel(isRunning)} active={isRunning} />
+                ) : null
+              }
               approvalSlot={
                 // Live inline cards are for ATTENDED sessions only; when Unattended the prompt is
                 // parked in the Inbox and surfaced via the answer-in-context card below.

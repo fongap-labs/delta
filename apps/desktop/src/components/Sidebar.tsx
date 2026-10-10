@@ -3,6 +3,7 @@ import { AUTOMATIONS_CHANGED, getAutomations, type Automation } from "../api";
 import type { SessionInfo } from "../types";
 import { ConnectorIcon } from "../features/connectors/ConnectorIcon";
 import { Icon, type IconName } from "./Icon";
+import { groupByDate, useProjects, type DateBucket } from "../sessionGroups";
 import { SearchModal } from "./SearchModal";
 import { useI18n } from "@delta/i18n/I18nContext";
 
@@ -79,7 +80,10 @@ function LiveDot({ state }: { state?: "working" | "sleeping" | "idle" }) {
   const { t } = useI18n();
   if (state !== "working" && state !== "sleeping") return null;
   return state === "working" ? (
-    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title={t("nav.working", undefined, "Working now")} />
+    // Running = the shared neutral spinner arc (shape, not a coloured dot); static under reduced motion.
+    <span className="run-spin flex shrink-0 text-ink" role="img" aria-label={t("nav.working", undefined, "Working now")} title={t("nav.working", undefined, "Working now")}>
+      <Icon name="spinner" size={13} />
+    </span>
   ) : (
     <span className="w-1.5 h-1.5 rounded-full bg-faint/60 shrink-0" title={t("nav.sleeping", undefined, "Sleeping (will wake itself)")} />
   );
@@ -143,6 +147,27 @@ export function Sidebar(props: Props) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isRecentExpanded, setRecentExpanded] = useState(false);
   const [shouldShowArchived, setShowArchived] = useState(false);
+  // Projects: named groups of tasks, kept on this device (see sessionGroups.ts).
+  const proj = useProjects();
+  const [isCreatingProject, setCreatingProject] = useState(false);
+  const [projectDraft, setProjectDraft] = useState("");
+  // When set, the new project is filed with this task as soon as it is created (row menu path).
+  const [pendingMoveId, setPendingMoveId] = useState<string | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectEditValue, setProjectEditValue] = useState("");
+  const [confirmRemoveProjectId, setConfirmRemoveProjectId] = useState<string | null>(null);
+
+  // ⌘/Ctrl+K opens search from anywhere in the window.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const load = () => getAutomations().then(setAutomations).catch(() => {});
@@ -157,12 +182,28 @@ export function Sidebar(props: Props) {
 
   const real = props.sessions.filter((session) => !session.session_id.startsWith("__"));
   const pinned = real.filter((session) => session.pinned && !session.archived);
-  const recent = real
-    .filter((session) => !session.pinned && !session.archived)
-    .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+  const byRecency = (a: SessionInfo, b: SessionInfo) => (b.updated_at || "").localeCompare(a.updated_at || "");
+  // Pinned wins over a project; a task filed in a project leaves the date-grouped Recent list.
+  const filed = (session: SessionInfo) => !!proj.assign[session.session_id];
+  const recent = real.filter((session) => !session.pinned && !session.archived && !filed(session)).sort(byRecency);
+  const inProject = (projectId: string) =>
+    real
+      .filter((session) => !session.pinned && !session.archived && proj.assign[session.session_id] === projectId)
+      .sort(byRecency);
   const archived = real.filter((session) => session.archived);
   const totalAttention = real.reduce((sum, session) => sum + (session.attention || 0), 0);
   const recentLimit = 4;
+
+  const commitNewProject = () => {
+    const name = projectDraft.trim();
+    if (name) {
+      const id = proj.create(name);
+      if (pendingMoveId) proj.move(pendingMoveId, id);
+    }
+    setCreatingProject(false);
+    setProjectDraft("");
+    setPendingMoveId(null);
+  };
 
   const closeRowMenu = () => {
     setRowMenuId(null);
@@ -241,6 +282,57 @@ export function Sidebar(props: Props) {
                       closeRowMenu();
                       props.onArchiveSession(session.session_id, !session.archived);
                     }} />
+                    <div className="h-px bg-line my-1 mx-2" />
+                    <div className="px-2.5 pt-1.5 pb-1 text-[10.5px] uppercase tracking-wide text-faint">
+                      {t("nav.moveToProject", undefined, "Project")}
+                    </div>
+                    {proj.projects.map((p) => {
+                      const current = proj.assign[session.session_id] === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper"
+                          role="menuitemradio"
+                          aria-checked={current}
+                          data-testid={"row-menu-project-" + p.id}
+                          onClick={() => {
+                            closeRowMenu();
+                            proj.move(session.session_id, current ? null : p.id);
+                          }}
+                        >
+                          <span className="w-3.5 shrink-0 text-primary">{current ? "✓" : ""}</span>
+                          <span className="flex-1 truncate">{p.name}</span>
+                        </button>
+                      );
+                    })}
+                    {proj.assign[session.session_id] && (
+                      <button
+                        className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper text-muted"
+                        role="menuitem"
+                        data-testid="row-menu-no-project"
+                        onClick={() => {
+                          closeRowMenu();
+                          proj.move(session.session_id, null);
+                        }}
+                      >
+                        <span className="w-3.5 shrink-0" />
+                        <span className="flex-1">{t("nav.noProject", undefined, "No project")}</span>
+                      </button>
+                    )}
+                    <button
+                      className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper"
+                      role="menuitem"
+                      data-testid="row-menu-new-project"
+                      onClick={() => {
+                        closeRowMenu();
+                        setPendingMoveId(session.session_id);
+                        setProjectDraft("");
+                        setCreatingProject(true);
+                      }}
+                    >
+                      <Icon name="folderPlus" size={13} className="shrink-0 text-muted" />
+                      <span className="flex-1">{t("nav.newProjectFromTask", undefined, "New project…")}</span>
+                    </button>
                     <div className="h-px bg-line my-1 mx-2" />
                     <div className="px-2.5 pt-1.5 pb-1 text-[10.5px] uppercase tracking-wide text-faint">
                       {t("nav.reasoningDepth", undefined, "Reasoning depth")}
@@ -366,12 +458,145 @@ export function Sidebar(props: Props) {
               ))}
             </TaskBand>
           )}
-          <TaskBand title={t("nav.recent", undefined, "Recent")} testid="recent-header">
+          {(proj.projects.length > 0 || isCreatingProject) && (
+            <TaskBand title={t("nav.projects", undefined, "Projects")} testid="projects-band">
+              {isCreatingProject && (
+                <input
+                  className="w-full px-2 py-1.5 rounded-lg bg-panel border border-primary text-[13px] text-ink outline-none"
+                  placeholder={t("nav.projectName", undefined, "Project name")}
+                  aria-label={t("nav.projectName", undefined, "Project name")}
+                  data-testid="new-project-input"
+                  value={projectDraft}
+                  autoFocus
+                  onChange={(event) => setProjectDraft(event.target.value)}
+                  onBlur={commitNewProject}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Enter") commitNewProject();
+                    if (event.key === "Escape") {
+                      setProjectDraft("");
+                      setCreatingProject(false);
+                      setPendingMoveId(null);
+                    }
+                  }}
+                />
+              )}
+              {proj.projects.map((p) => {
+                const members = inProject(p.id);
+                const editingName = editingProjectId === p.id;
+                const toggleLabel = p.collapsed
+                  ? t("nav.expandProject", { name: p.name }, `Expand ${p.name}`)
+                  : t("nav.collapseProject", { name: p.name }, `Collapse ${p.name}`);
+                return (
+                  <div key={p.id} data-testid={"project-" + p.id}>
+                    <div className="group/proj flex items-center gap-1 rounded-lg hover:bg-paper">
+                      {editingName ? (
+                        <input
+                          className="flex-1 min-w-0 mx-1 my-0.5 px-1.5 py-0.5 rounded-md bg-panel border border-primary text-[13px] text-ink outline-none"
+                          value={projectEditValue}
+                          autoFocus
+                          onChange={(event) => setProjectEditValue(event.target.value)}
+                          onBlur={() => {
+                            proj.rename(p.id, projectEditValue);
+                            setEditingProjectId(null);
+                          }}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                            if (event.key === "Enter") {
+                              proj.rename(p.id, projectEditValue);
+                              setEditingProjectId(null);
+                            }
+                            if (event.key === "Escape") setEditingProjectId(null);
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 py-1.5 text-left text-[13px] font-medium"
+                          aria-expanded={!p.collapsed}
+                          aria-label={toggleLabel}
+                          onClick={() => proj.toggle(p.id)}
+                        >
+                          <Icon name={p.collapsed ? "chevronRight" : "chevronDown"} size={13} className="shrink-0 text-faint" />
+                          <Icon name="folder" size={14} className="shrink-0 text-muted" />
+                          <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                          <span className="text-[11px] text-faint shrink-0">{members.length || ""}</span>
+                        </button>
+                      )}
+                      {!editingName && (
+                        <span className="hidden group-hover/proj:flex group-focus-within/proj:flex items-center shrink-0 pr-1">
+                          <button
+                            className="w-5 h-5 grid place-items-center rounded hover:bg-paper text-faint hover:text-ink"
+                            title={t("common.rename", undefined, "Rename")}
+                            aria-label={t("common.rename", undefined, "Rename")}
+                            onClick={() => {
+                              setEditingProjectId(p.id);
+                              setProjectEditValue(p.name);
+                            }}
+                          >
+                            <Icon name="pencil" size={12} />
+                          </button>
+                          <button
+                            className={"h-5 grid place-items-center rounded hover:bg-paper hover:text-danger " + (confirmRemoveProjectId === p.id ? "px-1 text-[11px] text-danger" : "w-5 text-faint")}
+                            title={t("nav.removeProject", undefined, "Remove project")}
+                            aria-label={t("nav.removeProject", undefined, "Remove project")}
+                            data-testid={"project-remove-" + p.id}
+                            onClick={() => {
+                              if (confirmRemoveProjectId === p.id) {
+                                setConfirmRemoveProjectId(null);
+                                proj.remove(p.id);
+                              } else setConfirmRemoveProjectId(p.id);
+                            }}
+                            onBlur={() => setConfirmRemoveProjectId(null)}
+                          >
+                            {confirmRemoveProjectId === p.id ? t("nav.removeProjectConfirm", undefined, "Remove? Tasks are kept.") : <Icon name="trash" size={12} />}
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                    {!p.collapsed && (
+                      <div className="space-y-0.5 pl-3">
+                        {members.length === 0 ? (
+                          <div className="px-2 py-1 text-[11.5px] text-faint leading-snug">{t("nav.projectEmpty", undefined, "Move a task here from its ⋯ menu.")}</div>
+                        ) : (
+                          members.map(row)
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </TaskBand>
+          )}
+          <TaskBand
+            title={t("nav.recent", undefined, "Recent")}
+            testid="recent-header"
+            action={
+              <button
+                className="w-5 h-5 grid place-items-center rounded text-faint hover:text-ink hover:bg-paper"
+                title={t("nav.newProject", undefined, "New project")}
+                aria-label={t("nav.newProject", undefined, "New project")}
+                data-testid="new-project"
+                onClick={() => {
+                  setPendingMoveId(null);
+                  setProjectDraft("");
+                  setCreatingProject(true);
+                }}
+              >
+                <Icon name="folderPlus" size={13} />
+              </button>
+            }
+          >
             {recent.length === 0 ? (
               <div className="px-2 py-1.5 text-[12px] text-faint leading-snug">{t("nav.noConversations", undefined, "No conversations yet.")}</div>
             ) : (
               <>
-                {(isRecentExpanded ? recent : recent.slice(0, recentLimit)).map(row)}
+                {/* Date groups (Today / Yesterday / Previous 7 days / Earlier) over the same glance cap. */}
+                {groupByDate(isRecentExpanded ? recent : recent.slice(0, recentLimit)).map((g) => (
+                  <div key={g.bucket} data-testid={"recent-group-" + g.bucket}>
+                    <div className="px-2 pt-1.5 pb-0.5 text-[11px] text-faint">{t(("nav.group." + g.bucket) as `nav.group.${DateBucket}`)}</div>
+                    <div className="space-y-0.5">{g.items.map(row)}</div>
+                  </div>
+                ))}
                 {recent.length > recentLimit && (
                   <button className="w-full text-left px-2 py-1.5 text-[12px] text-muted hover:text-ink" onClick={() => setRecentExpanded((value) => !value)}>
                     {isRecentExpanded
@@ -406,10 +631,13 @@ export function Sidebar(props: Props) {
   );
 }
 
-function TaskBand({ title, testid, children }: { title: string; testid?: string; children: React.ReactNode }) {
+function TaskBand({ title, testid, action, children }: { title: string; testid?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div data-testid={testid}>
-      <div className="px-1.5 text-[10.5px] uppercase tracking-[0.07em] text-faint font-semibold mb-1">{title}</div>
+      <div className="relative px-1.5 text-[10.5px] uppercase tracking-[0.07em] text-faint font-semibold mb-1">
+        {title}
+        {action && <span className="absolute right-0 top-1/2 -translate-y-1/2 normal-case tracking-normal">{action}</span>}
+      </div>
       <div className="space-y-0.5">{children}</div>
     </div>
   );

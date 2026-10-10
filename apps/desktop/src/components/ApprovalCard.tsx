@@ -173,31 +173,50 @@ function MessagePreview({ text, label }: { text: string; label?: string }) {
   return <PreviewBlock text={text} mono={false} />;
 }
 
+// High-consequence (outbound) approvals need an explicit "I checked it" before either approving
+// button works; denying is always one click. Shared with the parked Inbox card.
+export function ConfirmCheck({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  const { t } = useI18n();
+  return (
+    <label className="approval-confirm" data-testid="approval-confirm">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      {t("approval.confirm.external")}
+    </label>
+  );
+}
+
 function Buttons({
   item,
   onApprove,
   runTask,
   primaryLabel,
   denyLabel,
+  external = false,
 }: {
   item: ApprovalItem;
   onApprove: (decision: ApprovalDecision) => void;
   runTask?: { id: string; title: string } | null;
   primaryLabel: string;
   denyLabel?: string;
+  external?: boolean;
 }) {
   const { t } = useI18n();
+  const [confirmed, setConfirmed] = useState(false);
+  const locked = external && !confirmed;
   const connector = item.category === "connector";
   const offerStanding = !!(runTask && item.standingTarget);
   const denyText = denyLabel ?? t("approval.deny");
   return (
-    <div className="approval-btns">
-      <button className="btn approval-primary" onClick={() => onApprove("once")}>
+    <>
+      {external && <ConfirmCheck checked={confirmed} onChange={setConfirmed} />}
+      <div className="approval-btns">
+      <button className="btn approval-primary" disabled={locked} onClick={() => onApprove("once")}>
         {primaryLabel}
       </button>
       {offerStanding && (
         <button
           className="btn"
+          disabled={locked}
           title={t("inbox.approval.alwaysAllow", {
             target: `${item.name} → ${item.standingTarget}`,
             title: runTask?.title || t("inbox.approval.thisAutomation"),
@@ -214,7 +233,9 @@ function Buttons({
           tool-wide one stays out of the card. */}
       {/* save_skill: no session-wide "always" — every skill proposal gets its own review
           (SKILLS-SPEC §5: one gate, always). */}
-      {!connector && !offerStanding && item.name !== "run_shell" && item.name !== "save_skill" && (
+      {/* No session-wide "always" for outbound actions either: they are the high-consequence
+          class and are confirmed every time (visual system v1). */}
+      {!connector && !external && !offerStanding && item.name !== "run_shell" && item.name !== "save_skill" && (
         <button
           className="btn"
           title={t("approval.alwaysAllowSession", {
@@ -234,7 +255,8 @@ function Buttons({
       <button className="btn quiet-deny" onClick={() => onApprove("deny")}>
         {denyText}
       </button>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -285,6 +307,14 @@ export function ApprovalCard({
 
   return (
     <div className={"approval" + (scope.external ? " approval-external" : "") + dock}>
+      {/* Outbound actions are the high-consequence class: a labelled band (icon + words, never
+          colour alone) at the top of the card, same position every time. */}
+      {scope.external && !item.resolved && (
+        <div className="approval-band" data-testid="approval-band">
+          <Icon name="hand" size={15} />
+          {t("approval.band.external")}
+        </div>
+      )}
       <div className="approval-top">
         <div className="approval-heading">
           <span className="approval-ico" title={t("approval.toolTitle", { name: item.name })}>
@@ -354,6 +384,7 @@ export function ApprovalCard({
           runTask={runTask}
           primaryLabel={approvalActionLabels(t, item.name).allow}
           denyLabel={approvalActionLabels(t, item.name).deny}
+          external={scope.external}
         />
       )}
     </div>

@@ -42,7 +42,18 @@ export type IconName =
   | "table"
   | "mic"
   | "stop"
-  | "x";
+  | "x"
+  // Run-status shapes (visual system v1): each state has its own silhouette, so status never
+  // depends on colour alone — "shield" is the verified state, the rest are below.
+  | "check"
+  | "circle"
+  | "spinner"
+  | "doneCircle"
+  | "pauseCircle"
+  | "cancelCircle"
+  | "failCircle"
+  | "hand"
+  | "alertTriangle";
 
 export function Icon({
   name,
@@ -175,6 +186,65 @@ export function Icon({
       return (
         <svg {...s} fill="currentColor" stroke="none">
           <rect x="6.5" y="6.5" width="11" height="11" rx="1.5" />
+        </svg>
+      );
+    case "check":
+      return (
+        <svg {...s}>
+          <path d="M5 12.5l5 4.5 9-10" />
+        </svg>
+      );
+    case "circle":
+      return (
+        <svg {...s}>
+          <circle cx="12" cy="12" r="8" />
+        </svg>
+      );
+    case "spinner":
+      // Open arc: the caller rotates it (and stops rotating under reduced motion).
+      return (
+        <svg {...s}>
+          <path d="M12 3a9 9 0 1 0 9 9" />
+        </svg>
+      );
+    case "doneCircle":
+      return (
+        <svg {...s}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8 12.5l2.5 2.5L16 9.5" />
+        </svg>
+      );
+    case "pauseCircle":
+      return (
+        <svg {...s}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M10 9v6M14 9v6" />
+        </svg>
+      );
+    case "cancelCircle":
+      return (
+        <svg {...s}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M5.6 5.6l12.8 12.8" />
+        </svg>
+      );
+    case "failCircle":
+      return (
+        <svg {...s}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M15 9l-6 6M9 9l6 6" />
+        </svg>
+      );
+    case "hand":
+      return (
+        <svg {...s}>
+          <path d="M8 11V6a1.5 1.5 0 0 1 3 0v5M11 10V4.5a1.5 1.5 0 0 1 3 0V10M14 10V6a1.5 1.5 0 0 1 3 0v7a7 7 0 0 1-7 7h-.5A6.5 6.5 0 0 1 4 13.5V12a1.5 1.5 0 0 1 3 0v1" />
+        </svg>
+      );
+    case "alertTriangle":
+      return (
+        <svg {...s}>
+          <path d="M12 8v5M12 16.5v.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
         </svg>
       );
     case "x":

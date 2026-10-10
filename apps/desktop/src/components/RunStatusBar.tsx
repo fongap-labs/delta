@@ -1,46 +1,66 @@
 /**
- * Lightweight active-run status.
+ * Run status — one visual language for "what is this run doing".
  *
- * The label is derived from events the desktop is actually receiving (reasoning,
- * streaming, or generic execution). It deliberately does not fabricate a
- * timeline or technical detail history.
+ * Six states, each with its own icon silhouette AND word, so status never relies on colour alone
+ * (the success green is almost the same lightness as the brand teal). "Running" deliberately uses
+ * neutral ink, not teal: teal means "you can act on this", and a running run needs no action.
+ *
+ * The desktop only receives a boolean plus a label derived from stream events today, so the bar
+ * renders `running`; the other states are defined here so the pause / resume / verified surfaces
+ * can adopt them once the runtime's public contract reports them. It does not fabricate a
+ * timeline or infer a state it was not given.
  */
+import { useI18n } from "@delta/i18n/I18nContext";
+import { Icon, type IconName } from "./Icon";
 
-export interface RunStatusProps {
-  status: string;
-  active: boolean;
+export type RunState = "running" | "awaiting" | "paused" | "cancelled" | "failed" | "done" | "verified";
+
+interface RunStateStyle {
+  icon: IconName;
+  /** CSS colour for the icon + label. */
+  color: string;
+  /** Rotate the icon (disabled under prefers-reduced-motion in styles.css). */
+  spin?: boolean;
+  fallback: string;
 }
 
-export function RunStatusBar({ status, active }: RunStatusProps) {
+export const RUN_STATES: Record<RunState, RunStateStyle> = {
+  running: { icon: "spinner", color: "var(--ink)", spin: true, fallback: "Running" },
+  awaiting: { icon: "hand", color: "var(--warn)", fallback: "Awaiting approval" },
+  paused: { icon: "pauseCircle", color: "var(--muted)", fallback: "Paused" },
+  cancelled: { icon: "cancelCircle", color: "var(--muted)", fallback: "Cancelled" },
+  failed: { icon: "failCircle", color: "var(--danger)", fallback: "Failed" },
+  done: { icon: "doneCircle", color: "var(--ink)", fallback: "Completed" },
+  verified: { icon: "shield", color: "var(--ok)", fallback: "Completed and verified" },
+};
+
+export interface RunStatusProps {
+  /** What the run is doing right now (derived from live events). */
+  status: string;
+  active: boolean;
+  state?: RunState;
+}
+
+export function RunStatusBar({ status, active, state = "running" }: RunStatusProps) {
+  const { t } = useI18n();
   if (!active) return null;
+  const s = RUN_STATES[state];
 
   return (
     <div
-      className="run-status-bar"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "4px 12px",
-        fontSize: "13px",
-        color: "var(--text-secondary, #666)",
-        background: "var(--bg-subtle, #f5f5f5)",
-        borderBottom: "1px solid var(--border-line, #e0e0e0)",
-      }}
+      className="run-status-bar max-w-3xl mx-auto mb-2 flex items-center gap-2.5 h-11 px-3.5 rounded-[14px] border border-line bg-panel text-[13px]"
+      role="status"
       aria-live="polite"
+      data-testid="run-status-bar"
+      data-run-state={state}
     >
-      <span
-        className="run-status-dot"
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          background: "var(--accent, #3b82f6)",
-          animation: "pulse 1.5s ease-in-out infinite",
-          flexShrink: 0,
-        }}
-      />
-      <span>{status}</span>
+      <span className={"flex shrink-0" + (s.spin ? " run-spin" : "")} style={{ color: s.color }}>
+        <Icon name={s.icon} size={16} />
+      </span>
+      <span className="font-semibold shrink-0" style={{ color: s.color }}>
+        {t(`run.state.${state}`, undefined, s.fallback)}
+      </span>
+      <span className="min-w-0 truncate text-muted">{status}</span>
     </div>
   );
 }
