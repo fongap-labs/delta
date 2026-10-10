@@ -9,6 +9,7 @@
 | [0003](0003-capability-over-fork.md) | Capability over fork |
 | [0004](0004-capability-execution-chain.md) | Capability execution chain |
 | [0052](0052-credential-storage.md) | Credential storage (proposed; numbered 0052 so it does not collide with the earlier ADR-005 ... ADR-051 numbers cited in code) |
+| [0053](0053-resume-run-identity.md) | Which run identity a resumed run uses (proposed) |
 
 ## Numbers cited in code but not stored here
 
