@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: resuming an interrupted run now keeps the run's own `run_id` and appends `run.resumed` to it, as the runtime contract always said, instead of starting a new run (ADR-0053, accepted). The runtime picks the run: the one in the session's latest checkpoint whose last lifecycle state is `interrupted`; if there is none, or the last run finished or is waiting on an approval or question, the request is rejected and nothing is written. Artifacts, validation, side-effect state and `source.read` records written after the resume now sit under the same run as the part before it. Retry is unchanged. The desktop does not offer a Resume action yet.
+
 - docs: add ADR-0053 (proposed) on which run identity a resumed run uses: today `resume` starts a new `run_id`, which contradicts the contract and splits a run's artifacts, validation and sources over two ids. It recommends resuming under the original `run_id` with a `run.resumed` event, which the ledger state machine already allows; nothing is implemented and the desktop keeps showing no Resume action until it is accepted.
 
 - feat: the trust strip under an artifact shows "Read N sources in this run" when the runtime recorded sources (`source.read`) for the run that made the file, and expands to each source's location and short SHA-256. It states only that the run read them: it never says the answer relied on or cited them (an entry is labelled Cited only when the runtime holds a validated citation for that run, which nothing writes yet), file paths are shown as recorded and URLs without their query and fragment. A new read-only runtime query `run_sources_list` serves it; if it fails or finds nothing the chip is simply absent.

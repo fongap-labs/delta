@@ -43,7 +43,7 @@
 ### Run
 
 - `run_id` 是一次执行的稳定 identity；
-- resume 保持原 `run_id`；
+- resume 保持原 `run_id`：Runtime 自己选择被中断的 Run（该 Session 最新 checkpoint 所属、且 ledger 最新 lifecycle 状态为 `interrupted` 的 Run），写入 `run.resumed` 后继续，不新开 Run；没有可恢复的 Run 时拒绝，不静默新建；停在审批 / 提问上的 Run 通过回答该决定继续，不走 resume（ADR-0053）；
 - interactive turn、automation、resume 都必须归属明确 Run；
 - latest lifecycle state 决定 recoverability；
 - completed / failed / skipped / cancelled / validation-failed 为 closed。

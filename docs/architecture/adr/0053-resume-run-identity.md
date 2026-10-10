@@ -1,6 +1,6 @@
 # ADR-0053: Which run identity a resumed run uses
 
-Status: **Proposed**, waits for the owner's acceptance. Nothing is implemented.
+Status: **Accepted** (owner, 2026-10-10). Implemented in the runtime; the desktop "Resume" action is a separate change.
 
 ## Context
 
@@ -47,11 +47,11 @@ Because of this the desktop does not offer a "Resume" action after "Interrupted"
 - Desktop: only after this lands can the UI show "Resume" next to "Interrupted". It would be offered only when the runtime reports the interruption, and the button calls `runtime_resume`; the UI derives nothing (invariant 6).
 - Data: no migration. Runs interrupted before this change are resumable the same way, because the checks use data that already exists.
 
-## Questions for the owner
+## Owner's answers (2026-10-10)
 
-1. Accept B?
-2. Should retry also be linked to the failed run (option C for retry only), or stay as it is?
-3. Should a run parked on a human action (approval, question) that survived a restart be resumed through the same command, or only by answering the pending decision?
+1. B accepted.
+2. Retry stays as it is: a new `run_id`, no link to the failed run.
+3. A run parked on a human action (approval, question) is not resumed through this command. It stays open on its pending decision and is continued by answering it; `resume` rejects it because its last state is not `interrupted`.
 
 ## Not verified
 

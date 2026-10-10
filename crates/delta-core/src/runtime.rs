@@ -677,6 +677,9 @@ pub struct RuntimeHandle {
     messages: Arc<RwLock<Vec<Value>>>,
     approvals: Arc<ApprovalController>,
     interactions: Arc<InteractionController>,
+    /// The run ledger and checkpoints, to find the run a session can resume. `None` for hosts built
+    /// without authorities (some tests); those cannot resume.
+    authorities: Option<RuntimeAuthorities>,
 }
 
 fn now_ts() -> f64 {
@@ -1471,7 +1474,12 @@ impl RuntimeHost {
             run_id: self.run_id.clone(),
         });
         self.ensure_event_delivery()?;
-        self.ledger_transition("run.started", "system", json!({"kind": "resume"}))?;
+        // The run keeps its identity (ADR-0053): the interrupted run is reopened, not replaced.
+        self.ledger_transition(
+            "run.resumed",
+            "user",
+            json!({"kind": "resume", "previous_status": "interrupted"}),
+        )?;
         let result = self.loop_turn();
         if result.is_err() {
             self.emit_event(RuntimeEvent::TurnEnd {
