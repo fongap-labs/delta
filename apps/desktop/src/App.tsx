@@ -951,6 +951,22 @@ export function App() {
     if (foregroundSessionIdRef.current === targetSessionId) setItems(itemsFromMessages(messages));
   };
 
+  // Regenerate the last reply: the same revert as Edit (the thread is cut back to before the
+  // user message), then the original text is sent again with its attachments, so the runtime
+  // produces a fresh answer through the normal run path. No new runtime semantics.
+  const regenerateReply = async (index: number, attachments?: Attachment[]) => {
+    if (!sessionId || isRunning) return;
+    const targetSessionId = sessionId;
+    const r = await revertSession(sessionId, index).catch(
+      (): { ok: false; error: string; text?: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (!r.ok || !r.text || foregroundSessionIdRef.current !== targetSessionId) return;
+    const messages = await getSessionMessages(targetSessionId);
+    if (foregroundSessionIdRef.current !== targetSessionId) return;
+    setItems(itemsFromMessages(messages));
+    send(r.text, attachments);
+  };
+
   const openInboxSession = (sid: string, ws: string) => selectSession(sid, ws);
   const selectSession = async (id: string, ws: string) => {
     setSurface("session"); // selecting a conversation always returns to the conversation view
@@ -1368,6 +1384,7 @@ export function App() {
                     onRetry={retry}
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
                     onEditMessage={(index) => void editMessage(index)}
+                    onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
                     // §33 ref #3: sub-threshold streamed text renders INSIDE the live turn
                     // group (header when collapsed, quiet line when expanded) — never as a
                     // floating paragraph.
