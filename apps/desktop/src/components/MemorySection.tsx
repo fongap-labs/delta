@@ -23,7 +23,7 @@ const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
 const FIELD_HELP = "text-[12px] text-muted mt-1.5 leading-relaxed";
 const BTN_ACCENT =
-  "text-[12.5px] px-3 py-2 rounded-lg bg-accent text-onAccent shrink-0 disabled:opacity-40";
+  "text-[12.5px] px-3 py-2 rounded-lg bg-primary text-on-primary shrink-0 disabled:opacity-40";
 
 export function MemorySection() {
   const { t } = useI18n();
@@ -179,7 +179,7 @@ function UserRulesCard({
         rows={4}
         placeholder={t("memory.rulesPlaceholder", undefined, "I use a screen reader — no tables, describe any image\nUse DD-MM-YYYY for dates")}
         data-testid="user-rules-input"
-        className="w-full mt-2.5 px-3 py-2.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent resize-y leading-relaxed"
+        className="w-full mt-2.5 px-3 py-2.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary resize-y leading-relaxed"
       />
       <div className="flex items-center gap-3 mt-2">
         <button
@@ -224,7 +224,7 @@ function MemoryRow({ entry, onChanged }: { entry: MemoryEntry; onChanged: () => 
           onChange={(e) => setDraft(e.target.value)}
           rows={2}
           autoFocus
-          className="w-full px-3 py-2 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent resize-y leading-relaxed"
+          className="w-full px-3 py-2 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary resize-y leading-relaxed"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

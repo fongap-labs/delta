@@ -29,11 +29,11 @@ test("composer: send-gating, + attach menu, Mode menu", async ({ page }) => {
   const send = page.getByRole("button", { name: "Send" });
 
   // Send is subtle grey when empty, accent once there's content, grey again when cleared.
-  await expect(send).not.toHaveClass(/bg-accent/);
+  await expect(send).not.toHaveClass(/bg-primary/);
   await box.fill("hello there");
-  await expect(send).toHaveClass(/bg-accent/);
+  await expect(send).toHaveClass(/bg-primary/);
   await box.fill("");
-  await expect(send).not.toHaveClass(/bg-accent/);
+  await expect(send).not.toHaveClass(/bg-primary/);
 
   // "+" attach menu offers the three typed shortcuts.
   await page.getByRole("button", { name: "Attach" }).click();
@@ -68,7 +68,7 @@ test("composer: picking a PDF shows an attachment chip and arms send", async ({ 
   await page.getByText("Draft the launch note").first().click();
 
   const send = page.getByRole("button", { name: "Send" });
-  await expect(send).not.toHaveClass(/bg-accent/);
+  await expect(send).not.toHaveClass(/bg-primary/);
 
   await page.locator('input[type="file"]').setInputFiles({
     name: "report.pdf",
@@ -78,12 +78,12 @@ test("composer: picking a PDF shows an attachment chip and arms send", async ({ 
 
   const chip = page.locator(".attach-chip");
   await expect(chip).toContainText("report.pdf");
-  await expect(send).toHaveClass(/bg-accent/); // attachment alone arms send
+  await expect(send).toHaveClass(/bg-primary/); // attachment alone arms send
 
   // Removing the chip disarms send again.
   await chip.locator(".attach-x").click();
   await expect(page.locator(".attach-chip")).toHaveCount(0);
-  await expect(send).not.toHaveClass(/bg-accent/);
+  await expect(send).not.toHaveClass(/bg-primary/);
 });
 
 // Token-savings threshold (owner ask, 2026-07-17): a PDF over the user's page limit is
@@ -103,7 +103,7 @@ test("composer: PDF over the page threshold is rejected with a notice", async ({
   await expect(notice).toContainText("big-report.pdf skipped");
   await expect(notice).toContainText("34 pages is over your 2-page limit");
   await expect(page.locator(".attach-chip")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Send" })).not.toHaveClass(/bg-accent/);
+  await expect(page.getByRole("button", { name: "Send" })).not.toHaveClass(/bg-primary/);
 
   // The ✕ dismisses the notice.
   await notice.getByRole("button").click();

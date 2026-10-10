@@ -35,7 +35,7 @@ export function IntegrationsView() {
   }, []);
 
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 flex bg-bg">
       <nav className="page-subnav w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4">
         <div className="px-2 text-[13.5px] font-semibold mb-3 flex items-center gap-2">
           <Icon name="plug" size={16} /> {t("connectors.title")}
@@ -48,8 +48,8 @@ export function IntegrationsView() {
               className={
                 "w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center justify-between " +
                 (active
-                  ? "bg-paper text-accent font-medium"
-                  : "text-muted hover:bg-paper hover:text-ink")
+                  ? "bg-bg text-primary font-medium"
+                  : "text-muted hover:bg-bg hover:text-ink")
               }
               onClick={() => setTab(tb.key)}
             >
@@ -57,7 +57,7 @@ export function IntegrationsView() {
                 <Icon name={tb.icon} size={15} /> {t(tb.labelKey)}
               </span>
               {tb.key === "connectors" && connCount != null && (
-                <span className={"text-[11px] shrink-0 " + (active ? "text-accent" : "text-faint")}>
+                <span className={"text-[11px] shrink-0 " + (active ? "text-primary" : "text-faint")}>
                   {connCount}
                 </span>
               )}

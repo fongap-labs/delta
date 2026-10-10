@@ -215,7 +215,7 @@ function CollapsibleNotice({
         </span>
       </span>
       {isExpanded && hasDetails && (
-        <div className="mt-2 rounded-md border border-line bg-paper/70 p-2 text-left text-[11.5px] font-mono whitespace-pre-wrap break-all">
+        <div className="mt-2 rounded-md border border-line bg-bg/70 p-2 text-left text-[11.5px] font-mono whitespace-pre-wrap break-all">
           <div>{text}</div>
           <button
             type="button"
@@ -327,10 +327,10 @@ function buildRows(items: TurnItem[]): TurnRow[] {
 function ApprovalChip({ resolved }: { resolved: ApprovalDecision | undefined }) {
   const { t } = useI18n();
   if (resolved === "deny")
-    return <span className="text-[10.5px] px-1.5 rounded-full bg-dangerSoft text-danger shrink-0">{t("approval.chipDeclined", undefined, "✕ declined")}</span>;
+    return <span className="text-[10.5px] px-1.5 rounded-full bg-danger-soft text-danger shrink-0">{t("approval.chipDeclined", undefined, "✕ declined")}</span>;
   return (
     <span
-      className="text-[10.5px] px-1.5 rounded-full bg-okSoft text-ok shrink-0"
+      className="text-[10.5px] px-1.5 rounded-full bg-ok-soft text-ok shrink-0"
       title={resolved ? t("approval.chipApprovedWith", { mode: resolved.replace(/_/g, " ") }, `approved · ${resolved.replace(/_/g, " ")}`) : t("approval.chipApprovedTitle", undefined, "approved")}
     >
       {t("approval.chipApproved", undefined, "✓ approved")}
@@ -357,8 +357,8 @@ function StepRow({ tool, approval }: { tool: ToolItem; approval?: ApprovalItem }
   const failed = tool.status !== "ok" && !running;
   return (
     <div>
-      <div className="group flex items-baseline gap-2 px-2 py-0.5 rounded-lg hover:bg-paper" data-testid="turn-step">
-        <span className={"w-3.5 text-center text-[10px] shrink-0 " + (failed ? "text-danger" : running ? "text-accent" : "text-ok")}>
+      <div className="group flex items-baseline gap-2 px-2 py-0.5 rounded-lg hover:bg-bg" data-testid="turn-step">
+        <span className={"w-3.5 text-center text-[10px] shrink-0 " + (failed ? "text-danger" : running ? "text-primary" : "text-ok")}>
           {running ? <span className="spinner" data-testid="step-running" /> : "●"}
         </span>
         <LineText
@@ -382,7 +382,7 @@ function StepRow({ tool, approval }: { tool: ToolItem; approval?: ApprovalItem }
         )}
         {!!tool.hidden && (
           <span
-            className="text-[11px] text-warnInk shrink-0"
+            className="text-[11px] text-warn shrink-0"
             data-testid="tool-hidden-count"
             title={t("transcript.hiddenCountTitle", undefined, "Removed by your privacy filters before the agent saw the results — agents get no trace of these.")}
           >
@@ -400,7 +400,7 @@ function StepRow({ tool, approval }: { tool: ToolItem; approval?: ApprovalItem }
         )}
       </div>
       {isRaw && (
-        <pre className="ml-8 mr-2 my-1 px-2.5 py-1.5 rounded-lg border border-line bg-paper font-mono text-[11.5px] leading-relaxed text-muted whitespace-pre-wrap break-words max-h-56 overflow-auto">
+        <pre className="ml-8 mr-2 my-1 px-2.5 py-1.5 rounded-lg border border-line bg-bg font-mono text-[11.5px] leading-relaxed text-muted whitespace-pre-wrap break-words max-h-56 overflow-auto">
           {`${tool.name}  ${shortArgs(tool.args)}`}
           {tool.preview ? `\n→ ${tool.preview.length > 1500 ? tool.preview.slice(0, 1500) + "\n…" : tool.preview}` : ""}
         </pre>
@@ -459,7 +459,7 @@ function TurnGroup({
           {hiddenTotal > 0 && (
             <>
               {" · "}
-              <span className="text-warnInk" data-testid="stepgroup-hidden">
+              <span className="text-warn" data-testid="stepgroup-hidden">
                 {t("transcript.hiddenByFilters", { n: hiddenTotal }, `${hiddenTotal} hidden by your filters`)}
               </span>
             </>
@@ -618,7 +618,7 @@ export function Transcript({ items, running, streamingText, onRetry, onUndoMemor
           case "user":
             return (
               <div className="group self-end max-w-[78%] flex flex-col items-end" key={bi}>
-                <div className="bubble-user px-3.5 py-2.5 rounded-[14px_14px_4px_14px] bg-solid text-onSolid text-[14.5px] leading-relaxed whitespace-pre-wrap">
+                <div className="bubble-user px-3.5 py-2.5 rounded-[14px_14px_4px_14px] bg-surface-2 text-ink text-[14.5px] leading-relaxed whitespace-pre-wrap">
                   {item.attachments && item.attachments.length > 0 && (
                     <div className="bubble-attachments">
                       {item.attachments.map((a, i) =>

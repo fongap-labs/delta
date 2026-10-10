@@ -268,10 +268,10 @@ function PeopleRow({
         {allowed.map((userId) => (
           <span
             key={userId}
-            className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-paper border border-line text-[12.5px]"
+            className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-bg border border-line text-[12.5px]"
             title={t("connectors.id", { value: userId })}
           >
-            <span className="w-5 h-5 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">
+            <span className="w-5 h-5 rounded-full bg-selected text-primary grid place-items-center text-[9px] font-bold">
               {initials(label(userId))}
             </span>
             {label(userId)}
@@ -390,7 +390,7 @@ function PersonPicker({
         >
           <input
             autoFocus
-            className="w-full bg-paper border border-line rounded-lg px-2 py-1 text-[12.5px] outline-none placeholder:text-faint"
+            className="w-full bg-bg border border-line rounded-lg px-2 py-1 text-[12.5px] outline-none placeholder:text-faint"
             placeholder={t("connectors.typeNamePlaceholder")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -400,14 +400,14 @@ function PersonPicker({
           />
           <div className="max-h-56 overflow-y-auto py-1">
             {error ? (
-              <div className="px-2 py-1.5 text-[12px] text-warnInk">{error}</div>
+              <div className="px-2 py-1.5 text-[12px] text-warn">{error}</div>
             ) : candidates.length === 0 ? (
               <div className="px-2 py-1.5 text-[12px] text-faint">{t("connectors.noMatches")}</div>
             ) : (
               candidates.map((member) => (
                 <button
                   key={member.id}
-                  className="block w-full text-left px-2 py-1.5 rounded-lg hover:bg-paper"
+                  className="block w-full text-left px-2 py-1.5 rounded-lg hover:bg-bg"
                   data-testid={`pick-person-${member.id}`}
                   title={t("connectors.id", { value: member.id })}
                   onMouseDown={(event) => {
@@ -466,14 +466,14 @@ function ApprovalOwnersRow({
     <div className={ROW} data-testid="workspace-chat-approval-owners">
       <span className={LABEL}>{t("connectors.approvals")}</span>
       <span className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
-        {owners.length === 0 && <span className="text-[12px] text-warnInk">{t("connectors.chooseApprovalOwner")}</span>}
+        {owners.length === 0 && <span className="text-[12px] text-warn">{t("connectors.chooseApprovalOwner")}</span>}
         {owners.map((userId) => (
           <span
             key={userId}
-            className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-paper border border-line text-[12.5px]"
+            className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-bg border border-line text-[12.5px]"
             data-testid={`approval-owner-${userId}`}
           >
-            <span className="w-5 h-5 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">
+            <span className="w-5 h-5 rounded-full bg-selected text-primary grid place-items-center text-[9px] font-bold">
               {initials(label(userId))}
             </span>
             {label(userId)}
@@ -495,7 +495,7 @@ function ApprovalOwnersRow({
             testId="add-approval-owner"
           />
         )}
-        {error && <span className="basis-full text-[11.5px] text-warnInk">{error}</span>}
+        {error && <span className="basis-full text-[11.5px] text-warn">{error}</span>}
       </span>
     </div>
   );
@@ -517,7 +517,7 @@ function WaitingRow({
   };
 
   return (
-    <div className={ROW + " bg-warnSoft/25"} data-testid={`waiting-${message.id}`}>
+    <div className={ROW + " bg-warn-soft/25"} data-testid={`waiting-${message.id}`}>
       <span className={LABEL}>{t("connectors.waiting")}</span>
       <span className="min-w-0 flex-1">
         <span className="font-medium text-[13px]">{message.user_name || message.user_id}</span>{" "}

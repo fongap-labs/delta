@@ -6,9 +6,8 @@
    opacity modifiers via color-mix — the same thing the old tok() wrapper in
    tailwind.config.js hand-rolled.
 
-   Visual system v1: role names (primary, selected, surface-2, …) are the canonical ones; the
-   camelCase names below them are legacy aliases kept so existing class names don't change
-   until each component is migrated. */
+   Visual system v1: the role names below (primary, selected, surface-2, …) are the only colour
+   names; the earlier aliases (accent, paper, solid, warnInk, …) have been removed. */
 @import "tailwindcss";
 
 @theme inline {
@@ -48,22 +47,6 @@
   --color-danger-soft: var(--danger-soft);
   --color-danger-line: var(--danger-line);
   --color-on-danger: var(--on-danger);
-
-  /* ---- legacy aliases (same values, old class names) ---- */
-  --color-paper: var(--bg);
-  --color-lineStrong: var(--line-strong);
-  --color-accent: var(--primary);
-  --color-accentSoft: var(--selected);
-  --color-accentHover: var(--primary-hover);
-  --color-onAccent: var(--on-primary);
-  --color-focus: var(--focus-ring);
-  --color-okSoft: var(--ok-soft);
-  --color-okLine: var(--ok-line);
-  --color-warnInk: var(--warn);
-  --color-warnSoft: var(--warn-soft);
-  --color-dangerSoft: var(--danger-soft);
-  --color-solid: var(--solid);
-  --color-onSolid: var(--on-solid);
 
   --font-sans: var(--sans);
   --font-mono: var(--mono);

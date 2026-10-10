@@ -41,7 +41,7 @@ function SidebarFooterIcon({
     <button
       className={
         "tip tip-nowrap relative w-8 h-8 grid place-items-center rounded-lg text-muted transition-colors " +
-        (active ? "bg-paper text-ink" : "hover:bg-paper")
+        (active ? "bg-bg text-ink" : "hover:bg-bg")
       }
       data-testid={testid}
       data-tip={label}
@@ -225,14 +225,14 @@ export function Sidebar(props: Props) {
         key={session.session_id}
         className={
           "group w-full flex items-center gap-2.5 px-2 py-2 rounded-lg cursor-pointer text-left " +
-          (active ? "bg-ink/[0.055]" : "hover:bg-paper")
+          (active ? "bg-ink/[0.055]" : "hover:bg-bg")
         }
         title={editing ? undefined : title}
         onClick={() => !editing && props.onSelectSession(session.session_id, session.workspace)}
       >
         {editing ? (
           <input
-            className="flex-1 min-w-0 px-1.5 py-0.5 rounded-md bg-panel border border-accent text-[13px] text-ink outline-none"
+            className="flex-1 min-w-0 px-1.5 py-0.5 rounded-md bg-panel border border-primary text-[13px] text-ink outline-none"
             value={editValue}
             autoFocus
             onClick={(event) => event.stopPropagation()}
@@ -260,7 +260,7 @@ export function Sidebar(props: Props) {
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 data-testid="row-menu"
-                className="w-5 h-5 grid place-items-center rounded hover:bg-paper text-faint hover:text-ink"
+                className="w-5 h-5 grid place-items-center rounded hover:bg-bg text-faint hover:text-ink"
                 onClick={() => menuOpen ? closeRowMenu() : setRowMenuId(session.session_id)}
               >
                 <Icon name="moreHorizontal" size={14} className="rotate-90" />
@@ -291,7 +291,7 @@ export function Sidebar(props: Props) {
                       return (
                         <button
                           key={p.id}
-                          className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper"
+                          className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-bg"
                           role="menuitemradio"
                           aria-checked={current}
                           data-testid={"row-menu-project-" + p.id}
@@ -307,7 +307,7 @@ export function Sidebar(props: Props) {
                     })}
                     {projectStore.assign[session.session_id] && (
                       <button
-                        className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper text-muted"
+                        className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-bg text-muted"
                         role="menuitem"
                         data-testid="row-menu-no-project"
                         onClick={() => {
@@ -320,7 +320,7 @@ export function Sidebar(props: Props) {
                       </button>
                     )}
                     <button
-                      className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper"
+                      className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-bg"
                       role="menuitem"
                       data-testid="row-menu-new-project"
                       onClick={() => {
@@ -340,7 +340,7 @@ export function Sidebar(props: Props) {
                     {(["auto", "low", "high", "max"] as const).map((level) => (
                       <button
                         key={level}
-                        className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-paper"
+                        className="w-full flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-left hover:bg-bg"
                         role="menuitemradio"
                         aria-checked={(session.reasoning_effort || "auto") === level}
                         onClick={() => {
@@ -348,13 +348,13 @@ export function Sidebar(props: Props) {
                           props.onSetReasoningEffort(session.session_id, level);
                         }}
                       >
-                        <span className="w-3.5 shrink-0 text-accent">{(session.reasoning_effort || "auto") === level ? "✓" : ""}</span>
+                        <span className="w-3.5 shrink-0 text-primary">{(session.reasoning_effort || "auto") === level ? "✓" : ""}</span>
                         <span className="flex-1">{t(`nav.reasoning.${level}`, undefined, level === "auto" ? "Default" : level)}</span>
                       </button>
                     ))}
                     <div className="h-px bg-line my-1 mx-2" />
                     <button
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-left text-danger hover:bg-paper"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-left text-danger hover:bg-bg"
                       data-testid="row-menu-delete"
                       role="menuitem"
                       onClick={() => {
@@ -384,7 +384,7 @@ export function Sidebar(props: Props) {
       <div className="brand px-3.5 pt-2.5 pb-3 flex items-center gap-2" data-tauri-drag-region>
         {props.onCollapse && (
           <button
-            className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-paper shrink-0"
+            className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-bg shrink-0"
             title={props.collapsed ? t("nav.dockSidebar", undefined, "Dock sidebar (⌘B)") : t("nav.collapse", undefined, "Collapse sidebar (⌘B)")}
             aria-label={props.collapsed ? t("nav.dockSidebar", undefined, "Dock sidebar") : t("nav.collapse", undefined, "Collapse sidebar")}
             onClick={props.onCollapse}
@@ -394,7 +394,7 @@ export function Sidebar(props: Props) {
         )}
         <div className="brand-wordmark text-[15px]">Delta</div>
         <button
-          className="tip tip-below tip-start tip-nowrap nav-search-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-paper shrink-0 ml-auto"
+          className="tip tip-below tip-start tip-nowrap nav-search-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-bg shrink-0 ml-auto"
           data-tip={t("common.search", undefined, "Search")}
           aria-label={t("common.search", undefined, "Search")}
           onClick={() => setSearchOpen(true)}
@@ -415,7 +415,7 @@ export function Sidebar(props: Props) {
 
       <div className="px-3 pt-2">
         <button
-          className="w-full text-left px-3 py-2 bg-accent text-onAccent text-[13px] font-medium hover:opacity-95 flex items-center gap-2 rounded-lg"
+          className="w-full text-left px-3 py-2 bg-primary text-on-primary text-[13px] font-medium hover:opacity-95 flex items-center gap-2 rounded-lg"
           onClick={props.onNewSession}
         >
           <Icon name="plus" size={15} className="shrink-0" /> {t("nav.newSession", undefined, "New task")}
@@ -425,8 +425,8 @@ export function Sidebar(props: Props) {
       <div className="px-2.5 mt-1">
         <button
           className={
-            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-paper hover:text-ink " +
-            (props.scheduledActive ? "text-ink bg-paper" : "text-muted")
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-bg hover:text-ink " +
+            (props.scheduledActive ? "text-ink bg-bg" : "text-muted")
           }
           data-testid="nav-automations"
           onClick={props.onOpenScheduled}
@@ -444,7 +444,7 @@ export function Sidebar(props: Props) {
               {automations.map((automation) => (
                 <button
                   key={automation.id}
-                  className="w-full flex items-center gap-2 px-1.5 py-1 rounded-lg text-left hover:bg-paper"
+                  className="w-full flex items-center gap-2 px-1.5 py-1 rounded-lg text-left hover:bg-bg"
                   data-testid={`scheduled-${automation.id}`}
                   title={automation.title}
                   onClick={() => props.onOpenAutomation(automation.id)}
@@ -489,7 +489,7 @@ export function Sidebar(props: Props) {
                   : t("nav.collapseProject", { name: p.name }, `Collapse ${p.name}`);
                 return (
                   <div key={p.id} data-testid={"project-" + p.id}>
-                    <div className="group/proj flex items-center gap-1 rounded-lg hover:bg-paper">
+                    <div className="group/proj flex items-center gap-1 rounded-lg hover:bg-bg">
                       {editingName ? (
                         <input
                           className="flex-1 min-w-0 mx-1 my-0.5 px-1.5 py-0.5 rounded-md bg-panel border border-primary text-[13px] text-ink outline-none"
@@ -525,7 +525,7 @@ export function Sidebar(props: Props) {
                       {!editingName && (
                         <span className="hidden group-hover/proj:flex group-focus-within/proj:flex items-center shrink-0 pr-1">
                           <button
-                            className="w-5 h-5 grid place-items-center rounded hover:bg-paper text-faint hover:text-ink"
+                            className="w-5 h-5 grid place-items-center rounded hover:bg-bg text-faint hover:text-ink"
                             title={t("common.rename", undefined, "Rename")}
                             aria-label={t("common.rename", undefined, "Rename")}
                             onClick={() => {
@@ -536,7 +536,7 @@ export function Sidebar(props: Props) {
                             <Icon name="pencil" size={12} />
                           </button>
                           <button
-                            className={"h-5 grid place-items-center rounded hover:bg-paper hover:text-danger " + (confirmRemoveProjectId === p.id ? "px-1 text-[11px] text-danger" : "w-5 text-faint")}
+                            className={"h-5 grid place-items-center rounded hover:bg-bg hover:text-danger " + (confirmRemoveProjectId === p.id ? "px-1 text-[11px] text-danger" : "w-5 text-faint")}
                             title={t("nav.removeProject", undefined, "Remove project")}
                             aria-label={t("nav.removeProject", undefined, "Remove project")}
                             data-testid={"project-remove-" + p.id}
@@ -572,7 +572,7 @@ export function Sidebar(props: Props) {
             testid="recent-header"
             action={
               <button
-                className="w-5 h-5 grid place-items-center rounded text-faint hover:text-ink hover:bg-paper"
+                className="w-5 h-5 grid place-items-center rounded text-faint hover:text-ink hover:bg-bg"
                 title={t("nav.newProject", undefined, "New project")}
                 aria-label={t("nav.newProject", undefined, "New project")}
                 data-testid="new-project"
@@ -645,7 +645,7 @@ function TaskBand({ title, testid, action, children }: { title: string; testid?:
 
 function RowAction({ label, icon, testid, onClick }: { label: string; icon: IconName; testid: string; onClick: () => void }) {
   return (
-    <button className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-left hover:bg-paper" data-testid={testid} role="menuitem" onClick={onClick}>
+    <button className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-left hover:bg-bg" data-testid={testid} role="menuitem" onClick={onClick}>
       <Icon name={icon} size={13} className="shrink-0 text-muted" />
       <span className="flex-1">{label}</span>
     </button>

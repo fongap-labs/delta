@@ -7,8 +7,8 @@ import { useI18n } from "@delta/i18n/I18nContext";
 // (centered panel + PanelHead + cards), replacing the legacy `page-view` layout. Read-only:
 // filterable, with sanitized arguments.
 const CARD = "rounded-xl2 border border-line bg-panel";
-const INPUT = "px-3 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent";
-const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-onAccent shrink-0";
+const INPUT = "px-3 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary";
+const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-primary text-on-primary shrink-0";
 
 export function AuditView() {
   const { t } = useI18n();
@@ -32,7 +32,7 @@ export function AuditView() {
   }, []);
 
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 flex bg-bg">
       <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
         <div className="max-w-4xl mx-auto px-7 py-6">
           <PanelHead

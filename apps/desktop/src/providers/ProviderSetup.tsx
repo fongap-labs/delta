@@ -511,7 +511,7 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     if (p.custom) {
       const verifiedDraft = p.name === alias.trim() && fetchedModels.length > 0;
       return (
-        <span className={"block text-[11.5px] font-medium truncate " + (verifiedDraft ? "text-accent" : "text-ok")}>
+        <span className={"block text-[11.5px] font-medium truncate " + (verifiedDraft ? "text-primary" : "text-ok")}>
           {verifiedDraft
             ? t("providers.verifiedPendingSave", undefined, "Verified · save to finish")
             : `✓ ${t("providers.saved", undefined, "Saved")}`}
@@ -621,7 +621,7 @@ export function ProviderCards({
 }) {
   const { t } = useI18n();
   const card =
-    "flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3 py-2.5 text-left hover:border-lineStrong transition-colors";
+    "flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3 py-2.5 text-left hover:border-line-strong transition-colors";
   const list = customOnly ? ps.orderedCustom : ps.ordered;
   return (
     <div className={gridClass}>
@@ -698,7 +698,7 @@ export function ProviderForm({
   const [shouldShowSecret, setShowSecret] = useState(false);
   const label = "block text-[12.5px] font-medium text-muted mt-3 mb-1";
   const input =
-    "w-full px-3 py-2 rounded-lg border bg-panel text-[13.5px] outline-none focus:border-accent";
+    "w-full px-3 py-2 rounded-lg border bg-panel text-[13.5px] outline-none focus:border-primary";
   const fieldsAll = info?.fields || [];
   // Cloud providers declare a segmented auth-method choice; the selected method's
   // credential fields render inside a panel with its own Test & save footer.
@@ -850,7 +850,7 @@ export function ProviderForm({
                 >
                   {info?.custom ? choiceLabel(c.value, c.label, t) : c.label}
                   {c.tag && (
-                    <span className="text-[9.5px] font-semibold uppercase tracking-wide text-accent bg-accentSoft rounded-full px-1.5 py-px">
+                    <span className="text-[9.5px] font-semibold uppercase tracking-wide text-primary bg-selected rounded-full px-1.5 py-px">
                       {t(`providers.auth.${c.value}Tag`, undefined, c.tag)}
                     </span>
                   )}
@@ -859,11 +859,11 @@ export function ProviderForm({
             })}
           </div>
 
-          <div className="mt-2.5 rounded-xl border border-line bg-paper/60 px-4 pb-3.5 pt-3">
+          <div className="mt-2.5 rounded-xl border border-line bg-bg/60 px-4 pb-3.5 pt-3">
             {selected?.desc && <p className="text-[12px] text-muted">{info?.custom ? choiceDesc(selected.value, selected.desc, t) : selected.desc}</p>}
             {selected?.command && (
               <button
-                className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12px] font-mono text-ink hover:border-lineStrong"
+                className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12px] font-mono text-ink hover:border-line-strong"
                 onClick={() => void navigator.clipboard?.writeText(selected.command || "")}
                 title={t("common.copyCommand", undefined, "Copy command")}
                 data-testid={`${tp}-cmd-copy`}
@@ -906,8 +906,8 @@ export function ProviderForm({
           {ps.verify.state === "testing" ? "…" : t("providers.testConnection", undefined, "Test connection")}
         </button>
         {ps.verify.state === "error" ? (
-          <span className="flex items-start gap-1.5 text-[12.5px] text-warnInk min-w-0" data-testid={`${tp}-conn-status`}>
-            <span className="mt-[6px] h-[7px] w-[7px] rounded-full bg-warnInk shrink-0" />
+          <span className="flex items-start gap-1.5 text-[12.5px] text-warn min-w-0" data-testid={`${tp}-conn-status`}>
+            <span className="mt-[6px] h-[7px] w-[7px] rounded-full bg-warn shrink-0" />
             <span className="min-w-0">
               {t("providers.connFail", undefined, "Connection failed")}
               {ps.verify.msg ? (
@@ -951,7 +951,7 @@ export function FetchedModelChips({ ps }: { ps: ProviderSetupState }) {
         {ps.fetchedModels.map((m) => (
           <button
             key={m}
-            className="px-2 py-1 rounded-md border border-line bg-panel text-[12px] font-mono text-ink hover:border-accent hover:text-accent text-left"
+            className="px-2 py-1 rounded-md border border-line bg-panel text-[12px] font-mono text-ink hover:border-primary hover:text-primary text-left"
             onClick={() => void ps.pickFetchedDefault(m)}
           >
             {m}
@@ -968,7 +968,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
   // ~10–15% tighter than the edit path's rhythm (mt-2.5 between fields, py-1.5 inputs)
   // so the four-step form reads compact without feeling crowded.
   const label = "block text-[12.5px] font-medium text-muted mt-2.5 mb-1";
-  const input = "w-full px-3 py-1.5 rounded-lg border bg-panel text-[13.5px] font-normal outline-none focus:border-accent";
+  const input = "w-full px-3 py-1.5 rounded-lg border bg-panel text-[13.5px] font-normal outline-none focus:border-primary";
   const fieldsAll = proto?.fields || [];
   const choice = fieldsAll.find((f) => f.choices && f.choices.length);
   const method = choice ? ps.fields[choice.key] || choice.default || "" : "";
@@ -1037,7 +1037,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
       )}
       {ps.protocolsErr && ps.protocolErrorMessage && (
         <div
-          className="text-[13px] text-warnInk mt-4"
+          className="text-[13px] text-warn mt-4"
           data-testid={`${tp}-protocols-error`}
         >
           {ps.protocolErrorMessage}
@@ -1153,7 +1153,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
                 >
                   {choiceLabel(c.value, c.label, t)}
                   {c.tag && (
-                    <span className="text-[9.5px] font-semibold uppercase tracking-wide text-accent bg-accentSoft rounded-full px-1.5 py-px">
+                    <span className="text-[9.5px] font-semibold uppercase tracking-wide text-primary bg-selected rounded-full px-1.5 py-px">
                       {t(`providers.auth.${c.value}Tag`, undefined, c.tag)}
                     </span>
                   )}
@@ -1161,7 +1161,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
               );
             })}
           </div>
-          <div className="mt-2.5 rounded-xl border border-line bg-paper/60 px-4 pb-3.5 pt-3">
+          <div className="mt-2.5 rounded-xl border border-line bg-bg/60 px-4 pb-3.5 pt-3">
             {selected?.desc && <p className="text-[12px] text-muted">{choiceDesc(selected.value, selected.desc, t)}</p>}
             {methodFields.map((f) => row(f))}
           </div>
@@ -1197,7 +1197,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
 
       {ps.fetchMsg && (
         <p
-          className={"mt-2 text-[12px] " + (ps.fetchMsg.state === "ok" ? "text-ok" : "text-warnInk")}
+          className={"mt-2 text-[12px] " + (ps.fetchMsg.state === "ok" ? "text-ok" : "text-warn")}
           data-testid={`${tp}-fetch-msg`}
         >
           {ps.fetchMsg.text}
@@ -1205,7 +1205,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
       )}
       <FetchedModelChips ps={ps} />
       <div className="mt-3 min-h-[19px] text-[12.5px]">
-        {ps.verify.state === "error" && <span className="text-warnInk">{localizeVerifyMsg(ps.verify.msg, t)}</span>}
+        {ps.verify.state === "error" && <span className="text-warn">{localizeVerifyMsg(ps.verify.msg, t)}</span>}
       </div>
     </div>
   );

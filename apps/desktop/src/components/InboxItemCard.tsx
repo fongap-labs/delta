@@ -22,23 +22,23 @@ import {
 // Shared styles (mock parity with the task access surfaces).
 const SEC = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";
 const BTN_PRIMARY =
-  "px-3 py-1.5 rounded-lg bg-accent text-onAccent text-[12.5px] font-medium hover:brightness-105 disabled:opacity-40 disabled:hover:brightness-100";
+  "px-3 py-1.5 rounded-lg bg-primary text-on-primary text-[12.5px] font-medium hover:brightness-105 disabled:opacity-40 disabled:hover:brightness-100";
 const BTN_BORDERED =
-  "px-3 py-1.5 rounded-lg border border-line bg-paper text-[12.5px] hover:border-lineStrong";
+  "px-3 py-1.5 rounded-lg border border-line bg-bg text-[12.5px] hover:border-line-strong";
 // §35 approval buttons: blue border for the primary, quiet Deny (matches ApprovalCard).
 const BTN_ACCENT =
-  "px-3 py-1.5 rounded-lg border border-accent text-accent text-[12.5px] font-semibold hover:bg-accentSoft";
+  "px-3 py-1.5 rounded-lg border border-primary text-primary text-[12.5px] font-semibold hover:bg-selected";
 const BTN_QUIET = "px-3 py-1.5 text-[12.5px] text-faint hover:text-danger";
 const OPT_BASE =
   "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[13px] transition-colors";
-const OPT_OFF = "border-line bg-paper text-ink hover:border-accent hover:bg-accentSoft/50";
-const OPT_ON = "border-accent bg-accentSoft text-accent font-medium";
+const OPT_OFF = "border-line bg-bg text-ink hover:border-primary hover:bg-selected/50";
+const OPT_ON = "border-primary bg-selected text-primary font-medium";
 const INPUT =
-  "flex-1 min-w-0 rounded-lg bg-paper border border-line px-3 py-2 text-[13px] text-ink placeholder:text-faint outline-none focus:border-lineStrong";
+  "flex-1 min-w-0 rounded-lg bg-bg border border-line px-3 py-2 text-[13px] text-ink placeholder:text-faint outline-none focus:border-line-strong";
 // Rich options stack as full-width rows (pills can't hold a description line).
 const ROW_BASE = "w-full text-left rounded-lg border px-3 py-2 transition-colors";
-const ROW_OFF = "border-line bg-paper hover:border-accent hover:bg-accentSoft/50";
-const ROW_ON = "border-accent bg-accentSoft";
+const ROW_OFF = "border-line bg-bg hover:border-primary hover:bg-selected/50";
+const ROW_ON = "border-primary bg-selected";
 
 // -- question normalization ---------------------------------------------------
 
@@ -114,7 +114,7 @@ function QuestionBlock({ spec, onAnswer }: { spec: QSpec; onAnswer: (a: string) 
   const preview = previewIdx >= 0 ? options[previewIdx].preview : "";
 
   const recommendedTag = (
-    <span className="text-[10px] uppercase tracking-[0.04em] font-semibold text-ok bg-okSoft border border-okLine rounded-full px-1.5 py-px shrink-0">
+    <span className="text-[10px] uppercase tracking-[0.04em] font-semibold text-ok bg-ok-soft border border-ok-line rounded-full px-1.5 py-px shrink-0">
       {t("inbox.question.recommended")}
     </span>
   );
@@ -135,10 +135,10 @@ function QuestionBlock({ spec, onAnswer }: { spec: QSpec; onAnswer: (a: string) 
           >
             <span
               className={
-                "flex items-center gap-2 text-[13px] " + (on ? "text-accent font-medium" : "text-ink font-medium")
+                "flex items-center gap-2 text-[13px] " + (on ? "text-primary font-medium" : "text-ink font-medium")
               }
             >
-              {multi && on && <span className="text-accent text-[11px] leading-none">✓</span>}
+              {multi && on && <span className="text-primary text-[11px] leading-none">✓</span>}
               <span className="min-w-0 truncate">{o.label}</span>
               {o.recommended && recommendedTag}
             </span>
@@ -160,7 +160,7 @@ function QuestionBlock({ spec, onAnswer }: { spec: QSpec; onAnswer: (a: string) 
             {optionRows}
             <pre
               data-testid="question-preview"
-              className="flex-1 min-w-0 rounded-lg border border-line bg-paper p-3 text-[12px] leading-relaxed font-mono whitespace-pre overflow-auto max-h-72 text-ink"
+              className="flex-1 min-w-0 rounded-lg border border-line bg-bg p-3 text-[12px] leading-relaxed font-mono whitespace-pre overflow-auto max-h-72 text-ink"
             >
               {preview}
             </pre>
@@ -178,7 +178,7 @@ function QuestionBlock({ spec, onAnswer }: { spec: QSpec; onAnswer: (a: string) 
                   className={OPT_BASE + " " + (on ? OPT_ON : OPT_OFF)}
                   onClick={() => pick(o)}
                 >
-                  {multi && on && <span className="text-accent text-[11px] leading-none">✓</span>}
+                  {multi && on && <span className="text-primary text-[11px] leading-none">✓</span>}
                   {o.label}
                 </button>
               );
@@ -263,7 +263,7 @@ function QuestionCard({
             ‹
           </button>
         )}
-        <span className={grouped ? "text-accent" : undefined}>
+        <span className={grouped ? "text-primary" : undefined}>
           {spec.header || (grouped ? t("inbox.question.stepN", { n: step + 1 }) : t("inbox.question.label"))}
         </span>
         {grouped && (
@@ -320,7 +320,7 @@ export function InboxItemCard({
     <div
       className={
         compact
-          ? "max-w-3xl mx-auto mb-2.5 rounded-xl2 border border-lineStrong bg-panel px-4 py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+          ? "max-w-3xl mx-auto mb-2.5 rounded-xl2 border border-line-strong bg-panel px-4 py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
           : "mb-2.5 rounded-xl2 border border-line bg-panel px-3.5 py-3"
       }
     >
@@ -333,7 +333,7 @@ export function InboxItemCard({
           {(() => {
             const s = scopeNote(t, item.data.tool, item.data.arguments);
             return (
-              <span className={"text-[11px] whitespace-nowrap pt-0.5 " + (s.external ? "text-warnInk" : "text-faint")}>
+              <span className={"text-[11px] whitespace-nowrap pt-0.5 " + (s.external ? "text-warn" : "text-faint")}>
                 {s.text}
               </span>
             );

@@ -59,10 +59,10 @@ const ZH_CN_LABEL = "简体中文";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
 const FIELD_HELP = "text-[12px] text-muted mt-1.5 leading-relaxed";
 const INPUT =
-  "flex-1 min-w-0 px-3 py-2 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent";
-const BTN_ACCENT = "text-[12.5px] px-3 py-2 rounded-lg bg-accent text-onAccent shrink-0 disabled:opacity-40";
+  "flex-1 min-w-0 px-3 py-2 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary";
+const BTN_ACCENT = "text-[12.5px] px-3 py-2 rounded-lg bg-primary text-on-primary shrink-0 disabled:opacity-40";
 const BTN_BORDERED =
-  "text-[12.5px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong shrink-0";
+  "text-[12.5px] px-3 py-2 rounded-lg border border-line bg-bg hover:border-line-strong shrink-0";
 
 const SET_TABS: {
   key: SetTab;
@@ -100,7 +100,7 @@ export function SettingsView({
   }, [wanted]);
 
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 flex bg-bg">
       <nav className="page-subnav w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4">
         <div className="px-2 text-[13.5px] font-semibold mb-3 flex items-center gap-2">
           <Icon name="gear" size={16} /> {t("settings.title")}
@@ -112,7 +112,7 @@ export function SettingsView({
               key={tb.key}
               className={
                 "w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center gap-2 " +
-                (isActive ? "bg-paper text-accent font-medium" : "text-muted hover:bg-paper hover:text-ink")
+                (isActive ? "bg-bg text-primary font-medium" : "text-muted hover:bg-bg hover:text-ink")
               }
               onClick={() => setTab(tb.key)}
             >
@@ -294,25 +294,25 @@ function VoiceInputSection() {
         <div className={CARD + " p-4 text-[13px] text-muted"}>{t("settings.voice.desktopOnly")}</div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-xl border border-okLine bg-okSoft/70 px-4 py-3 text-[12.5px] text-ok">
+          <div className="rounded-xl border border-ok-line bg-ok-soft/70 px-4 py-3 text-[12.5px] text-ok">
             <span className="font-medium">{t("settings.voice.privateByDesign")}</span> {t("settings.voice.privateByDesignSub")}
           </div>
 
           <div className={CARD}>
             <div className="p-4 flex items-start gap-3">
-              <Icon name="code" size={18} className="text-accent mt-0.5" />
+              <Icon name="code" size={18} className="text-primary mt-0.5" />
               <div className="min-w-0 flex-1">
                 <div className="text-[13.5px] font-medium">{t("settings.voice.thisDevice")}</div>
                 <div className="text-[12px] text-muted mt-1">{status?.device_summary || t("settings.voice.checkingCompat")}</div>
                 {status?.compatibility_reason && <div className="text-[12px] text-danger mt-1.5">{status.compatibility_reason}</div>}
               </div>
               {status && (
-                <span className={"text-[11.5px] px-2 py-1 rounded-full " + (status.supported ? "bg-okSoft text-ok" : "bg-dangerSoft text-danger")}>
+                <span className={"text-[11.5px] px-2 py-1 rounded-full " + (status.supported ? "bg-ok-soft text-ok" : "bg-danger-soft text-danger")}>
                   {status.supported ? t("settings.voice.compatible") : t("settings.voice.unsupported")}
                 </span>
               )}
             </div>
-            <div className="border-t border-line bg-paper/50 px-4 py-3 grid grid-cols-2 gap-3 text-[12px] text-muted">
+            <div className="border-t border-line bg-bg/50 px-4 py-3 grid grid-cols-2 gap-3 text-[12px] text-muted">
               <div><span className="block text-ink font-medium">{t("settings.voice.reqMac")}</span>{t("settings.voice.reqMacSpec")}</div>
               <div><span className="block text-ink font-medium">{t("settings.voice.reqWin")}</span>{t("settings.voice.reqWinSpec")}</div>
               <div><span className="block text-ink font-medium">{t("settings.voice.memory")}</span>{t("settings.voice.memoryReq")}</div>
@@ -322,7 +322,7 @@ function VoiceInputSection() {
 
           <div className={CARD}>
             <div className="p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center font-semibold">W</div>
+              <div className="w-9 h-9 rounded-lg bg-selected text-primary grid place-items-center font-semibold">W</div>
               <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-medium">
                 {status?.model_name?.includes("multilingual")
@@ -337,7 +337,7 @@ function VoiceInputSection() {
               </div>
               {status?.model_verified ? (
                 <>
-                  <span className="text-[11.5px] px-2 py-1 rounded-full bg-okSoft text-ok">{t("settings.voice.verified")}</span>
+                  <span className="text-[11.5px] px-2 py-1 rounded-full bg-ok-soft text-ok">{t("settings.voice.verified")}</span>
                   <button className={BTN_BORDERED} onClick={() => void repair()}>{t("common.retry")}</button>
                   <button className="text-[12px] text-danger px-2 py-2" onClick={() => void remove()}>{t("common.delete")}</button>
                 </>
@@ -351,7 +351,7 @@ function VoiceInputSection() {
             </div>
             {downloading && (
               <div className="border-t border-line px-4 py-3">
-                <div className="h-1.5 rounded-full bg-line overflow-hidden"><div className="h-full bg-accent transition-all" style={{ width: `${progressPercent}%` }} /></div>
+                <div className="h-1.5 rounded-full bg-line overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${progressPercent}%` }} /></div>
                 <div className="mt-1.5 text-[11.5px] text-muted flex"><span>{formatBytes(progress?.downloaded_bytes || 0)} {t("settings.voice.of")} {formatBytes(progressTotal)}</span><span className="ml-auto">{progressPercent}%</span></div>
               </div>
             )}
@@ -366,16 +366,16 @@ function VoiceInputSection() {
                   {ready ? t("settings.voice.micReady") : t("settings.voice.micHint")}
                 </div>
               </div>
-              {ready && <span className="text-[11.5px] px-2 py-1 rounded-full bg-okSoft text-ok inline-flex items-center gap-1"><Icon name="check" size={11} />{t("settings.voice.ready")}</span>}
+              {ready && <span className="text-[11.5px] px-2 py-1 rounded-full bg-ok-soft text-ok inline-flex items-center gap-1"><Icon name="check" size={11} />{t("settings.voice.ready")}</span>}
               <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || checking} onClick={() => void toggleTest()}>
                 {checking ? t("settings.voice.transcribing") : status?.recording ? t("settings.voice.stopAndCheck") : ready ? t("settings.voice.testAgain") : t("settings.voice.testMic")}
               </button>
             </div>
-            {status?.recording && <div className="border-t border-line px-4 py-3 text-[12px] text-accent" role="status">● {t("settings.voice.listening")}</div>}
-            {testTranscript && <div className="border-t border-line bg-paper/50 px-4 py-3 text-[13px]">“{testTranscript}”</div>}
+            {status?.recording && <div className="border-t border-line px-4 py-3 text-[12px] text-primary" role="status">● {t("settings.voice.listening")}</div>}
+            {testTranscript && <div className="border-t border-line bg-bg/50 px-4 py-3 text-[13px]">“{testTranscript}”</div>}
           </div>
 
-          {error && <div role="alert" className="rounded-lg border border-dangerSoft bg-dangerSoft px-3 py-2.5 text-[12px] text-danger">{error}</div>}
+          {error && <div role="alert" className="rounded-lg border border-danger-soft bg-danger-soft px-3 py-2.5 text-[12px] text-danger">{error}</div>}
         </div>
       )}
     </section>
@@ -660,7 +660,7 @@ function TokenSavingsCard() {
             max={100}
             value={pdf.pdf_max_pages}
             data-testid="pdf-max-pages"
-            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary"
             onChange={(e) => save({ pdf_max_pages: Math.max(1, Math.min(Number(e.target.value) || 20, 100)) })}
           />
         </label>
@@ -672,7 +672,7 @@ function TokenSavingsCard() {
             max={10}
             value={pdf.pdf_max_mb}
             data-testid="pdf-max-mb"
-            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary"
             onChange={(e) => save({ pdf_max_mb: Math.max(1, Math.min(Number(e.target.value) || 10, 10)) })}
           />
           <span className="text-[12.5px] text-muted">MB</span>
@@ -734,7 +734,7 @@ function CompactionCard() {
             max={95}
             value={Math.round(cfg.compaction_threshold_pct * 100)}
             data-testid="compaction-threshold"
-            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary"
             onChange={(e) =>
               save({
                 compaction_threshold_pct:
@@ -753,7 +753,7 @@ function CompactionCard() {
             step={10_000}
             value={cfg.compaction_cap_tokens}
             data-testid="compaction-cap"
-            className="w-28 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+            className="w-28 px-2 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary"
             onChange={(e) =>
               save({
                 compaction_cap_tokens: Math.max(
@@ -773,7 +773,7 @@ function CompactionCard() {
         <select
           value={cfg.compaction_model}
           data-testid="compaction-model"
-          className="px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+          className="px-2 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary"
           onChange={(e) => save({ compaction_model: e.target.value })}
         >
           <option value="">{t("settings.compaction.sessionModel")}</option>
@@ -855,7 +855,7 @@ function SidebarCard() {
           min={1}
           max={50}
           value={peek}
-          className="w-16 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+          className="w-16 px-2 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary"
           onChange={(e) => save(Number(e.target.value))}
         />
       </label>
@@ -917,7 +917,7 @@ function FilesCard() {
           />
           {desktop && (
             <button
-              className="text-[12.5px] px-3 py-2 rounded-lg border border-accent bg-accentSoft text-accent shrink-0 hover:opacity-80"
+              className="text-[12.5px] px-3 py-2 rounded-lg border border-primary bg-selected text-primary shrink-0 hover:opacity-80"
               onClick={browseScratch}
               title={t("settings.files.pickFolderTitle")}
             >

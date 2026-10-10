@@ -47,8 +47,8 @@ function relTime(t: T, epoch?: number | null): string | null {
 const SEC_H = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";
 const CARD = "rounded-xl2 border border-line bg-panel";
 const BTN_BORDERED =
-  "text-[12.5px] px-3 py-1.5 rounded-lg border border-line bg-paper hover:border-lineStrong shrink-0";
-const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-onAccent shrink-0 disabled:opacity-50";
+  "text-[12.5px] px-3 py-1.5 rounded-lg border border-line bg-bg hover:border-line-strong shrink-0";
+const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-primary text-on-primary shrink-0 disabled:opacity-50";
 const BTN_DANGER = "text-[12.5px] text-danger/80 hover:text-danger shrink-0";
 
 /** Two-letter initials for a chip/avatar (first+last word, else first two chars). */
@@ -109,7 +109,7 @@ export function ModelsTab() {
         )}
         <button
           type="button"
-          className="text-[13px] text-accent hover:underline inline-flex items-center gap-1"
+          className="text-[13px] text-primary hover:underline inline-flex items-center gap-1"
           onClick={() => setCreateToggle(!createOpen)}
           data-testid="set-add-provider-link"
         >
@@ -161,7 +161,7 @@ export function ModelsTab() {
             {ps.fetchMsg && (
               <p
                 className={
-                  "mb-2 text-[12px] " + (ps.fetchMsg.state === "ok" ? "text-ok" : "text-warnInk")
+                  "mb-2 text-[12px] " + (ps.fetchMsg.state === "ok" ? "text-ok" : "text-warn")
                 }
                 data-testid="set-fetch-msg"
               >
@@ -197,7 +197,7 @@ export function ModelsTab() {
                 return (
                   <div
                     key={m}
-                    className="px-2.5 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-muted"
+                    className="px-2.5 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-muted"
                     title={full}
                   >
                     {settings.model_labels?.[full] || m}
@@ -346,7 +346,7 @@ export function McpTab() {
         {t("connectors.mcpSub")}
         {t("connectors.mcpPermissionGated")}
         <button
-          className="text-accent font-medium hover:underline"
+          className="text-primary font-medium hover:underline"
           onClick={() => reloadMcp().then(refresh)}
         >
           {t("connectors.reloadNow")}
@@ -357,7 +357,7 @@ export function McpTab() {
       {servers.length === 0 && !isAdding ? (
         <div className={CARD + " p-4 text-[13px] text-muted"}>
           {t("connectors.noMcpServers")}
-          <button className="text-accent font-medium" onClick={() => setAdding(true)}>
+          <button className="text-primary font-medium" onClick={() => setAdding(true)}>
             {t("connectors.addServer")}
           </button>
         </div>
@@ -509,7 +509,7 @@ function McpRow({
             <span
               key={tool.name}
               title={tool.description}
-              className="font-mono text-[11.5px] px-1.5 py-0.5 rounded-md bg-paper border border-line"
+              className="font-mono text-[11.5px] px-1.5 py-0.5 rounded-md bg-bg border border-line"
             >
               {tool.name}
             </span>
@@ -565,7 +565,7 @@ function AddForm({
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
         rows={9}
-        className="w-full font-mono text-[12px] px-3 py-2.5 rounded-lg border border-line bg-paper text-ink outline-none focus:border-accent resize-y"
+        className="w-full font-mono text-[12px] px-3 py-2.5 rounded-lg border border-line bg-bg text-ink outline-none focus:border-primary resize-y"
       />
       <div className="flex items-center gap-3">
         <button className={BTN_ACCENT} onClick={save}>
@@ -618,7 +618,7 @@ export function UnauthorizedBlock({
       </div>
       <div className="space-y-2">
         {items.map((m) => (
-          <div key={m.id} className="rounded-xl border border-line bg-paper p-2.5">
+          <div key={m.id} className="rounded-xl border border-line bg-bg p-2.5">
             <div className="flex items-center gap-2 text-[12px] text-muted">
               <span className="font-medium text-ink">{m.user_name || m.user_id}</span>
               <span>{t("connectors.inChannel", { name: m.chat_name || m.chat_id })}</span>
@@ -627,7 +627,7 @@ export function UnauthorizedBlock({
             <div className="text-[12.5px] mt-1 break-words">{m.text}</div>
             <div className="flex items-center gap-1.5 mt-2">
               <button
-                className="text-[11.5px] px-2 py-1 rounded-md bg-accent text-onAccent"
+                className="text-[11.5px] px-2 py-1 rounded-md bg-primary text-on-primary"
                 data-testid={`parked-allow-deliver-${m.id}`}
                 title={t("connectors.allowDeliverTitle")}
                 onClick={() => act(m.id, "allow_deliver")}
@@ -743,10 +743,10 @@ export function AllowlistBlock({
           {allowedUsers.map((u) => (
             <span
               key={u}
-              className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full bg-paper border border-line text-[12px]"
+              className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full bg-bg border border-line text-[12px]"
               title={`id ${u}`}
             >
-              <span className="w-4 h-4 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">
+              <span className="w-4 h-4 rounded-full bg-selected text-primary grid place-items-center text-[9px] font-bold">
                 {initials(names?.[u] || u)}
               </span>
               {names?.[u] || u}
@@ -772,14 +772,14 @@ export function AllowlistBlock({
           <div className="space-y-1.5">
             {unknownRecent.map((r) => (
               <div className="flex items-center gap-2 text-[12.5px]" key={r.user_id}>
-                <span className="w-5 h-5 rounded-full bg-paper border border-line grid place-items-center text-[9px] font-bold text-muted shrink-0">
+                <span className="w-5 h-5 rounded-full bg-bg border border-line grid place-items-center text-[9px] font-bold text-muted shrink-0">
                   {initials(r.user_name || "?")}
                 </span>
                 <span className="min-w-0 truncate" title={`id ${r.user_id}`}>
                   {r.user_name || t("common.unknown")} <span className="text-faint">· {r.chat_type}</span>
                 </span>
                 <button
-                  className="ml-auto text-[11.5px] px-2 py-0.5 rounded-md bg-accent text-onAccent shrink-0"
+                  className="ml-auto text-[11.5px] px-2 py-0.5 rounded-md bg-primary text-on-primary shrink-0"
                   onClick={async () => {
                     await allowUser(c.name, r.user_id, teamId);
                     onChanged();
@@ -814,7 +814,7 @@ export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () =
       <div className="space-y-1.5">
         {c.tools.map((tool) => (
           <label
-            className="flex items-start gap-2.5 p-2 rounded-lg border border-line bg-paper"
+            className="flex items-start gap-2.5 p-2 rounded-lg border border-line bg-bg"
             key={tool.name}
           >
             <input

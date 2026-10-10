@@ -1150,7 +1150,7 @@ export function App() {
           </div>
           <div className="flex items-center justify-between ml-[15px] mt-1.5">
             <button
-              className="text-[12.5px] text-accent font-medium"
+              className="text-[12.5px] text-primary font-medium"
               data-testid="toast-view-run"
               onClick={() => {
                 selectSession(runToast.sessionId, runToast.workspace);
@@ -1348,10 +1348,10 @@ export function App() {
                 it underneath the topbar; owner-reported CSS bug). */}
             {sessionId.startsWith("__run__") && (
               <div
-                className="flex items-center gap-2 px-4 py-2 mb-1 rounded-lg text-[12.5px] border border-line bg-accentSoft/40"
+                className="flex items-center gap-2 px-4 py-2 mb-1 rounded-lg text-[12.5px] border border-line bg-selected/40"
                 data-testid="run-banner"
               >
-                <Icon name="clock" size={14} className="text-accent shrink-0" />
+                <Icon name="clock" size={14} className="text-primary shrink-0" />
                 <span className="truncate text-muted">
                   Scheduled run
                   {runContext?.title ? (
@@ -1363,7 +1363,7 @@ export function App() {
                   · started by an automation
                 </span>
                 <button
-                  className="ml-auto shrink-0 text-accent font-medium hover:underline"
+                  className="ml-auto shrink-0 text-primary font-medium hover:underline"
                   onClick={() => {
                     if (runContext) setScheduledOpenId(runContext.id);
                     setSurface("scheduled");

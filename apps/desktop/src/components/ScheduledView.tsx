@@ -61,7 +61,7 @@ function toCron(time: string, freq: string): string {
 // The §28 page shell: full-bleed main, centered ≤4xl column — same as Connectors/Activity/Inbox.
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex-1 min-w-0 flex bg-paper">
+    <main className="flex-1 min-w-0 flex bg-bg">
       <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
         <div className="max-w-4xl mx-auto px-7 py-6">{children}</div>
       </div>
@@ -145,7 +145,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
           <PanelHead title={t("nav.scheduled")} sub={t("scheduled.sub")} />
         </div>
         <button
-          className="text-[12.5px] px-3 py-1.5 rounded-lg border border-lineStrong bg-panel hover:border-accent hover:text-accent shrink-0"
+          className="text-[12.5px] px-3 py-1.5 rounded-lg border border-line-strong bg-panel hover:border-primary hover:text-primary shrink-0"
           onClick={() => setShowForm((v) => !v)}
         >
           {t("scheduled.newAutomation")}
@@ -181,7 +181,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
         <div className="flex flex-col gap-2.5">
           {tasks.map((task) => (
             <div
-              className={CARD + " sched-card px-4 py-3 cursor-pointer hover:border-lineStrong transition-colors"}
+              className={CARD + " sched-card px-4 py-3 cursor-pointer hover:border-line-strong transition-colors"}
               key={task.id}
               onClick={() => setOpenId(task.id)}
             >

@@ -253,7 +253,7 @@ function ChipListRow({
       <span className="text-[12.5px] text-muted w-24 shrink-0">{label}</span>
       <span className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
         {values.map((value) => (
-          <span key={value} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-paper border border-line text-[12.5px]${mono ? " font-mono" : ""}`}>
+          <span key={value} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-bg border border-line text-[12.5px]${mono ? " font-mono" : ""}`}>
             {value}
             <button className={XBTN} title={t("common.remove")} onClick={() => void onSave(values.filter((item) => item !== value))}>
               ×

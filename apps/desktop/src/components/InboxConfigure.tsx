@@ -27,8 +27,8 @@ import { useI18n } from "@delta/i18n/I18nContext";
 // also deleted a duplication: the mirror channel used to be editable BOTH on this page and
 // via an inline configurator on the Inbox list.
 const CARD = "rounded-xl2 border border-line bg-panel";
-const SELECT = "px-2.5 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink";
-const BTN_ACCENT_SM = "text-[12px] px-2.5 py-1 rounded-md bg-accent text-onAccent disabled:opacity-50";
+const SELECT = "px-2.5 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink";
+const BTN_ACCENT_SM = "text-[12px] px-2.5 py-1 rounded-md bg-primary text-on-primary disabled:opacity-50";
 
 interface WorkspaceChatConnectorData {
   ui?: { detail?: string };
@@ -158,11 +158,11 @@ function InboxRoutingCard() {
         )}
       </div>
       {missingWorkspaceOwner && (
-        <p className="text-[11.5px] text-warnInk mt-2">
+        <p className="text-[11.5px] text-warn mt-2">
           {t("inbox.routingCard.missingOwner")}
         </p>
       )}
-      {error && <p className="text-[11.5px] text-warnInk mt-2">{error}</p>}
+      {error && <p className="text-[11.5px] text-warn mt-2">{error}</p>}
     </div>
   );
 }
@@ -282,7 +282,7 @@ function SubscriptionsCard() {
                   </span>
                   {s.collision && (
                     <span
-                      className="ml-1.5 text-[11px] text-warnInk bg-warnSoft/70 border border-warnInk/15 rounded px-1.5 py-0.5"
+                      className="ml-1.5 text-[11px] text-warn bg-warn-soft/70 border border-warn/15 rounded px-1.5 py-0.5"
                       title={t("inbox.subscriptions.collisionTitle")}
                     >
                       {t("inbox.subscriptions.collides")}
@@ -372,7 +372,7 @@ function UnroutedTable() {
                 {it.source}
               </td>
               <td className="px-4 py-2.5">
-                <span className="text-warnInk" title={it.reason}>
+                <span className="text-warn" title={it.reason}>
                   {it.reason}
                 </span>
               </td>

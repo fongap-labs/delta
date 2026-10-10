@@ -36,7 +36,7 @@ export function SelectMenu({
     <div className="relative">
       <button
         type="button"
-        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-line bg-paper text-[13px] text-ink hover:border-lineStrong"
+        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-line bg-bg text-[13px] text-ink hover:border-line-strong"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
@@ -77,7 +77,7 @@ export function SelectMenu({
                   aria-selected={sel}
                   className={
                     "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left " +
-                    (sel ? "bg-paper" : "hover:bg-paper")
+                    (sel ? "bg-bg" : "hover:bg-bg")
                   }
                   onClick={() => {
                     onChange(o.value);
@@ -94,7 +94,7 @@ export function SelectMenu({
                     </span>
                     {o.sub && <span className="block text-[11.5px] text-faint truncate">{o.sub}</span>}
                   </span>
-                  {sel && <span className="text-accent text-[12px] shrink-0">✓</span>}
+                  {sel && <span className="text-primary text-[12px] shrink-0">✓</span>}
                   <span
                     className={
                       "w-1.5 h-1.5 rounded-full shrink-0 " + (o.dot ? "bg-ok" : "bg-transparent")
