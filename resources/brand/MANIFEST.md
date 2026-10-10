@@ -13,7 +13,7 @@ Brand assets must be edited **here** (or upstream, then synced here), never by h
 
 | Location | Purpose |
 | --- | --- |
-| `apps/desktop/src-tauri/icons/` | Desktop app icons: `icon.png`, `icon.ico`, `icon.icns`, Tauri square/store logos (`32x32.png` … `Square310x310Logo.png`, `StoreLogo.png`), `tray.png` / `tray.rgba` |
+| `apps/desktop/src-tauri/icons/` | Desktop app icons: `icon.png`, `icon.ico`, `icon.icns`, Tauri square/store logos (`32x32.png` … `Square310x310Logo.png`, `StoreLogo.png`), `tray.png` / `tray.rgba` (full-colour, Windows and Linux), `tray-template.png` / `tray-template.rgba` (single-colour macOS menu-bar template, produced by `python scripts/brand_tray_template.py`) |
 | `packaging/portable/launcher/icon.ico` | Portable launcher window icon |
 
 Use `python scripts/check_brand_icons.py --verify` to confirm every generated artifact is present and newer than the brand source.

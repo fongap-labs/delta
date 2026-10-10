@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- feat: the macOS menu-bar icon is now a single-colour template image, so it follows the light and dark menu bar and the highlight state; Windows and Linux keep the full-colour brand icon. The template is derived from the brand source by `scripts/brand_tray_template.py` and registered in the brand icon manifest.
 - feat: the last reply of an idle conversation has a Regenerate action. It cuts the thread back to before the last message and sends the same text and attachments again, so the answer comes from a normal run; it is not offered while a run is in progress or when the last message was a skill command.
 
 - fix: the settings screen showed the HTML entities `&rsquo;` and `&amp;` literally ("Auto follows your Mac&rsquo;s appearance", "Setup &amp; updates"); the hints now use the characters themselves, and the appearance hint no longer names a single operating system.

@@ -843,12 +843,20 @@ pub fn run() {
             let quit_i = MenuItem::with_id(app, "quit", quit_label, true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
 
-            // Full-color Delta brand icon (colored RGBA 32×32, downsampled from the same
-            // assets/logo as the desktop icon) so the tray matches the app icon.
-            let tray_icon = tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 32, 32);
+            // macOS draws the menu-bar icon as a template image in the bar's own colour, so it
+            // gets the single-colour glyph (44×44, derived from the brand source by
+            // scripts/brand_tray_template.py). Windows and Linux keep the full-color brand icon
+            // (colored RGBA 32×32) so the tray matches the app icon.
+            let is_template = cfg!(target_os = "macos");
+            let tray_icon = if is_template {
+                tauri::image::Image::new(include_bytes!("../icons/tray-template.rgba"), 44, 44)
+            } else {
+                tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 32, 32)
+            };
             TrayIconBuilder::new()
                 .tooltip("Delta")
                 .icon(tray_icon)
+                .icon_as_template(is_template)
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),
