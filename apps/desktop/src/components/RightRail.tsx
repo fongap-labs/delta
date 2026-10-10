@@ -10,6 +10,7 @@ import {
   type ArtifactInfo,
 } from "../api";
 import { artifactTrustFromMessages, type ArtifactTrust } from "../artifactTrust";
+import { useEscapeDismiss } from "../useEscapeDismiss";
 import type { TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
@@ -316,6 +317,8 @@ function ArtifactViewer({
 }) {
   const [reloadKey, setReloadKey] = useState(0);
   const { t } = useI18n();
+  // Escape steps back from an open artifact to the list. Not while typing in a field.
+  useEscapeDismiss(true, onBack, { shouldIgnoreFields: true });
   // Trust facts the runtime recorded on the tool result that produced this file (if any).
   const [trust, setTrust] = useState<ArtifactTrust | null>(null);
   useEffect(() => {
