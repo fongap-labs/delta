@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: the runtime records which files a read tool read. After a successful `read_file` call it registers the file as a source and appends a `source.read` event (source id, location relative to the workspace, SHA-256 of the file as hashed before the read, tool and call id) to the run's own ledger stream, before `tool.completed`. Only inputs the capability host verified itself are recorded, only for tools declared `category: read`; a failed, cancelled or replayed call adds nothing, and if the record cannot be written the call fails. `SourceCitationReader::sources_read(run_id)` lists them per run. Nothing in the UI shows this yet.
+
 - docs: define the `source.read` record in the runtime public contract: a runtime-written event in the run's own ledger stream saying a tool call read a given version of a source, plus a read-only query by run. It states what the record does not claim (no citation, no reliance), limits the first implementation to workspace file reads, and reserves optional fields on `citation.marked` for later provider citations. Nothing is implemented yet.
 
 - fix: Escape now closes an open session menu in the sidebar and steps back from an open artifact to the artifact list. It is ignored while an input method is composing text and while typing in a text field, and it never overrides a handler that already used it (dictation cancel, the slash menu, an inline rename).

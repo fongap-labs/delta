@@ -1,4 +1,6 @@
 use super::*;
+use crate::LedgerEvent;
+use sha2::{Digest, Sha256};
 use std::io::{BufRead, BufReader, Read};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::AtomicUsize;
@@ -667,6 +669,7 @@ impl ToolExecutor for CancelAwareExecutor {
             error: Some("capability cancelled".to_string()),
             staged_artifacts: Vec::new(),
             validation_criteria: None,
+            verified_inputs: Vec::new(),
             state: ToolExitState::Cancelled,
         }
     }
@@ -1652,4 +1655,169 @@ fn restart_recovery_partitions_mixed_open_runs() {
     assert_eq!(report.interrupted_runs, vec!["run_exec".to_string()]);
     assert_eq!(report.recovered_waiting, vec!["run_approve".to_string()]);
     assert_eq!(report.swept_side_effects.len(), 1);
+}
+
+struct ReadingExecutor {
+    path: PathBuf,
+    fails: bool,
+}
+
+impl ToolExecutor for ReadingExecutor {
+    fn execute(&self, call: &ToolCall, _context: &ToolExecutionContext) -> ToolResult {
+        if self.fails {
+            return ToolResult::failure(&call.id, "read failed");
+        }
+        let bytes = std::fs::read(&self.path).unwrap();
+        let mut result = ToolResult::success(&call.id, json!({"ok": true, "text": "hello"}));
+        result.verified_inputs.push(VerifiedInput {
+            path: self.path.canonicalize().unwrap(),
+            sha256: format!("{:x}", Sha256::digest(&bytes)),
+            size: bytes.len() as u64,
+        });
+        result
+    }
+}
+
+fn reading_contract(category: &str) -> Value {
+    json!([{
+        "type": "function",
+        "function": {
+            "name": "read_notes",
+            "parameters": {
+                "type": "object",
+                "required": ["path"],
+                "properties": {"path": {"type": "string"}}
+            },
+            "metadata": {
+                "risk_level": "low",
+                "requires_approval": false,
+                "category": category,
+                "capabilities": []
+            }
+        }
+    }])
+}
+
+fn run_reading_tool(
+    category: &str,
+    fails: bool,
+    calls: usize,
+) -> (RuntimeAuthorities, tempfile::TempDir) {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("work");
+    std::fs::create_dir(&workspace).unwrap();
+    std::fs::write(workspace.join("notes.txt"), "hello").unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path().join("state")).unwrap();
+    let mut host = RuntimeHost::new(
+        "session-1",
+        RuntimeConfig {
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(reading_contract(category))
+    .with_tool_executor(Arc::new(ReadingExecutor {
+        path: workspace.join("notes.txt"),
+        fails,
+    }));
+    host.set_run_id("run-1".to_string());
+    for _ in 0..calls {
+        host.execute_tool_call(&ToolCall {
+            id: "call-1".to_string(),
+            name: "read_notes".to_string(),
+            arguments: json!({"path": "notes.txt"}),
+        });
+    }
+    (authorities, temp)
+}
+
+fn read_events(authorities: &RuntimeAuthorities) -> Vec<LedgerEvent> {
+    authorities
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events("run-1")
+        .unwrap()
+}
+
+#[test]
+fn a_read_tool_records_the_source_it_read_before_it_completes() {
+    let (authorities, _temp) = run_reading_tool("read", false, 1);
+    let events = read_events(&authorities);
+    let types: Vec<&str> = events.iter().map(|event| event.r#type.as_str()).collect();
+    let read = types
+        .iter()
+        .position(|kind| *kind == "source.read")
+        .unwrap();
+    let completed = types
+        .iter()
+        .position(|kind| *kind == "tool.completed")
+        .unwrap();
+    assert!(read < completed, "{types:?}");
+
+    let payload = &events[read].payload;
+    assert_eq!(payload["location"], "notes.txt");
+    assert_eq!(payload["origin"], "file");
+    assert_eq!(payload["tool"], "read_notes");
+    assert_eq!(payload["tool_call_id"], "call-1");
+    assert_eq!(
+        payload["fingerprint"],
+        format!("{:x}", Sha256::digest(b"hello"))
+    );
+
+    let reader = crate::SourceCitationReader::from_reader(
+        authorities.ledger.lock().unwrap().reader().unwrap(),
+    );
+    let sources = reader.sources_read("run-1").unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].location, "notes.txt");
+    assert!(!sources[0].cited);
+    assert!(authorities
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .verify("run-1")
+        .unwrap());
+    // The register itself keeps the source, so its status can still be checked later.
+    assert_eq!(reader.list_sources().unwrap().len(), 1);
+}
+
+#[test]
+fn a_tool_that_is_not_a_read_tool_records_no_source() {
+    let (authorities, _temp) = run_reading_tool("filesystem", false, 1);
+    assert!(read_events(&authorities)
+        .iter()
+        .all(|event| event.r#type != "source.read"));
+}
+
+#[test]
+fn a_failed_read_records_no_source() {
+    let (authorities, _temp) = run_reading_tool("read", true, 1);
+    assert!(read_events(&authorities)
+        .iter()
+        .all(|event| event.r#type != "source.read"));
+}
+
+#[test]
+fn a_replayed_read_does_not_record_the_source_twice() {
+    let (authorities, _temp) = run_reading_tool("read", false, 2);
+    let count = read_events(&authorities)
+        .iter()
+        .filter(|event| event.r#type == "source.read")
+        .count();
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn recording_a_read_does_not_change_the_run_lifecycle() {
+    let (authorities, _temp) = run_reading_tool("read", false, 1);
+    let reader = authorities.ledger.lock().unwrap().reader().unwrap();
+    // The run id was never started or finished here; the read must not make it look open.
+    assert!(!reader.open_runs().unwrap().contains(&"$source".to_string()));
+    assert_ne!(reader.run_status("run-1").unwrap(), "completed");
 }

@@ -223,6 +223,7 @@ impl ToolExecutor for CapabilityHost {
                 error: Some("cancelled before dispatch".to_string()),
                 staged_artifacts: Vec::new(),
                 validation_criteria: None,
+                verified_inputs: Vec::new(),
                 state: crate::runtime::ToolExitState::Cancelled,
             };
         }
@@ -269,6 +270,22 @@ impl ToolExecutor for CapabilityHost {
                 })
                 .collect(),
             validation_criteria: None,
+            // Only inputs the host itself hashed before dispatch; the runtime decides whether they
+            // count as sources read (it checks the tool's declared category).
+            verified_inputs: if state == crate::runtime::ToolExitState::Completed {
+                job.input_files
+                    .iter()
+                    .filter_map(|input| {
+                        Some(crate::runtime::VerifiedInput {
+                            path: PathBuf::from(&input.path),
+                            sha256: input.sha256.clone()?,
+                            size: input.size?,
+                        })
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            },
             state,
         }
     }

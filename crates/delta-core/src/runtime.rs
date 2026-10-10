@@ -337,6 +337,16 @@ pub struct StagedArtifact {
     pub incomplete: bool,
 }
 
+/// An input the capability host checked before dispatch: the file as it was then (absolute path,
+/// SHA-256 of its bytes, size). The runtime uses it to record what a read tool read; a worker cannot
+/// add to it.
+#[derive(Debug, Clone)]
+pub struct VerifiedInput {
+    pub path: PathBuf,
+    pub sha256: String,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct ToolResult {
     pub tool_call_id: String,
@@ -344,6 +354,7 @@ pub struct ToolResult {
     pub error: Option<String>,
     pub staged_artifacts: Vec<StagedArtifact>,
     pub validation_criteria: Option<Value>,
+    pub verified_inputs: Vec<VerifiedInput>,
     pub state: ToolExitState,
 }
 
@@ -363,6 +374,7 @@ impl ToolResult {
             error: None,
             staged_artifacts: Vec::new(),
             validation_criteria: None,
+            verified_inputs: Vec::new(),
             state: ToolExitState::Completed,
         }
     }
@@ -375,6 +387,7 @@ impl ToolResult {
             error: Some(error),
             staged_artifacts: Vec::new(),
             validation_criteria: None,
+            verified_inputs: Vec::new(),
             state: ToolExitState::Failed,
         }
     }

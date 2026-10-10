@@ -99,8 +99,8 @@ pub use retry::{
 pub use skills::SkillStore;
 pub use source_citation::{
     validate_all, validate_citation, validate_source_citation, CitationValidationResult,
-    CitationValidity, SourceCitationReader, SourceCitationWriter, SourceRecord,
-    SourceRegisterInput, ValidatedCitation,
+    CitationValidity, SourceCitationReader, SourceCitationWriter, SourceReadInput,
+    SourceReadRecord, SourceRecord, SourceRegisterInput, ValidatedCitation,
 };
 pub use taskstore::{ScheduledTaskEntry, TaskRunEntry, TaskStore};
 pub use tool_lifecycle::{
@@ -118,6 +118,7 @@ pub use runtime::{
     AssistantTurn, EventSink, NullSink, RecoveryReport, RuntimeAuthorities, RuntimeConfig,
     RuntimeEvent, RuntimeEventEnvelopeV1, RuntimeHandle, RuntimeHost, RuntimeState, StagedArtifact,
     StdoutSink, ToolCall, ToolExecutionContext, ToolExecutor, ToolExitState, ToolResult,
+    VerifiedInput,
 };
 
 pub use thiserror::Error;
