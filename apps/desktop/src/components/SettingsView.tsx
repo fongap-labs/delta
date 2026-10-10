@@ -366,7 +366,7 @@ function VoiceInputSection() {
                   {ready ? t("settings.voice.micReady") : t("settings.voice.micHint")}
                 </div>
               </div>
-              {ready && <span className="text-[11.5px] px-2 py-1 rounded-full bg-okSoft text-ok">● {t("settings.voice.ready")}</span>}
+              {ready && <span className="text-[11.5px] px-2 py-1 rounded-full bg-okSoft text-ok inline-flex items-center gap-1"><Icon name="check" size={11} />{t("settings.voice.ready")}</span>}
               <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || checking} onClick={() => void toggleTest()}>
                 {checking ? t("settings.voice.transcribing") : status?.recording ? t("settings.voice.stopAndCheck") : ready ? t("settings.voice.testAgain") : t("settings.voice.testMic")}
               </button>

@@ -78,6 +78,8 @@ interface Props {
   unattended?: boolean;
   onUnattendedChange?: (on: boolean) => void;
   approvalSlot?: ReactNode;
+  /** Run status, rendered directly above the input box (visual system v1: status sits above input). */
+  statusSlot?: ReactNode;
   // Push text + attachments into the composer (e.g. a start-panel task card). The `nonce` makes
   // repeated identical prefills re-apply; the user can still edit before sending.
   prefill?: { text: string; attachments?: Attachment[]; nonce: number };
@@ -513,6 +515,7 @@ export function Composer(props: Props) {
     return (
       <div className="composer-wrap px-6 pb-5 pt-4">
         {props.approvalSlot}
+        {props.statusSlot}
         <div className="composer max-w-3xl mx-auto rounded-2xl border border-line bg-panel shadow-sm">
           <textarea
             ref={textareaRef}
@@ -535,8 +538,13 @@ export function Composer(props: Props) {
                 onChange={props.onReasoningEffortChange}
               />
             )}
-            <button className="btn danger" onClick={props.onInterrupt}>
-              ⏹ {t("composer.stop", undefined, "Stop")}
+            {/* Stop = the inverse (ink) control in the same slot as send: one glance, one target. */}
+            <button
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-ink text-bg text-[13px] font-medium cursor-pointer"
+              onClick={props.onInterrupt}
+            >
+              <Icon name="stop" size={12} />
+              {t("composer.stop", undefined, "Stop")}
             </button>
             <button
               className={

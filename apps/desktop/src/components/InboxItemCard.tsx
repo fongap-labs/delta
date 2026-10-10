@@ -5,6 +5,7 @@ import { humanizeApprovalTitle } from "../humanize";
 import { useI18n } from "@delta/i18n/I18nContext";
 import {
   approvalActionLabels,
+  ConfirmCheck,
   PreviewBlock,
   SaveSkillPreview,
   scopeNote,
@@ -308,6 +309,13 @@ export function InboxItemCard({
 }) {
   const { t } = useI18n();
   const isQuestion = item.kind === "question";
+  const [isConfirmed, setConfirmed] = useState(false);
+  // Same rule as the live card: outbound actions are confirmed before either approving button.
+  const external =
+    item.kind === "approval" &&
+    !!item.data?.tool &&
+    scopeNote(t, item.data.tool, item.data.arguments, item.data.category).external;
+  const locked = external && !isConfirmed;
   return (
     <div
       className={
@@ -349,9 +357,12 @@ export function InboxItemCard({
       ) : null}
       {!isQuestion && chip}
       {item.kind === "approval" ? (
+        <>
+        {external && <ConfirmCheck checked={isConfirmed} onChange={setConfirmed} />}
         <div className="flex items-center gap-2 mt-2.5 flex-wrap">
           <button
             className={item.data?.tool ? BTN_ACCENT : BTN_PRIMARY}
+            disabled={locked}
             onClick={() => onResolve(item.id, "allow")}
           >
             {item.data?.tool ? approvalActionLabels(t, item.data.tool).allow : t("approval.approve")}
@@ -362,6 +373,7 @@ export function InboxItemCard({
           {item.data?.task_id && item.data?.standing_target && (
             <button
               className={BTN_BORDERED}
+              disabled={locked}
               title={t("inbox.approval.alwaysAllow", {
                 target: item.data.standing_target,
                 title: item.data.task_title || t("inbox.approval.thisAutomation"),
@@ -378,6 +390,7 @@ export function InboxItemCard({
             {item.data?.tool ? approvalActionLabels(t, item.data.tool).deny : t("approval.deny")}
           </button>
         </div>
+        </>
       ) : isQuestion ? (
         <QuestionCard item={item} onResolve={onResolve} chip={chip} />
       ) : item.kind === "directory" ? (

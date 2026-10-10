@@ -12,6 +12,7 @@ const render = (ui: ReactElement) => rtlRender(<I18nProvider locale="en-US">{ui}
 type ApprovalItem = Extract<Item, { kind: "approval" }>;
 
 const RUN_TASK = { id: "task-1", title: "Weekly digest" };
+const CONFIRM = "I have checked the recipient and the content";
 
 const sendApproval = (extra: Partial<ApprovalItem> = {}): ApprovalItem => ({
   kind: "approval",
@@ -35,6 +36,8 @@ describe("ApprovalCard — standing scoped approvals (§25)", () => {
         runTask={RUN_TASK}
       />,
     );
+    // Outbound action: confirm first, then either approving button works.
+    fireEvent.click(screen.getByLabelText(CONFIRM));
     fireEvent.click(screen.getByText("Allow every time"));
     expect(onApprove).toHaveBeenCalledWith("always_task");
     expect(screen.queryByText("Always allow")).toBeNull();
@@ -306,5 +309,48 @@ describe("InboxItemCard — parked save_skill proposals (SKILLS-SPEC §5.2)", ()
     expect(onResolve).toHaveBeenCalledWith("i9", "allow");
     fireEvent.click(screen.getByText("Not now"));
     expect(onResolve).toHaveBeenCalledWith("i9", "deny");
+  });
+});
+
+describe("ApprovalCard — outbound actions are confirmed every time", () => {
+  it("locks both approving buttons until the check is ticked; Deny is never locked", () => {
+    const onApprove = vi.fn();
+    render(<ApprovalCard item={sendApproval()} onApprove={onApprove} />);
+    const allow = screen.getByText("Allow once") as HTMLButtonElement;
+    expect(allow.disabled).toBe(true);
+    fireEvent.click(allow);
+    expect(onApprove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText(CONFIRM));
+    expect(allow.disabled).toBe(false);
+    fireEvent.click(allow);
+    expect(onApprove).toHaveBeenCalledWith("once");
+  });
+
+  it("never offers a session-wide Always allow for an outbound action", () => {
+    render(<ApprovalCard item={sendApproval()} onApprove={vi.fn()} />);
+    expect(screen.queryByText("Always allow")).toBeNull();
+  });
+
+  it("denies in one click without confirming", () => {
+    const onApprove = vi.fn();
+    render(<ApprovalCard item={sendApproval()} onApprove={onApprove} />);
+    fireEvent.click(screen.getByText("Deny"));
+    expect(onApprove).toHaveBeenCalledWith("deny");
+  });
+
+  it("keeps routine local actions one-click (no confirm, Always allow still offered)", () => {
+    render(
+      <ApprovalCard
+        item={sendApproval({ name: "web_fetch", args: { url: "https://example.com" }, category: "web" })}
+        onApprove={vi.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText(CONFIRM)).toBeNull();
+    expect((screen.getByText("Allow once") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows the labelled band on outbound cards", () => {
+    render(<ApprovalCard item={sendApproval()} onApprove={vi.fn()} />);
+    expect(screen.getByTestId("approval-band").textContent).toContain("Needs your approval");
   });
 });

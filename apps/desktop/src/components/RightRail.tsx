@@ -239,7 +239,10 @@ function ProgressSummary({ running, toolNames, todo }: { running: boolean; toolN
       <div className="rail-todo-list">
         {todo.map((item, index) => (
           <div className={"rail-todo " + item.status} key={index}>
-            <span className="rail-todo-mark" />
+            {/* Shape + accessible name per state, never colour alone (visual system v1). */}
+            <span className="rail-todo-mark" role="img" aria-label={t(`todo.status.${item.status}`, undefined, item.status)}>
+              <Icon name={item.status === "done" ? "check" : item.status === "in_progress" ? "spinner" : "circle"} size={15} />
+            </span>
             <span>{item.content}</span>
           </div>
         ))}

@@ -4,37 +4,80 @@
    Tailwind v4 CSS-first config: theme tokens reference the CSS custom properties in
    styles.css. `inline` keeps the var() references in generated utilities, and v4 applies
    opacity modifiers via color-mix — the same thing the old tok() wrapper in
-   tailwind.config.js hand-rolled. Token names are kept verbatim (incl. camelCase like
-   lineStrong) so existing class names don't change. */
+   tailwind.config.js hand-rolled.
+
+   Visual system v1: role names (primary, selected, surface-2, …) are the canonical ones; the
+   camelCase names below them are legacy aliases kept so existing class names don't change
+   until each component is migrated. */
 @import "tailwindcss";
 
 @theme inline {
-  --color-paper: var(--paper);
+  /* surfaces + text */
+  --color-bg: var(--bg);
   --color-panel: var(--panel);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
+  --color-disabled: var(--disabled);
   --color-line: var(--line);
-  --color-lineStrong: var(--line-strong);
-  --color-accent: var(--accent);
-  --color-accentSoft: var(--accent-soft);
+  --color-line-strong: var(--line-strong);
+  --color-control: var(--control);
+
+  /* the single accent (teal) */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-on-primary: var(--on-primary);
+  --color-link: var(--link);
+  --color-selected: var(--selected);
+  --color-selected-hover: var(--selected-hover);
+  --color-selected-ink: var(--selected-ink);
+  --color-focus-ring: var(--focus-ring);
+  --color-brand: var(--brand);
+
+  /* semantic */
   --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-line: var(--ok-line);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+  --color-on-danger: var(--on-danger);
+
+  /* ---- legacy aliases (same values, old class names) ---- */
+  --color-paper: var(--bg);
+  --color-lineStrong: var(--line-strong);
+  --color-accent: var(--primary);
+  --color-accentSoft: var(--selected);
+  --color-accentHover: var(--primary-hover);
+  --color-onAccent: var(--on-primary);
+  --color-focus: var(--focus-ring);
   --color-okSoft: var(--ok-soft);
   --color-okLine: var(--ok-line);
-  --color-warnInk: var(--warn-ink);
+  --color-warnInk: var(--warn);
   --color-warnSoft: var(--warn-soft);
-  --color-danger: var(--danger);
   --color-dangerSoft: var(--danger-soft);
-  --color-tealInk: var(--teal-ink);
-  --color-tealSoft: var(--teal-soft);
-  --color-tealLine: var(--teal-line);
   --color-solid: var(--solid);
   --color-onSolid: var(--on-solid);
-  --color-brand: var(--brand);
-  --color-accentHover: var(--accent-hover);
-  --color-onAccent: var(--on-accent);
-  --color-focus: var(--focus);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
-  --font-mono: "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+
+  /* radii: 6 / 8 / 12 / 16 / 20 / 28 (xs / sm / md / lg / xl / 2xl) */
   --radius-xl2: 14px;
+
+  /* One shadow, for floating layers only (menus, dialogs, popovers). Cards, composer and
+     buttons are flat. Dark theme sets --shadow-overlay to none and separates by fill. */
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-md: none;
+  --shadow-lg: var(--shadow-overlay);
+  --shadow-xl: var(--shadow-overlay);
+  --shadow-2xl: var(--shadow-overlay);
+
 }
