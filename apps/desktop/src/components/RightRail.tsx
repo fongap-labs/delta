@@ -3,14 +3,17 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   getArtifacts,
+  getSessionMessages,
   readArtifact,
   revealArtifact,
   type ArtifactContent,
   type ArtifactInfo,
 } from "../api";
+import { artifactTrustFromMessages, type ArtifactTrust } from "../artifactTrust";
 import type { TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
+import { TrustStrip } from "./TrustStrip";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 
@@ -313,6 +316,21 @@ function ArtifactViewer({
 }) {
   const [reloadKey, setReloadKey] = useState(0);
   const { t } = useI18n();
+  // Trust facts the runtime recorded on the tool result that produced this file (if any).
+  const [trust, setTrust] = useState<ArtifactTrust | null>(null);
+  useEffect(() => {
+    let isCurrent = true;
+    getSessionMessages(sessionId)
+      .then((messages) => {
+        if (isCurrent) setTrust(artifactTrustFromMessages(messages, artifact.path));
+      })
+      .catch(() => {
+        if (isCurrent) setTrust(null);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [sessionId, artifact.path, artifact.modified_at]);
   const isHtml = content?.kind === "html" && !content.error;
   // Best viewed in a real app: spreadsheets, PDFs, and Office docs (pptx/docx can't preview inline)
   const isApp = content?.kind === "sheet" || content?.kind === "pdf" || content?.kind === "office";
@@ -371,6 +389,7 @@ function ArtifactViewer({
           </button>
         </div>
       </div>
+      {trust && <TrustStrip trust={trust} />}
       <div className="artifact-preview">
         {!content ? (
           <div className="rail-muted">{t("common.loading")}</div>
