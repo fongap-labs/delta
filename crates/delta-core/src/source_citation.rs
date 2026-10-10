@@ -575,6 +575,13 @@ use crate::ShadowReadError;
 /// Event type for source registration / revision.
 const EV_SOURCE_REGISTERED: &str = "source.registered";
 
+/// Run id namespace for source register events, so they don't interfere with run lifecycle
+/// queries (open_runs, recover_stale).
+const SOURCE_RUN_ID: &str = "$source";
+
+/// Event type for "this run's tool call read this source", written to the run's own stream.
+const EV_SOURCE_READ: &str = "source.read";
+
 /// Event type for citation marking.
 const EV_CITATION_MARKED: &str = "citation.marked";
 
@@ -923,9 +930,6 @@ impl<'a> SourceCitationWriter<'a> {
             "cited_ranges": record.cited_ranges,
             "permissions": record.permissions,
         });
-        // Use "$source" run_id namespace for source events so they don't
-        // interfere with run lifecycle queries (open_runs, recover_stale).
-        const SOURCE_RUN_ID: &str = "$source";
         self.ledger.append(
             SOURCE_RUN_ID,
             EV_SOURCE_REGISTERED,
@@ -938,11 +942,235 @@ impl<'a> SourceCitationWriter<'a> {
     }
 }
 
+/// One source a run read, as the runtime recorded it (`source.read`).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SourceReadRecord {
+    pub source_id: String,
+    pub origin: String,
+    pub location: String,
+    pub fingerprint: String,
+    pub read_at: String,
+    /// True only when a valid `citation.marked` names this run and source. Nothing writes the run
+    /// on a citation yet, so this stays false until provider citations land.
+    pub cited: bool,
+}
+
+impl SourceCitationReader {
+    /// The sources a run read, in first-read order, one entry per SourceRef.
+    pub fn sources_read(&self, run_id: &str) -> Result<Vec<SourceReadRecord>, ShadowReadError> {
+        let cited_ids: std::collections::HashSet<String> = self
+            .reader
+            .events(SOURCE_RUN_ID)?
+            .into_iter()
+            .filter(|event| event.r#type == EV_CITATION_MARKED)
+            .filter(|event| event.payload.get("run_id").and_then(Value::as_str) == Some(run_id))
+            .filter_map(|event| {
+                event
+                    .payload
+                    .get("source_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for event in self.reader.events(run_id)? {
+            if event.r#type != EV_SOURCE_READ {
+                continue;
+            }
+            let field = |name: &str| {
+                event
+                    .payload
+                    .get(name)
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            };
+            let (Some(source_id), Some(origin), Some(location), Some(fingerprint), Some(read_at)) = (
+                field("source_id"),
+                field("origin"),
+                field("location"),
+                field("fingerprint"),
+                field("read_at"),
+            ) else {
+                continue;
+            };
+            if !seen.insert(source_id.clone()) {
+                continue;
+            }
+            out.push(SourceReadRecord {
+                cited: cited_ids.contains(&source_id),
+                source_id,
+                origin,
+                location,
+                fingerprint,
+                read_at,
+            });
+        }
+        Ok(out)
+    }
+}
+
+/// What a tool call read, as the runtime verified it.
+#[derive(Debug, Clone)]
+pub struct SourceReadInput {
+    pub source: SourceRegisterInput,
+    pub tool_call_id: String,
+    pub tool: String,
+}
+
+impl<'a> SourceCitationWriter<'a> {
+    /// Register the source and append `source.read` to the run's own stream. A tool call that is
+    /// recorded twice for the same source leaves one record.
+    pub fn record_read(
+        &self,
+        run_id: &str,
+        input: SourceReadInput,
+        ts: f64,
+        workspace: &str,
+    ) -> Result<SourceRecord, ShadowReadError> {
+        let record = self.register_source(input.source, ts, workspace)?;
+        let already_recorded = self.ledger.reader()?.events(run_id)?.iter().any(|event| {
+            event.r#type == EV_SOURCE_READ
+                && event.payload.get("tool_call_id").and_then(Value::as_str)
+                    == Some(input.tool_call_id.as_str())
+                && event.payload.get("source_id").and_then(Value::as_str)
+                    == Some(record.id.as_str())
+        });
+        if already_recorded {
+            return Ok(record);
+        }
+        let read_at = OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| record.captured_at.clone());
+        self.ledger.append(
+            run_id,
+            EV_SOURCE_READ,
+            "runtime",
+            ts,
+            &serde_json::json!({
+                "source_id": record.id,
+                "origin": record.origin,
+                "location": record.location,
+                "fingerprint": record.fingerprint,
+                "tool_call_id": input.tool_call_id,
+                "tool": input.tool,
+                "read_at": read_at,
+            }),
+            workspace,
+        )?;
+        Ok(record)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
     use std::fs;
+
+    fn writer_fixture() -> (tempfile::TempDir, crate::ledger::LedgerWriter) {
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = crate::ledger::LedgerWriter::open(dir.path().join("run_events.db")).unwrap();
+        (dir, ledger)
+    }
+
+    fn read_input(tool_call_id: &str, fingerprint: &str) -> SourceReadInput {
+        SourceReadInput {
+            source: SourceRegisterInput {
+                origin: "file".to_string(),
+                location: "notes.txt".to_string(),
+                fingerprint: fingerprint.to_string(),
+                captured_at: "2026-01-01T00:00:00Z".to_string(),
+                mtime_ns: None,
+                size_bytes: Some(5),
+                permissions: json!({}),
+            },
+            tool_call_id: tool_call_id.to_string(),
+            tool: "read_file".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_read_is_recorded_once_per_tool_call() {
+        let (_dir, ledger) = writer_fixture();
+        let writer = SourceCitationWriter::new(&ledger);
+        writer
+            .record_read("run-1", read_input("call-1", "aa"), 1.0, "ws")
+            .unwrap();
+        writer
+            .record_read("run-1", read_input("call-1", "aa"), 2.0, "ws")
+            .unwrap();
+        let reader = SourceCitationReader::from_reader(ledger.reader().unwrap());
+        assert_eq!(reader.sources_read("run-1").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn two_reads_of_unchanged_content_list_one_source() {
+        let (_dir, ledger) = writer_fixture();
+        let writer = SourceCitationWriter::new(&ledger);
+        writer
+            .record_read("run-1", read_input("call-1", "aa"), 1.0, "ws")
+            .unwrap();
+        writer
+            .record_read("run-1", read_input("call-2", "aa"), 2.0, "ws")
+            .unwrap();
+        let reader = SourceCitationReader::from_reader(ledger.reader().unwrap());
+        assert_eq!(reader.sources_read("run-1").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_file_that_changed_between_reads_lists_both_versions() {
+        let (_dir, ledger) = writer_fixture();
+        let writer = SourceCitationWriter::new(&ledger);
+        writer
+            .record_read("run-1", read_input("call-1", "aa"), 1.0, "ws")
+            .unwrap();
+        writer
+            .record_read("run-1", read_input("call-2", "bb"), 2.0, "ws")
+            .unwrap();
+        let reader = SourceCitationReader::from_reader(ledger.reader().unwrap());
+        let fingerprints: Vec<String> = reader
+            .sources_read("run-1")
+            .unwrap()
+            .into_iter()
+            .map(|record| record.fingerprint)
+            .collect();
+        assert_eq!(fingerprints, vec!["aa", "bb"]);
+    }
+
+    #[test]
+    fn a_run_only_lists_its_own_reads() {
+        let (_dir, ledger) = writer_fixture();
+        let writer = SourceCitationWriter::new(&ledger);
+        writer
+            .record_read("run-1", read_input("call-1", "aa"), 1.0, "ws")
+            .unwrap();
+        let reader = SourceCitationReader::from_reader(ledger.reader().unwrap());
+        assert!(reader.sources_read("run-2").unwrap().is_empty());
+    }
+
+    #[test]
+    fn cited_is_true_only_for_a_citation_that_names_this_run() {
+        let (_dir, ledger) = writer_fixture();
+        let writer = SourceCitationWriter::new(&ledger);
+        let record = writer
+            .record_read("run-1", read_input("call-1", "aa"), 1.0, "ws")
+            .unwrap();
+        let reader = SourceCitationReader::from_reader(ledger.reader().unwrap());
+        assert!(!reader.sources_read("run-1").unwrap()[0].cited);
+        ledger
+            .append(
+                "$source",
+                "citation.marked",
+                "system",
+                2.0,
+                &json!({"source_id": record.id, "run_id": "run-1", "range": {"kind": "lines", "start": 1, "end": 1}}),
+                "ws",
+            )
+            .unwrap();
+        let reader = SourceCitationReader::from_reader(ledger.reader().unwrap());
+        assert!(reader.sources_read("run-1").unwrap()[0].cited);
+    }
 
     #[test]
     fn lines_citation_ok() {

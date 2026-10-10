@@ -202,6 +202,16 @@ mod tests {
         );
         assert_eq!(result.state, crate::runtime::ToolExitState::Completed);
         assert_eq!(result.output["text"], "hello capability");
+        // The host hashed the file before dispatch; the runtime records exactly that.
+        assert_eq!(result.verified_inputs.len(), 1);
+        assert_eq!(
+            result.verified_inputs[0].sha256,
+            format!(
+                "{:x}",
+                <sha2::Sha256 as sha2::Digest>::digest(b"hello capability")
+            )
+        );
+        assert_eq!(result.verified_inputs[0].size, 16);
     }
 
     #[test]

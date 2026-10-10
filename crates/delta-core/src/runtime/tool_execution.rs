@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 
 use crate::approval::ApprovalRecordInput;
 use crate::artifact::{ArtifactInput, ArtifactRegistryWriter};
+use crate::source_citation::{SourceCitationWriter, SourceReadInput, SourceRegisterInput};
 use crate::tool_lifecycle::{self, PlanAction, ToolLifecyclePlanInput};
 use crate::validation::ValidationWriter;
 
@@ -289,6 +290,63 @@ impl RuntimeHost {
         serde_json::to_value(result).map_err(|error| error.to_string())
     }
 
+    /// Record the files a read tool read (`source.read`): register each as a source, then append
+    /// the per-run record. Only inputs the capability host hashed before dispatch are recorded.
+    fn record_sources_read(
+        &self,
+        authorities: &RuntimeAuthorities,
+        run_id: &str,
+        call: &ToolCall,
+        inputs: &[VerifiedInput],
+    ) -> Result<(), String> {
+        if inputs.is_empty() {
+            return Ok(());
+        }
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        let workspace_root = Path::new(&workspace).canonicalize().ok();
+        let ledger = authorities.ledger.lock().unwrap();
+        let writer = SourceCitationWriter::new(&ledger);
+        let captured_at = time::OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .map_err(|error| error.to_string())?;
+        for input in inputs {
+            // A workspace file is identified by its path inside the workspace, so the same file
+            // keeps one identity if the workspace folder is moved; anything else by its full path.
+            let location = workspace_root
+                .as_ref()
+                .and_then(|root| input.path.strip_prefix(root).ok())
+                .unwrap_or(&input.path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let mtime_ns = std::fs::metadata(&input.path)
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+                .and_then(|elapsed| u64::try_from(elapsed.as_nanos()).ok());
+            writer
+                .record_read(
+                    run_id,
+                    SourceReadInput {
+                        source: SourceRegisterInput {
+                            origin: "file".to_string(),
+                            location,
+                            fingerprint: input.sha256.clone(),
+                            captured_at: captured_at.clone(),
+                            mtime_ns,
+                            size_bytes: Some(input.size),
+                            permissions: json!({}),
+                        },
+                        tool_call_id: call.id.clone(),
+                        tool: call.name.clone(),
+                    },
+                    now_ts(),
+                    &workspace,
+                )
+                .map_err(|error| format!("source.read could not be persisted: {error}"))?;
+        }
+        Ok(())
+    }
+
     pub(super) fn execute_tool_call(&self, call: &ToolCall) -> ToolResult {
         let (_schema, metadata) = match self.tool_contract(call) {
             Ok(contract) => contract,
@@ -302,6 +360,10 @@ impl RuntimeHost {
             );
             }
         };
+        let is_read_tool = metadata
+            .as_ref()
+            .and_then(|metadata| metadata.category.as_deref())
+            == Some("read");
         let (level, decision) = match self.policy_for(call, metadata) {
             Ok(outcome) => outcome,
             Err(error) => return ToolResult::failure(&call.id, error),
@@ -659,6 +721,28 @@ impl RuntimeHost {
                 output.insert("artifacts".to_string(), Value::Array(artifacts.clone()));
             }
             output.insert("validation".to_string(), validation);
+        }
+        if is_read_tool {
+            if let Err(error) =
+                self.record_sources_read(authorities, &run_id, call, &result.verified_inputs)
+            {
+                let primary =
+                    format!("{error}; the read is not recorded, so the call is treated as failed");
+                if let Err(persistence_error) = self.mark_tool_failed(
+                    authorities,
+                    &run_id,
+                    call,
+                    &error,
+                    (
+                        "tool.failed",
+                        "runtime",
+                        json!({"tool_call_id": call.id, "tool": call.name, "stage": "source", "error": &error}),
+                    ),
+                ) {
+                    return ToolResult::failure(&call.id, format!("{primary}; {persistence_error}"));
+                }
+                return ToolResult::failure(&call.id, primary);
+            }
         }
         if let Err(error) = authorities.idempotency.lock().unwrap().commit(
             &run_id,
