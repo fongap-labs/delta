@@ -4,6 +4,7 @@ import type { SessionInfo } from "../types";
 import { ConnectorIcon } from "../features/connectors/ConnectorIcon";
 import { Icon, type IconName } from "./Icon";
 import { groupByDate, useProjects, type DateBucket } from "../sessionGroups";
+import { useEscapeDismiss } from "../useEscapeDismiss";
 import { SearchModal } from "./SearchModal";
 import { useI18n } from "@delta/i18n/I18nContext";
 
@@ -209,6 +210,8 @@ export function Sidebar(props: Props) {
     setRowMenuId(null);
     setConfirmDeleteId(null);
   };
+  // Escape closes an open row menu, like a click outside it.
+  useEscapeDismiss(rowMenuId !== null, closeRowMenu);
 
   const row = (session: SessionInfo) => {
     const title = session.title || session.session_id;
