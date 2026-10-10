@@ -116,6 +116,12 @@ MANIFEST: list[Artifact] = [
              "tray png: `cargo tauri icon` (see icon.ico row)"),
     Artifact("apps/desktop/src-tauri/icons/tray.rgba",
              "tray rgba: `cargo tauri icon` (see icon.ico row)"),
+    Artifact("apps/desktop/src-tauri/icons/tray-template.png",
+             "macOS tray template (black glyph, alpha = coverage): "
+             "`python scripts/brand_tray_template.py`"),
+    Artifact("apps/desktop/src-tauri/icons/tray-template.rgba",
+             "macOS tray template, raw RGBA embedded by the shell: "
+             "`python scripts/brand_tray_template.py`"),
     # --- Portable launcher ---------------------------------------------------
     Artifact("packaging/portable/launcher/icon.ico",
              "launcher ico: `magick resources/brand/delta-logo-512x512.png -resize 256x256 "
