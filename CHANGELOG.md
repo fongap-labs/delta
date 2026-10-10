@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: define the `source.read` record in the runtime public contract: a runtime-written event in the run's own ledger stream saying a tool call read a given version of a source, plus a read-only query by run. It states what the record does not claim (no citation, no reliance), limits the first implementation to workspace file reads, and reserves optional fields on `citation.marked` for later provider citations. Nothing is implemented yet.
+
 - fix: Escape now closes an open session menu in the sidebar and steps back from an open artifact to the artifact list. It is ignored while an input method is composing text and while typing in a text field, and it never overrides a handler that already used it (dictation cancel, the slash menu, an inline rename).
 
 - fix: the Activity page, the Inbox and the Memory page no longer present a failed read as an empty list ("No audit events yet", an empty queue, "Nothing yet"). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow. The read functions throw when the runtime reports an error instead of returning an empty result.
