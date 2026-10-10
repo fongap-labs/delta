@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- fix: the settings screen showed the HTML entities `&rsquo;` and `&amp;` literally ("Auto follows your Mac&rsquo;s appearance", "Setup &amp; updates"); the hints now use the characters themselves, and the appearance hint no longer names a single operating system.
 - feat: the desktop app moves to the Delta visual system v1: teal is the only accent (a lifted teal in dark mode keeps text at 4.5:1 and the focus ring above 3:1), surfaces are flat with no frosted glass and one shadow for floating layers, keyboard focus has one ring, and status is shown by shape and word instead of colour alone. The retired gray-blue accent is gone, and the old colour names keep working as aliases while components migrate.
 - feat: the run status bar sits directly above the composer and shows the running state with an icon and a word. It now follows the dark theme (it stayed light gray before) and honours reduced motion. Paused, resumed and verified states are not shown until the runtime reports them.
 - feat [security]: approvals for actions that leave the computer (chat messages, files, connector calls), live and parked in the Inbox, carry a labelled "Needs your approval" band and stay locked until the user confirms the recipient and content; the session-wide "Always allow" is no longer offered for them, and the task-scoped "Allow every time" of an automation run needs the same confirmation. This is a client-side safeguard: the runtime's approval decisions and authority are unchanged. The primary approval button is now a solid fill.
