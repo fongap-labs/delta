@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- fix: while a run is waiting for an approval, a folder request, a plan decision or a question, the run status bar now says "Awaiting approval" with a hand icon instead of "Running", so a blocked run is no longer shown as working.
 - feat: the artifact viewer shows a trust strip when the runtime recorded how the file was made: the validation verdict (checks passed or failed, expandable to each check and its reason), the tool that produced it, and the SHA-256 registered with it. It is read from the producing tool result already stored in the conversation, so nothing is inferred and a file without such a record shows no strip. Sources and versions are not shown yet.
 
 - feat: the macOS menu-bar icon is now a single-colour template image, so it follows the light and dark menu bar and the highlight state; Windows and Linux keep the full-colour brand icon. The template is derived from the brand source by `scripts/brand_tray_template.py` and registered in the brand icon manifest.
