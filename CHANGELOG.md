@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: the first statistics figures are computed by R. A new `statistics` module describes one CSV column (n, mean, sample sd, min, max, median) with R run under a time limit; the R program is compiled in, and each result records its R version and the SHA-256 of the program and of the input (ADR-0054, step 2a). Not yet a capability the model can call.
+
 - feat [security]: connector tools are governed by the workspace egress level. A tool in category `connector` that declares no destination is treated as going to any public site, so it is refused in Private only and asked for in Approved endpoints; each connector has its own per-path rule (`connector:<name>`). Suite connectors do not declare a destination yet (ADR-0061, step 2d).
 
 - feat [security]: a per-path rule lets the user allow, ask for, or block one tool family or one MCP server in one workspace (or in every workspace), replacing the workspace level's decision for that path. Only the settings command sets a rule; a rule that lets more content go asks for confirmation first, and removing a rule takes effect at once. The rule in force is recorded on the outbound call's ledger event (ADR-0061, step 2c).
