@@ -441,6 +441,17 @@ Skill
 
 新增重复工作优先考虑 Skill，不优先增加 Runtime、常驻服务或专用 Agent。
 
+### 6.3 Foundation 与行业扩展
+
+通用能力放在 Delta Foundation（本仓库）；行业能力放在 `fongap-labs/delta-suite`，只通过公开契约接入。
+
+- **Foundation**：通用统计、试验设计、Office 读写、报告渲染、数值溯源、研究记录等不含行业规则的能力；
+- **Suite**：行业 Skill、行业计算方法、报告模板和校验规则集。
+
+第一个行业方向是**制剂 / CMC 研究分析**（稳定性与货架期、溶出曲线比较、处方与工艺 DOE、研究报告）。行业名称、法规条款和行业流程不进入 Foundation 的 Authority 逻辑。
+
+相关提案：ADR-0054（统计引擎）、ADR-0055（数值溯源）、ADR-0056（研究记录）。
+
 ---
 
 ## 7. Learning 与自我进化
