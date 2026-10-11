@@ -439,6 +439,8 @@ export const updateWorkspaceEgress = (workspace: string, level: string | null, i
   invokeAuthority("set_workspace_egress", { workspace, level, isConfirmed });
 export const updateEndpointMark = (host: string, mark: string | null, isConfirmed: boolean) =>
   invokeAuthority("set_endpoint_mark", { host, mark, isConfirmed });
+export const updateLocalOnly = (server: string, isLocalOnly: boolean, isConfirmed: boolean) =>
+  invokeAuthority("set_local_only", { server, isLocalOnly, isConfirmed });
 export const directSetWebSearchSettings = (engines: unknown) =>
   invokeAuthority("set_web_search_settings", { engines });
 export const directTestWebSearchEngine = (id: string) => invokeAuthority("test_web_search_engine", { id });

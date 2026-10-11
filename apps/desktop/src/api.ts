@@ -37,6 +37,7 @@ import {
   updateEgressDefault,
   updateWorkspaceEgress,
   updateEndpointMark,
+  updateLocalOnly,
   directRecentWorkspaces,
   directRemoveModel,
   directRemoveProvider,
@@ -318,6 +319,8 @@ export interface EgressSettings {
   is_chosen: boolean;
   workspaces: { workspace: string; level: EgressLevel }[];
   endpoint_marks: { host: string; mark: EndpointMark }[];
+  /** Local MCP servers the user stated do not reach the network (ADR-0061). */
+  local_only_servers: string[];
 }
 
 /** A settings change: the new settings, or `needs_confirmation` when it loosens a level. */
@@ -349,6 +352,14 @@ export async function setEndpointMark(
   isConfirmed: boolean,
 ): Promise<EgressChange> {
   return (await updateEndpointMark(host, mark, isConfirmed)) as EgressChange;
+}
+
+export async function setLocalOnly(
+  server: string,
+  isLocalOnly: boolean,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updateLocalOnly(server, isLocalOnly, isConfirmed)) as EgressChange;
 }
 
 export async function getTrustedWorkspaces(): Promise<WorkspaceCommandTrust[]> {

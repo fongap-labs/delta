@@ -298,10 +298,11 @@ function commandSources(): Record<string, string> {
     settings_set_surfaces: `(args) => ({ ok: true, surfaces: { delta: true } })`,
     // Egress levels (ADR-0057). The seeded state counts as chosen so the first-run chooser does not
     // cover every test; a test that needs the chooser overrides get_egress_settings.
-    get_egress_settings: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [] })`,
-    set_egress_default: `(args) => ({ ok: true, default_level: args.level, is_chosen: true, workspaces: [], endpoint_marks: [] })`,
-    set_workspace_egress: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: args.level ? [{ workspace: args.workspace, level: args.level }] : [], endpoint_marks: [] })`,
-    set_endpoint_mark: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: args.mark ? [{ host: args.host, mark: args.mark }] : [] })`,
+    get_egress_settings: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [] })`,
+    set_egress_default: `(args) => ({ ok: true, default_level: args.level, is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [] })`,
+    set_workspace_egress: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: args.level ? [{ workspace: args.workspace, level: args.level }] : [], endpoint_marks: [], local_only_servers: [] })`,
+    set_endpoint_mark: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: args.mark ? [{ host: args.host, mark: args.mark }] : [], local_only_servers: [] })`,
+    set_local_only: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: args.isLocalOnly ? [args.server] : [] })`,
     // Same shape as the runtime's WebSearchSettings::public_view: the built-in engines, no keys.
     get_web_search_settings: `(args) => ({ ok: true, engines: [
       { id: "google", name: "Google", builtin: true, enabled: true, needs_key: false, accepts_key: true, has_key: false, has_cx: false, template: "", auth_header: "" },
