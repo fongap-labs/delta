@@ -1821,3 +1821,198 @@ fn recording_a_read_does_not_change_the_run_lifecycle() {
     assert!(!reader.open_runs().unwrap().contains(&"$source".to_string()));
     assert_ne!(reader.run_status("run-1").unwrap(), "completed");
 }
+
+// -- Resume keeps the run identity (ADR-0053) ---------------------------------------------------
+
+/// A run of `session-resume` as the ledger would hold it: started, checkpointed, then optionally
+/// closed by `last_event` (for example `run.interrupted`).
+fn seed_session_run(auth: &RuntimeAuthorities, run_id: &str, last_event: Option<&str>) {
+    {
+        let ledger = auth.ledger.lock().unwrap();
+        ledger
+            .transition(
+                run_id,
+                "run.started",
+                "user",
+                now_ts(),
+                &json!({"kind": "run"}),
+                "",
+            )
+            .unwrap();
+        CheckpointWriter::new(&ledger)
+            .register(
+                CheckpointRegisterInput {
+                    checkpoint_id: None,
+                    run_id: run_id.to_string(),
+                    session_id: "session-resume".to_string(),
+                    phase: "tool_completed".to_string(),
+                    pending_tool_call: None,
+                    pending_inbox_item_id: None,
+                    last_event_seq: None,
+                    todo_summary: Vec::new(),
+                    recent_artifacts: Vec::new(),
+                    error: None,
+                },
+                now_ts(),
+                "",
+            )
+            .unwrap();
+        if let Some(event) = last_event {
+            ledger
+                .transition(
+                    run_id,
+                    event,
+                    "system",
+                    now_ts(),
+                    &json!({"kind": "run"}),
+                    "",
+                )
+                .unwrap();
+        }
+    }
+    // Checkpoint timestamps have one-second resolution; keep the seeded runs in order.
+    std::thread::sleep(Duration::from_millis(1100));
+}
+
+fn resume_host(base_url: String, authorities: &RuntimeAuthorities) -> RuntimeHost {
+    RuntimeHost::new(
+        "session-resume",
+        RuntimeConfig {
+            model: "test-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "test-key".to_string(),
+            base_url,
+            max_iterations: 2,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_messages(vec![json!({"role": "user", "content": "hello"})])
+}
+
+fn run_events(auth: &RuntimeAuthorities, run_id: &str) -> Vec<LedgerEvent> {
+    auth.ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events(run_id)
+        .unwrap()
+}
+
+#[test]
+fn resume_continues_the_interrupted_run_under_its_own_run_id() {
+    let temp = tempfile::tempdir().unwrap();
+    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    seed_session_run(&auth, "run-old", Some("run.interrupted"));
+    let provider = MockProvider::start(1);
+    let handle = RuntimeHandle::spawn(resume_host(provider.base_url.clone(), &auth)).unwrap();
+
+    let run_id = handle.resume().unwrap();
+    assert_eq!(run_id, "run-old");
+    provider
+        .first_response_started
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap();
+    provider.release_first_response.send(()).unwrap();
+    wait_for_terminal(&handle);
+    assert_eq!(handle.state(), RuntimeState::Completed);
+    provider.finish();
+
+    let events = run_events(&auth, "run-old");
+    let types: Vec<&str> = events.iter().map(|event| event.r#type.as_str()).collect();
+    assert_eq!(
+        types.iter().filter(|kind| **kind == "run.started").count(),
+        1,
+        "{types:?}"
+    );
+    assert_eq!(
+        types.iter().filter(|kind| **kind == "run.resumed").count(),
+        1,
+        "{types:?}"
+    );
+    let resumed = types
+        .iter()
+        .position(|kind| *kind == "run.resumed")
+        .unwrap();
+    let interrupted = types
+        .iter()
+        .position(|kind| *kind == "run.interrupted")
+        .unwrap();
+    assert!(interrupted < resumed, "{types:?}");
+    assert_eq!(types.last(), Some(&"run.completed"));
+    assert_eq!(events[resumed].payload["previous_status"], "interrupted");
+    let reader = auth.ledger.lock().unwrap().reader().unwrap();
+    assert!(reader.verify("run-old").unwrap());
+    assert_eq!(reader.run_status("run-old").unwrap(), "ok"); // the ledger's name for a completed run
+}
+
+fn assert_resume_is_rejected(auth: &RuntimeAuthorities, expected: &str) {
+    let handle = RuntimeHandle::spawn(resume_host("http://127.0.0.1:9".to_string(), auth)).unwrap();
+    let before = auth
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .all_events()
+        .unwrap()
+        .len();
+    let error = handle.resume().unwrap_err();
+    assert!(error.contains(expected), "{error}");
+    assert_eq!(handle.state(), RuntimeState::Idle);
+    let after = auth
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .all_events()
+        .unwrap()
+        .len();
+    assert_eq!(before, after, "a rejected resume must write nothing");
+}
+
+#[test]
+fn resume_with_no_recorded_run_is_rejected_and_writes_nothing() {
+    let temp = tempfile::tempdir().unwrap();
+    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    assert_resume_is_rejected(&auth, "no recorded run");
+}
+
+#[test]
+fn a_finished_run_cannot_be_resumed() {
+    for closing in ["run.completed", "run.failed", "run.cancelled"] {
+        let temp = tempfile::tempdir().unwrap();
+        let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+        seed_session_run(&auth, "run-done", Some(closing));
+        assert_resume_is_rejected(&auth, "not interrupted");
+    }
+}
+
+#[test]
+fn a_run_still_open_on_a_human_decision_is_not_resumed() {
+    let temp = tempfile::tempdir().unwrap();
+    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    seed_session_run(&auth, "run-waiting", None);
+    assert_resume_is_rejected(&auth, "not interrupted");
+}
+
+#[test]
+fn an_older_interrupted_run_is_not_resumed_after_a_newer_run_finished() {
+    let temp = tempfile::tempdir().unwrap();
+    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    seed_session_run(&auth, "run-old", Some("run.interrupted"));
+    seed_session_run(&auth, "run-new", Some("run.completed"));
+    assert_resume_is_rejected(&auth, "not interrupted");
+}
+
+#[test]
+fn resume_without_a_run_ledger_is_rejected() {
+    let handle =
+        RuntimeHandle::spawn(RuntimeHost::new("session-resume", RuntimeConfig::default())).unwrap();
+    assert!(handle
+        .resume()
+        .unwrap_err()
+        .contains("ledger is unavailable"));
+}

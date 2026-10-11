@@ -17,6 +17,7 @@ impl RuntimeHandle {
         host.runtime_state = Some(state.clone());
         let approvals = host.approvals.clone();
         let interactions = host.interactions.clone();
+        let authorities = host.authorities.clone();
         let follow_ups = Arc::new(Mutex::new(VecDeque::new()));
         let messages = Arc::new(RwLock::new(host.messages.clone()));
         let (command_tx, command_rx) = mpsc::channel();
@@ -52,6 +53,7 @@ impl RuntimeHandle {
             messages,
             approvals,
             interactions,
+            authorities,
         })
     }
 
@@ -109,11 +111,45 @@ impl RuntimeHandle {
         Ok(run_id)
     }
 
+    /// Resume the session's interrupted run under its own `run_id` (ADR-0053). The runtime chooses
+    /// the run: the one in the session's latest checkpoint, and only if the ledger says its last
+    /// lifecycle state is `interrupted`. Otherwise this is rejected; it never starts a new run.
     pub fn resume(&self) -> Result<String, String> {
-        let run_id = uuid_v4();
+        let run_id = self.interrupted_run()?;
         self.enqueue_operation(RuntimeOperation::Resume {
             run_id: run_id.clone(),
         })?;
+        Ok(run_id)
+    }
+
+    fn interrupted_run(&self) -> Result<String, String> {
+        let authorities = self
+            .authorities
+            .as_ref()
+            .ok_or_else(|| "nothing to resume: the run ledger is unavailable".to_string())?;
+        let run_id = {
+            let ledger = authorities.ledger.lock().unwrap();
+            let reader = ledger.reader().map_err(|error| error.to_string())?;
+            CheckpointReader::from_reader(reader)
+                .list(None, Some(&self.session_id))
+                .map_err(|error| error.to_string())?
+                .into_iter()
+                .max_by_key(|checkpoint| checkpoint.created_at.clone())
+                .map(|checkpoint| checkpoint.run_id)
+                .ok_or_else(|| "nothing to resume: this session has no recorded run".to_string())?
+        };
+        let status = authorities
+            .ledger
+            .lock()
+            .unwrap()
+            .reader()
+            .and_then(|reader| reader.run_status(&run_id))
+            .map_err(|error| error.to_string())?;
+        if status != "interrupted" {
+            return Err(format!(
+                "nothing to resume: the session's last run is {status}, not interrupted"
+            ));
+        }
         Ok(run_id)
     }
 
