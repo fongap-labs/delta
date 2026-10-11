@@ -69,6 +69,8 @@ export const zh: Record<TranslationKey, string> = {
   "state.what.skills": "技能",
   "state.what.mcp": "MCP 服务器",
   "state.what.connectors": "连接器",
+  "state.what.trustedWorkspaces": "受信任的工作区",
+  "state.what.settings": "这些设置",
   "common.signOut": "退出登录",
   "common.notSignedIn": "未登录",
   "common.clear": "清除",

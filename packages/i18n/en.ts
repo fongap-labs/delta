@@ -68,6 +68,8 @@ export const en = {
   "state.what.skills": "skills",
   "state.what.mcp": "MCP servers",
   "state.what.connectors": "connectors",
+  "state.what.trustedWorkspaces": "trusted workspaces",
+  "state.what.settings": "these settings",
   "common.signOut": "Sign out",
   "common.notSignedIn": "Not signed in",
   "common.clear": "Clear",

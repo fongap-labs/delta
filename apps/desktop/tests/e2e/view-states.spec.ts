@@ -114,3 +114,32 @@ test("Connectors: a failed read says so instead of an empty catalogue", async ({
   await page.getByTestId("sidebar-footer-integrations").click();
   await expect(page.getByTestId("load-error")).toContainText("Couldn't load connectors");
 });
+
+// Settings cards that used to fall back to built-in values (PDF limits, compaction thresholds, the
+// context-bar switch, the sidebar count) or to an empty list (trusted workspaces) when the read
+// failed. They must say they could not load, not show values that were never saved.
+
+const SETTINGS_FLAG = `(args) => { if ($state.settingsFail) throw new Error("boom"); const s = $state.settings; return { ...s }; }`;
+
+test("Settings ▸ Models: failed read shows an error, not the default PDF limits, and Retry brings the card back", async ({ page }) => {
+  await openWith(page, "settings_get", SETTINGS_FLAG);
+  await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.settingsFail = true; });
+  await page.getByTestId("sidebar-footer-settings").click();
+  await page.getByRole("button", { name: "Models", exact: true }).click();
+  await expect(page.getByTestId("load-error").first()).toContainText("Couldn't load these settings");
+  await expect(page.getByTestId("token-savings-card")).toHaveCount(0);
+
+  await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.settingsFail = false; });
+  await page.getByRole("button", { name: "Retry" }).first().click();
+  await expect(page.getByTestId("token-savings-card")).toBeVisible();
+});
+
+test("Settings ▸ General: failed reads do not show the context bar as off, and trusted workspaces do not read as none", async ({ page }) => {
+  await overrideMockCommand(page, "workspaces_trusted", FAIL);
+  await openWith(page, "settings_get", SETTINGS_FLAG);
+  await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.settingsFail = true; });
+  await page.getByTestId("sidebar-footer-settings").click();
+  await expect(page.getByTestId("context-bar-card")).toHaveCount(0);
+  await expect(page.getByTestId("trusted-workspaces-card").getByTestId("load-error")).toContainText("Couldn't load trusted workspaces");
+  await expect(page.getByText("No workspaces are trusted.")).toHaveCount(0);
+});
