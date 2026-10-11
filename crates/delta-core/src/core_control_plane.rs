@@ -779,6 +779,13 @@ impl CoreControlPlane {
         if item.state != "pending" {
             return json!({"ok": true, "resolution": item.resolution});
         }
+        // A notice answers nothing a run waits for: dismissing it only closes it.
+        if item.kind == "notice" {
+            return match inbox.resolve(id, resolution) {
+                Ok(_) => json!({"ok": true, "resolution": resolution}),
+                Err(error) => json!({"ok": false, "error": error.to_string()}),
+            };
+        }
         let Some(handle) = self.runtime_handle(&item.session_id) else {
             return json!({"ok": false, "error": "the owning runtime is not active; resume the session first"});
         };

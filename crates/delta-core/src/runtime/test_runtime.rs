@@ -2614,3 +2614,25 @@ fn an_unattended_run_without_an_egress_level_leaves_one_inbox_notice() {
     assert_eq!(notices.len(), 1);
     assert!(notices[0].body.contains("Nothing was sent"));
 }
+
+#[test]
+fn a_notice_is_dismissed_without_a_running_session() {
+    let temp = tempfile::tempdir().unwrap();
+    let plane = crate::CoreControlPlane::open(temp.path()).unwrap();
+    let notice = plane
+        .runtime_authorities()
+        .inbox()
+        .add_notice("session-gone", "egress-not_chosen", "Title", "Body")
+        .unwrap();
+    let out = plane.resolve_inbox(&notice.id, "dismissed");
+    assert_eq!(out["ok"], true, "{out}");
+    assert_eq!(
+        plane
+            .runtime_authorities()
+            .inbox()
+            .get(&notice.id)
+            .unwrap()
+            .state,
+        "resolved"
+    );
+}
