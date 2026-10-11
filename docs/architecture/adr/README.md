@@ -12,8 +12,8 @@
 | [0053](0053-resume-run-identity.md) | Which run identity a resumed run uses |
 | [0054](0054-statistics-engine.md) | Which statistics engine produces reportable figures |
 | [0055](0055-numeric-traceability.md) | Every figure in a report traces to a computed result |
-| [0056](0056-study-record.md) | Where a multi-round study keeps its design and decisions (proposed) |
-| [0057](0057-workspace-sensitivity-model-egress.md) | Workspace sensitivity and what may be sent to a model endpoint (proposed) |
+| [0056](0056-study-record.md) | Where a multi-round study keeps its design and decisions |
+| [0057](0057-workspace-sensitivity-model-egress.md) | Workspace sensitivity and what may be sent to a model endpoint |
 
 ## Numbers cited in code but not stored here
 

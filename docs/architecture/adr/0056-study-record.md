@@ -1,6 +1,6 @@
 # ADR-0056: Where a multi-round study keeps its design and decisions
 
-Status: **Proposed** (2026-10-11). Awaiting the owner's decision.
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet.
 
 ## Context
 
@@ -39,7 +39,7 @@ What exists (checked, not assumed):
 **C. Reuse desktop projects.**
 - Minus: UI state is not a work fact (invariant: the UI derives nothing). Rejected.
 
-## Decision (proposed): A, revisit B with evidence
+## Decision: A, revisit B with evidence
 
 1. **Record.** The study record is `study.json`, validated against `schemas/study.schema.json`. It holds:
    - the objective;
@@ -86,12 +86,7 @@ What exists (checked, not assumed):
 
 ## Owner's answers (2026-10-11)
 
-On the locked set the owner asked for a recommendation. Decision point 2 now holds it:
-
-- lock the objective, the responses with their targets, the outer adjustment bounds, the stopping rule and the analysis plan;
-- keep factor ranges inside those bounds movable, each change recorded as a decision.
-
-## Questions for the owner
-
-1. Accept A, and revisit B only with evidence?
-2. Confirm the locked set in decision point 2.
+1. A accepted: the study is a `study.json` artifact; a `Study` Work object (B) is proposed only if real use proves it is needed.
+2. The locked set in decision point 2 is confirmed:
+   - locked: the objective, the responses with their targets, the outer adjustment bounds, the stopping rule and the analysis plan;
+   - movable: factor ranges inside those bounds, each change recorded as a user decision.
