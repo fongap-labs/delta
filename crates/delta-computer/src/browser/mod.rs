@@ -52,9 +52,11 @@ struct NetGuard {
 }
 
 impl NetGuard {
-    fn new(allow_loopback: bool) -> NetGuard {
+    fn new(is_loopback_allowed: bool) -> NetGuard {
         NetGuard {
-            policy: AddressPolicy { allow_loopback },
+            policy: AddressPolicy {
+                allow_loopback: is_loopback_allowed,
+            },
             vetted: Mutex::new(HashMap::new()),
             last_refusal: Mutex::new(None),
         }
@@ -491,10 +493,10 @@ fn on_event(cdp: &Cdp, event: Value, guard: &Arc<NetGuard>) {
 
 // -- tools -----------------------------------------------------------------------------------
 
-fn metadata(capability: &str, asks: bool) -> Value {
+fn metadata(capability: &str, should_ask: bool) -> Value {
     json!({
-        "risk_level": if asks { "medium" } else { "low" },
-        "requires_approval": asks,
+        "risk_level": if should_ask { "medium" } else { "low" },
+        "requires_approval": should_ask,
         "category": "computer", "capabilities": [capability]
     })
 }
@@ -504,10 +506,10 @@ type Operation = dyn Fn(&Ctx, &BrowserHost, &CapabilityJob) -> Result<Value, Str
 fn tool(
     host: &Arc<BrowserHost>,
     name: &str,
-    asks: bool,
+    should_ask: bool,
     description: &str,
     parameters: Value,
-    workspace_write: bool,
+    can_write_workspace: bool,
     operation: Arc<Operation>,
 ) -> CapabilityRegistration {
     let host = host.clone();
@@ -516,9 +518,9 @@ fn tool(
         tool_name: name.to_owned(),
         description: description.to_owned(),
         parameters,
-        metadata: metadata(&format!("computer.{name}"), asks),
+        metadata: metadata(&format!("computer.{name}"), should_ask),
         grants: CapabilityGrants::default(),
-        workspace_write,
+        workspace_write: can_write_workspace,
         runner: Arc::new(NativeCapabilityRunner::new(move |job, control| {
             let operation = operation.clone();
             host.run(job, control, &|ctx, host| operation(ctx, host, job))

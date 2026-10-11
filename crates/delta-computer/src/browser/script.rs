@@ -114,9 +114,9 @@ return {{ found: true, x, y, covered }};
     )
 }
 
-/// Focus a text field and select what is in it, so inserted text replaces it. With `clear` the
+/// Focus a text field and select what is in it, so inserted text replaces it. With `should_clear` the
 /// field is emptied instead.
-pub fn prepare_text(reference: &str, clear: bool) -> String {
+pub fn prepare_text(reference: &str, should_clear: bool) -> String {
     format!(
         r#"(() => {{
 const el = document.querySelector('[data-delta-ref="{reference}"]');
@@ -127,9 +127,9 @@ if (el.isContentEditable) {{
   const range = document.createRange();
   range.selectNodeContents(el);
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
-  if ({clear}) {{ document.execCommand('delete'); }}
+  if ({should_clear}) {{ document.execCommand('delete'); }}
 }} else {{
-  if ({clear}) {{
+  if ({should_clear}) {{
     el.value = '';
     el.dispatchEvent(new Event('input', {{ bubbles: true }}));
     el.dispatchEvent(new Event('change', {{ bubbles: true }}));

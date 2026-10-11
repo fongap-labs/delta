@@ -115,7 +115,7 @@ pub fn read_docx(bytes: &[u8]) -> Result<Vec<String>, String> {
     let mut lines = Vec::new();
     let mut paragraph = String::new();
     let mut heading = 0usize;
-    let mut in_text = false;
+    let mut is_in_text = false;
     let mut table_depth = 0usize;
     let mut cell = String::new();
     let mut row: Vec<String> = Vec::new();
@@ -141,7 +141,7 @@ pub fn read_docx(bytes: &[u8]) -> Result<Vec<String>, String> {
                         };
                     }
                 }
-                "t" => in_text = true,
+                "t" => is_in_text = true,
                 "tab" => paragraph.push('\t'),
                 "br" | "cr" => paragraph.push('\n'),
                 "tbl" => table_depth += 1,
@@ -149,14 +149,16 @@ pub fn read_docx(bytes: &[u8]) -> Result<Vec<String>, String> {
                 "tc" => cell.clear(),
                 _ => {}
             },
-            Event::Text(text) if in_text => {
+            Event::Text(text) if is_in_text => {
                 if let Ok(text) = text.decode() {
                     paragraph.push_str(&text);
                 }
             }
-            Event::GeneralRef(reference) if in_text => push_reference(&mut paragraph, &reference),
+            Event::GeneralRef(reference) if is_in_text => {
+                push_reference(&mut paragraph, &reference)
+            }
             Event::End(e) => match local_end(&e).as_str() {
-                "t" => in_text = false,
+                "t" => is_in_text = false,
                 "p" => {
                     let text = paragraph.trim();
                     if table_depth > 0 {
@@ -220,7 +222,7 @@ fn shared_strings(archive: &mut Archive<'_>) -> Result<Vec<String>, String> {
     let mut reader = xml_reader(&xml);
     let mut strings = Vec::new();
     let mut current = String::new();
-    let (mut in_text, mut phonetic) = (false, 0usize);
+    let (mut is_in_text, mut phonetic) = (false, 0usize);
     loop {
         match reader
             .read_event()
@@ -230,17 +232,17 @@ fn shared_strings(archive: &mut Archive<'_>) -> Result<Vec<String>, String> {
                 "si" => current.clear(),
                 // Furigana and similar annotations are not part of the cell's text.
                 "rPh" => phonetic += 1,
-                "t" => in_text = phonetic == 0,
+                "t" => is_in_text = phonetic == 0,
                 _ => {}
             },
-            Event::Text(text) if in_text => {
+            Event::Text(text) if is_in_text => {
                 if let Ok(text) = text.decode() {
                     current.push_str(&text);
                 }
             }
-            Event::GeneralRef(reference) if in_text => push_reference(&mut current, &reference),
+            Event::GeneralRef(reference) if is_in_text => push_reference(&mut current, &reference),
             Event::End(e) => match local_end(&e).as_str() {
-                "t" => in_text = false,
+                "t" => is_in_text = false,
                 "rPh" => phonetic = phonetic.saturating_sub(1),
                 "si" => strings.push(std::mem::take(&mut current)),
                 _ => {}
@@ -431,25 +433,27 @@ fn drawing_text(xml: &[u8], name: &str) -> Result<Vec<String>, String> {
     let mut reader = xml_reader(xml);
     let mut lines = Vec::new();
     let mut paragraph = String::new();
-    let (mut in_text, mut field) = (false, 0usize);
+    let (mut is_in_text, mut field) = (false, 0usize);
     loop {
         match reader.read_event().map_err(|e| xml_error(name, e))? {
             Event::Start(e) => match local(&e).as_str() {
                 "p" => paragraph.clear(),
                 // Slide numbers and dates are fields, not content.
                 "fld" => field += 1,
-                "t" => in_text = field == 0,
+                "t" => is_in_text = field == 0,
                 _ => {}
             },
             Event::Empty(e) if matches!(local(&e).as_str(), "br") => paragraph.push('\n'),
-            Event::Text(text) if in_text => {
+            Event::Text(text) if is_in_text => {
                 if let Ok(text) = text.decode() {
                     paragraph.push_str(&text);
                 }
             }
-            Event::GeneralRef(reference) if in_text => push_reference(&mut paragraph, &reference),
+            Event::GeneralRef(reference) if is_in_text => {
+                push_reference(&mut paragraph, &reference)
+            }
             Event::End(e) => match local_end(&e).as_str() {
-                "t" => in_text = false,
+                "t" => is_in_text = false,
                 "fld" => field = field.saturating_sub(1),
                 "p" => {
                     let text = paragraph.trim();

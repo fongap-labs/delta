@@ -12,8 +12,8 @@ const PAGE_WIDTH: usize = 9026;
 const NS: &str = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" \
     xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"";
 
-fn run(text: &str, bold: bool) -> String {
-    let props = if bold { "<w:rPr><w:b/></w:rPr>" } else { "" };
+fn run(text: &str, is_bold: bool) -> String {
+    let props = if is_bold { "<w:rPr><w:b/></w:rPr>" } else { "" };
     // `xml:space` keeps leading and trailing spaces; tabs and newlines become real breaks.
     let mut out = String::new();
     for (i, line) in text.split('\n').enumerate() {
@@ -35,7 +35,7 @@ fn run(text: &str, bold: bool) -> String {
     out
 }
 
-fn paragraph(style: Option<&str>, num: Option<usize>, text: &str, bold: bool) -> String {
+fn paragraph(style: Option<&str>, num: Option<usize>, text: &str, is_bold: bool) -> String {
     let mut props = String::new();
     if let Some(style) = style {
         props.push_str(&format!("<w:pStyle w:val=\"{style}\"/>"));
@@ -50,7 +50,7 @@ fn paragraph(style: Option<&str>, num: Option<usize>, text: &str, bold: bool) ->
     } else {
         format!("<w:pPr>{props}</w:pPr>")
     };
-    format!("<w:p>{props}{}</w:p>", run(text, bold))
+    format!("<w:p>{props}{}</w:p>", run(text, is_bold))
 }
 
 fn table(block: &Value) -> Result<String, String> {

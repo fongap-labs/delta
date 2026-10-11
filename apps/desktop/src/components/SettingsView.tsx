@@ -728,13 +728,13 @@ const toEdit = (d: Draft): SearchEngineEdit => ({
 export function WebSearchCard() {
   const { t } = useI18n();
   const [drafts, setDrafts] = useState<Draft[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [hasFailed, setFailed] = useState(false);
+  const [isDirty, setDirty] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [isBusy, setBusy] = useState(false);
   const [tests, setTests] = useState<Record<string, string>>({});
-  const [adding, setAdding] = useState(false);
+  const [isAdding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", template: "", header: "", key: "" });
 
   const load = () => {
@@ -748,7 +748,7 @@ export function WebSearchCard() {
   };
   useEffect(load, []);
 
-  if (failed && !drafts) return <LoadError what={t("settings.search.title")} onRetry={load} />;
+  if (hasFailed && !drafts) return <LoadError what={t("settings.search.title")} onRetry={load} />;
   if (!drafts) return null;
 
   const change = (id: string, patch: Partial<Draft>) => {
@@ -887,7 +887,7 @@ export function WebSearchCard() {
                   <div className="flex items-center gap-3 text-[12px]">
                     {keyed && <button className="text-danger" onClick={() => change(d.id, { clear_key: true, api_key: "" })} data-testid={`search-clearkey-${d.id}`}>{t("settings.search.removeKey")}</button>}
                     {!d.builtin && <button className="text-danger" onClick={() => remove(d.id)} data-testid={`search-remove-${d.id}`}>{t("settings.search.removeEngine")}</button>}
-                    <button className="text-primary disabled:opacity-40" disabled={dirty || d.fresh || (d.needs_key && !d.has_key)} title={dirty ? t("settings.search.saveFirst") : undefined} onClick={() => runTest(d.id)} data-testid={`search-test-${d.id}`}>
+                    <button className="text-primary disabled:opacity-40" disabled={isDirty || d.fresh || (d.needs_key && !d.has_key)} title={isDirty ? t("settings.search.saveFirst") : undefined} onClick={() => runTest(d.id)} data-testid={`search-test-${d.id}`}>
                       {t("settings.search.test")}
                     </button>
                     {tests[d.id] && <span className="text-muted" data-testid={`search-test-result-${d.id}`}>{tests[d.id]}</span>}
@@ -899,7 +899,7 @@ export function WebSearchCard() {
         })}
       </ul>
 
-      {adding ? (
+      {isAdding ? (
         <div className="mt-3 space-y-2" data-testid="search-add-form">
           <input className={INPUT + " w-full"} value={form.name} placeholder={t("settings.search.namePlaceholder")} data-testid="search-add-name" onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input className={INPUT + " w-full"} value={form.template} placeholder="https://example.com/search?q=%s" data-testid="search-add-template" onChange={(e) => setForm({ ...form, template: e.target.value })} />
@@ -918,7 +918,7 @@ export function WebSearchCard() {
       )}
 
       <div className="mt-3 flex items-center gap-3">
-        <button className={BTN_ACCENT} disabled={!dirty || busy} onClick={save} data-testid="search-save">
+        <button className={BTN_ACCENT} disabled={!isDirty || isBusy} onClick={save} data-testid="search-save">
           {t("common.save", undefined, "Save")}
         </button>
         {error && (

@@ -76,8 +76,8 @@ fn master() -> String {
     )
 }
 
-fn layout(name: &str, kind: &str, with_body: bool) -> String {
-    let body = if with_body {
+fn layout(name: &str, kind: &str, has_body: bool) -> String {
+    let body = if has_body {
         placeholder(
             3,
             "Content Placeholder 2",
@@ -127,8 +127,8 @@ fn bullet(item: &Value) -> Result<(String, u8), String> {
     }
 }
 
-fn paragraph(text: &str, level: u8, bulleted: bool) -> String {
-    let props = if bulleted {
+fn paragraph(text: &str, level: u8, is_bulleted: bool) -> String {
+    let props = if is_bulleted {
         if level > 0 {
             format!("<a:pPr lvl=\"{level}\"/>")
         } else {

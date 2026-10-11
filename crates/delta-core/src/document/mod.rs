@@ -365,7 +365,7 @@ fn verify(kind: Kind, arguments: &Value, bytes: &[u8]) -> Result<usize, String> 
 pub fn create(path: &str, arguments: &Value) -> Result<(Kind, Vec<u8>, Value), String> {
     let relative = Path::new(path);
     if path.trim().is_empty()
-        || relative.is_absolute()
+        || relative.has_root()
         || relative
             .components()
             .any(|c| matches!(c, std::path::Component::ParentDir))
