@@ -86,6 +86,16 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Read ", preKey: "humanize.read", obj: baseName(String(a.path ?? "a file")) };
     case "read_document":
       return { pre: "Read ", preKey: "humanize.read", obj: baseName(String(a.path ?? "a document")) };
+    case "screenshot":
+      return { pre: "Looked at your screen", preKey: "humanize.screenshot" };
+    case "clipboard_read":
+      return { pre: "Read your clipboard", preKey: "humanize.clipboardRead" };
+    case "clipboard_write":
+      return { pre: "Copied text to your clipboard", preKey: "humanize.clipboardWrite" };
+    case "open_file":
+      return { pre: "Opened ", preKey: "humanize.opened", obj: baseName(String(a.path ?? "a file")) };
+    case "open_url":
+      return { pre: "Opened in your browser: ", preKey: "humanize.openedUrl", obj: trunc(urlHost(a.url), 50) };
     case "write_file":
       return { pre: "Wrote ", preKey: "humanize.wrote", obj: baseName(String(a.path ?? "a file")) };
     case "create_document":
@@ -195,6 +205,18 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       };
     case "create_document":
       return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "screenshot":
+      return { pre: "Take a picture of your screen", preKey: "humanize.apScreenshot" };
+    case "clipboard_read":
+      return { pre: "Read what you copied to the clipboard", preKey: "humanize.apClipboardRead" };
+    case "clipboard_write":
+      return { pre: "Replace your clipboard with text", preKey: "humanize.apClipboardWrite" };
+    case "open_file":
+      return a.reveal
+        ? { pre: "Show in the file manager: ", preKey: "humanize.apReveal", obj: baseName(String(a.path ?? "a file")) }
+        : { pre: "Open ", preKey: "humanize.apOpen", obj: baseName(String(a.path ?? "a file")) };
+    case "open_url":
+      return { pre: "Open in your browser: ", preKey: "humanize.apOpenUrl", obj: trunc(String(a.url ?? ""), 80) };
     case "web_fetch":
       return { pre: "Read the web page ", preKey: "humanize.apWebFetch", obj: trunc(urlHost(a.url), 50) };
     case "web_search":

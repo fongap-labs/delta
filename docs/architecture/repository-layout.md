@@ -123,6 +123,7 @@ Rust workspace crates，每个 crate 对应一个独立 Rust 边界：
 | --- | --- |
 | `delta-core` | Rust Runtime、trusted authority、控制面（原 `core/runtime-native`） |
 | `delta-stt` | 独立 STT 能力（原 `services/stt`） |
+| `delta-computer` | 桌面电脑能力：看屏幕、剪贴板、打开文件和链接（ADR-0055）；平台代码放在这里，不进 `delta-core` |
 | `delta-sdk` | Foundation SDK：capability、worker、connector、artifact、event 合约 |
 | `delta-connect` | Connector registry 合约 |
 | `delta-sync` | Relay / OAuth broker 合约及 Null 实现 |

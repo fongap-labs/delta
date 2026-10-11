@@ -29,3 +29,15 @@ describe("humanize document and web tools", () => {
     expect(humanizeAsk("web_fetch", { url: "https://example.com/" })).toMatchObject({ pre: "Wanted to read the web page " });
   });
 });
+
+describe("humanize computer tools", () => {
+  it("says what the screen, clipboard and open tools do in plain words", () => {
+    expect(humanizeApprovalTitle("screenshot", {})).toMatchObject({ pre: "Take a picture of your screen" });
+    expect(humanizeApprovalTitle("clipboard_read", {})).toMatchObject({ pre: "Read what you copied to the clipboard" });
+    expect(humanizeApprovalTitle("open_file", { path: "out/q3.xlsx" })).toMatchObject({ pre: "Open ", obj: "q3.xlsx" });
+    expect(humanizeApprovalTitle("open_file", { path: "out/q3.xlsx", reveal: true })).toMatchObject({ pre: "Show in the file manager: " });
+    expect(humanizeApprovalTitle("open_url", { url: "https://example.com/a" })).toMatchObject({ obj: "https://example.com/a" });
+    expect(humanizeTool("screenshot", {})).toMatchObject({ pre: "Looked at your screen" });
+    expect(humanizeTool("open_url", { url: "https://example.com/a" })).toMatchObject({ obj: "example.com" });
+  });
+});

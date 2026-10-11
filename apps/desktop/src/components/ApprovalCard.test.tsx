@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { ApprovalCard } from "./ApprovalCard";
+import { ApprovalCard, scopeNote } from "./ApprovalCard";
 import { InboxItemCard } from "./InboxItemCard";
 import { I18nProvider } from "@delta/i18n/I18nContext";
 import type { Item } from "../types";
@@ -352,5 +352,17 @@ describe("ApprovalCard — outbound actions are confirmed every time", () => {
   it("shows the labelled band on outbound cards", () => {
     render(<ApprovalCard item={sendApproval()} onApprove={vi.fn()} />);
     expect(screen.getByTestId("approval-band").textContent).toContain("Needs your approval");
+  });
+});
+
+describe("scopeNote for web and computer tools", () => {
+  const t = (key: string) => key;
+  it("says that web tools reach the internet and screen/clipboard reads go to the model provider", () => {
+    expect(scopeNote(t as any, "web_fetch", {}, "web")).toEqual({ text: "approval.scope.web", external: false });
+    expect(scopeNote(t as any, "screenshot", {}, "computer")).toEqual({ text: "approval.scope.sendsToModel", external: false });
+    expect(scopeNote(t as any, "clipboard_read", {}, "computer").text).toBe("approval.scope.sendsToModel");
+    expect(scopeNote(t as any, "open_url", {}, "computer")).toEqual({ text: "approval.scope.actsOnComputer", external: false });
+    // Unchanged for ordinary file work.
+    expect(scopeNote(t as any, "write_file", {}, "filesystem").text).toBe("approval.scope.staysOnComputer");
   });
 });

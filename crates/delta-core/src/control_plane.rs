@@ -483,6 +483,8 @@ pub const KEPT_VERSION_DAYS: u64 = 30;
 /// How long an abandoned staging folder stays (staged files are promoted at once; what is left
 /// belongs to a run that failed).
 const STAGING_LEFTOVER_DAYS: u64 = 7;
+/// How long screenshots a tool took stay in the workspace (an audit trail of what the agent saw).
+const SCREENSHOT_DAYS: u64 = 7;
 
 fn remove_old_children(
     dir: &Path,
@@ -521,6 +523,7 @@ pub fn prune_workspace_leftovers(workspace: &Path, now: std::time::SystemTime) -
             now,
             day * STAGING_LEFTOVER_DAYS as u32,
         )
+        + remove_old_children(&delta.join("screens"), now, day * SCREENSHOT_DAYS as u32)
 }
 
 /// Put a kept earlier version of a file back (the undo for a file the agent replaced).
@@ -1246,6 +1249,10 @@ mod tests {
         assert_eq!(prune_workspace_leftovers(ws, now + day * 31), 2);
         assert!(!ws.join(".delta/versions/run-a").exists());
         assert!(ws.join(".delta/versions/not-a-run.txt").exists());
+        // Screenshots a tool took are kept a week, like staging leftovers.
+        fs::create_dir_all(ws.join(".delta/screens/run-c")).unwrap();
+        assert_eq!(prune_workspace_leftovers(ws, now + day * 8), 1);
+        assert!(!ws.join(".delta/screens/run-c").exists());
         // No `.delta` folder at all is fine.
         assert_eq!(prune_workspace_leftovers(&ws.join("missing"), now), 0);
     }

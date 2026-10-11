@@ -838,6 +838,111 @@ fn replacing_a_file_keeps_the_previous_version_and_says_where() {
     }
 }
 
+fn host_with_messages(
+    protocol: &str,
+    workspace: &std::path::Path,
+    messages: Vec<Value>,
+) -> RuntimeHost {
+    RuntimeHost::new(
+        "session-images",
+        RuntimeConfig {
+            protocol: protocol.to_string(),
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_messages(messages)
+}
+
+fn screenshot_conversation(count: usize) -> Vec<Value> {
+    let mut messages = vec![json!({"role": "user", "content": "what is on my screen?"})];
+    for n in 1..=count {
+        messages.push(json!({"role": "assistant", "content": null, "tool_calls": [
+            {"id": format!("a{n}"), "type": "function", "function": {"name": "screenshot", "arguments": "{}"}},
+            {"id": format!("b{n}"), "type": "function", "function": {"name": "clipboard_read", "arguments": "{}"}}]}));
+        messages.push(json!({
+            "role": "tool", "tool_call_id": format!("a{n}"),
+            "content": {"ok": true, "images": [{"path": format!(".delta/screens/run/{n}.png")}]},
+            "images": [{"path": format!(".delta/screens/run/{n}.png")}],
+        }));
+        messages.push(
+            json!({"role": "tool", "tool_call_id": format!("b{n}"), "content": {"ok": true}}),
+        );
+    }
+    messages
+}
+
+#[test]
+fn a_tool_screenshot_reaches_the_model_as_one_image_message_after_all_tool_results() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    fs::write(
+        temp.path().join(".delta/screens/run/1.png"),
+        b"\x89PNG-bytes",
+    )
+    .unwrap();
+    let host = host_with_messages("openai_chat", temp.path(), screenshot_conversation(1));
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    // Both tool results stay together; the picture follows them as a user message.
+    assert_eq!(roles, ["user", "assistant", "tool", "tool", "user"]);
+    assert!(
+        out[2].get("images").is_none(),
+        "the file list is not sent as part of the tool message"
+    );
+    let parts = out[4]["content"].as_array().unwrap();
+    assert_eq!(parts[1]["type"], "image_url");
+    assert!(parts[1]["image_url"]["url"]
+        .as_str()
+        .unwrap()
+        .starts_with("data:image/png;base64,"));
+
+    let anthropic = host_with_messages("anthropic", temp.path(), screenshot_conversation(1))
+        .outbound_messages();
+    assert_eq!(anthropic[4]["content"][1]["type"], "image");
+    assert_eq!(anthropic[4]["content"][1]["source"]["type"], "base64");
+    let responses = host_with_messages("openai_responses", temp.path(), screenshot_conversation(1))
+        .outbound_messages();
+    assert_eq!(responses[4]["content"][1]["type"], "input_image");
+}
+
+#[test]
+fn only_the_newest_screenshots_are_sent_and_unsafe_or_missing_files_are_ignored() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    for n in 1..=3 {
+        fs::write(
+            temp.path().join(format!(".delta/screens/run/{n}.png")),
+            b"png",
+        )
+        .unwrap();
+    }
+    let host = host_with_messages("openai_chat", temp.path(), screenshot_conversation(3));
+    let out = host.outbound_messages();
+    let image_messages: Vec<&Value> = out
+        .iter()
+        .filter(|m| m["role"] == "user" && m["content"].is_array())
+        .collect();
+    // Screenshots 2 and 3 are sent, number 1 is left on disk.
+    assert_eq!(image_messages.len(), 2);
+
+    // A path outside `.delta/screens`, a traversal and a missing file produce no image.
+    fs::write(temp.path().join("secret.png"), b"s").unwrap();
+    for path in [
+        "secret.png",
+        ".delta/screens/../../secret.png",
+        ".delta/screens/run/missing.png",
+        "/etc/passwd",
+    ] {
+        let messages = vec![
+            json!({"role": "user", "content": "x"}),
+            json!({"role": "tool", "tool_call_id": "t", "content": {}, "images": [{"path": path}]}),
+        ];
+        let out = host_with_messages("openai_chat", temp.path(), messages).outbound_messages();
+        assert_eq!(out.len(), 2, "{path}");
+    }
+}
+
 #[derive(Default)]
 struct CaptureSink {
     frames: Mutex<Vec<Value>>,

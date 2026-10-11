@@ -46,6 +46,10 @@ use human_control::InteractionController;
 const DEFAULT_MAX_ITERATIONS: usize = 12;
 /// Automatic retries of one model call after a transient failure (so up to 5 attempts).
 pub(crate) const DEFAULT_MAX_RETRIES: u32 = 4;
+/// Screenshots from tools that are still sent to the model (the newest ones).
+const MAX_SCREENSHOTS_IN_CONTEXT: usize = 2;
+/// Largest screenshot file read back into a request.
+const MAX_SCREENSHOT_BYTES: u64 = 8 * 1024 * 1024;
 /// Longest wait between two automatic retries.
 const MAX_RETRY_DELAY_MS: u64 = 8000;
 

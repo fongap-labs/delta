@@ -11,6 +11,7 @@
 | [0052](0052-credential-storage.md) | Credential storage (proposed; numbered 0052 so it does not collide with the earlier ADR-005 ... ADR-051 numbers cited in code) |
 | [0053](0053-resume-run-identity.md) | Which run identity a resumed run uses |
 | [0054](0054-baseline-work-capabilities.md) | Baseline work capabilities live in Foundation |
+| [0055](0055-computer-capabilities.md) | Computer capabilities, in steps (screenshot, clipboard, open; acting on the screen not yet decided) |
 
 ## Numbers cited in code but not stored here
 

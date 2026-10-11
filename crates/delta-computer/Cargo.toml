@@ -1,0 +1,27 @@
+[package]
+name = "delta-computer"
+version = "0.1.0"
+description = "Native computer capabilities for Delta: see the screen, use the clipboard, open files and links"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+delta-core = { path = "../delta-core" }
+# Clipboard text only: no image support, no Wayland or X11 system libraries needed to build.
+arboard = { version = "3", default-features = false }
+opener = "0.8"
+png = "0.18"
+serde_json = "1"
+url = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"

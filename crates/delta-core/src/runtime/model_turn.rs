@@ -15,39 +15,116 @@ impl RuntimeHost {
             "usage",
             "attachments",
             "run_id",
+            "images",
         ];
-        self.messages
+        // Only the newest screenshots go to the model: each costs thousands of tokens and an old
+        // one is stale. Older ones stay on disk and in the transcript as text.
+        let with_images: Vec<usize> = self
+            .messages
             .iter()
-            .filter(|m| m.get("role").and_then(|r| r.as_str()) != Some("notice"))
-            .map(|m| {
-                let has_sidecar = sidecars.iter().any(|s| m.get(*s).is_some());
-                let mut message = if has_sidecar {
-                    let mut out = serde_json::Map::new();
-                    if let Some(obj) = m.as_object() {
-                        for (k, v) in obj {
-                            if !sidecars.contains(&k.as_str()) {
-                                out.insert(k.clone(), v.clone());
-                            }
-                        }
-                    }
-                    Value::Object(out)
-                } else {
-                    m.clone()
-                };
-                if m.get("role").and_then(Value::as_str) == Some("user") {
-                    if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
-                        if !attachments.is_empty() {
-                            message["content"] = provider_user_content(
-                                &self.config.protocol,
-                                m.get("content").and_then(Value::as_str).unwrap_or_default(),
-                                attachments,
-                            );
+            .enumerate()
+            .filter(|(_, m)| m.get("images").is_some())
+            .map(|(index, _)| index)
+            .collect();
+        let keep_from = with_images.len().saturating_sub(MAX_SCREENSHOTS_IN_CONTEXT);
+        let sent_images: Vec<usize> = with_images[keep_from..].to_vec();
+
+        let mut out: Vec<Value> = Vec::new();
+        let mut pending: Vec<Value> = Vec::new();
+        let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>| {
+            if pending.is_empty() {
+                return;
+            }
+            let attachments = std::mem::take(pending);
+            out.push(json!({
+                "role": "user",
+                "content": provider_user_content(
+                    &self.config.protocol,
+                    "The picture the tool above returned:",
+                    &attachments,
+                ),
+            }));
+        };
+        for (index, m) in self.messages.iter().enumerate() {
+            let role = m.get("role").and_then(|r| r.as_str());
+            if role == Some("notice") {
+                continue;
+            }
+            // Tool results must stay together right after the assistant turn that asked for
+            // them, so the pictures follow the last of them.
+            if role != Some("tool") {
+                flush(&mut out, &mut pending);
+            }
+            let has_sidecar = sidecars.iter().any(|s| m.get(*s).is_some());
+            let mut message = if has_sidecar {
+                let mut object = serde_json::Map::new();
+                if let Some(obj) = m.as_object() {
+                    for (k, v) in obj {
+                        if !sidecars.contains(&k.as_str()) {
+                            object.insert(k.clone(), v.clone());
                         }
                     }
                 }
-                message
-            })
-            .collect()
+                Value::Object(object)
+            } else {
+                m.clone()
+            };
+            if role == Some("user") {
+                if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
+                    if !attachments.is_empty() {
+                        message["content"] = provider_user_content(
+                            &self.config.protocol,
+                            m.get("content").and_then(Value::as_str).unwrap_or_default(),
+                            attachments,
+                        );
+                    }
+                }
+            }
+            if role == Some("tool") && sent_images.contains(&index) {
+                if let Some(images) = m.get("images").and_then(Value::as_array) {
+                    pending.extend(
+                        images
+                            .iter()
+                            .filter_map(|image| self.screenshot_attachment(image)),
+                    );
+                }
+            }
+            out.push(message);
+        }
+        flush(&mut out, &mut pending);
+        out
+    }
+
+    /// A tool's picture as a transcript attachment, read from the workspace. Only files under
+    /// `.delta/screens/` count; anything else a tool names is ignored.
+    fn screenshot_attachment(&self, image: &Value) -> Option<Value> {
+        let relative = Path::new(image.get("path")?.as_str()?);
+        let allowed = relative.starts_with(".delta/screens")
+            && relative
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)));
+        if !allowed {
+            return None;
+        }
+        let workspace = Path::new(self.config.workspace.as_deref()?);
+        let path = workspace.join(relative);
+        if fs::metadata(&path).ok()?.len() > MAX_SCREENSHOT_BYTES {
+            return None;
+        }
+        let bytes = fs::read(&path).ok()?;
+        let media_type = match relative.extension().and_then(|e| e.to_str()) {
+            Some("jpg" | "jpeg") => "image/jpeg",
+            _ => "image/png",
+        };
+        use base64::Engine as _;
+        Some(json!({
+            "kind": "image",
+            "name": relative.file_name().and_then(|n| n.to_str()).unwrap_or("screenshot"),
+            "data_url": format!(
+                "data:{media_type};base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            ),
+        }))
     }
 
     pub(super) fn build_request(&self) -> ProviderRequest {
@@ -380,9 +457,19 @@ impl RuntimeHost {
                     break;
                 }
                 let result = self.execute_tool_call(tc);
-                self.messages.push(json!({
+                let mut tool_message = json!({
                     "role": "tool", "tool_call_id": &tc.id, "content": &result.output
-                }));
+                });
+                // Pictures a tool made (a screenshot) ride beside the text result as file paths;
+                // `outbound_messages` turns the newest ones into an image message for the model.
+                if let Some(images) = result
+                    .output
+                    .get("images")
+                    .filter(|images| images.as_array().is_some_and(|list| !list.is_empty()))
+                {
+                    tool_message["images"] = images.clone();
+                }
+                self.messages.push(tool_message);
                 self.emit_event(RuntimeEvent::ToolFinished {
                     tool_call_id: tc.id.clone(),
                     name: tc.name.clone(),
