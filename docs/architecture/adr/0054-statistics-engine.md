@@ -1,0 +1,99 @@
+# ADR-0054: Which statistics engine produces reportable figures
+
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The R version line is still open (see Owner's answers).
+
+## Context
+
+The blueprint makes research analysis one of Delta's three product domains (`DELTA_BLUEPRINT.md` section 2.2): descriptive statistics, inference, regression, DOE, sequential design and a formal report. The first target domain is formulation / CMC research analysis, delivered as an extension in `fongap-labs/delta-suite`; Foundation keeps the generic statistics capability (owner, 2026-10-11).
+
+Today Delta has no statistics capability. What exists (checked, not assumed):
+
+1. The Capability ABI runs process workers through `WorkerProcessRunner` (`crates/delta-core/src/capability/runners.rs`), which accepts any program: Python, PowerShell and Shell have helpers, "and other controlled workers" use `WorkerProcessRunner::new(program, arguments)`.
+2. The only worker SDK is the Python `delta-worker-sdk` (`packages/delta_worker_sdk`).
+3. The blueprint lists Python, PowerShell and Shell as task execution languages (section 8.2). R is not listed.
+4. Without a statistics capability the model would compute or recall numbers itself. For formulation / CMC users (stability shelf life, dissolution f2, DOE) a number that is not produced by a deterministic, versioned engine is not usable.
+
+The owner asked that the statistics stack use libraries regulators accept (2026-10-11). That needs to be made precise, because no regulator publishes a list of approved statistical libraries:
+
+- The FDA's *Statistical Software Clarifying Statement* says the FDA does not require any specific statistical software; the sponsor is responsible for documenting the software and showing it is reliable for its use. As far as we know, EMA and NMPA also do not certify statistical software.
+- What regulators look at in practice is **documented validation and fitness for intended use**, plus precedent in submissions. By that measure:
+  - **SAS** has the longest submission history (mostly clinical).
+  - **R** has a published compliance basis: the R Foundation's *R: Regulatory Compliance and Validation Issues — A Guidance Document for the Use of R in Regulated Clinical Trial Environments*, the R Validation Hub's risk-based package assessment (`riskmetric`), and R Consortium pilot submissions to the FDA built in R.
+  - **JMP and Minitab** are the tools CMC and formulation scientists most often use for DOE, stability and capability analyses.
+  - **Python** (SciPy, statsmodels) is numerically sound but has no comparable regulatory validation guidance or submission precedent at the package level.
+
+The facts about regulatory statements and pilots above are from public documents as known at the time of writing. Check them against the current official texts before quoting them in any user-facing or validation material.
+
+## Options
+
+**A. Python only (NumPy, SciPy, statsmodels) inside the existing Python worker SDK.**
+- Plus: no new runtime; one SDK; simple packaging.
+- Minus: does not meet the owner's requirement. There is no regulatory validation guidance or submission precedent to point to, so every user would have to justify the stack themselves.
+
+**B. R as the engine for reportable figures, driven by a Python worker (recommended).**
+- A Python worker built on `delta-worker-sdk` receives the job, prepares the inputs, runs a fixed R script with `Rscript`, and returns the results through the existing ABI.
+- Base R (`stats`) and a small, pinned set of CRAN packages compute every figure that can reach a formal report.
+- Plus: meets the requirement with a documented compliance basis; keeps one worker SDK and the existing ABI; R is used only as a computation engine, not as an authority.
+- Minus: adds R as a task execution language; R must be present (packaging); package versions must be pinned and risk-assessed.
+
+**C. Drive the user's own validated JMP, Minitab or SAS installation.**
+- Plus: uses the tools users already validated.
+- Minus: commercial licences; scripting and automation differ per tool and per platform; Delta cannot ship or test against them. This is better as a later export or adapter in Suite (for example, emitting a JMP script) than as the engine.
+
+## Decision: B, with optional JMP / SAS script export
+
+1. **Engine.** Any figure that can appear in a formal Artifact (report, table, chart caption) is computed by R. Python (NumPy, pandas) may only read, reshape and validate data, and render the result; it does not compute reportable statistics.
+2. **Shape.** The Foundation capability is `statistics.*` (for example `statistics.describe`, `statistics.regression`, `statistics.anova`, `statistics.ancova`), implemented as a Python worker using `delta-worker-sdk` that calls `Rscript` with scripts shipped alongside the worker. The worker is a controlled worker under the Capability ABI: scoped inputs, staging output, timeout and cancel, no authority.
+3. **Pinned environment.**
+   - The R version and every package version are pinned.
+   - A package lock is shipped with the worker, for example an `renv.lock` or a dated repository snapshot.
+   - At start-up the worker checks that the installed environment matches the lock. If it does not, it fails closed with a typed error; it never runs on an unpinned environment.
+4. **Package admission.**
+   - Foundation uses base R and recommended packages.
+   - Every other package needs a recorded risk assessment (R Validation Hub method) and a licence check against `DEPENDENCY_POLICY.md` before it is admitted.
+   - Domain packages (for example a bootstrap f2 implementation) are admitted and pinned in Suite, not in Foundation.
+5. **Provenance in every result.** The result payload carries:
+   - the R version;
+   - the package names and versions actually loaded;
+   - the SHA-256 of the R script and of each input file;
+   - the method name and its parameters.
+
+   This is what [ADR-0055](0055-numeric-traceability.md) binds report figures to.
+6. **Verification.** Each `statistics.*` function has reference tests that must pass before release:
+   - NIST Statistical Reference Datasets (StRD) for numeric accuracy (linear regression, ANOVA);
+   - worked examples from published guidance;
+   - an independent cross-check against statsmodels/SciPy in the test suite.
+
+   A mismatch beyond a stated tolerance fails the release.
+7. **Availability.** The portable build does not bundle R in the first version. The capability detects a supported R installation; if none is found, it reports itself unavailable with a clear reason and never falls back to Python. Bundling is a separate packaging decision (size, GPL licence obligations for redistributed binaries).
+8. **Blueprint.** Section 8.2 adds R to the task execution languages, with the same Worker rules (scoped input and output, timeout, least privilege, no authority).
+9. **Optional JMP / SAS script export (option C as an export, not as the engine).** A Suite adapter may write, next to a result, a JMP (JSL) or SAS script that reproduces the same analysis on the same input file.
+   - It is optional and off unless the user asks for it.
+   - It writes a script artifact; it never runs JMP or SAS, and never feeds their output back into a Delta report.
+   - Reportable figures in Delta always come from the R engine. The export lets a user re-run the analysis in a tool their organisation has already validated and compare the results.
+
+## Consequences
+
+- New worker and scripts under `integrations/capabilities/` (statistics), with a manifest per `schemas/capability-manifest.schema.json`.
+- No change to the Runtime, the ABI or the Python worker SDK. `WorkerProcessRunner` already runs the Python worker; R is a child process of that worker, inside the same job, timeout and cancellation.
+- A validation pack grows with the capability:
+  - the package risk assessments;
+  - the reference test results per release;
+  - the environment lock.
+
+  This is the material a user's QA needs to judge fitness for intended use. Delta does not claim the capability is "validated" or "accepted by regulators".
+- CI needs an R toolchain on the runners that execute the statistics tests (central CI in Action Worker).
+
+## Owner's answers (2026-10-11)
+
+1. B accepted: R computes, Python orchestrates and handles data and rendering.
+2. Optional JMP / SAS script export is planned in Suite (decision point 9).
+
+## Open question
+
+Which R version line to pin first: the current release, or the previous minor version for broader availability on users' machines.
+
+## Not verified
+
+- The statements about FDA, EMA, NMPA and R Consortium pilots are from public documents as known at the time of writing, not re-read for this ADR.
+- No R worker has been built yet. Running `Rscript` as a child of a supervised Python worker on Windows (process-tree termination on cancel) must be tested.

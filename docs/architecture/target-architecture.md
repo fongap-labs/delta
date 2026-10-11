@@ -149,8 +149,10 @@ Rust + TypeScript
 工作执行语言：
 
 ```text
-Python / PowerShell / Shell
+Python / R / PowerShell / Shell
 ```
+
+R 只作为统计计算引擎，由 Python Worker 调度（ADR-0054）。
 
 Worker 不得拥有 Session、Run State、core DB authority、Policy / Approval、Secrets authority、Artifact formal state 或 Runtime control plane。
 
