@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  getSettings,
+  getSettingsStrict,
   getTrustedWorkspaces,
   setCompactionSettings,
   setContextBar,
@@ -37,6 +37,7 @@ import {
 } from "../tauri";
 import { UPDATER_FEED_PUBLISHED } from "./UpdateBanner";
 import { useThemePref } from "../theme";
+import { LoadError } from "./ViewStates";
 import { useI18n, type TranslationKey } from "@delta/i18n/I18nContext";
 import type { Locale } from "@delta/i18n/types";
 import { Icon } from "./Icon";
@@ -485,11 +486,15 @@ function AppearanceSection() {
 function TrustedWorkspacesCard() {
   const { t } = useI18n();
   const [workspaces, setWorkspaces] = useState<WorkspaceCommandTrust[] | null>(null);
+  // A failed read must not say "no trusted workspaces": it is a security list, so it says it could not load.
+  const [hasFailed, setFailed] = useState(false);
 
-  const refresh = () =>
-    getTrustedWorkspaces()
+  const refresh = () => {
+    setFailed(false);
+    return getTrustedWorkspaces()
       .then(setWorkspaces)
-      .catch(() => setWorkspaces([]));
+      .catch(() => setFailed(true));
+  };
 
   useEffect(() => {
     refresh();
@@ -505,7 +510,11 @@ function TrustedWorkspacesCard() {
     <div className={CARD + " p-4 mb-4"} data-testid="trusted-workspaces-card">
       <div className={FIELD_LABEL}>{t("settings.workspace.title")}</div>
       <div className={FIELD_HELP}>{t("settings.workspace.help")}</div>
-      {workspaces === null ? (
+      {hasFailed && workspaces === null ? (
+        <div className="mt-3">
+          <LoadError what={t("state.what.trustedWorkspaces", undefined, "trusted workspaces")} onRetry={refresh} />
+        </div>
+      ) : workspaces === null ? (
         <div className="text-[12px] text-muted mt-3">{t("common.loading")}</div>
       ) : workspaces.length === 0 ? (
         <div className="text-[12px] text-muted mt-3">{t("settings.workspace.empty")}</div>
@@ -610,9 +619,12 @@ function UpdateInline() {
 function TokenSavingsCard() {
   const { t } = useI18n();
   const [pdf, setPdf] = useState<PdfSettings | null>(null);
+  // A failed read must not show the built-in limits as the saved ones (editing them would overwrite the real values).
+  const [hasFailed, setFailed] = useState(false);
 
-  useEffect(() => {
-    getSettings()
+  const load = () => {
+    setFailed(false);
+    getSettingsStrict()
       .then((s) =>
         setPdf({
           pdf_fallback: s.pdf_fallback || "text",
@@ -620,14 +632,16 @@ function TokenSavingsCard() {
           pdf_max_mb: s.pdf_max_mb || 10,
         }),
       )
-      .catch(() => setPdf({ pdf_fallback: "text", pdf_max_pages: 20, pdf_max_mb: 10 }));
-  }, []);
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
 
   const save = async (patch: Partial<PdfSettings>) => {
     setPdf((p) => (p ? { ...p, ...patch } : p));
     await setPdfSettings(patch);
   };
 
+  if (hasFailed && !pdf) return <LoadError what={t("state.what.settings", undefined, "these settings")} onRetry={load} />;
   if (!pdf) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="token-savings-card">
@@ -692,9 +706,12 @@ function CompactionCard() {
   const [cfg, setCfg] = useState<CompactionSettings | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
+  // A failed read must not show the built-in thresholds as the saved ones.
+  const [hasFailed, setFailed] = useState(false);
 
-  useEffect(() => {
-    getSettings()
+  const load = () => {
+    setFailed(false);
+    getSettingsStrict()
       .then((s) => {
         setCfg({
           compaction_threshold_pct: s.compaction_threshold_pct ?? 0.8,
@@ -704,20 +721,16 @@ function CompactionCard() {
         setModels(s.models || []);
         setLabels(s.model_labels || {});
       })
-      .catch(() =>
-        setCfg({
-          compaction_threshold_pct: 0.8,
-          compaction_cap_tokens: 250_000,
-          compaction_model: "",
-        }),
-      );
-  }, []);
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
 
   const save = async (patch: Partial<CompactionSettings>) => {
     setCfg((p) => (p ? { ...p, ...patch } : p));
     await setCompactionSettings(patch);
   };
 
+  if (hasFailed && !cfg) return <LoadError what={t("state.what.settings", undefined, "these settings")} onRetry={load} />;
   if (!cfg) return null;
   const modelLabel = (id: string) => labels[id]?.split(" · ")[0] || id;
   return (
@@ -795,18 +808,23 @@ function CompactionCard() {
 function ContextBarCard() {
   const { t } = useI18n();
   const [shown, setShown] = useState<boolean | null>(null);
+  // A failed read must not show the switch as off (that would be a guess, and a click would save it).
+  const [hasFailed, setFailed] = useState(false);
 
-  useEffect(() => {
-    getSettings()
+  const load = () => {
+    setFailed(false);
+    getSettingsStrict()
       .then((s) => setShown(s.context_bar === true))
-      .catch(() => setShown(false));
-  }, []);
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
 
   const save = async (isShown: boolean) => {
     setShown(isShown);
     await setContextBar(isShown);
   };
 
+  if (hasFailed && shown === null) return <LoadError what={t("state.what.settings", undefined, "these settings")} onRetry={load} />;
   if (shown === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="context-bar-card">
@@ -831,12 +849,16 @@ function ContextBarCard() {
 function SidebarCard() {
   const { t } = useI18n();
   const [peek, setPeek] = useState<number | null>(null);
+  // A failed read must not show 5 as the saved count.
+  const [hasFailed, setFailed] = useState(false);
 
-  useEffect(() => {
-    getSettings()
+  const load = () => {
+    setFailed(false);
+    getSettingsStrict()
       .then((s) => setPeek(s.sessions_peek || 5))
-      .catch(() => setPeek(5));
-  }, []);
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
 
   const save = async (n: number) => {
     const clamped = Math.max(1, Math.min(n || 5, 50));
@@ -844,6 +866,7 @@ function SidebarCard() {
     await setSessionsPeek(clamped);
   };
 
+  if (hasFailed && peek === null) return <LoadError what={t("state.what.settings", undefined, "these settings")} onRetry={load} />;
   if (peek === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"}>
@@ -873,13 +896,17 @@ function FilesCard() {
   const [scratchMsg, setScratchMsg] = useState<string | null>(null);
   const desktop = isTauri();
 
-  const refresh = () =>
-    getSettings()
+  const [hasFailed, setFailed] = useState(false);
+
+  const refresh = () => {
+    setFailed(false);
+    return getSettingsStrict()
       .then((s) => {
         setSettings(s);
         setScratchDraft((d) => d || s.scratch_base || "");
       })
-      .catch(() => setSettings(null));
+      .catch(() => setFailed(true));
+  };
   useEffect(() => {
     refresh();
   }, []);
@@ -899,6 +926,7 @@ function FilesCard() {
     if (picked) setScratchDraft(picked);
   };
 
+  if (hasFailed && !settings) return <LoadError what={t("state.what.settings", undefined, "these settings")} onRetry={refresh} />;
   if (!settings) return null;
 
   return (

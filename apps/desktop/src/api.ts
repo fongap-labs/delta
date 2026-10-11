@@ -301,7 +301,7 @@ export async function openWorkspace(
 }
 
 export async function getTrustedWorkspaces(): Promise<WorkspaceCommandTrust[]> {
-  const out = await directTrustedWorkspaces();
+  const out = throwOnError(await directTrustedWorkspaces());
   return out.workspaces ?? [];
 }
 
@@ -1097,6 +1097,14 @@ export async function setUnattended(
 
 export async function getSettings(): Promise<ModelSettings> {
   return directGetSettings() as Promise<ModelSettings>;
+}
+
+/**
+ * Same read, but a runtime error rejects instead of resolving to an object without the fields.
+ * For cards that would otherwise show their built-in defaults as if they were the saved settings.
+ */
+export async function getSettingsStrict(): Promise<ModelSettings> {
+  return throwOnError((await directGetSettings()) as ModelSettings & { error?: unknown });
 }
 
 export async function setModelKey(
