@@ -212,7 +212,9 @@ read_at       RFC 3339 时间
 - 工具提出调用前，Runtime 按工作区档位判定：`open` 放行；`ask_each_time` 每次调用都确认；`approved_endpoints` 放行私有目的地和已批准主机，`any_public` 每次确认，其余固定公网服务和本地进程拒绝；`private_only` 只放行私有目的地，其余拒绝；未选择档位则拒绝；
 - 被拒绝的调用不执行，写入 `tool.failed`（`stage` 为 `egress`）；需要确认的调用只对这一次调用有效，长期授权和自动批准不适用；
 - `tool.proposed` 带 `egress` 对象：`class`、`host`、`level`、`decision`（`allowed`、`ask`、`blocked`、`not_chosen`）；不向本机之外送出内容的工具为 `null`；
-- 尚未实现（ADR-0061 第二步）：按路径覆盖、本地进程的 `local-only` 标记、Suite 连接器声明，以及把被拒绝的工具从模型可用列表中隐藏。
+- 本地 MCP 服务器可由用户标记为 `local-only`（用户的陈述，Delta 不验证）；标记会让它在 `approved_endpoints` 和 `private_only` 下运行，因此需要确认，取消标记立即生效；
+- 对任何档位都会拒绝的工具，不提供给模型（`offered_to_model`），不再只在执行时拒绝；
+- 尚未实现（ADR-0061 第二步）：按路径覆盖、`local-only` 与按路径覆盖的桌面端设置，以及 Suite 连接器声明。
 
 ## 4. Transport 与 IPC
 
