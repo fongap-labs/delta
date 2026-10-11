@@ -593,7 +593,12 @@ impl CoreControlPlane {
         let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
             let offered = serde_json::from_value::<ToolMetadata>(registration.metadata.clone())
                 .map(|metadata| {
-                    crate::egress::offered_to_model(&self.state_dir, &workspace, &metadata)
+                    crate::egress::offered_to_model(
+                        &self.state_dir,
+                        &workspace,
+                        &registration.tool_name,
+                        &metadata,
+                    )
                 })
                 .unwrap_or(false);
             if !offered {
@@ -927,6 +932,21 @@ impl CoreControlPlane {
     ) -> Result<Value, String> {
         let mark = mark.map(crate::egress::EndpointMark::parse).transpose()?;
         crate::egress::set_endpoint_mark(&self.state_dir, host, mark, is_confirmed)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Set or remove a per-path rule for a workspace (`""` for every workspace). Only this settings
+    /// command sets rules: no model, skill or worker can (ADR-0061 point 3).
+    pub fn set_path_rule(
+        &self,
+        workspace: &str,
+        path: &str,
+        class: &str,
+        rule: Option<&str>,
+        is_confirmed: bool,
+    ) -> Result<Value, String> {
+        let rule = rule.map(crate::egress::PathRule::parse).transpose()?;
+        crate::egress::set_path_rule(&self.state_dir, workspace, path, class, rule, is_confirmed)
             .map_err(|error| error.to_string())
     }
 

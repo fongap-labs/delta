@@ -214,7 +214,8 @@ read_at       RFC 3339 时间
 - `tool.proposed` 带 `egress` 对象：`class`、`host`、`level`、`decision`（`allowed`、`ask`、`blocked`、`not_chosen`）；不向本机之外送出内容的工具为 `null`；
 - 本地 MCP 服务器可由用户在“设置 ▸ 隐私”中标记为 `local-only`（用户的陈述，Delta 不验证）；标记会让它在 `approved_endpoints` 和 `private_only` 下运行，因此需要确认，取消标记立即生效；
 - 对任何档位都会拒绝的工具，不提供给模型（`offered_to_model`），不再只在执行时拒绝；
-- 尚未实现（ADR-0061 第二步）：按路径覆盖（含桌面端的覆盖列表），以及 Suite 连接器声明。
+- 按路径规则（`set_path_rule`，ADR-0061 第 3 点）：对某个路径（`web_search`、`web_fetch`、`browser`、`open_url` 或 `mcp:<服务器>`）在某个工作区（或所有工作区）给出 `allow`、`ask` 或 `deny`，替换该档位对这条路径的判定；只能经由桌面端设置命令设置；会让内容去到更多地方的规则需要确认，取消规则立即生效；`tool.proposed` 的 `egress` 对象带有 `path` 与 `override`；
+- 尚未实现：Suite 连接器的目的地声明（随连接器加入）。
 
 ## 4. Transport 与 IPC
 

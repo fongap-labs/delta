@@ -441,6 +441,13 @@ export const updateEndpointMark = (host: string, mark: string | null, isConfirme
   invokeAuthority("set_endpoint_mark", { host, mark, isConfirmed });
 export const updateLocalOnly = (server: string, isLocalOnly: boolean, isConfirmed: boolean) =>
   invokeAuthority("set_local_only", { server, isLocalOnly, isConfirmed });
+export const updatePathRule = (
+  workspace: string,
+  path: string,
+  destinationClass: string,
+  rule: string | null,
+  isConfirmed: boolean,
+) => invokeAuthority("set_path_rule", { workspace, path, class: destinationClass, rule, isConfirmed });
 export const directSetWebSearchSettings = (engines: unknown) =>
   invokeAuthority("set_web_search_settings", { engines });
 export const directTestWebSearchEngine = (id: string) => invokeAuthority("test_web_search_engine", { id });

@@ -2881,3 +2881,55 @@ fn a_local_server_the_user_marked_local_only_runs_under_private_only() {
     assert!(result.error.is_none(), "{:?}", result.error);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn a_confirmed_allow_rule_lets_a_refused_search_run_after_its_approval() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::PrivateOnly),
+        outbound_contract("web_search", "web", true, "any_public"),
+        calls.clone(),
+    );
+    crate::egress::set_path_rule(
+        temp.path(),
+        "",
+        "web_search",
+        "any_public",
+        Some(crate::egress::PathRule::Allow),
+        true,
+    )
+    .unwrap();
+    let host = Arc::new(host);
+    let worker_host = host.clone();
+    let worker = std::thread::spawn(move || {
+        worker_host.execute_tool_call(&ToolCall {
+            id: "call-search-allowed".to_string(),
+            name: "web_search".to_string(),
+            arguments: json!({"query": "shelf life"}),
+        })
+    });
+    for _ in 0..200 {
+        if host.approvals.pending_ids() == ["call-search-allowed"] {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(host.approvals.pending_ids(), ["call-search-allowed"]);
+    host.approvals
+        .resolve(Some("call-search-allowed"), ApprovalDecision::Once)
+        .unwrap();
+    let result = worker.join().unwrap();
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    let events = outbound_events(&authorities);
+    let proposed = events
+        .iter()
+        .find(|event| event.r#type == "tool.proposed")
+        .expect("the proposal is recorded");
+    assert_eq!(proposed.payload["egress"]["override"], "allow");
+    assert_eq!(proposed.payload["egress"]["path"], "web_search");
+    assert_eq!(proposed.payload["egress"]["decision"], "allowed");
+}

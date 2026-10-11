@@ -38,6 +38,7 @@ import {
   updateWorkspaceEgress,
   updateEndpointMark,
   updateLocalOnly,
+  updatePathRule,
   directRecentWorkspaces,
   directRemoveModel,
   directRemoveProvider,
@@ -321,7 +322,12 @@ export interface EgressSettings {
   endpoint_marks: { host: string; mark: EndpointMark }[];
   /** Local MCP servers the user stated do not reach the network (ADR-0061). */
   local_only_servers: string[];
+  /** Per-path rules; `workspace` is "" for every workspace (ADR-0061 point 3). */
+  path_overrides: { workspace: string; path: string; rule: PathRule }[];
 }
+
+/** A rule for one path: `allow` lets it go, `ask` asks for each call, `deny` refuses it. */
+export type PathRule = "allow" | "ask" | "deny";
 
 /** A settings change: the new settings, or `needs_confirmation` when it loosens a level. */
 export type EgressChange =
@@ -352,6 +358,17 @@ export async function setEndpointMark(
   isConfirmed: boolean,
 ): Promise<EgressChange> {
   return (await updateEndpointMark(host, mark, isConfirmed)) as EgressChange;
+}
+
+/** Set (`rule` given) or remove (`null`) the rule for a path; `destinationClass` is the path's class. */
+export async function setPathRule(
+  workspace: string,
+  path: string,
+  destinationClass: string,
+  rule: PathRule | null,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updatePathRule(workspace, path, destinationClass, rule, isConfirmed)) as EgressChange;
 }
 
 export async function setLocalOnly(

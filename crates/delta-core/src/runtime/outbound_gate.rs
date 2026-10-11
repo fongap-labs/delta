@@ -55,7 +55,8 @@ impl RuntimeHost {
             return Ok(None);
         };
         let state_dir = authorities.state_dir().to_path_buf();
-        let Some(target) = egress::outbound_target(&state_dir, metadata, Some(&call.arguments))?
+        let Some(target) =
+            egress::outbound_target(&state_dir, metadata, &call.name, Some(&call.arguments))?
         else {
             return Ok(None);
         };
@@ -63,8 +64,10 @@ impl RuntimeHost {
         let level = egress::level_for(&state_dir, &workspace).map_err(|error| {
             format!("The egress settings could not be read, so nothing was sent: {error}")
         })?;
-
-        let decision = egress::decide_outbound(level, &target);
+        let rule = egress::path_rule(&state_dir, &workspace, &target.path).map_err(|error| {
+            format!("The per-path rules could not be read, so nothing was sent: {error}")
+        })?;
+        let decision = egress::decide_path(level, &target, rule);
         let effective = egress::effective_class(&target);
         let destination = if target.host.is_empty() {
             effective.as_str().to_owned()
@@ -76,6 +79,8 @@ impl RuntimeHost {
             "host": target.host,
             "level": level.map(EgressLevel::as_str),
             "decision": decision_label(&decision),
+            "path": target.path,
+            "override": rule.map(egress::PathRule::as_str),
         });
         Ok(Some(OutboundGate {
             decision,

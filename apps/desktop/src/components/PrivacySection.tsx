@@ -7,11 +7,13 @@ import {
   setEgressDefault,
   setEndpointMark,
   setLocalOnly,
+  setPathRule,
   setWorkspaceEgress,
   type EgressChange,
   type EgressLevel,
   type EgressSettings,
   type EndpointMark,
+  type PathRule,
 } from "../api";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { LoadError } from "./ViewStates";
@@ -113,7 +115,8 @@ export function PrivacySection() {
   const [hasFailed, setFailed] = useState(false);
   const [host, setHost] = useState("");
   const [mark, setMark] = useState<EndpointMark>("approved");
-  const [localServers, setLocalServers] = useState<string[]>([]);
+  const [mcpServers, setMcpServers] = useState<{ name: string; transport: string }[]>([]);
+  const [pathWorkspace, setPathWorkspace] = useState("");
   const { run, dialog, error } = useConfirmedChange(setSettings);
 
   const load = () => {
@@ -124,16 +127,28 @@ export function PrivacySection() {
   };
   useEffect(load, []);
   useEffect(() => {
-    // Only local (stdio) servers can carry the mark; a remote server is judged by its address.
     getMcpServers()
-      .then((servers) =>
-        setLocalServers(servers.filter((server) => server.transport === "stdio").map((server) => server.name)),
-      )
-      .catch(() => setLocalServers([]));
+      .then((servers) => setMcpServers(servers.map((server) => ({ name: server.name, transport: server.transport }))))
+      .catch(() => setMcpServers([]));
   }, []);
 
   if (hasFailed && !settings) return <LoadError what={t("egress.what")} onRetry={load} />;
   if (!settings) return null;
+
+  // Only local (stdio) servers can carry the local-only mark; a remote server is judged by its address.
+  const localServers = mcpServers.filter((server) => server.transport === "stdio").map((server) => server.name);
+  // Each path with its destination class, as the runtime judges it (ADR-0061 point 2).
+  const rulePaths: { path: string; label: string; destinationClass: string }[] = [
+    { path: "web_search", label: t("egress.paths.webSearch"), destinationClass: "any_public" },
+    { path: "web_fetch", label: t("egress.paths.webFetch"), destinationClass: "any_public" },
+    { path: "browser", label: t("egress.paths.browser"), destinationClass: "any_public" },
+    { path: "open_url", label: t("egress.paths.openUrl"), destinationClass: "any_public" },
+    ...mcpServers.map((server) => ({
+      path: `mcp:${server.name}`,
+      label: server.name,
+      destinationClass: server.transport === "stdio" ? "local_process" : "fixed_public",
+    })),
+  ];
 
   const addWorkspace = async () => {
     const path = await pickWorkspaceFolder();
@@ -241,6 +256,55 @@ export function PrivacySection() {
             {t("egress.endpoints.add")}
           </button>
         </div>
+      </section>
+
+      <section className={CARD}>
+        <div className="text-[13.5px] font-semibold">{t("egress.paths.title")}</div>
+        <div className="text-[12px] text-muted mt-1 mb-3">{t("egress.paths.sub")}</div>
+        <select
+          className="text-[12.5px] rounded-lg border border-line bg-bg px-2 py-1 mb-3 max-w-full"
+          value={pathWorkspace}
+          onChange={(e) => setPathWorkspace(e.target.value)}
+          data-testid="egress-path-workspace"
+        >
+          <option value="">{t("egress.paths.allWorkspaces")}</option>
+          {settings.workspaces.map((entry) => (
+            <option key={entry.workspace} value={entry.workspace}>
+              {entry.workspace}
+            </option>
+          ))}
+        </select>
+        {rulePaths.map((entry) => {
+          const current =
+            (settings.path_overrides ?? []).find(
+              (row) => row.workspace === pathWorkspace && row.path === entry.path,
+            )?.rule ?? "";
+          return (
+            <div key={entry.path} className="flex items-center gap-2 py-1.5" data-testid="egress-path-rule">
+              <span className="flex-1 min-w-0 text-[12.5px] break-all">{entry.label}</span>
+              <select
+                className="text-[12.5px] rounded-lg border border-line bg-bg px-2 py-1"
+                value={current}
+                onChange={(e) =>
+                  void run((isConfirmed) =>
+                    setPathRule(
+                      pathWorkspace,
+                      entry.path,
+                      entry.destinationClass,
+                      e.target.value === "" ? null : (e.target.value as PathRule),
+                      isConfirmed,
+                    ),
+                  )
+                }
+              >
+                <option value="">{t("egress.paths.followLevel")}</option>
+                <option value="allow">{t("egress.paths.allow")}</option>
+                <option value="ask">{t("egress.paths.ask")}</option>
+                <option value="deny">{t("egress.paths.deny")}</option>
+              </select>
+            </div>
+          );
+        })}
       </section>
 
       <section className={CARD}>
