@@ -25,6 +25,20 @@ pub struct ProviderRequest {
     pub base_url: String,
     #[serde(default)]
     pub timeout_secs: Option<f64>,
+    /// When the egress check relied on the endpoint's addresses (ADR-0057), the connection must
+    /// use exactly those addresses instead of resolving the name again. Empty means resolve as usual.
+    #[serde(skip)]
+    pub pinned_addrs: Vec<std::net::SocketAddr>,
+}
+
+/// Makes the connection use the addresses the egress check classified.
+#[derive(Debug)]
+struct Pinned(Vec<std::net::SocketAddr>);
+
+impl ureq::Resolver for Pinned {
+    fn resolve(&self, _netloc: &str) -> std::io::Result<Vec<std::net::SocketAddr>> {
+        Ok(self.0.clone())
+    }
 }
 
 fn versioned_endpoint(base_url: &str, endpoint: &str) -> String {
@@ -66,13 +80,17 @@ fn agent(timeout_secs: Option<f64>) -> ureq::Agent {
 /// Agent for streamed replies. A long answer legitimately outlives any fixed total deadline,
 /// so only a connect limit and an idle limit (no byte for `timeout_secs`) apply: a stream
 /// that keeps producing is never cut off, a stalled one still fails and can be retried.
-fn stream_agent(timeout_secs: Option<f64>) -> ureq::Agent {
+fn stream_agent(timeout_secs: Option<f64>, pinned_addrs: &[std::net::SocketAddr]) -> ureq::Agent {
     let idle = timeout_duration(timeout_secs);
-    ureq::AgentBuilder::new()
+    let builder = ureq::AgentBuilder::new()
         .user_agent(USER_AGENT)
         .timeout_connect(idle.min(CONNECT_TIMEOUT))
-        .timeout_read(idle)
-        .build()
+        .timeout_read(idle);
+    if pinned_addrs.is_empty() {
+        builder.build()
+    } else {
+        builder.resolver(Pinned(pinned_addrs.to_vec())).build()
+    }
 }
 
 /// Convert a ureq error into a message string that includes the HTTP response body.
@@ -298,7 +316,7 @@ pub fn stream_openai_chat(
     let url = format!("{}/chat/completions", req.base_url.trim_end_matches('/'));
     let body = build_openai_chat(req, true);
     let Some(resp) = send_cancellable(
-        stream_agent(req.timeout_secs)
+        stream_agent(req.timeout_secs, &req.pinned_addrs)
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
@@ -662,7 +680,7 @@ pub fn stream_anthropic(
 ) -> Result<Value, String> {
     let url = versioned_endpoint(&req.base_url, "messages");
     let body = build_anthropic_body(req, true);
-    let mut request = stream_agent(req.timeout_secs).post(&url);
+    let mut request = stream_agent(req.timeout_secs, &req.pinned_addrs).post(&url);
     for (k, v) in anthropic_headers(req) {
         request = request.set(k, &v);
     }
@@ -988,7 +1006,7 @@ pub fn stream_openai_responses(
     let url = versioned_endpoint(&req.base_url, "responses");
     let body = build_openai_responses(req, true);
     let Some(resp) = send_cancellable(
-        stream_agent(req.timeout_secs)
+        stream_agent(req.timeout_secs, &req.pinned_addrs)
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),

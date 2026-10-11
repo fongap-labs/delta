@@ -58,7 +58,7 @@ impl RuntimeHost {
         Ok(())
     }
 
-    fn require_approval(
+    pub(super) fn require_approval(
         &self,
         call: &ToolCall,
         reason: &str,

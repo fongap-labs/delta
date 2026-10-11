@@ -219,6 +219,53 @@ impl InboxStore {
         Ok(item)
     }
 
+    /// A notice for the user about an unattended run, for example one that could not contact a
+    /// model because of the workspace's egress level. One pending notice per session and `key`.
+    pub fn add_notice(
+        &self,
+        session_id: &str,
+        key: &str,
+        title: &str,
+        body: &str,
+    ) -> Result<InboxItem, ShadowReadError> {
+        let mut items = self.items.lock().unwrap();
+        if let Some(existing) = items.iter().find(|item| {
+            item.session_id == session_id
+                && item.state == "pending"
+                && item.tool_call_id.as_deref() == Some(key)
+        }) {
+            return Ok(existing.clone());
+        }
+        let now = time::OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
+        let item = InboxItem {
+            id: uuid::Uuid::new_v4().simple().to_string(),
+            session_id: session_id.to_string(),
+            kind: "notice".to_string(),
+            title: title.to_string(),
+            body: body.to_string(),
+            state: "pending".to_string(),
+            resolution: None,
+            inbox: default_inbox(),
+            created_at: now,
+            resolved_at: None,
+            visibility: default_visibility(),
+            tool_call_id: Some(key.to_string()),
+            options: Vec::new(),
+            allow_text: false,
+            multi: false,
+            header: String::new(),
+            questions: Vec::new(),
+            data: Value::Null,
+        };
+        let mut next = items.clone();
+        next.push(item.clone());
+        self.save(&next)?;
+        *items = next;
+        Ok(item)
+    }
+
     pub fn get(&self, item_id: &str) -> Option<InboxItem> {
         self.items
             .lock()

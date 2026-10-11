@@ -5,6 +5,15 @@ use std::io::{BufRead, BufReader, Read};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::AtomicUsize;
 
+/// Authorities for a test host, with the egress default chosen as `open`, so tests that are not
+/// about egress (ADR-0057) behave as they did before it existed.
+fn authorities_at(state_dir: impl AsRef<std::path::Path>) -> RuntimeAuthorities {
+    let authorities = RuntimeAuthorities::open(state_dir.as_ref()).unwrap();
+    crate::egress::set_default_level(state_dir.as_ref(), crate::egress::EgressLevel::Open, false)
+        .unwrap();
+    authorities
+}
+
 #[test]
 fn test_runtime_config_default() {
     let cfg = RuntimeConfig::default();
@@ -232,7 +241,7 @@ fn tool_contract(risk: &str, requires_approval: bool) -> Value {
 #[test]
 fn tool_execution_composes_policy_lifecycle_validation_checkpoint_and_ledger() {
     let temp = tempfile::tempdir().unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let mut host = RuntimeHost::new("session-1", RuntimeConfig::default())
         .with_authorities(authorities.clone())
@@ -303,7 +312,7 @@ impl ToolExecutor for SecretOutputExecutor {
 #[test]
 fn history_keeps_what_happened_but_not_the_credentials_in_it() {
     let temp = tempfile::tempdir().unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let mut host = RuntimeHost::new("session-s", RuntimeConfig::default())
         .with_authorities(authorities.clone())
         .with_tools(tool_contract("low", false))
@@ -401,7 +410,7 @@ fn post_execution_artifact_failure_becomes_uncertain_and_never_reexecutes() {
     fs::create_dir_all(&staging).unwrap();
     let escaped = workspace.join("escaped.md");
     fs::write(&escaped, "candidate").unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path().join("state")).unwrap();
+    let authorities = authorities_at(temp.path().join("state"));
     let calls = Arc::new(AtomicUsize::new(0));
     let mut host = RuntimeHost::new(
         "session-postprocess",
@@ -451,7 +460,7 @@ fn post_execution_artifact_failure_becomes_uncertain_and_never_reexecutes() {
 #[test]
 fn progress_ledger_failure_marks_side_effect_uncertain() {
     let temp = tempfile::tempdir().unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let mut host = RuntimeHost::new("session-progress-failure", RuntimeConfig::default())
         .with_authorities(authorities.clone())
@@ -485,7 +494,7 @@ fn progress_ledger_failure_marks_side_effect_uncertain() {
 #[test]
 fn approval_authority_blocks_execution_until_ipc_resolution() {
     let temp = tempfile::tempdir().unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let mut host = RuntimeHost::new("session-1", RuntimeConfig::default())
         .with_authorities(authorities)
@@ -524,7 +533,7 @@ fn approval_test_host(
     calls: Arc<AtomicUsize>,
     unattended: bool,
 ) -> (Arc<RuntimeHost>, RuntimeAuthorities) {
-    let authorities = RuntimeAuthorities::open(state_dir).unwrap();
+    let authorities = authorities_at(state_dir);
     let mut host = RuntimeHost::new(
         "session-approval-e2e",
         RuntimeConfig {
@@ -678,7 +687,7 @@ impl ToolExecutor for CancelAwareExecutor {
 #[test]
 fn native_e2e_cancel_during_tool_marks_side_effect_uncertain() {
     let temp = tempfile::tempdir().unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let (started_tx, started_rx) = mpsc::channel();
     let mut host = RuntimeHost::new("session-tool-cancel", RuntimeConfig::default())
         .with_authorities(authorities.clone())
@@ -728,7 +737,7 @@ fn runtime_promotes_and_hashes_only_staged_worker_artifacts() {
     fs::create_dir_all(&staging).unwrap();
     let staged_path = staging.join("candidate.md");
     fs::write(&staged_path, "authoritative artifact").unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path().join("state")).unwrap();
+    let authorities = authorities_at(temp.path().join("state"));
     let mut host = RuntimeHost::new(
         "session-1",
         RuntimeConfig {
@@ -781,7 +790,7 @@ fn replacing_a_file_keeps_the_previous_version_and_says_where() {
     let workspace = temp.path().join("workspace");
     fs::create_dir_all(workspace.join("reports")).unwrap();
     fs::write(workspace.join("reports/final.md"), "the original").unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let run = "run-replace";
     let staging = workspace
         .join(".delta")
@@ -1263,7 +1272,7 @@ fn native_e2e_model_tool_policy_capability_and_model_continue() {
         RetryReply::Complete("report complete"),
     ]);
     let temp = tempfile::tempdir().unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let authorities = authorities_at(temp.path());
     let calls = Arc::new(AtomicUsize::new(0));
     let sink = Arc::new(CaptureSink::default());
     let host = RuntimeHost::new(
@@ -1704,7 +1713,7 @@ use crate::idemlog::SideEffectState;
 
 fn open_authorities() -> (tempfile::TempDir, RuntimeAuthorities) {
     let dir = tempfile::tempdir().unwrap();
-    let auth = RuntimeAuthorities::open(dir.path()).unwrap();
+    let auth = authorities_at(dir.path());
     (dir, auth)
 }
 
@@ -1990,7 +1999,7 @@ fn run_reading_tool(
     let workspace = temp.path().join("work");
     std::fs::create_dir(&workspace).unwrap();
     std::fs::write(workspace.join("notes.txt"), "hello").unwrap();
-    let authorities = RuntimeAuthorities::open(temp.path().join("state")).unwrap();
+    let authorities = authorities_at(temp.path().join("state"));
     let mut host = RuntimeHost::new(
         "session-1",
         RuntimeConfig {
@@ -2186,7 +2195,7 @@ fn run_events(auth: &RuntimeAuthorities, run_id: &str) -> Vec<LedgerEvent> {
 #[test]
 fn resume_continues_the_interrupted_run_under_its_own_run_id() {
     let temp = tempfile::tempdir().unwrap();
-    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    let auth = authorities_at(temp.path());
     seed_session_run(&auth, "run-old", Some("run.interrupted"));
     let provider = MockProvider::start(1);
     let handle = RuntimeHandle::spawn(resume_host(provider.base_url.clone(), &auth)).unwrap();
@@ -2259,7 +2268,7 @@ fn assert_resume_is_rejected(auth: &RuntimeAuthorities, expected: &str) {
 #[test]
 fn resume_with_no_recorded_run_is_rejected_and_writes_nothing() {
     let temp = tempfile::tempdir().unwrap();
-    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    let auth = authorities_at(temp.path());
     assert_resume_is_rejected(&auth, "no recorded run");
 }
 
@@ -2267,7 +2276,7 @@ fn resume_with_no_recorded_run_is_rejected_and_writes_nothing() {
 fn a_finished_run_cannot_be_resumed() {
     for closing in ["run.completed", "run.failed", "run.cancelled"] {
         let temp = tempfile::tempdir().unwrap();
-        let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+        let auth = authorities_at(temp.path());
         seed_session_run(&auth, "run-done", Some(closing));
         assert_resume_is_rejected(&auth, "not interrupted");
     }
@@ -2276,7 +2285,7 @@ fn a_finished_run_cannot_be_resumed() {
 #[test]
 fn a_run_still_open_on_a_human_decision_is_not_resumed() {
     let temp = tempfile::tempdir().unwrap();
-    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    let auth = authorities_at(temp.path());
     seed_session_run(&auth, "run-waiting", None);
     assert_resume_is_rejected(&auth, "not interrupted");
 }
@@ -2284,7 +2293,7 @@ fn a_run_still_open_on_a_human_decision_is_not_resumed() {
 #[test]
 fn an_older_interrupted_run_is_not_resumed_after_a_newer_run_finished() {
     let temp = tempfile::tempdir().unwrap();
-    let auth = RuntimeAuthorities::open(temp.path()).unwrap();
+    let auth = authorities_at(temp.path());
     seed_session_run(&auth, "run-old", Some("run.interrupted"));
     seed_session_run(&auth, "run-new", Some("run.completed"));
     assert_resume_is_rejected(&auth, "not interrupted");
@@ -2318,6 +2327,7 @@ fn resume_after_a_restart_builds_the_runtime_from_the_persisted_session() {
     // The state of a session whose process died mid-run: a persisted session row, its messages and
     // an interrupted run. No runtime handle exists; the new process builds one on resume.
     let plane = crate::CoreControlPlane::open(state_dir).unwrap();
+    crate::egress::set_default_level(state_dir, crate::egress::EgressLevel::Open, false).unwrap();
     crate::control_plane::ensure_session(state_dir, "session-resume", None, "gateway:model-a")
         .unwrap();
     seed_session_run(
@@ -2419,4 +2429,188 @@ fn resume_through_the_control_plane_is_rejected_without_writing_when_nothing_is_
         plane.runtime_resumable("session-resume")["resumable"],
         false
     );
+}
+
+// --- Egress levels on model requests (ADR-0057) ---
+
+fn egress_host(base_url: String, authorities: RuntimeAuthorities) -> RuntimeHost {
+    RuntimeHost::new(
+        "session-egress",
+        RuntimeConfig {
+            model: "test-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "test-key".to_string(),
+            base_url,
+            max_iterations: 3,
+            max_retries: 0,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities)
+}
+
+fn ledger_events(authorities: &RuntimeAuthorities, run_id: &str) -> Vec<LedgerEvent> {
+    authorities
+        .ledger()
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events(run_id)
+        .unwrap()
+}
+
+#[test]
+fn nothing_is_sent_before_the_user_chooses_an_egress_level() {
+    let provider = RetryMockProvider::start(Vec::new());
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let mut host = egress_host(provider.base_url.clone(), authorities.clone());
+    host.set_run_id("run-egress-unset".to_string());
+    let result = host.run("the batch data", None);
+    let error = result.unwrap_err();
+    assert!(error.contains("Choose where"), "{error}");
+    assert_eq!(provider.finish(), 0);
+    let events = ledger_events(&authorities, "run-egress-unset");
+    assert!(events.iter().any(|e| e.r#type == "model.request_refused"));
+    assert!(!events.iter().any(|e| e.r#type == "model.request"));
+    assert!(events.iter().any(|e| e.r#type == "run.failed"));
+}
+
+#[test]
+fn a_private_only_workspace_may_use_a_local_model_and_records_the_request_without_content() {
+    let provider = RetryMockProvider::start(vec![RetryReply::Complete("ok")]);
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    crate::egress::set_default_level(temp.path(), crate::egress::EgressLevel::PrivateOnly, false)
+        .unwrap();
+    let mut host = egress_host(provider.base_url.clone(), authorities.clone());
+    host.set_run_id("run-egress-private".to_string());
+    host.run("the confidential formulation", None).unwrap();
+    assert_eq!(provider.finish(), 1);
+    let events = ledger_events(&authorities, "run-egress-private");
+    let request = events
+        .iter()
+        .find(|e| e.r#type == "model.request")
+        .expect("model.request recorded");
+    assert_eq!(request.payload["endpoint"], "127.0.0.1");
+    assert_eq!(request.payload["endpoint_class"], "private");
+    assert_eq!(request.payload["level"], "private_only");
+    assert!(request.payload["bytes"].as_u64().unwrap() > 0);
+    assert!(!request
+        .payload
+        .to_string()
+        .contains("confidential formulation"));
+}
+
+#[test]
+fn a_private_only_workspace_refuses_an_endpoint_that_is_not_private() {
+    let provider = RetryMockProvider::start(Vec::new());
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    crate::egress::set_default_level(temp.path(), crate::egress::EgressLevel::PrivateOnly, false)
+        .unwrap();
+    // An approved mark is not a private one: the endpoint stops counting as private.
+    crate::egress::set_endpoint_mark(
+        temp.path(),
+        "127.0.0.1",
+        Some(crate::egress::EndpointMark::Approved),
+        true,
+    )
+    .unwrap();
+    let mut host = egress_host(provider.base_url.clone(), authorities.clone());
+    host.set_run_id("run-egress-denied".to_string());
+    let error = host.run("the batch data", None).unwrap_err();
+    assert!(error.contains("Not sent to 127.0.0.1"), "{error}");
+    assert_eq!(provider.finish(), 0);
+    let events = ledger_events(&authorities, "run-egress-denied");
+    assert!(!events.iter().any(|e| e.r#type == "model.request"));
+}
+
+#[test]
+fn ask_each_time_asks_once_per_run_and_a_denial_sends_nothing() {
+    // Approved: two model requests in one run, one question.
+    let provider =
+        RetryMockProvider::start(vec![RetryReply::ToolCall, RetryReply::Complete("done")]);
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    crate::egress::set_default_level(temp.path(), crate::egress::EgressLevel::AskEachTime, false)
+        .unwrap();
+    let host = egress_host(provider.base_url.clone(), authorities.clone())
+        .with_tools(tool_contract("low", false))
+        .with_tool_executor(Arc::new(CountingExecutor {
+            calls: Arc::new(AtomicUsize::new(0)),
+            staged: None,
+        }));
+    let handle = RuntimeHandle::spawn(host).unwrap();
+    let run_id = handle.run("write the report".to_string(), None).unwrap();
+    let mut asked = 0;
+    for _ in 0..500 {
+        if let Some(id) = handle.pending_approvals().first().cloned() {
+            assert!(id.starts_with("egress-"), "{id}");
+            handle.resolve_approval(Some(&id), "once").unwrap();
+            asked += 1;
+        }
+        if !handle.state().is_active() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    wait_for_terminal(&handle);
+    assert_eq!(handle.state(), RuntimeState::Completed);
+    assert_eq!(asked, 1);
+    assert_eq!(provider.finish(), 2);
+    let requests = ledger_events(&authorities, &run_id)
+        .into_iter()
+        .filter(|e| e.r#type == "model.request")
+        .count();
+    assert_eq!(requests, 2);
+
+    // Denied: nothing is sent.
+    let provider = RetryMockProvider::start(Vec::new());
+    let host = egress_host(provider.base_url.clone(), authorities.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+    handle.run("again".to_string(), None).unwrap();
+    for _ in 0..500 {
+        if let Some(id) = handle.pending_approvals().first().cloned() {
+            handle.resolve_approval(Some(&id), "deny").unwrap();
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    wait_for_terminal(&handle);
+    assert_eq!(handle.state(), RuntimeState::Failed);
+    assert_eq!(provider.finish(), 0);
+}
+
+#[test]
+fn an_unattended_run_without_an_egress_level_leaves_one_inbox_notice() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    for run in ["run-auto-1", "run-auto-2"] {
+        let provider = RetryMockProvider::start(Vec::new());
+        let mut host = RuntimeHost::new(
+            "session-auto",
+            RuntimeConfig {
+                model: "test-model".to_string(),
+                protocol: "openai_chat".to_string(),
+                api_key: "test-key".to_string(),
+                base_url: provider.base_url.clone(),
+                unattended: true,
+                ..RuntimeConfig::default()
+            },
+        )
+        .with_authorities(authorities.clone());
+        host.set_run_id(run.to_string());
+        assert!(host.run("nightly summary", None).is_err());
+        assert_eq!(provider.finish(), 0);
+    }
+    let notices: Vec<_> = authorities
+        .inbox()
+        .list(Some("session-auto"), Some("pending"))
+        .into_iter()
+        .filter(|item| item.kind == "notice")
+        .collect();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].body.contains("Nothing was sent"));
 }
