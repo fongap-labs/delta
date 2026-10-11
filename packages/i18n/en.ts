@@ -299,6 +299,8 @@ export const en = {
   "settings.search.title": "Web search",
   "settings.search.help": "Manage search engines like a browser does. Google, Bing (international) and DuckDuckGo are built in and need no key; engines are tried from the top and Delta moves on to the next when one fails. Give an engine your own key for steadier results, or add engines of your own. Each web request still asks for your approval.",
   "settings.search.custom": "custom",
+  "settings.search.default": "Default",
+  "settings.search.makeDefault": "Set as default",
   "settings.search.needsKey": "needs a key",
   "settings.search.hasKey": "key saved",
   "settings.search.edit": "Set up",

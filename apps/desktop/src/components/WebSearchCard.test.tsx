@@ -50,6 +50,31 @@ describe("web search engines", () => {
     expect(saveButton().disabled).toBe(true);
   });
 
+  it("marks the first engine that is on as the default and lets any usable engine take that place", async () => {
+    view();
+    await screen.findByTestId("web-search-card");
+    expect(screen.getByTestId("search-default-google")).toBeTruthy();
+    expect(screen.queryByTestId("search-default-bing")).toBeNull();
+    // Brave has no key, so it cannot be the default.
+    expect(screen.queryByTestId("search-makedefault-brave")).toBeNull();
+    fireEvent.click(screen.getByTestId("search-makedefault-duckduckgo"));
+    expect(screen.getByTestId("search-default-duckduckgo")).toBeTruthy();
+    expect(screen.queryByTestId("search-default-google")).toBeNull();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(api.save).toHaveBeenCalled());
+    const sent = api.save.mock.calls[0][0] as { id: string }[];
+    expect(sent.map((e) => e.id).slice(0, 3)).toEqual(["duckduckgo", "google", "bing"]);
+  });
+
+  it("makes a switched-off engine the default by turning it on", async () => {
+    api.get.mockResolvedValue(defaults().map((e) => (e.id === "bing" ? { ...e, enabled: false } : e)));
+    view();
+    await screen.findByTestId("web-search-card");
+    fireEvent.click(screen.getByTestId("search-makedefault-bing"));
+    expect((screen.getByTestId("search-enabled-bing") as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId("search-default-bing")).toBeTruthy();
+  });
+
   it("reorders and switches engines off, then saves the whole list in that order", async () => {
     view();
     await screen.findByTestId("web-search-card");

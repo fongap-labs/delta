@@ -550,6 +550,23 @@ fn clamp_results(max_results: Option<i64>) -> usize {
     }
 }
 
+/// Put the engine the user asked for (by id or name, any case) first, keeping the rest in the
+/// user's order as the fallback. `None` in the second place means nothing matched, so the
+/// caller can say so instead of silently using the default.
+pub fn prefer(engines: &[Engine], wanted: &str) -> (Vec<Engine>, bool) {
+    let wanted = wanted.trim();
+    let Some(at) = engines
+        .iter()
+        .position(|e| e.id.eq_ignore_ascii_case(wanted) || e.name.eq_ignore_ascii_case(wanted))
+    else {
+        return (engines.to_vec(), false);
+    };
+    let mut ordered = engines.to_vec();
+    let chosen = ordered.remove(at);
+    ordered.insert(0, chosen);
+    (ordered, true)
+}
+
 /// Ask one engine only, ignoring any cooldown: what the Settings "Test" button runs.
 pub fn search_one(
     engine: &Engine,
@@ -877,6 +894,31 @@ mod tests {
         let scrubbed = scrub(message, url);
         assert!(!scrubbed.contains("SECRET"), "{scrubbed}");
         assert!(scrubbed.contains("https://www.googleapis.com/customsearch/v1"));
+    }
+
+    #[test]
+    fn a_named_engine_goes_first_and_an_unknown_name_changes_nothing() {
+        let engine = |id: &str, name: &str| Engine {
+            id: id.into(),
+            name: name.into(),
+            kind: EngineKind::Bing,
+        };
+        let list = [
+            engine("google", "Google"),
+            engine("bing", "Bing"),
+            engine("custom-1", "My SearXNG"),
+        ];
+        let (ordered, found) = prefer(&list, " my searxng ");
+        assert!(found);
+        assert_eq!(
+            ordered.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
+            ["custom-1", "google", "bing"]
+        );
+        let (same, found) = prefer(&list, "bing");
+        assert!(found && same[0].id == "bing" && same.len() == 3);
+        let (unchanged, found) = prefer(&list, "yahoo");
+        assert!(!found);
+        assert_eq!(unchanged, list);
     }
 
     #[test]

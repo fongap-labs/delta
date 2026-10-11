@@ -9,7 +9,7 @@ pub mod html;
 pub mod search;
 
 pub use fetch::{fetch_page, Limits, Page};
-pub use search::{search, search_one, Engine, EngineKind, SearchOutput, SearchResult};
+pub use search::{prefer, search, search_one, Engine, EngineKind, SearchOutput, SearchResult};
 
 use std::sync::Arc;
 
@@ -90,7 +90,8 @@ pub fn search_registration() -> CapabilityRegistration {
             "type": "object", "required": ["query"],
             "properties": {
                 "query": {"type": "string", "description": "The search query."},
-                "max_results": {"type": "integer", "description": "How many results to return (default 5, max 10)."}
+                "max_results": {"type": "integer", "description": "How many results to return (default 5, max 10)."},
+                "engine": {"type": "string", "description": "Search engine to try first, by name (for example Google or Bing), when the user asks for one. Leave out to use the user's default."}
             }
         }),
         metadata: web_metadata("search"),
@@ -114,17 +115,39 @@ pub fn search_registration() -> CapabilityRegistration {
                 .get(SEARCH_CONFIG_SECRET)
                 .map(|text| config::Stored::parse(text))
                 .unwrap_or_else(config::Stored::defaults);
-            let engines = stored.engines();
+            let mut engines = stored.engines();
+            let mut unmatched = None;
+            if let Some(wanted) = job
+                .arguments
+                .get("engine")
+                .and_then(Value::as_str)
+                .filter(|w| !w.trim().is_empty())
+            {
+                let (ordered, found) = prefer(&engines, wanted);
+                engines = ordered;
+                if !found {
+                    unmatched = Some(format!(
+                        "no turned-on engine is called {:?}; the default order was used",
+                        wanted.trim()
+                    ));
+                }
+            }
             match search(query, max_results, &engines, Limits::PRODUCT, &cancelled) {
-                Ok(found) => CapabilityResult::completed(
-                    &job.job_id,
-                    json!({
-                        "ok": true, "provider": found.provider, "note": found.note,
-                        "results": found.results.iter().map(|r| json!({
-                            "title": r.title, "url": r.url, "snippet": r.snippet,
-                        })).collect::<Vec<_>>(),
-                    }),
-                ),
+                Ok(found) => {
+                    let notes: Vec<String> =
+                        [unmatched, found.note].into_iter().flatten().collect();
+                    let note = (!notes.is_empty()).then(|| notes.join("; "));
+                    CapabilityResult::completed(
+                        &job.job_id,
+                        json!({
+                            "ok": true, "provider": found.provider,
+                            "note": note,
+                            "results": found.results.iter().map(|r| json!({
+                                "title": r.title, "url": r.url, "snippet": r.snippet,
+                            })).collect::<Vec<_>>(),
+                        }),
+                    )
+                }
                 Err(error) if error == "cancelled" => CapabilityResult::cancelled(&job.job_id),
                 Err(error) => CapabilityResult::failed(&job.job_id, &error, Some("web_search")),
             }

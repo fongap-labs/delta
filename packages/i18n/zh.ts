@@ -300,6 +300,8 @@ export const zh: Record<TranslationKey, string> = {
   "settings.search.title": "联网搜索",
   "settings.search.help": "像浏览器一样管理搜索引擎：Google、Bing（国际）和 DuckDuckGo 内置，无需密钥即可使用；排在前面的先搜，失败会自动换下一个。可给引擎填入自己的密钥获得更稳定的结果，也可添加自己的搜索引擎。每次联网仍需你批准。",
   "settings.search.custom": "自定义",
+  "settings.search.default": "默认",
+  "settings.search.makeDefault": "设为默认",
   "settings.search.needsKey": "需要密钥",
   "settings.search.hasKey": "已有密钥",
   "settings.search.edit": "设置",

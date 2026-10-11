@@ -764,6 +764,16 @@ export function WebSearchCard() {
     });
     setDirty(true);
   };
+  // The default is the first engine that is on. Setting one as default turns it on and moves it to the top.
+  const makeDefault = (id: string) => {
+    setDrafts((list) => {
+      if (!list) return list;
+      const chosen = list.find((d) => d.id === id);
+      if (!chosen) return list;
+      return [{ ...chosen, enabled: true }, ...list.filter((d) => d.id !== id)];
+    });
+    setDirty(true);
+  };
   const remove = (id: string) => {
     setDrafts((list) => list && list.filter((d) => d.id !== id));
     setOpen(null);
@@ -819,6 +829,8 @@ export function WebSearchCard() {
       <div className={FIELD_HELP}>{t("settings.search.help")}</div>
       <ul className="mt-3 divide-y divide-line border border-line rounded-lg" data-testid="search-engines">
         {drafts.map((d, index) => {
+          const isDefault = drafts.find((x) => x.enabled)?.id === d.id;
+          const canBeDefault = !d.needs_key || d.has_key || !!d.api_key;
           const keyed = d.has_key && !d.clear_key;
           const status = d.needs_key && !keyed && !d.api_key ? t("settings.search.needsKey") : keyed || d.api_key ? t("settings.search.hasKey") : "";
           return (
@@ -832,9 +844,15 @@ export function WebSearchCard() {
                   onChange={(e) => change(d.id, { enabled: e.target.checked })}
                 />
                 <span className="text-[13px] font-medium text-ink truncate">{d.name}</span>
+                {isDefault && <span className="text-[11px] font-medium text-primary" data-testid={`search-default-${d.id}`}>{t("settings.search.default")}</span>}
                 {!d.builtin && <span className="text-[11px] text-faint">{t("settings.search.custom")}</span>}
                 {status && <span className="text-[11.5px] text-muted">{status}</span>}
                 <span className="ml-auto flex items-center gap-1">
+                  {!isDefault && canBeDefault && !d.fresh && (
+                    <button className="text-[12px] px-1.5 text-muted hover:text-ink" onClick={() => makeDefault(d.id)} data-testid={`search-makedefault-${d.id}`}>
+                      {t("settings.search.makeDefault")}
+                    </button>
+                  )}
                   <button className="text-[12px] px-1.5 text-muted hover:text-ink" aria-label={t("settings.search.moveUp")} disabled={index === 0} onClick={() => move(index, -1)} data-testid={`search-up-${d.id}`}>↑</button>
                   <button className="text-[12px] px-1.5 text-muted hover:text-ink" aria-label={t("settings.search.moveDown")} disabled={index === drafts.length - 1} onClick={() => move(index, 1)} data-testid={`search-down-${d.id}`}>↓</button>
                   <button className="text-[12px] px-2 text-primary" onClick={() => setOpen(open === d.id ? null : d.id)} data-testid={`search-edit-${d.id}`}>
