@@ -1,4 +1,4 @@
-# ADR-0055: Computer capabilities, in steps
+# ADR-0059: Computer capabilities, in steps
 
 Status: **Accepted for steps 1 and 2** (owner, 2026-10-11, Windows first). Step 3 is **not accepted**: it needs its own decision.
 
@@ -6,7 +6,7 @@ Status: **Accepted for steps 1 and 2** (owner, 2026-10-11, Windows first). Step 
 
 Some office work happens in programs that offer no file or API to read: an error dialog, a legacy desktop app, a window the user is looking at. Other agents solve this with "computer use": the model sees the screen and then moves the mouse and types. That is the most powerful and the most dangerous thing an agent can do: it acts as the user, in any program, including banking, mail and chat, and what is on the screen goes to the model provider.
 
-The blueprint puts human control of consequences first (4.3) and requires every capability to run under Trust, Policy and Approval (section 10). The runtime today gives the model five tools plus the document and web tools of ADR-0054; it cannot look at the screen, and a tool result cannot carry a picture.
+The blueprint puts human control of consequences first (4.3) and requires every capability to run under Trust, Policy and Approval (section 10). The runtime today gives the model five tools plus the document and web tools of ADR-0058; it cannot look at the screen, and a tool result cannot carry a picture.
 
 ## Decision
 

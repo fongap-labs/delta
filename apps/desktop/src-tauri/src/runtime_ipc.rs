@@ -35,7 +35,7 @@ pub type RuntimeRegistry = Arc<CoreControlPlane>;
 pub fn init() -> RuntimeRegistry {
     let core =
         Arc::new(CoreControlPlane::open_default().expect("initialize Rust Core control plane"));
-    // The desktop app can also see the screen, use the clipboard and open files and links (ADR-0055).
+    // The desktop app can also see the screen, use the clipboard and open files and links (ADR-0059).
     // A failure to register them leaves the rest of Delta working.
     if let Err(error) = delta_computer::register(core.capabilities(), core.state_dir()) {
         eprintln!("computer capabilities unavailable: {error}");

@@ -16,7 +16,7 @@ opener = "0.8"
 png = "0.18"
 serde_json = "1"
 url = "2"
-# The controlled browser (ADR-0056) talks to Edge or Chrome over the DevTools websocket. Plain
+# The controlled browser (ADR-0060) talks to Edge or Chrome over the DevTools websocket. Plain
 # websocket client only: no TLS (the connection is to 127.0.0.1) and no async runtime.
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 

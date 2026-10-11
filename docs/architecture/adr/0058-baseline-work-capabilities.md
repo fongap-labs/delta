@@ -1,4 +1,4 @@
-# ADR-0054: Baseline work capabilities live in Foundation
+# ADR-0058: Baseline work capabilities live in Foundation
 
 Status: **Accepted** (owner, 2026-10-11). Implementation follows in steps; each step is listed in the CHANGELOG when it lands.
 

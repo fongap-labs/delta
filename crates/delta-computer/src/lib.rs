@@ -1,8 +1,8 @@
-//! Delta's native computer capabilities (ADR-0055): see the screen, use the clipboard, open files
+//! Delta's native computer capabilities (ADR-0059): see the screen, use the clipboard, open files
 //! and links. Each is a tool the model may call, behind the same grants and approvals as every
 //! other capability, and every one asks the user each time.
 //!
-//! It also drives a controlled browser window (ADR-0056). What is deliberately not here: moving the
+//! It also drives a controlled browser window (ADR-0060). What is deliberately not here: moving the
 //! mouse or typing anywhere on the desktop. That is a separate, later step with its own consent
 //! model.
 

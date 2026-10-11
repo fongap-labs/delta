@@ -1,6 +1,6 @@
 //! Web access for the model: read one page, search the web. Both are egress tools chosen by the
 //! model, so both run behind the address guard (see `guard`) and both are approval-gated by the
-//! registrations in `capability/host.rs` (ADR-0054).
+//! registrations in `capability/host.rs` (ADR-0058).
 
 pub mod config;
 pub mod fetch;

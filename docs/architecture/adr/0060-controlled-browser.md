@@ -1,10 +1,10 @@
-# ADR-0056: A controlled browser for the agent
+# ADR-0060: A controlled browser for the agent
 
 Status: **Accepted** (owner, 2026-10-11, Windows first).
 
 ## Context
 
-`web_fetch` reads a page's HTML. It cannot use a site that needs a click, a form or a script to show its content, which is much of the modern web. ADR-0055 named a controlled browser, one that reads page structure instead of screen pixels, as the safer way to act on web pages and as the thing to build before any mouse-and-keyboard control (its step 3, still not decided).
+`web_fetch` reads a page's HTML. It cannot use a site that needs a click, a form or a script to show its content, which is much of the modern web. ADR-0059 named a controlled browser, one that reads page structure instead of screen pixels, as the safer way to act on web pages and as the thing to build before any mouse-and-keyboard control (its step 3, still not decided).
 
 ## Decision
 

@@ -1,4 +1,4 @@
-//! The controlled browser (ADR-0056): the agent drives a real Edge or Chrome window through the
+//! The controlled browser (ADR-0060): the agent drives a real Edge or Chrome window through the
 //! DevTools protocol, with Delta in control of what it may do.
 //!
 //! - It is Delta's own browser profile, not the user's. The user logs in themselves in the visible
