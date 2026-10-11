@@ -13,6 +13,7 @@ import {
 import { Icon } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
 import { AutomationQuickstart } from "./AutomationQuickstart";
+import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 // Shared utility strings (the §28 page shell — mirrors IntegrationsView's constants).
@@ -94,7 +95,18 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
     if (initialOpenId) setOpenId(initialOpenId);
   }, [initialOpenId]);
 
-  const refresh = () => getAutomations().then(setTasks).catch(() => setTasks([]));
+  // A failed read is not "no automations": until a first read succeeds the page says it is loading or
+  // could not load; a later failed poll keeps the list already on screen.
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
+  const refresh = () =>
+    getAutomations()
+      .then((list) => {
+        setTasks(list);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   useEffect(() => {
     refresh();
     const h = setInterval(refresh, 5000);
@@ -136,7 +148,8 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
     );
   }
 
-  const empty = tasks.length === 0;
+  const isUnknown = tasks.length === 0 && (isLoading || hasFailed);
+  const empty = tasks.length === 0 && !isUnknown;
 
   return (
     <Shell>
@@ -169,7 +182,19 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
           card with §27 connector dots; picking one expands the configure card. */}
       {(empty || shouldShowForm) && <AutomationQuickstart busy={busy !== null} onCreate={create} />}
 
-      {empty ? (
+      {isUnknown ? (
+        hasFailed ? (
+          <LoadError
+            what={t("state.what.automations", undefined, "automations")}
+            onRetry={() => {
+              setLoading(true);
+              refresh();
+            }}
+          />
+        ) : (
+          <LoadingRows />
+        )
+      ) : empty ? (
         !shouldShowForm && (
           <div className={CARD + " p-4 text-[12.5px] text-muted"}>
             {t("scheduled.empty")}

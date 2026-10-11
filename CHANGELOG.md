@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the Automations, Skills, MCP servers and Connectors lists no longer present a failed read as an empty list ("No skills yet", no servers, an empty connector catalogue, the automation quickstart as if none existed). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow; a later failed refresh keeps the list already on screen. The four read functions throw when the runtime reports an error instead of returning an empty result.
+
 - feat: resuming an interrupted run now keeps the run's own `run_id` and appends `run.resumed` to it, as the runtime contract always said, instead of starting a new run (ADR-0053, accepted). The runtime picks the run: the one in the session's latest checkpoint whose last lifecycle state is `interrupted`; if there is none, or the last run finished or is waiting on an approval or question, the request is rejected and nothing is written. Artifacts, validation, side-effect state and `source.read` records written after the resume now sit under the same run as the part before it. Retry is unchanged. The desktop does not offer a Resume action yet.
 
 - docs: add ADR-0053 (proposed) on which run identity a resumed run uses: today `resume` starts a new `run_id`, which contradicts the contract and splits a run's artifacts, validation and sources over two ids. It recommends resuming under the original `run_id` with a `run.resumed` event, which the ledger state machine already allows; nothing is implemented and the desktop keeps showing no Resume action until it is accepted.
