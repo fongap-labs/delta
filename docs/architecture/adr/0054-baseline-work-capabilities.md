@@ -44,7 +44,7 @@ Rules that keep this inside the blueprint:
 - `REPOSITORY_BOUNDARY.md` needs no change: "generic baseline capabilities" now has a stated meaning in this ADR.
 - The Python `integrations/tools` and `integrations/web` code is the behavioural reference for the ports. It is removed only when nothing calls it, as `DEPENDENCY_POLICY.md` requires.
 - New tools need no new approval path: `web_fetch` and `web_search` are already classified as egress in `policy.rs`.
-- Keyed search providers (Brave, Tavily) are supported: the key lives in the credential store under the `web_search` profile and reaches only the search tool, by name. Without a key the free search pages are used.
+- Search is a user-ordered list of engines: Google, Bing and DuckDuckGo built in without a key, Brave and Tavily with one, and engines the user adds (a URL with `%s`). The list and every key are one credential-store value granted only to the search tool.
 
 ## Not verified
 

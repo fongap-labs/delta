@@ -931,17 +931,43 @@ pub fn get_web_search_settings(state: State<'_, RuntimeRegistry>) -> Value {
     authority_result(state.application().web_search_settings())
 }
 
+/// Save the search engine list: order, on/off, keys and the engines the user added.
 #[tauri::command]
-pub fn set_web_search_settings(
+pub fn set_web_search_settings(state: State<'_, RuntimeRegistry>, engines: Value) -> Value {
+    authority_result(state.application().set_web_search_settings(&engines))
+}
+
+/// Ask one engine a real question, with its saved key, so a new engine can be checked before it
+/// is relied on. Runs off the UI thread; the key never leaves the core.
+#[tauri::command]
+pub async fn test_web_search_engine(
     state: State<'_, RuntimeRegistry>,
-    provider: String,
-    api_key: Option<String>,
-) -> Value {
-    authority_result(
-        state
-            .application()
-            .set_web_search(&provider, api_key.as_deref()),
-    )
+    id: String,
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let engine = match registry.application().web_search_engine(&id) {
+            Ok(Some(engine)) => engine,
+            Ok(None) => {
+                return json!({"ok": false, "error": "this engine has no key or address yet"})
+            }
+            Err(error) => return json!({"ok": false, "error": error.to_string()}),
+        };
+        match delta_core::web::search_one(
+            &engine,
+            "weather today",
+            delta_core::web::Limits::PRODUCT,
+            &|| false,
+        ) {
+            Ok(results) => json!({
+                "ok": true, "count": results.len(),
+                "first": results.first().map(|r| r.title.clone()).unwrap_or_default(),
+            }),
+            Err(error) => json!({"ok": false, "error": error}),
+        }
+    })
+    .await
+    .map_err(|error| format!("the search test stopped unexpectedly: {error}"))
 }
 
 #[tauri::command]

@@ -2,13 +2,14 @@
 //! model, so both run behind the address guard (see `guard`) and both are approval-gated by the
 //! registrations in `capability/host.rs` (ADR-0054).
 
+pub mod config;
 pub mod fetch;
 pub mod guard;
 pub mod html;
 pub mod search;
 
 pub use fetch::{fetch_page, Limits, Page};
-pub use search::{search, KeyedProvider, SearchKey, SearchOutput, SearchResult};
+pub use search::{search, search_one, Engine, EngineKind, SearchOutput, SearchResult};
 
 use std::sync::Arc;
 
@@ -27,9 +28,8 @@ fn web_grants() -> CapabilityGrants {
     }
 }
 
-/// Secret names the search tool may receive: the user's search service and its key.
-pub const SEARCH_PROVIDER_SECRET: &str = "web_search.provider";
-pub const SEARCH_KEY_SECRET: &str = "web_search.api_key";
+/// The one credential-store value the search tool is granted: the user's engine list and keys.
+pub const SEARCH_CONFIG_SECRET: &str = "web_search.config";
 
 /// Egress to a model-chosen destination: medium risk, always asks (see `policy.rs` EGRESS_TOOLS).
 fn web_metadata(capability: &str) -> Value {
@@ -95,10 +95,7 @@ pub fn search_registration() -> CapabilityRegistration {
         }),
         metadata: web_metadata("search"),
         grants: CapabilityGrants {
-            secrets: vec![
-                SEARCH_PROVIDER_SECRET.to_owned(),
-                SEARCH_KEY_SECRET.to_owned(),
-            ],
+            secrets: vec![SEARCH_CONFIG_SECRET.to_owned()],
             ..web_grants()
         },
         workspace_write: false,
@@ -112,19 +109,13 @@ pub fn search_registration() -> CapabilityRegistration {
             };
             let max_results = job.arguments.get("max_results").and_then(Value::as_i64);
             let cancelled = || control.is_cancelled();
-            let secret = |name: &str| {
-                job.secret_values
-                    .get(name)
-                    .map(String::as_str)
-                    .unwrap_or("")
-            };
-            let key = KeyedProvider::from_name(secret(SEARCH_PROVIDER_SECRET))
-                .filter(|_| !secret(SEARCH_KEY_SECRET).trim().is_empty())
-                .map(|provider| SearchKey {
-                    provider,
-                    key: secret(SEARCH_KEY_SECRET).trim(),
-                });
-            match search(query, max_results, key, Limits::PRODUCT, &cancelled) {
+            let stored = job
+                .secret_values
+                .get(SEARCH_CONFIG_SECRET)
+                .map(|text| config::Stored::parse(text))
+                .unwrap_or_else(config::Stored::defaults);
+            let engines = stored.engines();
+            match search(query, max_results, &engines, Limits::PRODUCT, &cancelled) {
                 Ok(found) => CapabilityResult::completed(
                     &job.job_id,
                     json!({

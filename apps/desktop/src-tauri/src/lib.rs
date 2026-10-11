@@ -690,6 +690,7 @@ pub fn run() {
             runtime_ipc::restore_file_version,
             runtime_ipc::get_web_search_settings,
             runtime_ipc::set_web_search_settings,
+            runtime_ipc::test_web_search_engine,
             runtime_ipc::update_session_reasoning,
             runtime_ipc::session_roots,
             runtime_ipc::add_session_root,

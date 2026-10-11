@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import {
   getSettingsStrict,
   getTrustedWorkspaces,
-  getWebSearchSettings,
-  setWebSearchSettings,
-  type WebSearchProvider,
+  getWebSearchEngines,
+  saveWebSearchEngines,
+  testWebSearchEngine,
+  type SearchEngine,
+  type SearchEngineEdit,
   setCompactionSettings,
   setContextBar,
   setOnboarded,
@@ -699,105 +701,208 @@ function TokenSavingsCard() {
   );
 }
 
-// -- Web search: the free search pages by default, or the user's own search service ---------------
-// The key is written to the credential store and never read back into the UI: after saving, the
-// card only knows that a key exists.
-const SEARCH_SERVICES: { id: WebSearchProvider; labelKey: TranslationKey; url?: string }[] = [
-  { id: "auto", labelKey: "settings.search.auto" },
-  { id: "brave", labelKey: "settings.search.brave", url: "https://brave.com/search/api/" },
-  { id: "tavily", labelKey: "settings.search.tavily", url: "https://tavily.com/" },
-];
+// -- Web search engines ---------------------------------------------------------------------
+// Like a browser's search engine list: Google, Bing and DuckDuckGo work without a key; any of them
+// (and Brave, Tavily) can take a key; the user can add engines of their own (an address with %s) and
+// choose their order. Keys go to the credential store and are never read back: the card only knows
+// that one exists.
+interface Draft extends SearchEngine {
+  /** Typed in this session; sent on save. */
+  api_key?: string;
+  cx?: string;
+  clear_key?: boolean;
+  /** Added in this session, not saved yet. */
+  fresh?: boolean;
+}
+
+const toEdit = (d: Draft): SearchEngineEdit => ({
+  ...(d.fresh ? {} : { id: d.id }),
+  name: d.name,
+  enabled: d.enabled,
+  ...(d.builtin ? {} : { template: d.template, auth_header: d.auth_header }),
+  ...(d.api_key ? { api_key: d.api_key } : {}),
+  ...(d.cx ? { cx: d.cx } : {}),
+  ...(d.clear_key ? { clear_key: true } : {}),
+});
 
 export function WebSearchCard() {
   const { t } = useI18n();
-  const [saved, setSaved] = useState<{ provider: WebSearchProvider; has_key: boolean } | null>(null);
+  const [drafts, setDrafts] = useState<Draft[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [provider, setProvider] = useState<WebSearchProvider>("auto");
-  const [key, setKey] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tests, setTests] = useState<Record<string, string>>({});
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: "", template: "", header: "", key: "" });
 
   const load = () => {
     setFailed(false);
-    getWebSearchSettings()
-      .then((s) => {
-        setSaved(s);
-        setProvider(s.provider);
+    getWebSearchEngines()
+      .then((engines) => {
+        setDrafts(engines);
+        setDirty(false);
       })
       .catch(() => setFailed(true));
   };
   useEffect(load, []);
 
-  if (failed && !saved) return <LoadError what={t("settings.search.title")} onRetry={load} />;
-  if (!saved) return null;
+  if (failed && !drafts) return <LoadError what={t("settings.search.title")} onRetry={load} />;
+  if (!drafts) return null;
 
-  const needsKey = provider !== "auto";
-  // Keeping the saved key is allowed only for the service it was saved for.
-  const canKeepKey = saved.has_key && saved.provider === provider;
-  const unchanged = provider === saved.provider && key.trim() === "";
-  const canSave = !busy && !unchanged && (!needsKey || key.trim() !== "" || canKeepKey);
-
+  const change = (id: string, patch: Partial<Draft>) => {
+    setDrafts((list) => list && list.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    setDirty(true);
+  };
+  const move = (index: number, by: -1 | 1) => {
+    setDrafts((list) => {
+      if (!list || index + by < 0 || index + by >= list.length) return list;
+      const next = [...list];
+      [next[index], next[index + by]] = [next[index + by], next[index]];
+      return next;
+    });
+    setDirty(true);
+  };
+  const remove = (id: string) => {
+    setDrafts((list) => list && list.filter((d) => d.id !== id));
+    setOpen(null);
+    setDirty(true);
+  };
+  const addEngine = () => {
+    const id = `new-${Date.now()}`;
+    setDrafts((list) => [
+      ...(list ?? []),
+      {
+        id, name: form.name.trim(), builtin: false, enabled: true, needs_key: false, accepts_key: true,
+        has_key: false, has_cx: false, template: form.template.trim(), auth_header: form.header.trim(),
+        ...(form.key.trim() ? { api_key: form.key.trim() } : {}), fresh: true,
+      },
+    ]);
+    setForm({ name: "", template: "", header: "", key: "" });
+    setAdding(false);
+    setDirty(true);
+  };
   const save = async () => {
     setBusy(true);
     setError(null);
-    const result = await setWebSearchSettings(provider, key.trim() || undefined).catch(() => ({
+    const result = await saveWebSearchEngines(drafts.map(toEdit)).catch(() => ({
       ok: false as const,
       error: t("settings.search.saveFailed"),
     }));
     setBusy(false);
-    if (!result.ok) {
+    if (!result.ok || !result.engines) {
       setError(result.error || t("settings.search.saveFailed"));
       return;
     }
-    setKey("");
-    setSaved({ provider: result.provider ?? provider, has_key: !!result.has_key });
+    setDrafts(result.engines);
+    setDirty(false);
+    setTests({});
   };
-  const service = SEARCH_SERVICES.find((s) => s.id === provider);
+  const runTest = async (id: string) => {
+    setTests((cur) => ({ ...cur, [id]: "…" }));
+    const out: { ok: boolean; count?: number; first?: string; error?: string } = await testWebSearchEngine(id).catch(
+      () => ({ ok: false, error: "" }),
+    );
+    setTests((cur) => ({
+      ...cur,
+      [id]: out.ok
+        ? t("settings.search.testOk", { n: out.count ?? 0, first: out.first ?? "" })
+        : `${t("settings.search.testFailed")} ${out.error ?? ""}`.trim(),
+    }));
+  };
+  const formOk = form.name.trim() !== "" && /^https?:\/\/.+/.test(form.template.trim()) && form.template.split("%s").length === 2;
 
   return (
     <div className={CARD + " p-4"} data-testid="web-search-card">
       <div className={FIELD_LABEL}>{t("settings.search.title")}</div>
       <div className={FIELD_HELP}>{t("settings.search.help")}</div>
-      <div className="seg mt-3" role="radiogroup" aria-label={t("settings.search.title")} data-testid="search-provider">
-        {SEARCH_SERVICES.map((s) => (
-          <button key={s.id} className={provider === s.id ? "active" : ""} onClick={() => setProvider(s.id)}>
-            {t(s.labelKey)}
-          </button>
-        ))}
-      </div>
-      {needsKey && (
-        <div className="mt-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              className={INPUT}
-              value={key}
-              data-testid="search-key"
-              placeholder={canKeepKey ? t("settings.search.keySaved") : t("settings.search.keyPlaceholder")}
-              onChange={(e) => setKey(e.target.value)}
-            />
+      <ul className="mt-3 divide-y divide-line border border-line rounded-lg" data-testid="search-engines">
+        {drafts.map((d, index) => {
+          const keyed = d.has_key && !d.clear_key;
+          const status = d.needs_key && !keyed && !d.api_key ? t("settings.search.needsKey") : keyed || d.api_key ? t("settings.search.hasKey") : "";
+          return (
+            <li key={d.id} className="px-3 py-2" data-testid={`search-engine-${d.id}`}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={d.enabled}
+                  aria-label={d.name}
+                  data-testid={`search-enabled-${d.id}`}
+                  onChange={(e) => change(d.id, { enabled: e.target.checked })}
+                />
+                <span className="text-[13px] font-medium text-ink truncate">{d.name}</span>
+                {!d.builtin && <span className="text-[11px] text-faint">{t("settings.search.custom")}</span>}
+                {status && <span className="text-[11.5px] text-muted">{status}</span>}
+                <span className="ml-auto flex items-center gap-1">
+                  <button className="text-[12px] px-1.5 text-muted hover:text-ink" aria-label={t("settings.search.moveUp")} disabled={index === 0} onClick={() => move(index, -1)} data-testid={`search-up-${d.id}`}>↑</button>
+                  <button className="text-[12px] px-1.5 text-muted hover:text-ink" aria-label={t("settings.search.moveDown")} disabled={index === drafts.length - 1} onClick={() => move(index, 1)} data-testid={`search-down-${d.id}`}>↓</button>
+                  <button className="text-[12px] px-2 text-primary" onClick={() => setOpen(open === d.id ? null : d.id)} data-testid={`search-edit-${d.id}`}>
+                    {t("settings.search.edit")}
+                  </button>
+                </span>
+              </div>
+              {open === d.id && (
+                <div className="mt-2 pl-6 space-y-2">
+                  {!d.builtin && (
+                    <>
+                      <input className={INPUT + " w-full"} value={d.name} placeholder={t("settings.search.namePlaceholder")} onChange={(e) => change(d.id, { name: e.target.value })} />
+                      <input className={INPUT + " w-full"} value={d.template} placeholder="https://example.com/search?q=%s" data-testid={`search-template-${d.id}`} onChange={(e) => change(d.id, { template: e.target.value })} />
+                      <input className={INPUT + " w-full"} value={d.auth_header} placeholder={t("settings.search.headerPlaceholder")} onChange={(e) => change(d.id, { auth_header: e.target.value })} />
+                    </>
+                  )}
+                  {d.accepts_key && (
+                    <input
+                      type="password" autoComplete="off" spellCheck={false} className={INPUT + " w-full"}
+                      value={d.api_key ?? ""} data-testid={`search-key-${d.id}`}
+                      placeholder={keyed ? t("settings.search.keySaved") : t("settings.search.keyPlaceholder")}
+                      onChange={(e) => change(d.id, { api_key: e.target.value, clear_key: false })}
+                    />
+                  )}
+                  {d.id === "google" && (
+                    <input
+                      className={INPUT + " w-full"} value={d.cx ?? ""} data-testid="search-cx-google"
+                      placeholder={d.has_cx ? t("settings.search.keySaved") : t("settings.search.cxPlaceholder")}
+                      onChange={(e) => change(d.id, { cx: e.target.value })}
+                    />
+                  )}
+                  <div className="flex items-center gap-3 text-[12px]">
+                    {keyed && <button className="text-danger" onClick={() => change(d.id, { clear_key: true, api_key: "" })} data-testid={`search-clearkey-${d.id}`}>{t("settings.search.removeKey")}</button>}
+                    {!d.builtin && <button className="text-danger" onClick={() => remove(d.id)} data-testid={`search-remove-${d.id}`}>{t("settings.search.removeEngine")}</button>}
+                    <button className="text-primary disabled:opacity-40" disabled={dirty || d.fresh || (d.needs_key && !d.has_key)} title={dirty ? t("settings.search.saveFirst") : undefined} onClick={() => runTest(d.id)} data-testid={`search-test-${d.id}`}>
+                      {t("settings.search.test")}
+                    </button>
+                    {tests[d.id] && <span className="text-muted" data-testid={`search-test-result-${d.id}`}>{tests[d.id]}</span>}
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {adding ? (
+        <div className="mt-3 space-y-2" data-testid="search-add-form">
+          <input className={INPUT + " w-full"} value={form.name} placeholder={t("settings.search.namePlaceholder")} data-testid="search-add-name" onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className={INPUT + " w-full"} value={form.template} placeholder="https://example.com/search?q=%s" data-testid="search-add-template" onChange={(e) => setForm({ ...form, template: e.target.value })} />
+          <div className={FIELD_HELP}>{t("settings.search.addHelp")}</div>
+          <input className={INPUT + " w-full"} value={form.header} placeholder={t("settings.search.headerPlaceholder")} onChange={(e) => setForm({ ...form, header: e.target.value })} />
+          <input type="password" autoComplete="off" className={INPUT + " w-full"} value={form.key} placeholder={t("settings.search.keyOptional")} onChange={(e) => setForm({ ...form, key: e.target.value })} />
+          <div className="flex gap-2">
+            <button className={BTN_ACCENT} disabled={!formOk} onClick={addEngine} data-testid="search-add-confirm">{t("settings.search.add")}</button>
+            <button className={BTN_BORDERED} onClick={() => setAdding(false)}>{t("common.cancel", undefined, "Cancel")}</button>
           </div>
-          {service?.url && (
-            <div className={FIELD_HELP}>
-              {t("settings.search.getKey")}{" "}
-              <a href={service.url} target="_blank" rel="noreferrer" className="text-primary underline">
-                {service.url.replace("https://", "")}
-              </a>
-            </div>
-          )}
         </div>
+      ) : (
+        <button className="mt-3 text-[12.5px] text-primary" onClick={() => setAdding(true)} data-testid="search-add">
+          + {t("settings.search.addEngine")}
+        </button>
       )}
+
       <div className="mt-3 flex items-center gap-3">
-        <button className={BTN_ACCENT} disabled={!canSave} onClick={save} data-testid="search-save">
+        <button className={BTN_ACCENT} disabled={!dirty || busy} onClick={save} data-testid="search-save">
           {t("common.save", undefined, "Save")}
         </button>
-        {unchanged && saved.provider !== "auto" && (
-          <span className="text-[12px] text-muted" data-testid="search-status">
-            {t("settings.search.inUse", { service: t(SEARCH_SERVICES.find((s) => s.id === saved.provider)!.labelKey) })}
-          </span>
-        )}
         {error && (
           <span className="text-[12px] text-danger" role="alert" data-testid="search-error">
             {error}

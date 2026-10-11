@@ -404,61 +404,61 @@ impl ApplicationStore {
         Ok(json!({"ok": true, "account": account}))
     }
 
-    /// Which search service the user chose and whether a key is saved. The key itself never
-    /// leaves the authority except to the search capability that is granted it.
-    pub fn web_search_settings(&self) -> Result<Value, ShadowReadError> {
-        let authority = self.read_authority()?;
-        let profile = authority.secrets.get(WEB_SEARCH_PROFILE);
-        let provider = profile
-            .and_then(|p| p.get("provider"))
-            .map(String::as_str)
-            .unwrap_or("auto");
-        let has_key = profile
-            .and_then(|p| p.get("api_key"))
-            .is_some_and(|key| !key.trim().is_empty());
-        Ok(json!({"ok": true, "provider": provider, "has_key": has_key}))
+    /// The saved search engine list. Settings saved by the first version (one service and its
+    /// key) become the same list with that service on.
+    fn search_config(&self, authority: &ApplicationAuthority) -> crate::web::config::Stored {
+        use crate::web::config::Stored;
+        let Some(profile) = authority.secrets.get(WEB_SEARCH_PROFILE) else {
+            return Stored::defaults();
+        };
+        if let Some(text) = profile.get("config") {
+            return Stored::parse(text);
+        }
+        let mut stored = Stored::defaults();
+        if let (Some(provider), Some(key)) = (profile.get("provider"), profile.get("api_key")) {
+            if let Some(engine) = stored.engines.iter_mut().find(|e| &e.id == provider) {
+                engine.api_key = key.clone();
+                engine.enabled = true;
+            }
+        }
+        stored
     }
 
-    /// Choose the search service. `auto` uses the free search pages and removes any saved key;
-    /// `brave` and `tavily` need a key, which may be omitted only to keep the one already saved
-    /// for that same service.
-    pub fn set_web_search(
-        &self,
-        provider: &str,
-        api_key: Option<&str>,
-    ) -> Result<Value, ShadowReadError> {
-        let mut authority = self.read_authority()?;
-        if provider == "auto" {
-            authority.secrets.remove(WEB_SEARCH_PROFILE);
-            self.write_authority(&authority)?;
-            return Ok(json!({"ok": true, "provider": "auto", "has_key": false}));
-        }
-        if !matches!(provider, "brave" | "tavily") {
-            return Ok(json!({"ok": false, "error": "unknown search service"}));
-        }
-        let new_key = api_key.map(str::trim).filter(|key| !key.is_empty());
-        let kept = authority
-            .secrets
-            .get(WEB_SEARCH_PROFILE)
-            .filter(|profile| profile.get("provider").map(String::as_str) == Some(provider))
-            .and_then(|profile| profile.get("api_key"))
-            .filter(|key| !key.trim().is_empty())
-            .cloned();
-        let Some(key) = new_key.map(str::to_owned).or(kept) else {
-            return Ok(json!({"ok": false, "error": "an API key is required"}));
+    /// The search engine list as the interface may see it: which engines are on, in what order,
+    /// which have a key. The keys themselves never leave the authority except to the search tool.
+    pub fn web_search_settings(&self) -> Result<Value, ShadowReadError> {
+        Ok(self.search_config(&self.read_authority()?).public_view())
+    }
+
+    /// Save the engine list the interface sends (order, on/off, keys, user-added engines). On a
+    /// rejected list nothing is saved and the reason comes back.
+    pub fn set_web_search_settings(&self, engines: &Value) -> Result<Value, ShadowReadError> {
+        use crate::web::config::{merge, Incoming};
+        let incoming: Vec<Incoming> = match serde_json::from_value(engines.clone()) {
+            Ok(list) => list,
+            Err(_) => {
+                return Ok(json!({"ok": false, "error": "the search engine list is not valid"}))
+            }
         };
-        if key.len() > 512 || key.chars().any(char::is_control) {
-            return Ok(json!({"ok": false, "error": "that does not look like an API key"}));
-        }
+        let mut authority = self.read_authority()?;
+        let merged = match merge(&self.search_config(&authority), incoming) {
+            Ok(merged) => merged,
+            Err(error) => return Ok(json!({"ok": false, "error": error})),
+        };
         authority.secrets.insert(
             WEB_SEARCH_PROFILE.to_owned(),
-            BTreeMap::from([
-                ("provider".to_owned(), provider.to_owned()),
-                ("api_key".to_owned(), key),
-            ]),
+            BTreeMap::from([("config".to_owned(), merged.to_json())]),
         );
         self.write_authority(&authority)?;
-        Ok(json!({"ok": true, "provider": provider, "has_key": true}))
+        Ok(merged.public_view())
+    }
+
+    /// One engine, with its key, for the Settings "Test" button. Stays inside the core.
+    pub fn web_search_engine(
+        &self,
+        id: &str,
+    ) -> Result<Option<crate::web::Engine>, ShadowReadError> {
+        Ok(self.search_config(&self.read_authority()?).engine(id))
     }
 
     /// Resolve the exact secret keys granted to one capability job.
@@ -774,59 +774,81 @@ mod tests {
     }
 
     #[test]
-    fn the_search_key_is_stored_privately_granted_only_by_name_and_never_shown() {
+    fn search_engines_start_with_the_free_three_and_keys_stay_inside() {
         let temp = tempfile::tempdir().unwrap();
         let store = ApplicationStore::open(temp.path()).unwrap();
-        assert_eq!(store.web_search_settings().unwrap()["provider"], "auto");
-        assert_eq!(store.web_search_settings().unwrap()["has_key"], false);
-
-        // A service needs a key.
-        assert_eq!(store.set_web_search("brave", None).unwrap()["ok"], false);
-        assert_eq!(
-            store.set_web_search("brave", Some("  ")).unwrap()["ok"],
-            false
-        );
-        assert_eq!(
-            store.set_web_search("google", Some("k")).unwrap()["ok"],
-            false
-        );
-        assert_eq!(
-            store.set_web_search("brave", Some("bad\nkey")).unwrap()["ok"],
-            false
-        );
-
-        let saved = store.set_web_search("brave", Some(" BSA-secret ")).unwrap();
-        assert_eq!(saved["has_key"], true);
-        let shown = serde_json::to_string(&store.web_search_settings().unwrap()).unwrap();
-        assert!(shown.contains("brave") && !shown.contains("BSA-secret"));
-        let granted = store
-            .resolve_capability_secrets(&[
-                "web_search.provider".to_string(),
-                "web_search.api_key".to_string(),
-            ])
-            .unwrap();
-        assert_eq!(granted["web_search.api_key"], "BSA-secret");
-        assert_eq!(granted["web_search.provider"], "brave");
-
-        // Re-saving the same service without a key keeps the key; another service needs its own.
-        assert_eq!(store.set_web_search("brave", None).unwrap()["ok"], true);
-        assert_eq!(store.set_web_search("tavily", None).unwrap()["ok"], false);
-        assert_eq!(
-            store.set_web_search("tavily", Some("tvly-1")).unwrap()["provider"],
-            "tavily"
-        );
-
-        // Going back to the free search removes the key.
-        assert_eq!(
-            store.set_web_search("auto", None).unwrap()["has_key"],
-            false
-        );
-        assert!(store
-            .resolve_capability_secrets(&["web_search.api_key".to_string()])
+        let view = store.web_search_settings().unwrap();
+        let on: Vec<&str> = view["engines"]
+            .as_array()
             .unwrap()
-            .is_empty());
-        // The key is not a connector: it never appears in the connector list.
+            .iter()
+            .filter(|e| e["enabled"] == true)
+            .map(|e| e["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(on, ["google", "bing", "duckduckgo"]);
+
+        // Turn Brave on with a key, add an engine of one's own, move DuckDuckGo first.
+        let saved = store
+            .set_web_search_settings(&json!([
+                {"id": "duckduckgo", "enabled": true},
+                {"id": "brave", "enabled": true, "api_key": " BSA-secret "},
+                {"id": "google", "enabled": true},
+                {"id": "bing", "enabled": false},
+                {"name": "My search", "enabled": true, "template": "https://s.example/?q=%s", "auth_header": "X-Key", "api_key": "mine-secret"}
+            ]))
+            .unwrap();
+        assert_eq!(saved["ok"], true, "{saved}");
+        let shown = saved.to_string() + &store.web_search_settings().unwrap().to_string();
+        assert!(!shown.contains("BSA-secret") && !shown.contains("mine-secret"));
+        assert_eq!(saved["engines"][1]["has_key"], true);
+
+        // The search tool is granted one value and gets everything it needs from it.
+        let granted = store
+            .resolve_capability_secrets(&["web_search.config".to_string()])
+            .unwrap();
+        let engines = crate::web::config::Stored::parse(&granted["web_search.config"]).engines();
+        let names: Vec<_> = engines.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["DuckDuckGo", "Brave Search", "Google", "My search"]);
+
+        // A rejected list saves nothing.
+        let refused = store
+            .set_web_search_settings(&json!([{"id": "tavily", "enabled": true}]))
+            .unwrap();
+        assert_eq!(refused["ok"], false);
+        assert_eq!(
+            store.web_search_settings().unwrap()["engines"][1]["id"],
+            "brave"
+        );
+        assert!(store.web_search_engine("brave").unwrap().is_some());
+        assert!(store.web_search_engine("tavily").unwrap().is_none());
+        // The key is not a connector.
         assert!(!store.connected_names().unwrap().contains("web_search"));
+    }
+
+    #[test]
+    fn settings_saved_by_the_first_version_become_the_same_list() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = ApplicationStore::open(temp.path()).unwrap();
+        let mut authority = store.read_authority().unwrap();
+        authority.secrets.insert(
+            "web_search".to_string(),
+            BTreeMap::from([
+                ("provider".to_string(), "tavily".to_string()),
+                ("api_key".to_string(), "tvly-1".to_string()),
+            ]),
+        );
+        store.write_authority(&authority).unwrap();
+        let view = store.web_search_settings().unwrap();
+        let tavily = view["engines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == "tavily")
+            .unwrap()
+            .clone();
+        assert_eq!(tavily["enabled"], true);
+        assert_eq!(tavily["has_key"], true);
+        assert!(store.web_search_engine("tavily").unwrap().is_some());
     }
 
     #[test]
