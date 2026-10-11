@@ -1639,10 +1639,13 @@ html[data-platform="linux"] ::-webkit-scrollbar-thumb:hover { background-color: 
 /* -- thinking (reasoning trace) disclosure — model-layer roadmap item 4 ----------- */
 .thinking { width: 100%; max-width: 100%; min-width: 0; margin: 2px 0 4px; }
 .thinking-head {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 12px; color: var(--faint);
+  display: flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
+  font-size: 12px; color: var(--faint); text-align: left;
   background: none; border: none; padding: 2px 0; cursor: pointer;
 }
+/* The label and caret keep their natural width: only the one-line summary shrinks (a squeezed
+   flex row used to wrap "思考过程" one character per line next to a long summary). */
+.thinking-head > :not(.thinking-sum) { flex-shrink: 0; white-space: nowrap; }
 .thinking-head:hover { color: var(--muted); }
 .thinking-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
 .thinking-sum::before { content: "·"; margin-right: 5px; }

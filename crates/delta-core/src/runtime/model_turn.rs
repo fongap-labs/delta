@@ -180,6 +180,19 @@ impl RuntimeHost {
         Ok(ProviderStreamOutcome::Completed)
     }
 
+    /// Sleep for `delay_ms` in short slices, returning early when the run is cancelled or
+    /// steered so Stop never waits out a backoff.
+    fn wait_before_retry(&self, delay_ms: u64) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(delay_ms);
+        while std::time::Instant::now() < deadline {
+            if self.cancel.load(Ordering::Relaxed) || self.provider_cancel.load(Ordering::Relaxed) {
+                return;
+            }
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            std::thread::sleep(left.min(std::time::Duration::from_millis(25)));
+        }
+    }
+
     pub(super) fn loop_turn(&mut self) -> Result<String, String> {
         let mut iterations = 0usize;
         let mut turn_retries = 0u32;
@@ -220,6 +233,7 @@ impl RuntimeHost {
             ) {
                 Ok(ProviderStreamOutcome::Completed) => {
                     self.ensure_event_delivery()?;
+                    turn_retries = 0;
                 }
                 Ok(ProviderStreamOutcome::Interrupted) => {
                     self.ensure_event_delivery()?;
@@ -263,16 +277,24 @@ impl RuntimeHost {
                         && is_retryable_error(&e)
                     {
                         turn_retries += 1;
-                        self.messages.push(json!({
-                            "role": "notice", "kind": "retrying",
-                            "text": format!("Retrying (attempt {turn_retries}/{})", self.config.max_retries),
-                            "ts": now_ts()
-                        }));
+                        let delay_ms =
+                            retry_delay_ms(self.config.retry_base_delay_ms, turn_retries);
+                        // A transient failure is progress, not an outcome: the event carries the
+                        // attempt number so a client shows "connecting, attempt N" instead of an
+                        // error, and nothing is written to the transcript for it.
                         self.emit_event(RuntimeEvent::Error {
                             error: "Transient model failure - retrying.".to_string(),
                             error_type: classify_transient_error(&e),
                             terminal: false,
+                            retry: Some(RetryProgress {
+                                attempt: turn_retries + 1,
+                                max_attempts: self.config.max_retries + 1,
+                                retry_in_ms: delay_ms,
+                            }),
                         });
+                        // Back off before reconnecting (an immediate retry only hammers a rate-
+                        // limited or overloaded gateway); Stop or a steer ends the wait at once.
+                        self.wait_before_retry(delay_ms);
                         continue;
                     }
                     if !streamed_text.is_empty() || !streamed_reasoning.is_empty() {
@@ -299,6 +321,7 @@ impl RuntimeHost {
                         error: e.clone(),
                         error_type: classify_transient_error(&e),
                         terminal: true,
+                        retry: None,
                     });
                     return Err(e);
                 }
@@ -383,4 +406,11 @@ impl RuntimeHost {
             self.drain_steering();
         }
     }
+}
+
+/// Backoff before retry number `retry` (1-based): the base delay doubled each time, capped.
+pub(super) fn retry_delay_ms(base_ms: u64, retry: u32) -> u64 {
+    base_ms
+        .saturating_mul(1u64 << retry.saturating_sub(1).min(16))
+        .min(MAX_RETRY_DELAY_MS.max(base_ms))
 }

@@ -1584,7 +1584,7 @@ export class Session {
   }
 
   interrupt() {
-    void directCancel(this.sessionId);
+    return directCancel(this.sessionId);
   }
 
   // R6 Active-Run Steering: modify the CURRENT turn's direction mid-execution.

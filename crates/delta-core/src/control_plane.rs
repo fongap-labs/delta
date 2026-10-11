@@ -89,6 +89,42 @@ fn load_messages(state_dir: &Path, session_id: &str) -> Vec<Value> {
     out
 }
 
+/// Longest auto-derived session title, in characters.
+const AUTO_TITLE_MAX_CHARS: usize = 30;
+
+/// Human-readable task name from the user's first message: the first non-empty line with
+/// whitespace collapsed, clipped to [`AUTO_TITLE_MAX_CHARS`] characters. `None` when the
+/// text carries nothing nameable (the UI then shows a generic placeholder, never the id).
+fn derive_title(text: &str) -> Option<String> {
+    let line = text.lines().map(str::trim).find(|line| !line.is_empty())?;
+    let collapsed = line.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut chars = collapsed.chars();
+    let head: String = chars.by_ref().take(AUTO_TITLE_MAX_CHARS).collect();
+    if head.is_empty() {
+        return None;
+    }
+    Some(if chars.next().is_some() {
+        format!("{}…", head.trim_end())
+    } else {
+        head
+    })
+}
+
+/// Name a session from its first user message unless it already has a title or the user
+/// renamed it. Best-effort: a missing row or a no-op update is not an error.
+fn set_auto_title(state_dir: &Path, session_id: &str, text: &str) -> Result<(), ShadowReadError> {
+    let Some(title) = derive_title(text) else {
+        return Ok(());
+    };
+    let conn = open_conn(&state_dir.join("core.db"))?;
+    conn.execute(
+        "UPDATE sessions SET title = ?1, auto_title = ?1
+         WHERE session_id = ?2 AND renamed = 0 AND (title IS NULL OR title = '')",
+        params![title, session_id],
+    )?;
+    Ok(())
+}
+
 /// Serialize one session row into the frontend `SessionDto` shape.
 fn row_to_dto(row: &rusqlite::Row) -> rusqlite::Result<Value> {
     let updated_at: Option<String> = row.get("updated_at")?;
@@ -209,6 +245,7 @@ pub fn record_runtime_event(state_dir: &Path, frame: &Value) -> Result<(), Shado
                     message["attachments"] = attachments.clone();
                 }
                 append_session_message(state_dir, session_id, &message)?;
+                set_auto_title(state_dir, session_id, content)?;
             }
         }
         "assistant_message" => {
@@ -248,6 +285,33 @@ pub fn record_runtime_event(state_dir: &Path, frame: &Value) -> Result<(), Shado
     Ok(())
 }
 
+/// Sessions created before auto-titling have no title and would show their raw id. Name
+/// them once from their first user message; later listings find nothing left to do.
+fn backfill_titles(state_dir: &Path, conn: &Connection) -> Result<(), ShadowReadError> {
+    let mut stmt = conn.prepare(
+        "SELECT session_id FROM sessions
+         WHERE renamed = 0 AND (title IS NULL OR title = '') AND n_msgs > 0",
+    )?;
+    let ids = stmt
+        .query_map(params![], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    for id in ids {
+        let first_user = load_messages(state_dir, &id)
+            .into_iter()
+            .find(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+            .and_then(|message| {
+                message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            });
+        if let Some(text) = first_user {
+            set_auto_title(state_dir, &id, &text)?;
+        }
+    }
+    Ok(())
+}
+
 /// Consensus: list sessions, optionally filtered by workspace.
 ///
 /// Returns `{"sessions": [...]}` in the SAME shape the FastAPI
@@ -259,6 +323,7 @@ pub fn list_sessions(state_dir: &Path, workspace: Option<&str>) -> Result<Value,
         return Ok(json!({"sessions": []}));
     }
     let conn = open_conn(&db_path)?;
+    backfill_titles(state_dir, &conn)?;
     let mut sessions = Vec::new();
     match workspace {
         Some(ws) => {
@@ -940,6 +1005,60 @@ pub fn read_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn derive_title_uses_first_line_and_clips() {
+        assert_eq!(
+            derive_title("  今天X有什么热点\n第二行").as_deref(),
+            Some("今天X有什么热点")
+        );
+        assert_eq!(derive_title("a   b\tc").as_deref(), Some("a b c"));
+        assert_eq!(derive_title("\n  \n"), None);
+        let long = "字".repeat(AUTO_TITLE_MAX_CHARS + 5);
+        let title = derive_title(&long).unwrap();
+        assert_eq!(title.chars().count(), AUTO_TITLE_MAX_CHARS + 1);
+        assert!(title.ends_with('…'));
+    }
+
+    #[test]
+    fn first_turn_names_the_session_and_listing_backfills_old_ones() {
+        let tmp = tempfile::tempdir().unwrap();
+        ensure_session(tmp.path(), "fresh", None, "m").unwrap();
+        let start = |text: &str| {
+            json!({
+                "sessionId": "fresh", "type": "turn_start", "payload": {"input": text, "run_id": "r"},
+            })
+        };
+        record_runtime_event(tmp.path(), &start("Summarize today's news")).unwrap();
+        record_runtime_event(tmp.path(), &start("Second message")).unwrap();
+        let listed = list_sessions(tmp.path(), None).unwrap();
+        assert_eq!(listed["sessions"][0]["title"], "Summarize today's news");
+
+        // A user rename is never overwritten.
+        rename_session(tmp.path(), "fresh", "Mine").unwrap();
+        record_runtime_event(tmp.path(), &start("Third")).unwrap();
+        assert_eq!(
+            list_sessions(tmp.path(), None).unwrap()["sessions"][0]["title"],
+            "Mine"
+        );
+
+        // A legacy session with messages but no title is named on the next listing.
+        ensure_session(tmp.path(), "legacy", None, "m").unwrap();
+        append_session_message(
+            tmp.path(),
+            "legacy",
+            &json!({"role": "user", "content": "Old question"}),
+        )
+        .unwrap();
+        let listed = list_sessions(tmp.path(), None).unwrap();
+        let legacy = listed["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["session_id"] == "legacy")
+            .unwrap();
+        assert_eq!(legacy["title"], "Old question");
+    }
 
     #[test]
     fn list_sessions_empty_when_no_db() {

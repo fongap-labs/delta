@@ -64,6 +64,8 @@ interface Props {
   // effective skill menu. Absent (e.g. tests without sessions) → the popup never opens.
   sessionId?: string;
   onInterrupt: () => void;
+  /** Stop was pressed and the run has not ended yet. */
+  isStopping?: boolean;
   onModeChange: (mode: string) => void;
   onModelChange: (model: string) => void;
   // Session default applied to the next message. The sidebar menu mirrors this value;
@@ -531,6 +533,17 @@ export function Composer(props: Props) {
           <div className="px-2.5 pb-2.5 pt-1 flex items-center gap-1.5">
             <span className="text-[11.5px] text-faint px-1">{"调整当前任务"}</span>
             <span className="ml-auto" />
+            {/* The model of the run in progress. It cannot be switched mid-run, but it must stay
+                visible: hiding it made a running task look like it had no model at all. */}
+            {props.model && (
+              <span
+                className="pill chip text-muted cursor-default"
+                data-testid="running-model"
+                title={t("composer.runningModelTitle", undefined, "Model for this run (it can be changed when the run ends)")}
+              >
+                <span className="pill-label">{props.modelLabels?.[props.model] || shortModel(props.model)}</span>
+              </span>
+            )}
             {props.onReasoningEffortChange && (
               <ReasoningMenu
                 value={props.reasoningEffort || "auto"}
@@ -540,11 +553,13 @@ export function Composer(props: Props) {
             )}
             {/* Stop = the inverse (ink) control in the same slot as send: one glance, one target. */}
             <button
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-ink text-bg text-[13px] font-medium cursor-pointer"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-ink text-bg text-[13px] font-medium cursor-pointer disabled:opacity-60 disabled:cursor-default"
               onClick={props.onInterrupt}
+              disabled={props.isStopping}
+              data-testid="composer-stop"
             >
               <Icon name="stop" size={12} />
-              {t("composer.stop", undefined, "Stop")}
+              {props.isStopping ? t("composer.stopping", undefined, "Stopping…") : t("composer.stop", undefined, "Stop")}
             </button>
             <button
               className={

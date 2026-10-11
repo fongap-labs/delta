@@ -128,6 +128,29 @@ describe("CustomCreateForm header shows the alias", () => {
   });
 });
 
+describe("CustomCreateForm subtitle follows the protocol", () => {
+  const withProto = (id: string) => ({
+    ...makePs({}),
+    protoId: id,
+    protocols: [{ id, title: id, fields: [] }] as any,
+    protoDef: { id, title: id, fields: [] } as any,
+  });
+
+  it("names OpenAI for the OpenAI protocol and Anthropic for the Anthropic protocol", () => {
+    const { unmount } = render(wrap(<CustomCreateForm ps={withProto("openai")} tp="t" inline />));
+    expect(screen.getByText(/OpenAI-compatible or native-protocol/)).toBeTruthy();
+    unmount();
+    render(wrap(<CustomCreateForm ps={withProto("anthropic")} tp="t" inline />));
+    expect(screen.getByText(/Anthropic-compatible or native-protocol/)).toBeTruthy();
+    expect(screen.queryByText(/OpenAI-compatible/)).toBeNull();
+  });
+
+  it("labels the OpenAI protocol option plainly", () => {
+    render(wrap(<CustomCreateForm ps={withProto("openai")} tp="t" inline />));
+    expect(screen.getByRole("option", { name: "OpenAI" })).toBeTruthy();
+  });
+});
+
 describe("custom provider identity", () => {
   it("uses the alias as the card title and the protocol as secondary information", () => {
     const custom: ProviderInfo = {

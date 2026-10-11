@@ -44,6 +44,10 @@ mod tool_execution;
 use human_control::InteractionController;
 
 const DEFAULT_MAX_ITERATIONS: usize = 12;
+/// Automatic retries of one model call after a transient failure (so up to 5 attempts).
+pub(crate) const DEFAULT_MAX_RETRIES: u32 = 4;
+/// Longest wait between two automatic retries.
+const MAX_RETRY_DELAY_MS: u64 = 8000;
 
 /// Sink for runtime events. The delta_core binary installs a stdout sink;
 /// the in-process Tauri shell installs a Tauri-event sink.
@@ -84,6 +88,17 @@ pub struct AssistantTurn {
     pub tool_calls: Vec<ToolCall>,
     pub finish_reason: Option<String>,
     pub usage: Option<Value>,
+}
+
+/// Where an automatic provider retry stands, so a client can say "connecting, attempt 2 of 5".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryProgress {
+    /// The connection attempt about to be made, counting the first as 1.
+    pub attempt: u32,
+    /// Total attempts allowed for this model call (the first plus every retry).
+    pub max_attempts: u32,
+    /// How long the runtime waits before making it.
+    pub retry_in_ms: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -154,6 +169,8 @@ pub enum RuntimeEvent {
         error: String,
         error_type: String,
         terminal: bool,
+        /// Present on a non-terminal failure the runtime is about to retry.
+        retry: Option<RetryProgress>,
     },
     Interrupted {
         iterations: usize,
@@ -290,10 +307,17 @@ impl RuntimeEvent {
                 error,
                 error_type,
                 terminal,
-            } => (
-                "error",
-                json!({"error": error, "error_type": error_type, "terminal": terminal}),
-            ),
+                retry,
+            } => {
+                let mut payload =
+                    json!({"error": error, "error_type": error_type, "terminal": terminal});
+                if let Some(retry) = retry {
+                    payload["attempt"] = json!(retry.attempt);
+                    payload["max_attempts"] = json!(retry.max_attempts);
+                    payload["retry_in_ms"] = json!(retry.retry_in_ms);
+                }
+                ("error", payload)
+            }
             Self::Interrupted { iterations } => ("interrupted", json!({"iterations": iterations})),
             Self::Compacting => ("compacting", json!({})),
             Self::Compacted { text } => ("compacted", json!({"text": text})),
@@ -567,6 +591,8 @@ pub struct RuntimeConfig {
     pub base_url: String,
     pub max_iterations: usize,
     pub max_retries: u32,
+    /// Wait before the first automatic retry; it doubles for each further one (capped).
+    pub retry_base_delay_ms: u64,
     pub ttft_timeout: Option<f64>,
     pub tool_timeout: Option<f64>,
     pub model_settings: Value,
@@ -590,7 +616,8 @@ impl Default for RuntimeConfig {
             api_key: String::new(),
             base_url: "https://api.openai.com/v1".to_string(),
             max_iterations: DEFAULT_MAX_ITERATIONS,
-            max_retries: 2,
+            max_retries: DEFAULT_MAX_RETRIES,
+            retry_base_delay_ms: 1000,
             ttft_timeout: None,
             tool_timeout: None,
             model_settings: json!({}),
@@ -695,6 +722,17 @@ fn uuid_v4() -> String {
 }
 
 fn is_retryable_error(e: &str) -> bool {
+    // A reply with a status is judged by the status alone, so a body that merely mentions a
+    // number ("HTTP 400: ... 500 tokens") is not mistaken for a server failure.
+    if let Some(rest) = e.strip_prefix("HTTP ") {
+        let code: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        if let Ok(code) = code.parse::<u16>() {
+            return matches!(
+                code,
+                408 | 425 | 429 | 500 | 502 | 503 | 504 | 520..=524 | 529
+            );
+        }
+    }
     let lower = e.to_lowercase();
     lower.contains("429")
         || lower.contains("502")
@@ -702,6 +740,7 @@ fn is_retryable_error(e: &str) -> bool {
         || lower.contains("504")
         || lower.contains("connection")
         || lower.contains("timeout")
+        || lower.contains("timed out")
         || lower.contains("transport")
 }
 
@@ -1121,6 +1160,7 @@ impl RuntimeHost {
         self.config.model_settings = config.model_settings;
         self.config.max_iterations = config.max_iterations;
         self.config.max_retries = config.max_retries;
+        self.config.retry_base_delay_ms = config.retry_base_delay_ms;
         self.config.ttft_timeout = config.ttft_timeout;
         self.config.tool_timeout = config.tool_timeout;
         self.config.workspace = config.workspace;

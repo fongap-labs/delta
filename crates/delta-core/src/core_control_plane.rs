@@ -543,7 +543,7 @@ impl CoreControlPlane {
 
         let config = RuntimeConfig {
             max_iterations: max_iterations.unwrap_or(12),
-            max_retries: max_retries.unwrap_or(2),
+            max_retries: max_retries.unwrap_or(crate::runtime::DEFAULT_MAX_RETRIES),
             system_prompt: Some(prompt),
             workspace,
             unattended: control_plane::get_unattended(&self.state_dir, &session_id)

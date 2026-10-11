@@ -2,7 +2,7 @@
 // counts) must surface on the replayed tool item — and only there; the
 // agent-visible content string carries no trace.
 import { describe, expect, it } from "vitest";
-import { itemsFromMessages } from "./itemsFromMessages";
+import { itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
 
 describe("itemsFromMessages _display sidecar", () => {
   it("attaches hidden counts to the matching tool item", () => {
@@ -108,5 +108,38 @@ describe("itemsFromMessages reasoning", () => {
     ] as any);
     expect(items[1]).toEqual({ kind: "assistant", text: "answer", reasoning: "let me think" });
     expect(items[2]).toEqual({ kind: "assistant", text: "", reasoning: "stopped mid-thought" });
+  });
+});
+
+describe("withUserIndexes", () => {
+  it("gives an optimistic user bubble the index of its stored twin, newest match first", () => {
+    const persisted = itemsFromMessages([
+      { role: "user", content: "继续" },
+      { role: "assistant", content: "好的" },
+      { role: "user", content: "继续" },
+    ] as any);
+    const current: any[] = [
+      { kind: "user", text: "继续", index: 0 },
+      { kind: "assistant", text: "好的" },
+      { kind: "user", text: "继续", ts: 5 },
+    ];
+    const out = withUserIndexes(current, persisted);
+    expect(out[2]).toMatchObject({ kind: "user", index: 2, ts: 5 });
+    expect(out[0]).toBe(current[0]);
+  });
+
+  it("leaves a bubble without a stored twin alone", () => {
+    const current: any[] = [{ kind: "user", text: "not stored yet" }];
+    expect(withUserIndexes(current, [])[0]).toEqual({ kind: "user", text: "not stored yet" });
+  });
+});
+
+describe("itemsFromMessages retries", () => {
+  it("does not replay an automatic retry marker as an error", () => {
+    const items = itemsFromMessages([
+      { role: "user", content: "hi" },
+      { role: "notice", kind: "retrying", text: "Retrying (attempt 1/2)" },
+    ] as any);
+    expect(items).toHaveLength(1);
   });
 });

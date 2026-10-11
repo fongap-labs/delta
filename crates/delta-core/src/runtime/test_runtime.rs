@@ -10,7 +10,7 @@ fn test_runtime_config_default() {
     let cfg = RuntimeConfig::default();
     assert_eq!(cfg.protocol, "openai_chat");
     assert_eq!(cfg.max_iterations, DEFAULT_MAX_ITERATIONS);
-    assert_eq!(cfg.max_retries, 2);
+    assert_eq!(cfg.max_retries, DEFAULT_MAX_RETRIES);
 }
 
 #[test]
@@ -1031,6 +1031,7 @@ fn retry_test_host(
             base_url,
             max_iterations: 3,
             max_retries: 1,
+            retry_base_delay_ms: 1,
             ttft_timeout: timeout_secs,
             ..RuntimeConfig::default()
         },
@@ -1210,6 +1211,120 @@ fn native_e2e_retries_all_transient_provider_failures_before_output() {
     wait_for_terminal(&handle);
     assert_eq!(handle.state(), RuntimeState::Completed);
     assert_eq!(provider.finish(), 2);
+}
+
+#[test]
+fn native_e2e_retry_is_reported_as_progress_and_leaves_no_error_in_the_transcript() {
+    let provider = RetryMockProvider::start(vec![
+        RetryReply::Status(503),
+        RetryReply::Complete("recovered"),
+    ]);
+    let sink = Arc::new(CaptureSink::default());
+    let handle = RuntimeHandle::spawn(retry_test_host(
+        provider.base_url.clone(),
+        sink.clone(),
+        None,
+    ))
+    .unwrap();
+    handle.run("flaky gateway".to_string(), None).unwrap();
+    wait_for_terminal(&handle);
+    assert_eq!(handle.state(), RuntimeState::Completed);
+    provider.finish();
+
+    let frames = sink.frames.lock().unwrap();
+    let retry = frames
+        .iter()
+        .find(|frame| frame["type"] == "error")
+        .expect("the retry is announced");
+    assert_eq!(retry["payload"]["terminal"], false);
+    assert_eq!(retry["payload"]["attempt"], 2);
+    assert_eq!(retry["payload"]["max_attempts"], 2);
+    assert!(retry["payload"]["retry_in_ms"].is_u64());
+    // The transcript only holds what happened, not the plumbing: no retry marker, no error.
+    assert!(!handle
+        .messages()
+        .iter()
+        .any(|message| message["role"] == "notice"));
+}
+
+#[test]
+fn native_e2e_cancel_ends_a_pending_provider_call_without_waiting_for_it() {
+    // The gateway accepts the request and then says nothing for 1.5 s.
+    let provider = RetryMockProvider::start(vec![RetryReply::Stall(Duration::from_millis(1500))]);
+    let sink = Arc::new(CaptureSink::default());
+    let handle = RuntimeHandle::spawn(retry_test_host(
+        provider.base_url.clone(),
+        sink.clone(),
+        None,
+    ))
+    .unwrap();
+    handle.run("hang".to_string(), None).unwrap();
+    std::thread::sleep(Duration::from_millis(200));
+    let started = std::time::Instant::now();
+    assert!(handle.cancel());
+    wait_for_terminal(&handle);
+    assert!(
+        started.elapsed() < Duration::from_millis(1000),
+        "Stop took {:?}",
+        started.elapsed()
+    );
+    assert_eq!(handle.state(), RuntimeState::Interrupted);
+    assert!(sink
+        .frames
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|frame| frame["type"] == "interrupted"));
+    provider.finish();
+}
+
+#[test]
+fn native_e2e_cancel_ends_the_wait_between_retries() {
+    let provider = RetryMockProvider::start(vec![RetryReply::Status(503)]);
+    let sink = Arc::new(CaptureSink::default());
+    let host = RuntimeHost::new(
+        "session-backoff",
+        RuntimeConfig {
+            model: "test-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "test-key".to_string(),
+            base_url: provider.base_url.clone(),
+            max_retries: 3,
+            retry_base_delay_ms: 5000,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_event_sink(sink.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+    handle.run("overloaded".to_string(), None).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    assert!(handle.cancel());
+    wait_for_terminal(&handle);
+    assert!(started.elapsed() < Duration::from_millis(1000));
+    assert_eq!(handle.state(), RuntimeState::Interrupted);
+    assert_eq!(provider.finish(), 1);
+}
+
+#[test]
+fn retry_delay_doubles_and_is_capped() {
+    assert_eq!(model_turn::retry_delay_ms(1000, 1), 1000);
+    assert_eq!(model_turn::retry_delay_ms(1000, 2), 2000);
+    assert_eq!(model_turn::retry_delay_ms(1000, 4), 8000);
+    assert_eq!(model_turn::retry_delay_ms(1000, 9), 8000);
+    assert_eq!(model_turn::retry_delay_ms(1, 3), 4);
+}
+
+#[test]
+fn http_status_decides_retryability_not_numbers_in_the_body() {
+    for status in [408, 429, 500, 502, 503, 504, 520, 524, 529] {
+        assert!(is_retryable_error(&format!("HTTP {status}: x")), "{status}");
+    }
+    assert!(!is_retryable_error("HTTP 400: at most 500 tokens"));
+    assert!(!is_retryable_error("HTTP 401: invalid key"));
+    assert!(is_retryable_error(
+        "transport error: Network Error: timed out reading response"
+    ));
 }
 
 #[test]

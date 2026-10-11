@@ -138,13 +138,14 @@ export async function directFollowUp(
   }
 }
 
+/** `cancelled` is false when the runtime had no active run to stop. */
 export async function directCancel(
   sessionId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
   try {
     const out = await invoke("runtime_cancel", { sessionId });
     if (out && (out as any).error) return { ok: false, error: (out as any).error };
-    return { ok: true };
+    return { ok: true, cancelled: (out as any)?.cancelled !== false };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
