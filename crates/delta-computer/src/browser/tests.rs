@@ -43,6 +43,8 @@ fn settings(executable: PathBuf) -> Settings {
             .to_vec(),
         allow_loopback: true,
         idle_timeout: Duration::from_secs(600),
+        // A cold start on a loaded CI runner can take well over the product's 20 seconds.
+        launch_timeout: Duration::from_secs(90),
     }
 }
 
