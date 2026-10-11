@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: a multi-round study keeps its design in a `study.json` record, with a published schema. The module reads and checks it (every problem is reported; a range must stay inside its declared bounds; a factor needs bounds; significance and confidence levels are between 0 and 1) and reports which locked fields differ between two registrations: the objective, the responses, the outer adjustment bounds, the stopping rule and the analysis plan. Factor ranges inside the bounds, rounds, decisions and recommendations are not locked (ADR-0056, step 1). Nothing calls it yet: the amend capability, the history query and the validation rule follow.
+
 - feat: the first statistics figures are computed by R. A new `statistics` module describes one CSV column (n, mean, sample sd, min, max, median) with R run under a time limit; the R program is compiled in, and each result records its R version and the SHA-256 of the program and of the input (ADR-0054, step 2a). Not yet a capability the model can call.
 
 - feat [security]: connector tools are governed by the workspace egress level. A tool in category `connector` that declares no destination is treated as going to any public site, so it is refused in Private only and asked for in Approved endpoints; each connector has its own per-path rule (`connector:<name>`). Suite connectors do not declare a destination yet (ADR-0061, step 2d).

@@ -44,6 +44,7 @@ pub mod runtime;
 pub mod skills;
 pub mod source_citation;
 pub mod statistics;
+pub mod study;
 pub mod taskstore;
 pub mod tool_lifecycle;
 pub mod validation;
