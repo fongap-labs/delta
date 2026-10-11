@@ -704,7 +704,7 @@ export function ListeningSessionsBlock({ c }: { c: Connector }) {
           {mine.map((s) => (
             <div className="flex items-center gap-2 text-[12.5px]" key={s.session_id + s.channel}>
               <span className="min-w-0 truncate" title={s.session_id}>
-                {s.session_title || s.session_id}
+                {s.session_title || t("nav.untitledTask", undefined, "New task")}
                 {s.agent ? <span className="text-faint"> · {s.agent}</span> : null}
               </span>
               <span className="text-muted shrink-0" title={s.channel}>

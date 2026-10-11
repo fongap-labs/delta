@@ -21,6 +21,7 @@ pub mod capability;
 pub mod checkpoint;
 pub mod control_plane;
 pub mod core_control_plane;
+pub mod document;
 pub mod durability;
 pub mod extension_manifest;
 pub mod idemlog;
@@ -44,6 +45,7 @@ pub mod source_citation;
 pub mod taskstore;
 pub mod tool_lifecycle;
 pub mod validation;
+pub mod web;
 pub mod wire;
 
 pub use agent::{AgentDefinition, WorkspacePolicy, DELTA_AGENT};

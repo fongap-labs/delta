@@ -29,7 +29,7 @@ while IFS= read -r path; do
       full=true
       ;;
 
-    # Rust workspace crates (delta-core, delta-stt, delta-sdk, delta-connect, delta-sync).
+    # Rust workspace crates (delta-core, delta-stt, delta-computer, delta-sdk, delta-connect, delta-sync).
     crates/*)
       rust=true
       ;;

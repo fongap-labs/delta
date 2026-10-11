@@ -62,6 +62,9 @@ time = { version = "0.3", features = ["formatting", "macros", "parsing", "serde"
 ureq = { version = "2", features = ["json"] }
 url = "2"
 webpki-roots = "0.26"
+encoding_rs = "0.8"
+lopdf = "0.45"
+quick-xml = "0.41.0"
 
 [dev-dependencies]
 tempfile = "3"

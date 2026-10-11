@@ -687,6 +687,10 @@ pub fn run() {
             runtime_ipc::workspaces_trusted,
             runtime_ipc::update_workspace_trust,
             runtime_ipc::session_revert,
+            runtime_ipc::restore_file_version,
+            runtime_ipc::get_web_search_settings,
+            runtime_ipc::set_web_search_settings,
+            runtime_ipc::test_web_search_engine,
             runtime_ipc::update_session_reasoning,
             runtime_ipc::session_roots,
             runtime_ipc::add_session_root,
@@ -769,7 +773,7 @@ pub fn run() {
             };
             app.manage(KeepAwake(Mutex::new(ka)));
             app.manage(PendingUpdate(Mutex::new(None)));
-            // Voice recordings are transient; only the explicitly installed local Whisper model
+            // Voice recordings are transient; only the explicitly installed local SenseVoice model
             // lives in the existing application state directory.
             app.manage(Arc::new(Dictation::new(state_dir().join("models"))));
 
@@ -884,6 +888,10 @@ pub fn run() {
                 if let Some(state) = app.try_state::<KeepAwake>() {
                     state.0.lock().unwrap().take();
                 }
+            }
+            if matches!(event, RunEvent::Exit) {
+                // The controlled browser window goes with the app.
+                delta_computer::shutdown();
             }
         });
 }

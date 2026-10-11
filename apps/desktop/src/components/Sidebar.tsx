@@ -214,7 +214,7 @@ export function Sidebar(props: Props) {
   useEscapeDismiss(rowMenuId !== null, closeRowMenu);
 
   const row = (session: SessionInfo) => {
-    const title = session.title || session.session_id;
+    const title = session.title || t("nav.untitledTask", undefined, "New task");
     const active = session.session_id === props.activeSession;
     const editing = editingId === session.session_id;
     const menuOpen = rowMenuId === session.session_id;

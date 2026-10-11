@@ -71,6 +71,8 @@ impl CoreControlPlane {
         let application =
             Arc::new(ApplicationStore::open(&state_dir).map_err(|error| error.to_string())?);
         let capability_host = CapabilityHost::product_defaults()?;
+        let skills = Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?);
+        capability_host.register(crate::skills::save_registration(skills.clone()))?;
 
         // Rust ApplicationStore remains the sole product credential authority.
         // Capability jobs receive only the exact grant-scoped keys requested by
@@ -124,7 +126,7 @@ impl CoreControlPlane {
             )),
             mcp: Arc::new(McpStore::open(&state_dir).map_err(|error| error.to_string())?),
             mcp_runtime: Arc::new(McpRuntime::new()),
-            skills: Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?),
+            skills,
             application,
             state_dir,
         })
@@ -506,6 +508,15 @@ impl CoreControlPlane {
             config.model_settings["reasoning_effort"] = Value::String(effort);
         }
 
+        // Housekeeping for what the runtime keeps in the workspace for safety (old versions of
+        // replaced files, abandoned staging folders). Cheap, best effort, never blocks a run.
+        if let Some(workspace) = workspace.as_deref() {
+            control_plane::prune_workspace_leftovers(
+                std::path::Path::new(workspace),
+                std::time::SystemTime::now(),
+            );
+        }
+
         let mut prompt = DELTA_AGENT.system_prompt.to_string();
         if mode.as_deref() == Some("plan") {
             prompt.push_str("\n\nPlan mode is active. Inspect and reason, but do not perform writes until the user explicitly approves the plan.");
@@ -543,7 +554,7 @@ impl CoreControlPlane {
 
         let config = RuntimeConfig {
             max_iterations: max_iterations.unwrap_or(12),
-            max_retries: max_retries.unwrap_or(2),
+            max_retries: max_retries.unwrap_or(crate::runtime::DEFAULT_MAX_RETRIES),
             system_prompt: Some(prompt),
             workspace,
             unattended: control_plane::get_unattended(&self.state_dir, &session_id)
@@ -869,6 +880,16 @@ impl CoreControlPlane {
 
     pub fn revert_session(&self, session_id: &str, index: usize) -> Result<Value, String> {
         control_plane::revert_session(&self.state_dir, session_id, index)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn restore_file_version(
+        &self,
+        session_id: &str,
+        backup: &str,
+        target: &str,
+    ) -> Result<Value, String> {
+        control_plane::restore_file_version(&self.state_dir, session_id, backup, target)
             .map_err(|error| error.to_string())
     }
 

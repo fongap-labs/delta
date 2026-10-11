@@ -138,13 +138,14 @@ export async function directFollowUp(
   }
 }
 
+/** `cancelled` is false when the runtime had no active run to stop. */
 export async function directCancel(
   sessionId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
   try {
     const out = await invoke("runtime_cancel", { sessionId });
     if (out && (out as any).error) return { ok: false, error: (out as any).error };
-    return { ok: true };
+    return { ok: true, cancelled: (out as any)?.cancelled !== false };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -427,6 +428,12 @@ export const updateWorkspaceTrust = (path: string, isTrusted: boolean) =>
   invokeAuthority("update_workspace_trust", { path, isTrusted });
 export const directSessionRevert = (sessionId: string, index: number) =>
   invokeAuthority("session_revert", { sessionId, index });
+export const directRestoreFileVersion = (sessionId: string, backup: string, target: string) =>
+  invokeAuthority("restore_file_version", { sessionId, backup, target });
+export const directWebSearchSettings = () => invokeAuthority("get_web_search_settings", {});
+export const directSetWebSearchSettings = (engines: unknown) =>
+  invokeAuthority("set_web_search_settings", { engines });
+export const directTestWebSearchEngine = (id: string) => invokeAuthority("test_web_search_engine", { id });
 export const updateSessionReasoning = (sessionId: string, effort: string) =>
   invokeAuthority("update_session_reasoning", { sessionId, effort });
 export const directSessionRoots = (sessionId: string) =>

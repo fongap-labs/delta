@@ -56,6 +56,15 @@ function messageTarget(target: string): { platform: string; tail: string } {
   return { platform: names[platform] || platform, tail };
 }
 
+const urlHost = (url: unknown): string => {
+  const raw = String(url ?? "");
+  try {
+    return new URL(raw).host || raw;
+  } catch {
+    return raw;
+  }
+};
+
 export function humanizeTool(name: string, args: any): HumanLine {
   const a = args && typeof args === "object" ? args : {};
   switch (name) {
@@ -75,8 +84,42 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Stopped a background command", preKey: "humanize.stopBackground" };
     case "read_file":
       return { pre: "Read ", preKey: "humanize.read", obj: baseName(String(a.path ?? "a file")) };
+    case "read_document":
+      return { pre: "Read ", preKey: "humanize.read", obj: baseName(String(a.path ?? "a document")) };
+    case "screenshot":
+      return { pre: "Looked at your screen", preKey: "humanize.screenshot" };
+    case "clipboard_read":
+      return { pre: "Read your clipboard", preKey: "humanize.clipboardRead" };
+    case "clipboard_write":
+      return { pre: "Copied text to your clipboard", preKey: "humanize.clipboardWrite" };
+    case "open_file":
+      return { pre: "Opened ", preKey: "humanize.opened", obj: baseName(String(a.path ?? "a file")) };
+    case "open_url":
+      return { pre: "Opened in your browser: ", preKey: "humanize.openedUrl", obj: trunc(urlHost(a.url), 50) };
+    case "browser_navigate":
+      return { pre: "Opened in the Delta browser: ", preKey: "humanize.browserNavigate", obj: trunc(urlHost(a.url), 50) };
+    case "browser_snapshot":
+      return { pre: "Read the page in the Delta browser", preKey: "humanize.browserSnapshot" };
+    case "browser_click":
+      return { pre: "Clicked ", preKey: "humanize.browserClick", obj: `“${trunc(String(a.label ?? ""), 50)}”` };
+    case "browser_type":
+      return { pre: "Typed into ", preKey: "humanize.browserType", obj: `“${trunc(String(a.label ?? ""), 50)}”` };
+    case "browser_select":
+      return { pre: "Chose ", preKey: "humanize.browserSelect", obj: `“${trunc(String(a.option ?? ""), 50)}”` };
+    case "browser_press_key":
+      return { pre: "Pressed ", preKey: "humanize.browserKey", obj: trunc(String(a.key ?? ""), 20) };
+    case "browser_scroll":
+      return { pre: "Scrolled the page", preKey: "humanize.browserScroll" };
+    case "browser_back":
+      return { pre: "Went back a page", preKey: "humanize.browserBack" };
+    case "browser_screenshot":
+      return { pre: "Looked at the browser page", preKey: "humanize.browserScreenshot" };
+    case "browser_close":
+      return { pre: "Closed the Delta browser", preKey: "humanize.browserClose" };
     case "write_file":
       return { pre: "Wrote ", preKey: "humanize.wrote", obj: baseName(String(a.path ?? "a file")) };
+    case "create_document":
+      return { pre: "Created ", preKey: "humanize.created", obj: baseName(String(a.path ?? "a document")) };
     case "replace_in_file":
     case "apply_patch":
     case "apply_unified_diff":
@@ -130,15 +173,8 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.webSearch",
         obj: `“${trunc(String(a.query ?? ""), 60)}”`,
       };
-    case "web_fetch": {
-      let host = String(a.url ?? "");
-      try {
-        host = new URL(host).host || host;
-      } catch {
-        /* keep raw */
-      }
-      return { pre: "Read a web page — ", preKey: "humanize.webFetch", obj: trunc(host, 50) };
-    }
+    case "web_fetch":
+      return { pre: "Read a web page — ", preKey: "humanize.webFetch", obj: trunc(urlHost(a.url), 50) };
     case "explore":
       return {
         pre: "Sent a sub-agent to explore — ",
@@ -187,6 +223,48 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
         obj: a.path ? baseName(String(a.path)) : "files",
         ...(a.path ? {} : { objKey: "humanize.files" }),
       };
+    case "create_document":
+      return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "screenshot":
+      return { pre: "Take a picture of your screen", preKey: "humanize.apScreenshot" };
+    case "clipboard_read":
+      return { pre: "Read what you copied to the clipboard", preKey: "humanize.apClipboardRead" };
+    case "clipboard_write":
+      return { pre: "Replace your clipboard with text", preKey: "humanize.apClipboardWrite" };
+    case "open_file":
+      return a.reveal
+        ? { pre: "Show in the file manager: ", preKey: "humanize.apReveal", obj: baseName(String(a.path ?? "a file")) }
+        : { pre: "Open ", preKey: "humanize.apOpen", obj: baseName(String(a.path ?? "a file")) };
+    case "open_url":
+      return { pre: "Open in your browser: ", preKey: "humanize.apOpenUrl", obj: trunc(String(a.url ?? ""), 80) };
+    case "browser_navigate":
+      return { pre: "Open in the Delta browser: ", preKey: "humanize.apBrowserNavigate", obj: trunc(String(a.url ?? ""), 80) };
+    case "browser_click":
+      return { pre: "Click ", preKey: "humanize.apBrowserClick", obj: `“${trunc(String(a.label ?? ""), 50)}”` };
+    case "browser_type":
+      return {
+        pre: "Type ",
+        preKey: "humanize.apBrowserType",
+        obj: `“${trunc(String(a.text ?? ""), 60)}”`,
+        post: ` into “${trunc(String(a.label ?? ""), 40)}”`,
+        postKey: "humanize.apBrowserTypeInto",
+        postVars: { label: trunc(String(a.label ?? ""), 40) },
+      };
+    case "browser_select":
+      return {
+        pre: "Choose ",
+        preKey: "humanize.apBrowserSelect",
+        obj: `“${trunc(String(a.option ?? ""), 50)}”`,
+        post: ` in “${trunc(String(a.label ?? ""), 40)}”`,
+        postKey: "humanize.apBrowserSelectIn",
+        postVars: { label: trunc(String(a.label ?? ""), 40) },
+      };
+    case "browser_press_key":
+      return { pre: "Press the key ", preKey: "humanize.apBrowserKey", obj: trunc(String(a.key ?? ""), 20) };
+    case "web_fetch":
+      return { pre: "Read the web page ", preKey: "humanize.apWebFetch", obj: trunc(urlHost(a.url), 50) };
+    case "web_search":
+      return { pre: "Search the web for ", preKey: "humanize.apWebSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
     case "run_shell": {
       const desc = typeof a.description === "string" && a.description.trim() ? a.description.trim() : "";
       return {
@@ -244,6 +322,12 @@ export function humanizeAsk(name: string, args: any): HumanLine {
         obj: a.path ? baseName(String(a.path)) : "files",
         ...(a.path ? {} : { objKey: "humanize.files" }),
       };
+    case "create_document":
+      return { pre: "Wanted to create ", preKey: "humanize.askCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "web_fetch":
+      return { pre: "Wanted to read the web page ", preKey: "humanize.askWebFetch", obj: trunc(urlHost(a.url), 50) };
+    case "web_search":
+      return { pre: "Wanted to search the web for ", preKey: "humanize.askWebSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
     case "send_message": {
       const { platform, tail } = messageTarget(String(a.target ?? ""));
       if (!tail) return { pre: "Wanted to send a message", preKey: "humanize.askSendMsg" };

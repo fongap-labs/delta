@@ -18,6 +18,7 @@ import {
   deleteSession,
   renameSession,
   revertSession,
+  restoreFileVersion,
   getResumable,
   setReasoningEffort,
   runAutomation,
@@ -42,7 +43,8 @@ import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
-import { itemsFromMessages } from "./itemsFromMessages";
+import { itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
 import { InboxItemCard } from "./components/InboxItemCard";
@@ -105,7 +107,26 @@ export function App() {
   const [locale, setLocaleState] = useState<Locale>(() => normalizeLocale(navigator.language));
   // App hosts the I18nProvider, so its own shell strings resolve straight from the locale's
   // dictionary (mirrors useI18n().t with no fallback: keys are required in both locales).
-  const tr = (key: TranslationKey): string => dictionaries[locale][key] ?? en[key];
+  const tr = (key: TranslationKey, vars?: Record<string, string | number>): string => {
+    const text: string = dictionaries[locale][key] ?? en[key];
+    return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
+  };
+  // Translator in the shape `humanize` expects (key, vars, English fallback).
+  const humanT = (key: string, vars?: Record<string, string | number>, fallback?: string): string => {
+    const text: string = (dictionaries[locale] as Record<string, string>)[key] ?? fallback ?? key;
+    return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
+  };
+  // A finished task is easy to miss when the window is in the background: say so, once.
+  const notifyTurnDone = () => {
+    try {
+      if (typeof Notification === "undefined" || !document.hidden) return;
+      const show = () => new Notification("Delta", { body: tr("notify.taskDone") });
+      if (Notification.permission === "granted") show();
+      else if (Notification.permission === "default") void Notification.requestPermission().then((p) => p === "granted" && show());
+    } catch {
+      // Notifications are a convenience; never let them break the run.
+    }
+  };
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   const [workspaceTrustRequest, setWorkspaceTrustRequest] =
@@ -128,6 +149,19 @@ export function App() {
   const [mode, setMode] = useState("interactive");
   const [isConnected, setConnected] = useState(false);
   const [isRunning, setRunning] = useState(false);
+  // Ref mirror of `isRunning` for async flows (Edit-while-running waits for the stop to land).
+  const isRunningRef = useRef(false);
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+  // Set from Stop until the run actually ends, so the button answers at once.
+  const [isStopping, setStopping] = useState(false);
+  // Provider failure the runtime is retrying on its own: "connecting, attempt N of M". Cleared by
+  // whatever the run does next, so it never outlives the wait.
+  const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
+  // The tool call in progress, numbered within the turn: "Step 3 · Read report.xlsx".
+  const [stepInfo, setStepInfo] = useState<{ n: number; label: string } | null>(null);
+  const stepCountRef = useRef(0);
   // The runtime's answer to "can this session resume an interrupted run?" (it decides; the UI asks).
   const [canResume, setCanResume] = useState(false);
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
@@ -499,6 +533,8 @@ export function App() {
       // shared transcript state.
       if (foregroundSessionIdRef.current !== sessionId) return;
       if (ev.type !== "compacting") setCompacting(false);
+      if (ev.type !== "error" && ev.type !== "ready" && ev.type !== "inbound") setRetryInfo(null);
+      if (ev.type === "turn_done" || ev.type === "interrupted" || ev.type === "turn_start") setStopping(false);
       switch (ev.type) {
         case "ready":
           setConnected(true);
@@ -510,8 +546,19 @@ export function App() {
           break;
         case "turn_start":
           setRunning(true);
+          stepCountRef.current = 0;
+          setStepInfo(null);
           setStreaming("");
           setReasoningStream("");
+          // The runtime has stored the user message by now: give the local echo its raw-message
+          // index so Edit works during the run, not only after it ends.
+          getSessionMessages(sessionId)
+            .then((ms) => {
+              if (foregroundSessionIdRef.current !== sessionId) return;
+              const persisted = itemsFromMessages(ms);
+              setItems((p) => withUserIndexes(p, persisted));
+            })
+            .catch(() => {});
           // Background-delivered turns (channel message, self-wake, durable resume) have no local
           // send(), so the triggering message isn't in `items` yet — surface it. A connector message
           // carries a structured `source` (§3.1) → render the rich card; otherwise a plain user item.
@@ -561,7 +608,14 @@ export function App() {
           setReasoningStream("");
           break;
         }
-        case "tool_proposed":
+        case "tool_proposed": {
+          stepCountRef.current += 1;
+          const line = resolveHumanLine(humanizeTool(d.name, d.arguments), humanT);
+          setStepInfo({
+            n: stepCountRef.current,
+            label: `${line.pre ?? ""}${line.obj ?? ""}${line.post ?? ""}`.trim(),
+          });
+        }
           if (d.name === "todo_write" && (d.arguments?.todos || d.arguments?.items))
             setTodo(normalizeTodos(d.arguments.todos ?? d.arguments.items));
           setItems((p) => [
@@ -611,6 +665,7 @@ export function App() {
           ]);
           break;
         case "tool_finished":
+          setStepInfo(null);
           setItems((p) =>
             updateLastTool(
               p,
@@ -678,6 +733,15 @@ export function App() {
           setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Interrupted." }]);
           break;
         case "error":
+          // A transient failure the runtime retries by itself is progress, not an outcome: show
+          // "connecting, attempt N" in the status bar and keep the transcript free of errors.
+          if (d.terminal === false) {
+            setRetryInfo({ attempt: Number(d.attempt) || 2, max: Number(d.max_attempts) || Number(d.attempt) || 2 });
+            break;
+          }
+          setRetryInfo(null);
+          setStepInfo(null);
+          setStopping(false);
           flushPartialStream();
           setItems((p) => [
             ...p,
@@ -696,6 +760,8 @@ export function App() {
           break;
         case "turn_done":
           setRunning(false);
+          setStepInfo(null);
+          notifyTurnDone();
           refreshSessions();
           // Re-pull the persisted thread: optimistic local items (the just-sent user
           // bubble, streamed texts) carry no raw-message index, so Edit/Retract would
@@ -827,6 +893,10 @@ export function App() {
   const runningStatusLabel = (_running: boolean): string => {
     // R5.1 C3: human-readable lightweight run status, localized (the run-state word itself is
     // rendered by RunStatusBar).
+    if (retryInfo)
+      return tr("run.detail.reconnecting", { n: retryInfo.attempt, max: retryInfo.max });
+    if (isStopping) return tr("run.detail.stopping");
+    if (stepInfo) return tr("run.detail.step", { n: stepInfo.n, label: stepInfo.label });
     if (reasoningStream) return tr("run.detail.thinking");
     if (streaming) return tr("run.detail.generating");
     return tr("run.detail.executing");
@@ -837,7 +907,10 @@ export function App() {
     // Force-run shows exactly what the user typed: "/name rest". Must match the server's
     // `display` sidecar formula so the turn_start dedupe recognizes the local echo.
     const shown = skill ? `/${skill}${text ? ` ${text}` : ""}` : text;
-    setItems((p) => [...p, { kind: "user", text: shown, attachments, ts: Date.now() / 1000 }]);
+    setItems((p) => [
+      ...p,
+      { kind: "user", text: shown, attachments, ts: Date.now() / 1000, ...(isRunningRef.current ? { steer: true } : {}) },
+    ]);
     // The visible model rides along with the message (single source of truth per turn).
     sessionRef.current?.userMessage(text, attachments, model, skill);
     followLatest(); // sending always re-engages stream-following, wherever the user had scrolled
@@ -872,7 +945,29 @@ export function App() {
   };
   const prefillComposer = (text: string, attachments?: Attachment[]) =>
     setComposerPrefill((p) => ({ text, attachments, nonce: (p?.nonce ?? 0) + 1 }));
-  const interrupt = () => sessionRef.current?.interrupt();
+  // Stop answers at once ("Stopping…") and never fails silently: if the runtime says nothing was
+  // running, the view was stale, so settle it from the stored thread; if the request itself
+  // failed, say so instead of leaving a button that appears to do nothing.
+  const interrupt = async () => {
+    const session = sessionRef.current;
+    const targetSessionId = sessionId;
+    if (!session || isStopping) return;
+    setStopping(true);
+    const result = await session.interrupt();
+    if (foregroundSessionIdRef.current !== targetSessionId) return;
+    if (!result.ok) {
+      setStopping(false);
+      setComposerNotice(tr("composer.stopFailed"));
+    } else if (result.cancelled === false) {
+      setStopping(false);
+      setRunning(false);
+      getSessionMessages(targetSessionId)
+        .then((ms) => {
+          if (foregroundSessionIdRef.current === targetSessionId) setItems(itemsFromMessages(ms));
+        })
+        .catch(() => {});
+    }
+  };
   // Ask the runtime whether the interrupted run can resume, only while the transcript ends in an
   // "Interrupted." notice and nothing is running. A failed ask shows no button.
   const hasInterruptedTail = interruptedAnchor(items) !== -1;
@@ -970,6 +1065,15 @@ export function App() {
   const editMessage = async (index: number) => {
     if (!sessionId) return;
     const targetSessionId = sessionId;
+    // A run in progress owns the thread: editing means stopping it first, and only a stopped
+    // run can be cut back.
+    if (isRunningRef.current) {
+      await interrupt();
+      for (let waited = 0; isRunningRef.current && waited < 5000; waited += 100) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (isRunningRef.current || foregroundSessionIdRef.current !== targetSessionId) return;
+    }
     const r = await revertSession(sessionId, index).catch(
       (): { ok: false; error: string; text?: string } => ({ ok: false, error: "unreachable" }),
     );
@@ -993,6 +1097,16 @@ export function App() {
     if (foregroundSessionIdRef.current !== targetSessionId) return;
     setItems(itemsFromMessages(messages));
     send(r.text, attachments);
+  };
+
+  // Put back the version of a file the agent replaced; null when it worked, else the reason.
+  const restoreVersion = async (backup: string, target: string): Promise<string | null> => {
+    const result = await restoreFileVersion(sessionId, backup, target).catch(
+      (): { ok: false; error: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (!result.ok) return result.error || tr("transcript.restoreFailed");
+    setBrowserRefreshKey((k) => k + 1);
+    return null;
   };
 
   const openInboxSession = (sid: string, ws: string) => selectSession(sid, ws);
@@ -1403,7 +1517,7 @@ export function App() {
             )}
             <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
               {idle ? (
-                <SessionIntro />
+                <SessionIntro onPick={(text) => prefillComposer(text)} />
               ) : (
                 <>
                   <Transcript
@@ -1411,6 +1525,9 @@ export function App() {
                     onApprove={approve}
                     running={isRunning}
                     onRetry={retry}
+                    onSwitchModel={openModelSetup}
+                    onSaveAsSkill={() => send(tr("skill.savePrompt"))}
+                    onRestoreVersion={restoreVersion}
                     canResume={canResume}
                     onResume={resume}
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
@@ -1478,7 +1595,8 @@ export function App() {
               onConnectModel={openModelSetup}
               onConfigureVoiceInput={() => openSettings("voice")}
               onSend={send}
-              onInterrupt={interrupt}
+              onInterrupt={() => void interrupt()}
+              isStopping={isStopping}
               onModeChange={changeMode}
               onModelChange={changeModel}
               reasoningEffort={

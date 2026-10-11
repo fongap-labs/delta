@@ -365,7 +365,8 @@ if [ "$rust_required" = "true" ]; then
       "crates/delta-sdk" \
       "crates/delta-connect" \
       "crates/delta-sync" \
-      "crates/delta-stt"
+      "crates/delta-stt" \
+      "crates/delta-computer"
     phase_end
   fi
 fi
@@ -379,6 +380,7 @@ if run_shard deny; then
     "apps/desktop/src-tauri"
     "packaging/portable/launcher"
     "crates/delta-stt"
+    "crates/delta-computer"
     "crates/delta-core"
   )
   phase_begin cargo-deny-licenses
@@ -390,6 +392,7 @@ if run_shard deny; then
       "apps/desktop/src-tauri"
       "packaging/portable/launcher"
       "crates/delta-stt"
+      "crates/delta-computer"
       "crates/delta-core"
       "crates/delta-sdk"
       "crates/delta-connect"

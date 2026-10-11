@@ -4,7 +4,10 @@
 //! Response format matches the Python `AssistantTurn` / `StreamChunk`
 //! contract (base.py) so the engine keeps working unchanged.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -40,11 +43,35 @@ struct ToolCallAccum {
     args: String,
 }
 
+const USER_AGENT: &str = concat!("Delta/", env!("CARGO_PKG_VERSION"));
+
+/// How often a waiting provider call looks at its cancel flag.
+const CANCEL_POLL: Duration = Duration::from_millis(50);
+
+/// Longest wait for a TCP/TLS connection to open before the attempt counts as failed.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn timeout_duration(timeout_secs: Option<f64>) -> Duration {
+    Duration::from_secs_f64(timeout_secs.unwrap_or(300.0).max(0.05))
+}
+
+/// Agent for one-shot (non-streaming) calls: `timeout` is a deadline for the whole exchange.
 fn agent(timeout_secs: Option<f64>) -> ureq::Agent {
     ureq::AgentBuilder::new()
-        .timeout(std::time::Duration::from_secs_f64(
-            timeout_secs.unwrap_or(300.0).max(0.05),
-        ))
+        .user_agent(USER_AGENT)
+        .timeout(timeout_duration(timeout_secs))
+        .build()
+}
+
+/// Agent for streamed replies. A long answer legitimately outlives any fixed total deadline,
+/// so only a connect limit and an idle limit (no byte for `timeout_secs`) apply: a stream
+/// that keeps producing is never cut off, a stalled one still fails and can be retried.
+fn stream_agent(timeout_secs: Option<f64>) -> ureq::Agent {
+    let idle = timeout_duration(timeout_secs);
+    ureq::AgentBuilder::new()
+        .user_agent(USER_AGENT)
+        .timeout_connect(idle.min(CONNECT_TIMEOUT))
+        .timeout_read(idle)
         .build()
 }
 
@@ -74,6 +101,78 @@ fn http_error(e: ureq::Error) -> String {
 /// Send the request and map ureq errors (with body) to String.
 fn send_json(req_builder: ureq::Request, body: Value) -> Result<ureq::Response, String> {
     req_builder.send_json(body).map_err(http_error)
+}
+
+/// Send the request on a helper thread so the wait for the connection and the response headers
+/// stays responsive to `cancel`. `Ok(None)` means the caller cancelled first; the abandoned
+/// attempt ends on its own when the connection resolves or its timeout expires.
+fn send_cancellable(
+    request: ureq::Request,
+    body: Value,
+    cancel: &AtomicBool,
+) -> Result<Option<ureq::Response>, String> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(send_json(request, body));
+    });
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
+        match rx.recv_timeout(CANCEL_POLL) {
+            Ok(result) => return result.map(Some),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err("transport error: request worker ended unexpectedly".to_string())
+            }
+        }
+    }
+}
+
+/// One step of a cancel-aware line stream.
+enum SseLine {
+    Line(String),
+    Cancelled,
+    End,
+}
+
+/// Reads response lines on a helper thread so a silent stream (a model that is still thinking,
+/// a gateway that stopped sending) cannot hold the caller past a cancel.
+struct SseLines {
+    rx: mpsc::Receiver<std::io::Result<String>>,
+}
+
+impl SseLines {
+    fn new(reader: Box<dyn Read + Send + Sync + 'static>) -> Self {
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(reader).lines() {
+                let failed = line.is_err();
+                if tx.send(line).is_err() || failed {
+                    break;
+                }
+            }
+        });
+        Self { rx }
+    }
+
+    fn next(&self, cancel: &AtomicBool) -> Result<SseLine, String> {
+        loop {
+            if cancel.load(Ordering::Relaxed) {
+                return Ok(SseLine::Cancelled);
+            }
+            match self.rx.recv_timeout(CANCEL_POLL) {
+                Ok(Ok(line)) => return Ok(SseLine::Line(line)),
+                Ok(Err(e)) => return Err(format!("SSE read error: {e}")),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return Ok(SseLine::End),
+            }
+        }
+    }
+}
+
+fn cancelled() -> Value {
+    json!({"cancelled": true})
 }
 
 fn build_openai_chat(req: &ProviderRequest, should_stream: bool) -> Value {
@@ -198,26 +297,30 @@ pub fn stream_openai_chat(
 ) -> Result<Value, String> {
     let url = format!("{}/chat/completions", req.base_url.trim_end_matches('/'));
     let body = build_openai_chat(req, true);
-    let resp = send_json(
-        agent(req.timeout_secs)
+    let Some(resp) = send_cancellable(
+        stream_agent(req.timeout_secs)
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
         body,
-    )?;
-    let reader = resp.into_reader();
-    let buf = BufReader::new(reader);
+        cancel,
+    )?
+    else {
+        return Ok(cancelled());
+    };
+    let lines = SseLines::new(resp.into_reader());
     let mut text_parts: Vec<String> = Vec::new();
     let mut reasoning_parts: Vec<String> = Vec::new();
     let mut tool_calls: Vec<ToolCallAccum> = Vec::new();
     let mut finish_reason: Option<String> = None;
     let mut usage: Option<Value> = None;
     let mut has_seen_done = false;
-    for line_res in buf.lines() {
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            return Ok(serde_json::json!({"cancelled": true}));
-        }
-        let line = line_res.map_err(|e| format!("SSE read error: {e}"))?;
+    loop {
+        let line = match lines.next(cancel)? {
+            SseLine::Line(line) => line,
+            SseLine::Cancelled => return Ok(cancelled()),
+            SseLine::End => break,
+        };
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with(':') {
             continue;
@@ -559,24 +662,26 @@ pub fn stream_anthropic(
 ) -> Result<Value, String> {
     let url = versioned_endpoint(&req.base_url, "messages");
     let body = build_anthropic_body(req, true);
-    let mut request = agent(req.timeout_secs).post(&url);
+    let mut request = stream_agent(req.timeout_secs).post(&url);
     for (k, v) in anthropic_headers(req) {
         request = request.set(k, &v);
     }
-    let resp = send_json(request, body)?;
-    let reader = resp.into_reader();
-    let buf = BufReader::new(reader);
+    let Some(resp) = send_cancellable(request, body, cancel)? else {
+        return Ok(cancelled());
+    };
+    let lines = SseLines::new(resp.into_reader());
     let mut text_parts: Vec<String> = Vec::new();
     let mut reasoning_parts: Vec<String> = Vec::new();
     let mut tool_calls: Vec<ToolCallAccum> = Vec::new();
     let mut block_types: Vec<String> = Vec::new();
     let mut finish_reason: Option<String> = None;
     let mut usage: Option<Value> = None;
-    for line_res in buf.lines() {
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            return Ok(serde_json::json!({"cancelled": true}));
-        }
-        let line = line_res.map_err(|e| format!("SSE read error: {e}"))?;
+    loop {
+        let line = match lines.next(cancel)? {
+            SseLine::Line(line) => line,
+            SseLine::Cancelled => return Ok(cancelled()),
+            SseLine::End => break,
+        };
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with(':') {
             continue;
@@ -882,24 +987,28 @@ pub fn stream_openai_responses(
 ) -> Result<Value, String> {
     let url = versioned_endpoint(&req.base_url, "responses");
     let body = build_openai_responses(req, true);
-    let resp = send_json(
-        agent(req.timeout_secs)
+    let Some(resp) = send_cancellable(
+        stream_agent(req.timeout_secs)
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
         body,
-    )?;
-    let reader = resp.into_reader();
-    let buf = BufReader::new(reader);
+        cancel,
+    )?
+    else {
+        return Ok(cancelled());
+    };
+    let lines = SseLines::new(resp.into_reader());
     let mut text_parts: Vec<String> = Vec::new();
     let mut reasoning_parts: Vec<String> = Vec::new();
     let mut final_response: Option<Value> = None;
     let mut event_type: Option<String> = None;
-    for line_res in buf.lines() {
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            return Ok(serde_json::json!({"cancelled": true}));
-        }
-        let line = line_res.map_err(|e| format!("SSE read error: {e}"))?;
+    loop {
+        let line = match lines.next(cancel)? {
+            SseLine::Line(line) => line,
+            SseLine::Cancelled => return Ok(cancelled()),
+            SseLine::End => break,
+        };
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;

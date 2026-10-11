@@ -24,6 +24,7 @@ mod registry;
 mod runners;
 
 pub use abi::*;
+pub(crate) use host::resolve_read_path;
 pub use host::CapabilityHost;
 pub use registry::{
     CapabilityControl, CapabilityRegistration, CapabilityRegistry, CapabilityRunner,
@@ -179,12 +180,141 @@ mod tests {
             names,
             vec![
                 "ask_user",
+                "create_document",
                 "propose_plan",
+                "read_document",
                 "read_file",
                 "request_directory",
+                "web_fetch",
+                "web_search",
                 "write_file"
             ]
         );
+    }
+
+    #[test]
+    fn web_tools_are_approval_gated_and_refuse_private_addresses() {
+        let temp = tempfile::tempdir().unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        for tool in ["web_fetch", "web_search"] {
+            let schemas = host.tool_schemas();
+            let entry = schemas
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|schema| schema["function"]["name"] == tool)
+                .unwrap();
+            assert!(entry["function"]["description"]
+                .as_str()
+                .unwrap()
+                .contains("external"));
+        }
+        let result = host.execute(
+            &ToolCall {
+                id: "call-fetch".to_string(),
+                name: "web_fetch".to_string(),
+                arguments: serde_json::json!({"url": "http://169.254.169.254/latest/meta-data/"}),
+            },
+            &tool_context(temp.path()),
+        );
+        assert_eq!(result.state, crate::runtime::ToolExitState::Failed);
+        assert!(result.error.unwrap().contains("refusing to fetch"));
+        let missing = host.execute(
+            &ToolCall {
+                id: "call-search".to_string(),
+                name: "web_search".to_string(),
+                arguments: serde_json::json!({}),
+            },
+            &tool_context(temp.path()),
+        );
+        assert_eq!(missing.state, crate::runtime::ToolExitState::Failed);
+    }
+
+    #[test]
+    fn read_document_reads_office_files_from_the_workspace_and_counts_as_a_source() {
+        use std::io::Write;
+        let temp = tempfile::tempdir().unwrap();
+        let mut bytes = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
+            writer
+                .start_file(
+                    "word/document.xml",
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+            writer
+                .write_all(b"<w:document xmlns:w=\"w\"><w:body><w:p><w:r><w:t>Quarterly report</w:t></w:r></w:p></w:body></w:document>")
+                .unwrap();
+            writer.finish().unwrap();
+        }
+        std::fs::write(temp.path().join("report.docx"), &bytes).unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let call = |path: &str| ToolCall {
+            id: "call-doc".to_string(),
+            name: "read_document".to_string(),
+            arguments: serde_json::json!({"path": path}),
+        };
+        let result = host.execute(&call("report.docx"), &tool_context(temp.path()));
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
+        assert_eq!(result.output["kind"], "docx");
+        assert!(result.output["text"]
+            .as_str()
+            .unwrap()
+            .contains("Quarterly report"));
+        // The host hashed the file before dispatch, so the runtime can record it as a source read.
+        assert_eq!(result.verified_inputs.len(), 1);
+
+        let outside = host.execute(&call("../escape.docx"), &tool_context(temp.path()));
+        assert_eq!(outside.state, crate::runtime::ToolExitState::Failed);
+        let unsupported = host.execute(&call("notes.txt"), &tool_context(temp.path()));
+        assert_eq!(unsupported.state, crate::runtime::ToolExitState::Failed);
+    }
+
+    #[test]
+    fn create_document_only_stages_a_checked_file_for_runtime_promotion() {
+        let temp = tempfile::tempdir().unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let call = |path: &str, arguments: serde_json::Value| {
+            let mut arguments = arguments;
+            arguments["path"] = serde_json::json!(path);
+            ToolCall {
+                id: "call-create".to_string(),
+                name: "create_document".to_string(),
+                arguments,
+            }
+        };
+        let result = host.execute(
+            &call("reports/q3.xlsx", serde_json::json!({"sheets": [{"name": "Q3", "header": true, "rows": [["a", "b"], [1, 2]]}]})),
+            &tool_context(temp.path()),
+        );
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
+        assert_eq!(result.output["kind"], "xlsx");
+        assert_eq!(result.staged_artifacts.len(), 1);
+        assert_eq!(result.staged_artifacts[0].relative_path, "reports/q3.xlsx");
+        let staged = std::fs::read(&result.staged_artifacts[0].staging_path).unwrap();
+        assert_eq!(&staged[..2], b"PK");
+        assert!(!temp.path().join("reports/q3.xlsx").exists());
+
+        let bad = host.execute(
+            &call(
+                "q3.docx",
+                serde_json::json!({"blocks": [{"type": "chart"}]}),
+            ),
+            &tool_context(temp.path()),
+        );
+        assert_eq!(bad.state, crate::runtime::ToolExitState::Failed);
+        assert!(bad.staged_artifacts.is_empty());
     }
 
     #[test]

@@ -296,6 +296,12 @@ function commandSources(): Record<string, string> {
     settings_add_model: `(args) => { if (!$state.settings.models.includes(args.modelId)) $state.settings.models.push(args.modelId); return { ok: true, models: $state.settings.models }; }`,
     settings_remove_model: `(args) => { $state.settings.models = $state.settings.models.filter((m) => m !== args.modelId); return { ok: true, models: $state.settings.models }; }`,
     settings_set_surfaces: `(args) => ({ ok: true, surfaces: { delta: true } })`,
+    // Same shape as the runtime's WebSearchSettings::public_view: the built-in engines, no keys.
+    get_web_search_settings: `(args) => ({ ok: true, engines: [
+      { id: "google", name: "Google", builtin: true, enabled: true, needs_key: false, accepts_key: true, has_key: false, has_cx: false, template: "", auth_header: "" },
+      { id: "bing", name: "Bing", builtin: true, enabled: true, needs_key: false, accepts_key: false, has_key: false, has_cx: false, template: "", auth_header: "" },
+      { id: "duckduckgo", name: "DuckDuckGo", builtin: true, enabled: true, needs_key: false, accepts_key: false, has_key: false, has_cx: false, template: "", auth_header: "" },
+    ] })`,
     providers_list: `(args) => $state.providers`,
     provider_protocols: `(args) => ([
       { id: "openai", title: "OpenAI", needs_key: false, fields: [{ key: "api_key", label: "API key", secret: true, required: false, help: "", placeholder: "sk-…", default: null }, { key: "base_url", label: "Endpoint", secret: false, required: true, help: "", placeholder: "https://…/v1", default: null }], recommended_model: "gpt-5.6-sol" },

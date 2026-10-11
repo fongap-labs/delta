@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, Attachment, Item } from "../types";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
-import { Markdown } from "./Markdown";
+import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 import { ConnectorMessageCard } from "./ConnectorMessageCard";
 import { Icon } from "./Icon";
 import { useI18n } from "@delta/i18n/I18nContext";
@@ -132,6 +132,7 @@ function CollapsibleNotice({
   showRetry,
   retrying,
   onRetry,
+  onSwitchModel,
   repeatCount = 1,
 }: {
   text: string;
@@ -139,6 +140,7 @@ function CollapsibleNotice({
   showRetry?: boolean;
   retrying?: boolean;
   onRetry?: () => void;
+  onSwitchModel?: () => void;
   repeatCount?: number;
 }) {
   const { t } = useI18n();
@@ -198,6 +200,18 @@ function CollapsibleNotice({
               {isExpanded
                 ? t("transcript.errorHide", undefined, "Hide details")
                 : t("transcript.errorShow", undefined, "Show details")}
+            </button>
+          )}
+          {showRetry && providerError && onSwitchModel && (
+            <button
+              className="btn"
+              data-testid="notice-switch-model"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwitchModel();
+              }}
+            >
+              {t("transcript.switchModel", undefined, "Switch model")}
             </button>
           )}
           {showRetry && (
@@ -525,6 +539,14 @@ interface Props {
   onUndoMemory?: (id: number, previous?: string) => void;
   // opencode-style revert: truncate from this user message onward + prefill the composer.
   onEditMessage?: (index: number) => void;
+  // A provider failure offers a way out besides Retry: pick another model.
+  onSwitchModel?: () => void;
+  // Ask the agent to turn a finished, multi-step task into a reusable skill (the user reviews and
+  // approves the text before anything is saved).
+  onSaveAsSkill?: () => void;
+  // Put back the earlier version the runtime kept when a file was replaced. Resolves to an error
+  // message, or null when it worked.
+  onRestoreVersion?: (backup: string, target: string) => Promise<string | null>;
   // Regenerate the last reply: revert to before the last user message and send it again.
   onRegenerate?: (index: number, attachments?: Attachment[]) => void;
 }
@@ -554,7 +576,7 @@ export function interruptedAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, onRetry, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate }: Props) {
+export function Transcript({ items, running, streamingText, onRetry, onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -595,6 +617,8 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
   });
   flush(!!running);
 
+  const deliveredFiles = deliveredSinceLastUser(items);
+  const stepsInLastRequest = toolStepsSinceLastUser(items);
   const lastTurnIndex = blocks.reduce((acc, b, i) => ("turn" in b ? i : acc), -1);
   // Regenerate is offered only on the final answer of an idle thread whose last user message is
   // a plain (non-skill) message with a raw index; anywhere else the reply is history.
@@ -648,6 +672,11 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
                   )}
                   <ClampedUserText text={item.text} />
                 </div>
+                {item.steer && (
+                  <div className="mt-1 text-[11px] text-faint" data-testid="steer-receipt">
+                    {t("transcript.steerAdded", undefined, "Added to the current task")}
+                  </div>
+                )}
                 <BubbleMeta
                   text={item.text}
                   ts={item.ts}
@@ -750,6 +779,7 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
                   showRetry={anchorInRun && !running && !!onRetry}
                   retrying={anchorInRun && running}
                   onRetry={onRetry}
+                  onSwitchModel={onSwitchModel}
                 />
               );
             }
@@ -822,6 +852,146 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
             return null;
         }
       })}
+      {!running && (deliveredFiles.length > 0 || (onSaveAsSkill && stepsInLastRequest >= SKILL_MIN_STEPS)) && (
+        <DeliveryCard
+          files={deliveredFiles}
+          onRestoreVersion={onRestoreVersion}
+          onSaveAsSkill={stepsInLastRequest >= SKILL_MIN_STEPS ? onSaveAsSkill : undefined}
+        />
+      )}
+    </div>
+  );
+}
+
+export interface DeliveredFile {
+  path: string;
+  /** Where the runtime kept the file this one replaced, when it replaced one. */
+  previous?: string;
+}
+
+/** The earlier version the runtime kept for `path`, read from the tool's stored result. */
+function previousVersionOf(preview: string | undefined, path: string): string | undefined {
+  if (!preview) return undefined;
+  try {
+    const artifacts = JSON.parse(preview)?.artifacts;
+    if (!Array.isArray(artifacts)) return undefined;
+    const match = artifacts.find((a) => a && typeof a.previous_version === "string" && (a.path === path || !a.path));
+    return match?.previous_version;
+  } catch {
+    return undefined; // a live preview can be cut short; the stored result is complete
+  }
+}
+
+/** Files the last request wrote or edited, newest last, one row per path. */
+export function deliveredSinceLastUser(items: Item[]): DeliveredFile[] {
+  let from = 0;
+  items.forEach((it, i) => {
+    if (it.kind === "user") from = i + 1;
+  });
+  const files: DeliveredFile[] = [];
+  for (const it of items.slice(from)) {
+    if (it.kind !== "tool" || !DELIVERY_TOOLS.has(it.name)) continue;
+    if (it.status === "…" || /^(error|denied|failed)/i.test(it.status)) continue;
+    const path = typeof it.args?.path === "string" ? it.args.path : "";
+    if (!path) continue;
+    const previous = previousVersionOf(it.preview, path);
+    const seen = files.find((f) => f.path === path);
+    if (seen) seen.previous = seen.previous ?? previous;
+    else files.push({ path, ...(previous ? { previous } : {}) });
+  }
+  return files;
+}
+
+export const filesDeliveredSinceLastUser = (items: Item[]): string[] =>
+  deliveredSinceLastUser(items).map((f) => f.path);
+
+const DELIVERY_TOOLS = new Set([
+  "write_file",
+  "create_document",
+  "apply_patch",
+  "apply_unified_diff",
+  "replace_in_file",
+]);
+
+/** Tool calls the last request made: a request with a real workflow behind it is worth keeping. */
+export function toolStepsSinceLastUser(items: Item[]): number {
+  let from = 0;
+  items.forEach((it, i) => {
+    if (it.kind === "user") from = i + 1;
+  });
+  return items.slice(from).filter((it) => it.kind === "tool").length;
+}
+
+/** Fewest tool calls before "Save as skill" is offered. */
+const SKILL_MIN_STEPS = 3;
+
+/** What the finished request produced, with a way to open each file and to keep the method. */
+function DeliveryCard({
+  files,
+  onSaveAsSkill,
+  onRestoreVersion,
+}: {
+  files: DeliveredFile[];
+  onSaveAsSkill?: () => void;
+  onRestoreVersion?: (backup: string, target: string) => Promise<string | null>;
+}) {
+  const { t } = useI18n();
+  // path -> "restored" or an error message, once the user has tried to put the old version back.
+  const [restored, setRestored] = useState<Record<string, string>>({});
+  const baseName = (p: string) => p.replace(/\\/g, "/").split("/").pop() || p;
+  return (
+    <div className="delivery-card" data-testid="delivery-card">
+      {files.length > 0 && (
+        <div className="delivery-title">
+          {t("transcript.deliveredTitle", { n: files.length }, `Files from this request (${files.length})`)}
+        </div>
+      )}
+      {files.map(({ path, previous }) => (
+        <div key={path} className="delivery-line">
+          <button
+            className="delivery-row"
+            title={path}
+            data-testid="delivery-open"
+            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path } }))}
+          >
+            <Icon name="file" size={13} />
+            <span className="min-w-0 truncate">{baseName(path)}</span>
+            <span className="delivery-open">{t("transcript.deliveredOpen", undefined, "Preview")}</span>
+          </button>
+          {previous && onRestoreVersion && (
+            <div className="delivery-replaced">
+              <span>{t("transcript.replacedExisting", undefined, "This replaced an existing file.")}</span>
+              {restored[path] === "ok" ? (
+                <span data-testid="restore-done">{t("transcript.restored", undefined, "Earlier version restored")}</span>
+              ) : (
+                <button
+                  className="delivery-restore"
+                  data-testid="restore-version"
+                  onClick={async () => {
+                    const error = await onRestoreVersion(previous, path);
+                    setRestored((cur) => ({ ...cur, [path]: error ?? "ok" }));
+                  }}
+                >
+                  {t("transcript.restoreEarlier", undefined, "Restore the earlier version")}
+                </button>
+              )}
+              {restored[path] && restored[path] !== "ok" && (
+                <span className="text-danger" data-testid="restore-error">{restored[path]}</span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      {onSaveAsSkill && (
+        <button
+          className="delivery-skill"
+          data-testid="save-as-skill"
+          title={t("transcript.saveAsSkillHint", undefined, "Delta writes up how it did this as a reusable skill. Nothing is saved until you approve it.")}
+          onClick={onSaveAsSkill}
+        >
+          {t("transcript.saveAsSkill", undefined, "Save as skill")}
+        </button>
+      )}
     </div>
   );
 }

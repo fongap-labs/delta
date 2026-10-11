@@ -11,7 +11,6 @@ cpal = "0.18.2"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.11"
 ureq = "3.4"
-# Keep the v1 engine compatible with macOS releases that predate newer Metal
-# APIs. We can add an opt-in Metal build once the packaged app has a verified
-# minimum macOS target.
-whisper-rs = "0.16"
+# Local recognition runs SenseVoice through sherpa-onnx (ONNX Runtime, linked statically from
+# the project's prebuilt archive; set SHERPA_ONNX_LIB_DIR to build from a local copy).
+sherpa-onnx = "1.13.8"

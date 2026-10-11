@@ -202,7 +202,7 @@ function DmRouteCard() {
           <option value="">{t("inbox.dm.noSession")}</option>
           {real.map((s) => (
             <option key={s.session_id} value={s.session_id}>
-              {s.title || s.session_id}
+              {s.title || t("nav.untitledTask", undefined, "New task")}
             </option>
           ))}
         </select>
@@ -318,7 +318,7 @@ function SubscriptionsCard() {
           <option value="">{t("inbox.subscriptions.chooseSession")}</option>
           {real.map((s) => (
             <option key={s.session_id} value={s.session_id}>
-              {s.title || s.session_id}
+              {s.title || t("nav.untitledTask", undefined, "New task")}
             </option>
           ))}
         </select>
