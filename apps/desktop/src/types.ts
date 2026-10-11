@@ -75,7 +75,8 @@ export interface Attachment {
 // `ts` = unix seconds (the server's canonical-message stamp; live items stamp locally).
 // Optional: sessions saved before the server stamped timestamps have none.
 export type Item =
-  | { kind: "user"; text: string; attachments?: Attachment[]; ts?: number; index?: number }
+  // `steer` = sent while a run was in progress: it adjusts that run instead of starting one.
+  | { kind: "user"; text: string; attachments?: Attachment[]; ts?: number; index?: number; steer?: boolean }
   // A connector-delivered inbound message (Slack/Salesforce/…), rendered as a structured card
   // (ConnectorMessageCard) instead of a plain user bubble. Generalizes to any connector via the
   // registry — no per-connector special-casing.

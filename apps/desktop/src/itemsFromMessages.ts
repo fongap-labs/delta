@@ -69,6 +69,8 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
         });
       }
     } else if (m.role === "notice") {
+      // Older builds stored each automatic retry as a notice; it was progress, not an outcome.
+      if (m.kind === "retrying") continue;
       // Persisted markers (engine `_append_notice`): error/interrupted/model-switch survive
       // reload exactly like the live view rendered them. An error notice is retriable —
       // the Transcript only offers the button when it's the transcript tail.
@@ -106,4 +108,28 @@ export function buildUserItem(content: any): Extract<Item, { kind: "user" }> {
     }
   }
   return { kind: "user", text: text.join("\n\n"), attachments };
+}
+
+/**
+ * Give optimistic user bubbles (added when the message was sent, before the runtime had stored
+ * it) the raw-message index of their stored copy, so Edit works while the run is still going.
+ * Matches by text from the newest message backwards; a bubble with no stored twin is left alone.
+ */
+export function withUserIndexes(current: Item[], persisted: Item[]): Item[] {
+  const stored = persisted.filter(
+    (it): it is Extract<Item, { kind: "user" }> => it.kind === "user" && it.index !== undefined,
+  );
+  const taken = new Set<number>(
+    current.flatMap((it) => (it.kind === "user" && it.index !== undefined ? [it.index] : [])),
+  );
+  const out = current.slice();
+  for (let i = out.length - 1; i >= 0; i--) {
+    const item = out[i];
+    if (item.kind !== "user" || item.index !== undefined) continue;
+    const twin = [...stored].reverse().find((s) => !taken.has(s.index!) && s.text === item.text);
+    if (!twin) continue;
+    taken.add(twin.index!);
+    out[i] = { ...item, index: twin.index, ...(item.ts === undefined && twin.ts !== undefined ? { ts: twin.ts } : {}) };
+  }
+  return out;
 }

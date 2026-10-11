@@ -11,8 +11,14 @@ use std::collections::{BTreeMap, HashSet};
 use std::io::{Cursor, ErrorKind, Read};
 use std::path::{Component, Path, PathBuf};
 
+use std::sync::Arc;
+
 use base64::Engine;
 use serde_json::{json, Value};
+
+use crate::capability::{
+    CapabilityGrants, CapabilityRegistration, CapabilityResult, NativeCapabilityRunner,
+};
 
 use crate::{durability::atomic_write, ShadowReadError};
 
@@ -589,6 +595,56 @@ fn parse_json_value(value: &str) -> Result<Value, ShadowReadError> {
     })
 }
 
+/// The `save_skill` tool: the model proposes a reusable method it has just worked out, the user
+/// reviews the full text in the approval card, and only on approval is it written. The skill is
+/// written with no permissions and no tools of its own, so saving one can never widen what the
+/// agent may do (blueprint 4.7: methods can evolve, permissions cannot).
+pub fn save_registration(store: Arc<SkillStore>) -> CapabilityRegistration {
+    CapabilityRegistration {
+        capability_id: "skill.save".to_owned(),
+        tool_name: "save_skill".to_owned(),
+        description: "Save a reusable method as a skill for the user's skills list, after the user \
+            approves it. Use it only when the user asks to keep how a task was done. Write general \
+            steps that work for the next similar task; leave out names, numbers, paths and any other \
+            private details from this one."
+            .to_owned(),
+        parameters: json!({
+            "type": "object", "required": ["name", "description", "instructions"],
+            "properties": {
+                "name": {"type": "string", "description": "Short name: letters, digits, '-' and '_' only (for example weekly-sales-report)."},
+                "description": {"type": "string", "description": "One sentence on what the skill does and when to use it."},
+                "instructions": {"type": "string", "description": "The method, as numbered steps written for another run of the agent."}
+            }
+        }),
+        metadata: json!({
+            "risk_level": "medium", "requires_approval": true,
+            "category": "filesystem", "capabilities": ["skill.save"]
+        }),
+        grants: CapabilityGrants::default(),
+        workspace_write: false,
+        runner: Arc::new(NativeCapabilityRunner::new(move |job, control| {
+            if control.is_cancelled() {
+                return CapabilityResult::cancelled(&job.job_id);
+            }
+            let text = |key: &str| job.arguments.get(key).and_then(Value::as_str).unwrap_or("");
+            let body = json!({
+                "name": text("name"), "description": text("description"),
+                "instructions": text("instructions"), "scope": "global",
+            });
+            match store.create(&body) {
+                Ok(result) if result.get("ok").and_then(Value::as_bool) == Some(true) => {
+                    CapabilityResult::completed(&job.job_id, result)
+                }
+                Ok(result) => {
+                    let reason = result.get("error").and_then(Value::as_str).unwrap_or("could not save the skill");
+                    CapabilityResult::failed(&job.job_id, reason, Some("skill_rejected"))
+                }
+                Err(error) => CapabilityResult::failed(&job.job_id, &error.to_string(), Some("skill_rejected")),
+            }
+        })),
+    }
+}
+
 fn validate_name(name: &str) -> Result<String, ShadowReadError> {
     let name = name.trim();
     if name.is_empty()
@@ -737,6 +793,49 @@ mod tests {
             false
         );
         assert_eq!(store.delete("brief", None).unwrap()["ok"], true);
+    }
+
+    #[test]
+    fn save_skill_writes_a_permissionless_skill_and_refuses_bad_or_duplicate_ones() {
+        use crate::capability::CapabilityHost;
+        use crate::runtime::{ToolCall, ToolExecutionContext, ToolExecutor, ToolExitState};
+        use std::sync::atomic::AtomicBool;
+        let temp = tempfile::tempdir().unwrap();
+        let store = Arc::new(SkillStore::open(temp.path()).unwrap());
+        let host = CapabilityHost::new();
+        host.register(save_registration(store.clone())).unwrap();
+        let context = ToolExecutionContext {
+            session_id: "s".to_string(),
+            run_id: "r".to_string(),
+            workspace: None,
+            timeout: std::time::Duration::from_secs(2),
+            cancel: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(|_| {}),
+            secrets: Default::default(),
+        };
+        let call = |name: &str, instructions: &str| ToolCall {
+            id: "c".to_string(),
+            name: "save_skill".to_string(),
+            arguments: json!({"name": name, "description": "Weekly report", "instructions": instructions}),
+        };
+        let saved = host.execute(
+            &call("weekly-report", "1. Read the sheet.\n2. Write the summary."),
+            &context,
+        );
+        assert_eq!(saved.state, ToolExitState::Completed, "{:?}", saved.error);
+        let listed = store.list(None).unwrap();
+        assert_eq!(listed[0]["name"], "weekly-report");
+        // Saving never grants anything: no permissions, no side effects declared.
+        assert_eq!(listed[0]["permissions"], json!([]));
+        for (name, instructions) in [
+            ("weekly-report", "x"),
+            ("../escape", "x"),
+            ("ok-name", "  "),
+        ] {
+            let refused = host.execute(&call(name, instructions), &context);
+            assert_eq!(refused.state, ToolExitState::Failed, "{name}");
+        }
+        assert_eq!(store.list(None).unwrap().len(), 1);
     }
 
     #[test]

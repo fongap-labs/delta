@@ -60,6 +60,20 @@ describe("composer runtime controls", () => {
   });
 });
 
+describe("composer during a run", () => {
+  it("keeps the run's model visible", () => {
+    renderComposer({ running: true, model: "fong:code-max", modelLabels: { "fong:code-max": "Code Max" } });
+    expect(screen.getByTestId("running-model").textContent).toBe("Code Max");
+  });
+
+  it("answers Stop at once: the button reads Stopping… and cannot be pressed twice", () => {
+    renderComposer({ running: true, isStopping: true });
+    const stop = screen.getByTestId("composer-stop") as HTMLButtonElement;
+    expect(stop.textContent).toContain("Stopping");
+    expect(stop.disabled).toBe(true);
+  });
+});
+
 describe("composer attachment entry points", () => {
   it("labels the constrained picker honestly", () => {
     renderComposer();

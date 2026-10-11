@@ -49,7 +49,7 @@ export function SearchModal({
   const real = sessions.filter((s) => !s.session_id.startsWith("__") && !s.archived);
   const match = (s: SessionInfo) =>
     !q ||
-    (s.title || s.session_id).toLowerCase().includes(q) ||
+    (s.title || t("nav.untitledTask", undefined, "New task")).toLowerCase().includes(q) ||
     tagFor(s).toLowerCase().includes(q);
 
   const filtered = real.filter(match);
@@ -103,7 +103,7 @@ export function SearchModal({
         onClick={() => choose(s)}
       >
         <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
-          {s.title || s.session_id}
+          {s.title || t("nav.untitledTask", undefined, "New task")}
         </span>
         <span className="text-[12px] text-faint shrink-0">{tagFor(s)}</span>
         {idx < 9 && (

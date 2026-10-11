@@ -52,6 +52,10 @@ import {
   directSessionRename,
   deleteSessionRoot,
   directSessionRevert,
+  directRestoreFileVersion,
+  directWebSearchSettings,
+  directSetWebSearchSettings,
+  directTestWebSearchEngine,
   directSessionRoots,
   updateSessionFlags,
   updateSessionReasoning,
@@ -317,6 +321,61 @@ export async function revertSession(
   index: number,
 ): Promise<{ ok: boolean; error?: string; text?: string }> {
   return await directSessionRevert(sessionId, index);
+}
+
+/** Put back the earlier version the runtime kept when the agent replaced `target`. */
+export async function restoreFileVersion(
+  sessionId: string,
+  backup: string,
+  target: string,
+): Promise<{ ok: boolean; error?: string; path?: string }> {
+  return await directRestoreFileVersion(sessionId, backup, target);
+}
+
+/** One search engine in the user's list. The key itself is never sent to the interface. */
+export interface SearchEngine {
+  id: string;
+  name: string;
+  builtin: boolean;
+  enabled: boolean;
+  /** Cannot work without a key (Brave, Tavily). */
+  needs_key: boolean;
+  /** Takes a key at all (Bing and DuckDuckGo do not). */
+  accepts_key: boolean;
+  has_key: boolean;
+  has_cx: boolean;
+  /** A user-added engine's address, with %s where the search words go. */
+  template: string;
+  auth_header: string;
+}
+
+/** What the interface sends back for one engine; a missing `api_key` keeps the saved one. */
+export interface SearchEngineEdit {
+  id?: string;
+  name?: string;
+  enabled: boolean;
+  api_key?: string;
+  clear_key?: boolean;
+  cx?: string;
+  template?: string;
+  auth_header?: string;
+}
+
+export async function getWebSearchEngines(): Promise<SearchEngine[]> {
+  const out = (await directWebSearchSettings()) as { ok?: boolean; engines?: SearchEngine[]; error?: string };
+  if (out?.ok === false || !Array.isArray(out?.engines)) throw new Error(out?.error || "could not read the search settings");
+  return out.engines;
+}
+
+export async function saveWebSearchEngines(
+  engines: SearchEngineEdit[],
+): Promise<{ ok: boolean; error?: string; engines?: SearchEngine[] }> {
+  return (await directSetWebSearchSettings(engines)) as { ok: boolean; error?: string; engines?: SearchEngine[] };
+}
+
+/** Ask one saved engine a real question; `first` is the title of its first result. */
+export async function testWebSearchEngine(id: string): Promise<{ ok: boolean; count?: number; first?: string; error?: string }> {
+  return (await directTestWebSearchEngine(id)) as { ok: boolean; count?: number; first?: string; error?: string };
 }
 
 export async function setReasoningEffort(
@@ -1584,7 +1643,7 @@ export class Session {
   }
 
   interrupt() {
-    void directCancel(this.sessionId);
+    return directCancel(this.sessionId);
   }
 
   // R6 Active-Run Steering: modify the CURRENT turn's direction mid-execution.

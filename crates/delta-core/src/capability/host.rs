@@ -50,6 +50,10 @@ impl CapabilityHost {
         let host = Self::new();
         host.register(native_read_registration())?;
         host.register(native_write_registration())?;
+        host.register(crate::document::read_registration())?;
+        host.register(crate::document::create_registration())?;
+        host.register(crate::web::fetch_registration())?;
+        host.register(crate::web::search_registration())?;
         host.register(interaction_registration(
             "request_directory",
             "Request access to an additional directory.",
@@ -361,6 +365,19 @@ fn is_under_roots(path: &Path, roots: &[String]) -> bool {
             .canonicalize()
             .is_ok_and(|root| path.starts_with(root))
     })
+}
+
+/// Resolve `path` against the job's workspace and require it to lie under a read grant. The error
+/// is `(code, message)` for a typed failure result.
+pub(crate) fn resolve_read_path(
+    job: &CapabilityJob,
+    path: &str,
+) -> Result<PathBuf, (&'static str, String)> {
+    match resolve_workspace_path(job.workspace.as_deref(), path) {
+        Ok(resolved) if is_under_roots(&resolved, &job.grants.read_roots) => Ok(resolved),
+        Ok(_) => Err(("grant_denied", "path is outside read grants".to_owned())),
+        Err(error) => Err(("read_failed", error)),
+    }
 }
 
 fn native_read_registration() -> CapabilityRegistration {

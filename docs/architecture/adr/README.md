@@ -14,6 +14,9 @@
 | [0055](0055-numeric-traceability.md) | Every figure in a report traces to a computed result |
 | [0056](0056-study-record.md) | Where a multi-round study keeps its design and decisions (proposed) |
 | [0057](0057-workspace-sensitivity-model-egress.md) | Workspace sensitivity and what may be sent to a model endpoint (proposed) |
+| [0058](0058-baseline-work-capabilities.md) | Baseline work capabilities live in Foundation |
+| [0059](0059-computer-capabilities.md) | Computer capabilities, in steps (screenshot, clipboard, open; acting on the screen not yet decided) |
+| [0060](0060-controlled-browser.md) | A controlled browser for the agent (Edge or Chrome over DevTools; own profile, same network guard as web_fetch) |
 
 ## Numbers cited in code but not stored here
 

@@ -103,7 +103,7 @@ export function InboxView({
   // The originating-session chip links back to the Delta task.
   const sessionChip = (it: InboxItem) => {
     const exists = it.session_exists !== false;
-    const label = it.session_title || it.session_id;
+    const label = it.session_title || t("nav.untitledTask", undefined, "New task");
     return (
       <button
         className="inbox-session-chip"

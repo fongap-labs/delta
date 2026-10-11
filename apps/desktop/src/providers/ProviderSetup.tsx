@@ -78,12 +78,15 @@ const fieldLabel = (field: ProviderFieldT, t: Translate) => {
   const key = FIELD_KEYS[field.key];
   return key ? t(`providers.fields.${key}`, undefined, field.label) : field.label;
 };
-const fieldHelp = (field: ProviderFieldT, t: Translate) => {
+const fieldHelp = (field: ProviderFieldT, t: Translate, protocol?: string) => {
   if (field.key === "api_key" && field.help) {
     return t("providers.fields.apiKeyHelp", undefined, field.help);
   }
   const key = FIELD_KEYS[field.key];
-  return field.help && key ? t(`providers.fields.${key}Help`, undefined, field.help) : field.help;
+  if (!field.help || !key) return field.help;
+  // The base-URL help names the wire protocol, so it follows the selected protocol.
+  const suffix = field.key === "base_url" && protocol === "anthropic" ? "HelpAnthropic" : "Help";
+  return t(`providers.fields.${key}${suffix}`, undefined, field.help);
 };
 const choiceLabel = (value: string, fallback: string, t: Translate) =>
   t(`providers.auth.${value}`, undefined, fallback);
@@ -748,7 +751,7 @@ export function ProviderForm({
           {t("common.saved", undefined, "Saved")}
         </span>
       )}
-      {f.help && <p className="text-[11.5px] text-faint mt-1">{fieldHelp(f, t)}</p>}
+      {f.help && <p className="text-[11.5px] text-faint mt-1">{fieldHelp(f, t, info?.protocol ?? undefined)}</p>}
     </div>
   );
 
@@ -996,7 +999,7 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
         data-testid={`${tp}-field-${f.key}`}
         onChange={(e) => ps.setFieldValue(f.key, e.target.value)}
       />
-      {f.help && <p className="text-[11.5px] text-faint mt-1">{fieldHelp(f, t)}</p>}
+      {f.help && <p className="text-[11.5px] text-faint mt-1">{fieldHelp(f, t, ps.protoId)}</p>}
     </div>
   );
 
@@ -1021,7 +1024,9 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
           </span>
           {proto && (
             <span className="block text-[13px] font-normal text-faint truncate">
-              {t("providers.customProviderFormSub", undefined, "Configure an OpenAI or Anthropic endpoint")}
+              {ps.protoId === "anthropic"
+                ? t("providers.customProviderFormSubAnthropic", undefined, "Configure an Anthropic-compatible or native-protocol service")
+                : t("providers.customProviderFormSub", undefined, "Configure an OpenAI-compatible or native-protocol service")}
             </span>
           )}
         </span>

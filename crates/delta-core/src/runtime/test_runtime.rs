@@ -10,7 +10,7 @@ fn test_runtime_config_default() {
     let cfg = RuntimeConfig::default();
     assert_eq!(cfg.protocol, "openai_chat");
     assert_eq!(cfg.max_iterations, DEFAULT_MAX_ITERATIONS);
-    assert_eq!(cfg.max_retries, 2);
+    assert_eq!(cfg.max_retries, DEFAULT_MAX_RETRIES);
 }
 
 #[test]
@@ -775,6 +775,174 @@ fn runtime_promotes_and_hashes_only_staged_worker_artifacts() {
         .is_some_and(|hash| hash.len() == 64));
 }
 
+#[test]
+fn replacing_a_file_keeps_the_previous_version_and_says_where() {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("workspace");
+    fs::create_dir_all(workspace.join("reports")).unwrap();
+    fs::write(workspace.join("reports/final.md"), "the original").unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let run = "run-replace";
+    let staging = workspace
+        .join(".delta")
+        .join("staging")
+        .join(run)
+        .join("job");
+    fs::create_dir_all(&staging).unwrap();
+    let mut results = Vec::new();
+    for (round, text) in ["second version", "third version"].into_iter().enumerate() {
+        let staged_path = staging.join(format!("candidate-{round}"));
+        fs::write(&staged_path, text).unwrap();
+        let mut host = RuntimeHost::new(
+            "session-replace",
+            RuntimeConfig {
+                workspace: Some(workspace.to_string_lossy().to_string()),
+                ..RuntimeConfig::default()
+            },
+        )
+        .with_authorities(authorities.clone())
+        .with_tools(tool_contract("low", false))
+        .with_tool_executor(Arc::new(CountingExecutor {
+            calls: Arc::new(AtomicUsize::new(0)),
+            staged: Some(StagedArtifact {
+                staging_path: staged_path,
+                relative_path: "reports/final.md".to_string(),
+                kind: "markdown".to_string(),
+                incomplete: false,
+            }),
+        }));
+        host.set_run_id(run.to_string());
+        let result = host.execute_tool_call(&ToolCall {
+            id: format!("call-{round}"),
+            name: "write_report".to_string(),
+            arguments: json!({"path": "reports/final.md"}),
+        });
+        assert!(result.error.is_none(), "{:?}", result.error);
+        results.push(result);
+    }
+    assert_eq!(
+        fs::read_to_string(workspace.join("reports/final.md")).unwrap(),
+        "third version"
+    );
+    let kept = workspace
+        .join(".delta/versions")
+        .join(run)
+        .join("reports/final.md");
+    // The first replacement in a run keeps the original; later ones do not overwrite it.
+    assert_eq!(fs::read_to_string(&kept).unwrap(), "the original");
+    for result in &results {
+        assert_eq!(
+            result.output["artifacts"][0]["previous_version"],
+            format!(".delta/versions/{run}/reports/final.md")
+        );
+    }
+}
+
+fn host_with_messages(
+    protocol: &str,
+    workspace: &std::path::Path,
+    messages: Vec<Value>,
+) -> RuntimeHost {
+    RuntimeHost::new(
+        "session-images",
+        RuntimeConfig {
+            protocol: protocol.to_string(),
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_messages(messages)
+}
+
+fn screenshot_conversation(count: usize) -> Vec<Value> {
+    let mut messages = vec![json!({"role": "user", "content": "what is on my screen?"})];
+    for n in 1..=count {
+        messages.push(json!({"role": "assistant", "content": null, "tool_calls": [
+            {"id": format!("a{n}"), "type": "function", "function": {"name": "screenshot", "arguments": "{}"}},
+            {"id": format!("b{n}"), "type": "function", "function": {"name": "clipboard_read", "arguments": "{}"}}]}));
+        messages.push(json!({
+            "role": "tool", "tool_call_id": format!("a{n}"),
+            "content": {"ok": true, "images": [{"path": format!(".delta/screens/run/{n}.png")}]},
+            "images": [{"path": format!(".delta/screens/run/{n}.png")}],
+        }));
+        messages.push(
+            json!({"role": "tool", "tool_call_id": format!("b{n}"), "content": {"ok": true}}),
+        );
+    }
+    messages
+}
+
+#[test]
+fn a_tool_screenshot_reaches_the_model_as_one_image_message_after_all_tool_results() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    fs::write(
+        temp.path().join(".delta/screens/run/1.png"),
+        b"\x89PNG-bytes",
+    )
+    .unwrap();
+    let host = host_with_messages("openai_chat", temp.path(), screenshot_conversation(1));
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    // Both tool results stay together; the picture follows them as a user message.
+    assert_eq!(roles, ["user", "assistant", "tool", "tool", "user"]);
+    assert!(
+        out[2].get("images").is_none(),
+        "the file list is not sent as part of the tool message"
+    );
+    let parts = out[4]["content"].as_array().unwrap();
+    assert_eq!(parts[1]["type"], "image_url");
+    assert!(parts[1]["image_url"]["url"]
+        .as_str()
+        .unwrap()
+        .starts_with("data:image/png;base64,"));
+
+    let anthropic = host_with_messages("anthropic", temp.path(), screenshot_conversation(1))
+        .outbound_messages();
+    assert_eq!(anthropic[4]["content"][1]["type"], "image");
+    assert_eq!(anthropic[4]["content"][1]["source"]["type"], "base64");
+    let responses = host_with_messages("openai_responses", temp.path(), screenshot_conversation(1))
+        .outbound_messages();
+    assert_eq!(responses[4]["content"][1]["type"], "input_image");
+}
+
+#[test]
+fn only_the_newest_screenshots_are_sent_and_unsafe_or_missing_files_are_ignored() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    for n in 1..=3 {
+        fs::write(
+            temp.path().join(format!(".delta/screens/run/{n}.png")),
+            b"png",
+        )
+        .unwrap();
+    }
+    let host = host_with_messages("openai_chat", temp.path(), screenshot_conversation(3));
+    let out = host.outbound_messages();
+    let image_messages: Vec<&Value> = out
+        .iter()
+        .filter(|m| m["role"] == "user" && m["content"].is_array())
+        .collect();
+    // Screenshots 2 and 3 are sent, number 1 is left on disk.
+    assert_eq!(image_messages.len(), 2);
+
+    // A path outside `.delta/screens`, a traversal and a missing file produce no image.
+    fs::write(temp.path().join("secret.png"), b"s").unwrap();
+    for path in [
+        "secret.png",
+        ".delta/screens/../../secret.png",
+        ".delta/screens/run/missing.png",
+        "/etc/passwd",
+    ] {
+        let messages = vec![
+            json!({"role": "user", "content": "x"}),
+            json!({"role": "tool", "tool_call_id": "t", "content": {}, "images": [{"path": path}]}),
+        ];
+        let out = host_with_messages("openai_chat", temp.path(), messages).outbound_messages();
+        assert_eq!(out.len(), 2, "{path}");
+    }
+}
+
 #[derive(Default)]
 struct CaptureSink {
     frames: Mutex<Vec<Value>>,
@@ -1031,6 +1199,7 @@ fn retry_test_host(
             base_url,
             max_iterations: 3,
             max_retries: 1,
+            retry_base_delay_ms: 1,
             ttft_timeout: timeout_secs,
             ..RuntimeConfig::default()
         },
@@ -1210,6 +1379,120 @@ fn native_e2e_retries_all_transient_provider_failures_before_output() {
     wait_for_terminal(&handle);
     assert_eq!(handle.state(), RuntimeState::Completed);
     assert_eq!(provider.finish(), 2);
+}
+
+#[test]
+fn native_e2e_retry_is_reported_as_progress_and_leaves_no_error_in_the_transcript() {
+    let provider = RetryMockProvider::start(vec![
+        RetryReply::Status(503),
+        RetryReply::Complete("recovered"),
+    ]);
+    let sink = Arc::new(CaptureSink::default());
+    let handle = RuntimeHandle::spawn(retry_test_host(
+        provider.base_url.clone(),
+        sink.clone(),
+        None,
+    ))
+    .unwrap();
+    handle.run("flaky gateway".to_string(), None).unwrap();
+    wait_for_terminal(&handle);
+    assert_eq!(handle.state(), RuntimeState::Completed);
+    provider.finish();
+
+    let frames = sink.frames.lock().unwrap();
+    let retry = frames
+        .iter()
+        .find(|frame| frame["type"] == "error")
+        .expect("the retry is announced");
+    assert_eq!(retry["payload"]["terminal"], false);
+    assert_eq!(retry["payload"]["attempt"], 2);
+    assert_eq!(retry["payload"]["max_attempts"], 2);
+    assert!(retry["payload"]["retry_in_ms"].is_u64());
+    // The transcript only holds what happened, not the plumbing: no retry marker, no error.
+    assert!(!handle
+        .messages()
+        .iter()
+        .any(|message| message["role"] == "notice"));
+}
+
+#[test]
+fn native_e2e_cancel_ends_a_pending_provider_call_without_waiting_for_it() {
+    // The gateway accepts the request and then says nothing for 1.5 s.
+    let provider = RetryMockProvider::start(vec![RetryReply::Stall(Duration::from_millis(1500))]);
+    let sink = Arc::new(CaptureSink::default());
+    let handle = RuntimeHandle::spawn(retry_test_host(
+        provider.base_url.clone(),
+        sink.clone(),
+        None,
+    ))
+    .unwrap();
+    handle.run("hang".to_string(), None).unwrap();
+    std::thread::sleep(Duration::from_millis(200));
+    let started = std::time::Instant::now();
+    assert!(handle.cancel());
+    wait_for_terminal(&handle);
+    assert!(
+        started.elapsed() < Duration::from_millis(1000),
+        "Stop took {:?}",
+        started.elapsed()
+    );
+    assert_eq!(handle.state(), RuntimeState::Interrupted);
+    assert!(sink
+        .frames
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|frame| frame["type"] == "interrupted"));
+    provider.finish();
+}
+
+#[test]
+fn native_e2e_cancel_ends_the_wait_between_retries() {
+    let provider = RetryMockProvider::start(vec![RetryReply::Status(503)]);
+    let sink = Arc::new(CaptureSink::default());
+    let host = RuntimeHost::new(
+        "session-backoff",
+        RuntimeConfig {
+            model: "test-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "test-key".to_string(),
+            base_url: provider.base_url.clone(),
+            max_retries: 3,
+            retry_base_delay_ms: 5000,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_event_sink(sink.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+    handle.run("overloaded".to_string(), None).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    assert!(handle.cancel());
+    wait_for_terminal(&handle);
+    assert!(started.elapsed() < Duration::from_millis(1000));
+    assert_eq!(handle.state(), RuntimeState::Interrupted);
+    assert_eq!(provider.finish(), 1);
+}
+
+#[test]
+fn retry_delay_doubles_and_is_capped() {
+    assert_eq!(model_turn::retry_delay_ms(1000, 1), 1000);
+    assert_eq!(model_turn::retry_delay_ms(1000, 2), 2000);
+    assert_eq!(model_turn::retry_delay_ms(1000, 4), 8000);
+    assert_eq!(model_turn::retry_delay_ms(1000, 9), 8000);
+    assert_eq!(model_turn::retry_delay_ms(1, 3), 4);
+}
+
+#[test]
+fn http_status_decides_retryability_not_numbers_in_the_body() {
+    for status in [408, 429, 500, 502, 503, 504, 520, 524, 529] {
+        assert!(is_retryable_error(&format!("HTTP {status}: x")), "{status}");
+    }
+    assert!(!is_retryable_error("HTTP 400: at most 500 tokens"));
+    assert!(!is_retryable_error("HTTP 401: invalid key"));
+    assert!(is_retryable_error(
+        "transport error: Network Error: timed out reading response"
+    ));
 }
 
 #[test]

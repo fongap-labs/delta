@@ -67,6 +67,7 @@ def main() -> int:
         "crates/delta-core/Cargo.toml": 'license = "Apache-2.0"',
         "apps/desktop/src-tauri/Cargo.toml": 'license = "Apache-2.0"',
         "crates/delta-stt/Cargo.toml": 'license = "Apache-2.0"',
+        "crates/delta-computer/Cargo.toml": 'license = "Apache-2.0"',
         "packaging/portable/launcher/Cargo.toml": 'license = "Apache-2.0"',
     }
     for path, expected in manifest_expectations.items():

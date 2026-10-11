@@ -110,6 +110,18 @@ export function scopeNote(
   // or turn off the skill afterwards.
   if (name === "save_skill") return { text: t("approval.scope.savesToSettings"), external: false };
   if (category === "connector") return { text: t("approval.scope.connectedService"), external: true };
+  // These only describe the effect. `external` stays false on purpose: it switches on the "confirm
+  // the recipient and content" lock meant for messages and files that leave the computer, and the
+  // user already approves each of these calls.
+  // Web tools reach out over the internet with words the model chose.
+  if (category === "web" || name === "web_fetch" || name === "web_search")
+    return { text: t("approval.scope.web"), external: false };
+  // What the screen shows or the clipboard holds is handed to the model, and so to its provider.
+  if (name === "screenshot" || name === "clipboard_read")
+    return { text: t("approval.scope.sendsToModel"), external: false };
+  // The page's text and picture go to the model; clicks and typing act inside Delta's own window.
+  if (name.startsWith("browser_")) return { text: t("approval.scope.browser"), external: false };
+  if (category === "computer") return { text: t("approval.scope.actsOnComputer"), external: false };
   if (EXTERNAL.has(name)) {
     const platform = String(args?.target ?? "").split(":")[0];
     const names: Record<string, string> = { slack: "Slack", telegram: "Telegram" };

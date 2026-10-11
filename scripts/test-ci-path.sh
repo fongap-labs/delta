@@ -61,6 +61,10 @@ assert "true" "desktop" "apps/desktop/package.json"
 assert "true" "rust" "crates/delta-stt/src/main.rs"
 assert "true" "rust" "crates/delta-stt/Cargo.toml"
 
+# 5a. crates/delta-computer/* Rust
+assert "true" "rust" "crates/delta-computer/src/lib.rs"
+assert "true" "rust" "crates/delta-computer/Cargo.toml"
+
 # 5b. crates/delta-sdk, delta-connect, delta-sync (R8.5)
 assert "true" "rust" "crates/delta-sdk/src/lib.rs"
 assert "true" "rust" "crates/delta-sdk/Cargo.toml"
