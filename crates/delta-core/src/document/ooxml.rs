@@ -383,19 +383,17 @@ fn read_sheet(xml: &[u8], name: &str, strings: &[String]) -> Result<Sheet, Strin
                         cells.push((column, shown.replace('\n', " ")));
                     }
                 }
-                "row" => {
-                    if !cells.is_empty() {
-                        let width = cells
-                            .iter()
-                            .map(|(column, _)| column + 1)
-                            .max()
-                            .unwrap_or(0);
-                        let mut line = vec![String::new(); width];
-                        for (column, text) in cells.drain(..) {
-                            line[column] = text;
-                        }
-                        lines.push(format!("{row_number}: {}", line.join(" | ")));
+                "row" if !cells.is_empty() => {
+                    let width = cells
+                        .iter()
+                        .map(|(column, _)| column + 1)
+                        .max()
+                        .unwrap_or(0);
+                    let mut line = vec![String::new(); width];
+                    for (column, text) in cells.drain(..) {
+                        line[column] = text;
                     }
+                    lines.push(format!("{row_number}: {}", line.join(" | ")));
                 }
                 _ => {}
             },

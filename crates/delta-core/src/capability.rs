@@ -180,6 +180,7 @@ mod tests {
             names,
             vec![
                 "ask_user",
+                "create_document",
                 "propose_plan",
                 "read_document",
                 "read_file",
@@ -273,6 +274,47 @@ mod tests {
         assert_eq!(outside.state, crate::runtime::ToolExitState::Failed);
         let unsupported = host.execute(&call("notes.txt"), &tool_context(temp.path()));
         assert_eq!(unsupported.state, crate::runtime::ToolExitState::Failed);
+    }
+
+    #[test]
+    fn create_document_only_stages_a_checked_file_for_runtime_promotion() {
+        let temp = tempfile::tempdir().unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let call = |path: &str, arguments: serde_json::Value| {
+            let mut arguments = arguments;
+            arguments["path"] = serde_json::json!(path);
+            ToolCall {
+                id: "call-create".to_string(),
+                name: "create_document".to_string(),
+                arguments,
+            }
+        };
+        let result = host.execute(
+            &call("reports/q3.xlsx", serde_json::json!({"sheets": [{"name": "Q3", "header": true, "rows": [["a", "b"], [1, 2]]}]})),
+            &tool_context(temp.path()),
+        );
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
+        assert_eq!(result.output["kind"], "xlsx");
+        assert_eq!(result.staged_artifacts.len(), 1);
+        assert_eq!(result.staged_artifacts[0].relative_path, "reports/q3.xlsx");
+        let staged = std::fs::read(&result.staged_artifacts[0].staging_path).unwrap();
+        assert_eq!(&staged[..2], b"PK");
+        assert!(!temp.path().join("reports/q3.xlsx").exists());
+
+        let bad = host.execute(
+            &call(
+                "q3.docx",
+                serde_json::json!({"blocks": [{"type": "chart"}]}),
+            ),
+            &tool_context(temp.path()),
+        );
+        assert_eq!(bad.state, crate::runtime::ToolExitState::Failed);
+        assert!(bad.staged_artifacts.is_empty());
     }
 
     #[test]

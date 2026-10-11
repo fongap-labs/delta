@@ -6,6 +6,7 @@
 
 mod ooxml;
 mod pdf;
+mod write;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -13,7 +14,8 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use crate::capability::{
-    CapabilityGrants, CapabilityRegistration, CapabilityResult, NativeCapabilityRunner,
+    CapabilityArtifact, CapabilityGrants, CapabilityRegistration, CapabilityResult,
+    NativeCapabilityRunner,
 };
 
 /// Biggest file read, in bytes.
@@ -228,6 +230,217 @@ pub fn describe(document: &Document, path: &str, block: Option<i64>) -> Result<V
         "ok": true, "path": path, "kind": document.kind.as_str(), "block_count": count,
         "blocks": listing, "text": text, "truncated": truncated,
     }))
+}
+
+fn normalized(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn strings_of(value: Option<&Value>) -> Vec<String> {
+    match value {
+        Some(Value::Array(items)) => items
+            .iter()
+            .flat_map(|item| match item {
+                Value::Object(map) => strings_of(map.get("text")),
+                other => strings_of(Some(other)),
+            })
+            .collect(),
+        Some(Value::String(text)) => vec![text.clone()],
+        Some(Value::Number(number)) => vec![number.to_string()],
+        _ => Vec::new(),
+    }
+}
+
+/// What the finished file must contain, taken from what was asked for: how many blocks (when the
+/// format fixes it) and the text each block must hold (`None` = anywhere in the document).
+fn expectations(kind: Kind, arguments: &Value) -> (Option<usize>, Vec<(Option<usize>, String)>) {
+    let mut texts = Vec::new();
+    let list = |key: &str| {
+        arguments
+            .get(key)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    match kind {
+        Kind::Docx => {
+            texts.extend(
+                strings_of(arguments.get("title"))
+                    .into_iter()
+                    .map(|t| (None, t)),
+            );
+            for block in list("blocks") {
+                for key in ["text", "items", "header"] {
+                    texts.extend(strings_of(block.get(key)).into_iter().map(|t| (None, t)));
+                }
+                for row in block
+                    .get("rows")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default()
+                {
+                    texts.extend(strings_of(Some(&row)).into_iter().map(|t| (None, t)));
+                }
+            }
+            (None, texts)
+        }
+        Kind::Xlsx => {
+            let sheets = list("sheets");
+            for (index, sheet) in sheets.iter().enumerate() {
+                for row in sheet
+                    .get("rows")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default()
+                {
+                    for cell in strings_of(Some(&row)) {
+                        texts.push((Some(index), cell));
+                    }
+                }
+            }
+            (Some(sheets.len()), texts)
+        }
+        Kind::Pptx => {
+            let slides = list("slides");
+            for (index, slide) in slides.iter().enumerate() {
+                for key in ["title", "text", "bullets"] {
+                    for text in strings_of(slide.get(key)) {
+                        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+                            texts.push((Some(index), line.to_owned()));
+                        }
+                    }
+                }
+            }
+            (Some(slides.len()), texts)
+        }
+        Kind::Pdf => (None, texts),
+    }
+}
+
+/// Read the file back and fail unless it holds what was asked for. A document is never reported
+/// as created on the strength of having written it (blueprint 4.4).
+fn verify(kind: Kind, arguments: &Value, bytes: &[u8]) -> Result<usize, String> {
+    let document = parse(kind, bytes)
+        .map_err(|error| format!("the file that was built does not read back: {error}"))?;
+    let (blocks, texts) = expectations(kind, arguments);
+    if let Some(expected) = blocks {
+        if document.blocks.len() != expected {
+            return Err(format!(
+                "the file that was built has {} {}s, expected {expected}",
+                document.blocks.len(),
+                if kind == Kind::Xlsx { "sheet" } else { "slide" }
+            ));
+        }
+    }
+    let everything = normalized(
+        &document
+            .blocks
+            .iter()
+            .map(|b| b.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+    let mut checked = 0;
+    for (block, text) in texts {
+        let wanted = normalized(&write::strip_xml_controls(&text));
+        if wanted.is_empty() {
+            continue;
+        }
+        let haystack = match block {
+            Some(index) => normalized(&document.blocks[index].text),
+            None => everything.clone(),
+        };
+        if !haystack.contains(&wanted) {
+            let shown: String = wanted.chars().take(40).collect();
+            return Err(format!(
+                "the file that was built is missing the text {shown:?}"
+            ));
+        }
+        checked += 1;
+    }
+    Ok(checked)
+}
+
+/// Build, check and describe a new document. The bytes are only returned when the check passed.
+pub fn create(path: &str, arguments: &Value) -> Result<(Kind, Vec<u8>, Value), String> {
+    let relative = Path::new(path);
+    if path.trim().is_empty()
+        || relative.is_absolute()
+        || relative
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("path must be relative to the workspace and stay inside it".to_owned());
+    }
+    let kind = kind_of(relative)?;
+    let bytes = write::write(kind, arguments)?;
+    let checked = verify(kind, arguments, &bytes)?;
+    let blocks = parse(kind, &bytes).map(|d| d.blocks.len()).unwrap_or(0);
+    let summary = json!({
+        "ok": true, "path": path, "kind": kind.as_str(), "bytes": bytes.len(),
+        "block_count": blocks, "checked_texts": checked,
+    });
+    Ok((kind, bytes, summary))
+}
+
+pub fn create_registration() -> CapabilityRegistration {
+    CapabilityRegistration {
+        capability_id: "document.create".to_owned(),
+        tool_name: "create_document".to_owned(),
+        description: "Create a new Word, Excel or PowerPoint file from structured content; the type \
+            comes from the extension of `path`. The file is read back and checked before it is \
+            reported as created. Plain structure only (headings, lists, tables, rows, bullets); no \
+            layout design. \
+            .docx: `title` and `blocks`, each {type: heading (level 1-3) | paragraph | bullets | numbered | table | page_break, \
+            text | items | header + rows}. \
+            .xlsx: `sheets`, each {name, header (bool, bold first row), rows: [[cell, ...]]}; a cell is text, a number, \
+            true/false or null, and text starting with = is a formula. \
+            .pptx: `slides`, each {title, bullets (text, or {text, level 0-2}), text}."
+            .to_owned(),
+        parameters: json!({
+            "type": "object", "required": ["path"],
+            "properties": {
+                "path": {"type": "string", "description": "Where to create it, relative to the workspace, ending in .docx, .xlsx or .pptx."},
+                "title": {"type": "string", "description": "Document title (.docx)."},
+                "blocks": {"type": "array", "items": {"type": "object"}, "description": "Content of a .docx."},
+                "sheets": {"type": "array", "items": {"type": "object"}, "description": "Content of an .xlsx."},
+                "slides": {"type": "array", "items": {"type": "object"}, "description": "Content of a .pptx."}
+            }
+        }),
+        metadata: json!({
+            "risk_level": "medium", "requires_approval": true,
+            "category": "filesystem", "capabilities": ["document.create"]
+        }),
+        grants: CapabilityGrants::default(),
+        workspace_write: true,
+        runner: Arc::new(NativeCapabilityRunner::new(|job, control| {
+            let Some(path) = job.arguments.get("path").and_then(Value::as_str) else {
+                return CapabilityResult::failed(&job.job_id, "path is required", Some("arguments"));
+            };
+            if control.is_cancelled() {
+                return CapabilityResult::cancelled(&job.job_id);
+            }
+            let Some(staging_dir) = job.artifact_staging_dir.as_deref() else {
+                return CapabilityResult::failed(&job.job_id, "artifact staging is unavailable", Some("staging"));
+            };
+            let (_, bytes, summary) = match create(path, &job.arguments) {
+                Ok(built) => built,
+                Err(error) => return CapabilityResult::failed(&job.job_id, &error, Some("create_failed")),
+            };
+            let staged = std::path::PathBuf::from(staging_dir).join("candidate");
+            if let Err(error) = std::fs::write(&staged, &bytes) {
+                return CapabilityResult::failed(&job.job_id, &error.to_string(), Some("write_failed"));
+            }
+            CapabilityResult::completed(&job.job_id, summary).with_artifact(CapabilityArtifact {
+                staging_path: staged.to_string_lossy().to_string(),
+                relative_path: path.to_owned(),
+                kind: Some("file".to_owned()),
+                sha256: None,
+                size: Some(bytes.len() as u64),
+                incomplete: false,
+            })
+        })),
+    }
 }
 
 pub fn read_registration() -> CapabilityRegistration {
@@ -534,6 +747,140 @@ mod tests {
             one["block"]["text"].as_str().unwrap().chars().count(),
             MAX_CHARS
         );
+    }
+
+    fn sample_docx() -> Value {
+        json!({
+            "title": "季度经营报告",
+            "blocks": [
+                {"type": "heading", "level": 1, "text": "1. 概述 Overview"},
+                {"type": "paragraph", "text": "本季度收入增长 12%，主要来自华东地区。\nSecond line & <special> \"chars\"."},
+                {"type": "bullets", "items": ["要点一", "Point two", "要点三"]},
+                {"type": "numbered", "items": ["第一步", "第二步"]},
+                {"type": "heading", "level": 2, "text": "数据"},
+                {"type": "table", "header": ["地区", "收入", "占比"], "rows": [["华东", 120, "35%"], ["华北", 95.5, "28%"]]},
+                {"type": "numbered", "items": ["again one", "again two"]},
+                {"type": "page_break"},
+                {"type": "paragraph", "text": "附录"}
+            ]
+        })
+    }
+
+    fn sample_xlsx() -> Value {
+        json!({"sheets": [
+            {"name": "销售/Q3", "header": true, "rows": [
+                ["地区", "收入", "占比", "达标"],
+                ["华东", 120, 0.35, true],
+                ["华北", 95.5, 0.28, false],
+                ["合计", "=SUM(B2:B3)", "=SUM(C2:C3)", null]
+            ]},
+            {"name": "Notes", "rows": [["a long note with many words in a single cell to test the column width"], [1e3, -2]]}
+        ]})
+    }
+
+    fn sample_pptx() -> Value {
+        json!({"slides": [
+            {"title": "年度计划 Plan"},
+            {"title": "目标", "bullets": ["增长 20%", {"text": "华东 +30%", "level": 1}, {"text": "细节", "level": 2}, "降本 5%"]},
+            {"title": "说明 & 风险", "text": "第一段\n第二段 <b>"}
+        ]})
+    }
+
+    #[test]
+    fn created_documents_read_back_with_everything_that_was_asked_for() {
+        for (path, args) in [
+            ("r.docx", sample_docx()),
+            ("b.xlsx", sample_xlsx()),
+            ("d.pptx", sample_pptx()),
+        ] {
+            let (kind, bytes, summary) =
+                create(path, &args).unwrap_or_else(|e| panic!("{path}: {e}"));
+            assert_eq!(summary["ok"], true);
+            assert!(summary["checked_texts"].as_u64().unwrap() > 3, "{path}");
+            let again = parse(kind, &bytes).unwrap();
+            assert!(!again.blocks.is_empty());
+        }
+        let (_, bytes, _) = create("b.xlsx", &sample_xlsx()).unwrap();
+        let sheets = parse(Kind::Xlsx, &bytes).unwrap().blocks;
+        assert_eq!(sheets[0].label, "sheet '销售-Q3'");
+        assert!(sheets[0]
+            .text
+            .contains("4: 合计 | =SUM(B2:B3) | =SUM(C2:C3)"));
+        assert!(sheets[0].text.contains("2: 华东 | 120 | 0.35 | TRUE"));
+        let (_, bytes, _) = create("r.docx", &sample_docx()).unwrap();
+        let text = parse(Kind::Docx, &bytes).unwrap().blocks[0].text.clone();
+        assert!(text.contains("# 1. 概述 Overview"), "{text}");
+        assert!(text.contains("地区 | 收入 | 占比"));
+    }
+
+    #[test]
+    fn bad_requests_fail_with_a_plain_reason_and_write_nothing() {
+        let err = |path: &str, args: Value| create(path, &args).unwrap_err();
+        assert!(err("../x.docx", json!({"blocks": []})).contains("stay inside"));
+        assert!(err("/abs/x.docx", json!({"blocks": []})).contains("relative"));
+        assert!(err("x.txt", json!({})).contains("unsupported"));
+        assert!(err("x.pdf", json!({})).contains("cannot make PDFs"));
+        assert!(err("x.docx", json!({})).contains("blocks is required"));
+        assert!(
+            err("x.docx", json!({"blocks": [{"type": "chart"}]})).contains("unknown block type")
+        );
+        assert!(
+            err("x.docx", json!({"blocks": [{"type": "table", "rows": []}]}))
+                .contains("at least one cell")
+        );
+        assert!(err("x.xlsx", json!({"sheets": []})).contains("must not be empty"));
+        assert!(
+            err("x.xlsx", json!({"sheets": [{"rows": [[{"a": 1}]]}]})).contains("a cell must be")
+        );
+        assert!(err(
+            "x.pptx",
+            json!({"slides": [{"title": "t", "bullets": "no"}]})
+        )
+        .contains("bullets must be a list"));
+    }
+
+    #[test]
+    fn numbered_lists_each_restart_and_xml_special_characters_survive() {
+        let (_, bytes, _) = create("r.docx", &sample_docx()).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).unwrap();
+        let mut numbering = String::new();
+        std::io::Read::read_to_string(
+            &mut archive.by_name("word/numbering.xml").unwrap(),
+            &mut numbering,
+        )
+        .unwrap();
+        assert_eq!(
+            numbering.matches("<w:num w:numId=").count(),
+            3,
+            "bullets + two numbered lists"
+        );
+        let text = parse(Kind::Docx, &bytes).unwrap().blocks[0].text.clone();
+        assert!(
+            text.contains("Second line & <special> \"chars\"."),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn xml_forbidden_control_characters_are_dropped_not_written() {
+        let args = json!({"blocks": [{"type": "paragraph", "text": "a\u{1}b\u{0}c"}]});
+        let (_, bytes, _) = create("c.docx", &args).unwrap();
+        assert_eq!(parse(Kind::Docx, &bytes).unwrap().blocks[0].text, "abc");
+    }
+
+    /// Writes the three sample files to `DELTA_OUT_DIR` for checking with other Office software.
+    #[test]
+    #[ignore = "writes sample files"]
+    fn write_sample_files() {
+        let dir = std::env::var("DELTA_OUT_DIR").expect("DELTA_OUT_DIR");
+        for (path, args) in [
+            ("sample.docx", sample_docx()),
+            ("sample.xlsx", sample_xlsx()),
+            ("sample.pptx", sample_pptx()),
+        ] {
+            let (_, bytes, _) = create(path, &args).unwrap();
+            std::fs::write(Path::new(&dir).join(path), bytes).unwrap();
+        }
     }
 
     /// Reads every sample under `DELTA_FIXTURE_DIR` and prints what the model would see. Real

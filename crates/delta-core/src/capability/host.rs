@@ -51,6 +51,7 @@ impl CapabilityHost {
         host.register(native_read_registration())?;
         host.register(native_write_registration())?;
         host.register(crate::document::read_registration())?;
+        host.register(crate::document::create_registration())?;
         host.register(crate::web::fetch_registration())?;
         host.register(crate::web::search_registration())?;
         host.register(interaction_registration(

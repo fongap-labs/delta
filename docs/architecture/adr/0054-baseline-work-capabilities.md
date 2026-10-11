@@ -36,7 +36,7 @@ Rules that keep this inside the blueprint:
 1. **Scope.** Reading, and creating files from structured content. Not editing in place, layout design, macros, or an Office-compatible editor (blueprint 2.1: "not a full Office suite").
 2. **Network.** `web_fetch` and `web_search` refuse loopback, private, link-local (including the cloud metadata address), CGNAT, multicast and reserved addresses, including IPv4 carried inside IPv6, on every redirect hop, and connect only to the address that passed the check (so a name that changes its answer cannot redirect the connection). They cap the body at 5 MB after decompression and the read at 30 seconds, and return external text as data, never as instructions. This is the policy of the Python `integrations/web/guard.py`, ported, not loosened.
 3. **Validation.** `create_document` reads the file back with the same parser as `read_document` and fails if the structure it was asked for is not there. A document is never reported as created on the model's say-so (blueprint 4.4).
-4. **Dependencies.** Pure Rust only, each covered by the repository's cargo-deny policy, each serving the Work and Capability modules: a ZIP/XML reader, a spreadsheet reader and writer, a PDF text reader, a DOCX writer. No system libraries, no interpreter.
+4. **Dependencies.** Pure Rust only, each covered by the repository's cargo-deny policy, each serving the Work and Capability modules: a ZIP/XML reader (`zip`, `quick-xml`) and a PDF text reader (`lopdf`); the DOCX, XLSX and PPTX writers build the packages directly on `zip`, with no further dependency. `pdf-extract` and older `lopdf` releases were rejected because they pull in `ttf-parser`, which the advisory database lists as unmaintained and `deny.toml` does not allow. No system libraries, no interpreter.
 5. **Extensions remain.** Specialist capabilities (statistics and experiment design, image and video, connectors) stay optional extensions. An extension may replace a baseline tool by registering a tool under another name; Foundation names no extension.
 
 ## Consequences
@@ -47,5 +47,7 @@ Rules that keep this inside the blueprint:
 - Keyed search providers (Brave, Tavily) need a place in Settings for the key; they are a later step. The first step searches without a key.
 
 ## Not verified
+
+The generated DOCX, XLSX and PPTX files were opened with python-docx, openpyxl and python-pptx and rendered with LibreOffice, not with Microsoft Office. PDF text comes out one text run per line.
 
 Page and search-result parsing was written against the markup seen at the time and will need upkeep as providers change it; the search parsers are tested against saved samples, not against the live sites.
