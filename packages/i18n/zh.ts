@@ -512,6 +512,12 @@ export const zh: Record<TranslationKey, string> = {
   "run.detail.awaiting": "等待你的决定",
   "run.detail.reconnecting": "正在进行第 {n} 次连接（共 {max} 次）…",
   "run.detail.stopping": "正在停止…",
+  "run.detail.step": "第 {n} 步 · {label}",
+  "notify.taskDone": "任务已完成，点击查看结果。",
+  "transcript.steerAdded": "已加入当前任务",
+  "transcript.switchModel": "更换模型",
+  "transcript.deliveredTitle": "本次生成的文件（{n}）",
+  "transcript.deliveredOpen": "预览",
   "todo.status.done": "已完成",
   "todo.status.in_progress": "进行中",
   "todo.status.pending": "待开始",
@@ -970,6 +976,10 @@ export const zh: Record<TranslationKey, string> = {
   "skills.save": "保存技能",
 
   "sessionIntro.greeting": "我能帮您做点什么？",
+  "sessionIntro.example.files": "帮我整理这个文件夹里的文件，按类型分好类",
+  "sessionIntro.example.pdf": "读一下这份 PDF，给我一页纸的要点总结",
+  "sessionIntro.example.topics": "查一下今天 X 上有什么热点，给我 3 个可写的选题",
+  "sessionIntro.example.report": "把这个 Excel 的数据整理成一份月度汇报",
 
   "onboarding.welcomeTitle": "欢迎使用 Delta",
   "onboarding.pickProvider": "选择一个模型提供商开始 — Delta 使用你自己的密钥运行，你的密钥和数据都留在本机。",

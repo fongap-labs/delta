@@ -511,6 +511,12 @@ export const en = {
   "run.detail.awaiting": "Waiting for your decision",
   "run.detail.reconnecting": "Connecting, attempt {n} of {max}…",
   "run.detail.stopping": "Stopping…",
+  "run.detail.step": "Step {n} · {label}",
+  "notify.taskDone": "Your task is done. Click to see the result.",
+  "transcript.steerAdded": "Added to the current task",
+  "transcript.switchModel": "Switch model",
+  "transcript.deliveredTitle": "Files from this request ({n})",
+  "transcript.deliveredOpen": "Preview",
   "todo.status.done": "Done",
   "todo.status.in_progress": "In progress",
   "todo.status.pending": "Not started",
@@ -973,6 +979,10 @@ export const en = {
   "skills.save": "Save skill",
 
   "sessionIntro.greeting": "How can I help you?",
+  "sessionIntro.example.files": "Sort the files in this folder into groups by type",
+  "sessionIntro.example.pdf": "Read this PDF and give me a one-page summary",
+  "sessionIntro.example.topics": "Find what is trending on X today and suggest 3 topics I could write about",
+  "sessionIntro.example.report": "Turn the data in this Excel file into a monthly report",
 
   "onboarding.welcomeTitle": "Welcome to Delta",
   "onboarding.pickProvider": "Pick a model provider to get started — Delta runs on your own key, and your key and your data stay on this computer.",

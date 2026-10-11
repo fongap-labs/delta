@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, Attachment, Item } from "../types";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
-import { Markdown } from "./Markdown";
+import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 import { ConnectorMessageCard } from "./ConnectorMessageCard";
 import { Icon } from "./Icon";
 import { useI18n } from "@delta/i18n/I18nContext";
@@ -132,6 +132,7 @@ function CollapsibleNotice({
   showRetry,
   retrying,
   onRetry,
+  onSwitchModel,
   repeatCount = 1,
 }: {
   text: string;
@@ -139,6 +140,7 @@ function CollapsibleNotice({
   showRetry?: boolean;
   retrying?: boolean;
   onRetry?: () => void;
+  onSwitchModel?: () => void;
   repeatCount?: number;
 }) {
   const { t } = useI18n();
@@ -198,6 +200,18 @@ function CollapsibleNotice({
               {isExpanded
                 ? t("transcript.errorHide", undefined, "Hide details")
                 : t("transcript.errorShow", undefined, "Show details")}
+            </button>
+          )}
+          {showRetry && providerError && onSwitchModel && (
+            <button
+              className="btn"
+              data-testid="notice-switch-model"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwitchModel();
+              }}
+            >
+              {t("transcript.switchModel", undefined, "Switch model")}
             </button>
           )}
           {showRetry && (
@@ -525,6 +539,8 @@ interface Props {
   onUndoMemory?: (id: number, previous?: string) => void;
   // opencode-style revert: truncate from this user message onward + prefill the composer.
   onEditMessage?: (index: number) => void;
+  // A provider failure offers a way out besides Retry: pick another model.
+  onSwitchModel?: () => void;
   // Regenerate the last reply: revert to before the last user message and send it again.
   onRegenerate?: (index: number, attachments?: Attachment[]) => void;
 }
@@ -554,7 +570,7 @@ export function interruptedAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, onRetry, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate }: Props) {
+export function Transcript({ items, running, streamingText, onRetry, onSwitchModel, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -595,6 +611,7 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
   });
   flush(!!running);
 
+  const deliveredFiles = filesDeliveredSinceLastUser(items);
   const lastTurnIndex = blocks.reduce((acc, b, i) => ("turn" in b ? i : acc), -1);
   // Regenerate is offered only on the final answer of an idle thread whose last user message is
   // a plain (non-skill) message with a raw index; anywhere else the reply is history.
@@ -648,6 +665,11 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
                   )}
                   <ClampedUserText text={item.text} />
                 </div>
+                {item.steer && (
+                  <div className="mt-1 text-[11px] text-faint" data-testid="steer-receipt">
+                    {t("transcript.steerAdded", undefined, "Added to the current task")}
+                  </div>
+                )}
                 <BubbleMeta
                   text={item.text}
                   ts={item.ts}
@@ -750,6 +772,7 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
                   showRetry={anchorInRun && !running && !!onRetry}
                   retrying={anchorInRun && running}
                   onRetry={onRetry}
+                  onSwitchModel={onSwitchModel}
                 />
               );
             }
@@ -822,6 +845,51 @@ export function Transcript({ items, running, streamingText, onRetry, canResume, 
             return null;
         }
       })}
+      {!running && deliveredFiles.length > 0 && <DeliveryCard files={deliveredFiles} />}
+    </div>
+  );
+}
+
+/** Files the last request wrote or edited, newest last, one row per path. */
+export function filesDeliveredSinceLastUser(items: Item[]): string[] {
+  let from = 0;
+  items.forEach((it, i) => {
+    if (it.kind === "user") from = i + 1;
+  });
+  const paths: string[] = [];
+  for (const it of items.slice(from)) {
+    if (it.kind !== "tool" || !DELIVERY_TOOLS.has(it.name)) continue;
+    if (it.status === "…" || /^(error|denied|failed)/i.test(it.status)) continue;
+    const path = typeof it.args?.path === "string" ? it.args.path : "";
+    if (path && !paths.includes(path)) paths.push(path);
+  }
+  return paths;
+}
+
+const DELIVERY_TOOLS = new Set(["write_file", "apply_patch", "apply_unified_diff", "replace_in_file"]);
+
+/** What the finished request produced, with a way to open each file. */
+function DeliveryCard({ files }: { files: string[] }) {
+  const { t } = useI18n();
+  const baseName = (p: string) => p.replace(/\\/g, "/").split("/").pop() || p;
+  return (
+    <div className="delivery-card" data-testid="delivery-card">
+      <div className="delivery-title">
+        {t("transcript.deliveredTitle", { n: files.length }, `Files from this request (${files.length})`)}
+      </div>
+      {files.map((path) => (
+        <button
+          key={path}
+          className="delivery-row"
+          title={path}
+          data-testid="delivery-open"
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path } }))}
+        >
+          <Icon name="file" size={13} />
+          <span className="min-w-0 truncate">{baseName(path)}</span>
+          <span className="delivery-open">{t("transcript.deliveredOpen", undefined, "Preview")}</span>
+        </button>
+      ))}
     </div>
   );
 }

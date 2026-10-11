@@ -43,6 +43,7 @@ import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
 import { itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
 import { InboxItemCard } from "./components/InboxItemCard";
@@ -109,6 +110,22 @@ export function App() {
     const text: string = dictionaries[locale][key] ?? en[key];
     return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
   };
+  // Translator in the shape `humanize` expects (key, vars, English fallback).
+  const humanT = (key: string, vars?: Record<string, string | number>, fallback?: string): string => {
+    const text: string = (dictionaries[locale] as Record<string, string>)[key] ?? fallback ?? key;
+    return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
+  };
+  // A finished task is easy to miss when the window is in the background: say so, once.
+  const notifyTurnDone = () => {
+    try {
+      if (typeof Notification === "undefined" || !document.hidden) return;
+      const show = () => new Notification("Delta", { body: tr("notify.taskDone") });
+      if (Notification.permission === "granted") show();
+      else if (Notification.permission === "default") void Notification.requestPermission().then((p) => p === "granted" && show());
+    } catch {
+      // Notifications are a convenience; never let them break the run.
+    }
+  };
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   const [workspaceTrustRequest, setWorkspaceTrustRequest] =
@@ -141,6 +158,9 @@ export function App() {
   // Provider failure the runtime is retrying on its own: "connecting, attempt N of M". Cleared by
   // whatever the run does next, so it never outlives the wait.
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
+  // The tool call in progress, numbered within the turn: "Step 3 · Read report.xlsx".
+  const [stepInfo, setStepInfo] = useState<{ n: number; label: string } | null>(null);
+  const stepCountRef = useRef(0);
   // The runtime's answer to "can this session resume an interrupted run?" (it decides; the UI asks).
   const [canResume, setCanResume] = useState(false);
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
@@ -525,6 +545,8 @@ export function App() {
           break;
         case "turn_start":
           setRunning(true);
+          stepCountRef.current = 0;
+          setStepInfo(null);
           setStreaming("");
           setReasoningStream("");
           // The runtime has stored the user message by now: give the local echo its raw-message
@@ -585,7 +607,14 @@ export function App() {
           setReasoningStream("");
           break;
         }
-        case "tool_proposed":
+        case "tool_proposed": {
+          stepCountRef.current += 1;
+          const line = resolveHumanLine(humanizeTool(d.name, d.arguments), humanT);
+          setStepInfo({
+            n: stepCountRef.current,
+            label: `${line.pre ?? ""}${line.obj ?? ""}${line.post ?? ""}`.trim(),
+          });
+        }
           if (d.name === "todo_write" && (d.arguments?.todos || d.arguments?.items))
             setTodo(normalizeTodos(d.arguments.todos ?? d.arguments.items));
           setItems((p) => [
@@ -635,6 +664,7 @@ export function App() {
           ]);
           break;
         case "tool_finished":
+          setStepInfo(null);
           setItems((p) =>
             updateLastTool(
               p,
@@ -709,6 +739,7 @@ export function App() {
             break;
           }
           setRetryInfo(null);
+          setStepInfo(null);
           setStopping(false);
           flushPartialStream();
           setItems((p) => [
@@ -728,6 +759,8 @@ export function App() {
           break;
         case "turn_done":
           setRunning(false);
+          setStepInfo(null);
+          notifyTurnDone();
           refreshSessions();
           // Re-pull the persisted thread: optimistic local items (the just-sent user
           // bubble, streamed texts) carry no raw-message index, so Edit/Retract would
@@ -862,6 +895,7 @@ export function App() {
     if (retryInfo)
       return tr("run.detail.reconnecting", { n: retryInfo.attempt, max: retryInfo.max });
     if (isStopping) return tr("run.detail.stopping");
+    if (stepInfo) return tr("run.detail.step", { n: stepInfo.n, label: stepInfo.label });
     if (reasoningStream) return tr("run.detail.thinking");
     if (streaming) return tr("run.detail.generating");
     return tr("run.detail.executing");
@@ -872,7 +906,10 @@ export function App() {
     // Force-run shows exactly what the user typed: "/name rest". Must match the server's
     // `display` sidecar formula so the turn_start dedupe recognizes the local echo.
     const shown = skill ? `/${skill}${text ? ` ${text}` : ""}` : text;
-    setItems((p) => [...p, { kind: "user", text: shown, attachments, ts: Date.now() / 1000 }]);
+    setItems((p) => [
+      ...p,
+      { kind: "user", text: shown, attachments, ts: Date.now() / 1000, ...(isRunningRef.current ? { steer: true } : {}) },
+    ]);
     // The visible model rides along with the message (single source of truth per turn).
     sessionRef.current?.userMessage(text, attachments, model, skill);
     followLatest(); // sending always re-engages stream-following, wherever the user had scrolled
@@ -1469,7 +1506,7 @@ export function App() {
             )}
             <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
               {idle ? (
-                <SessionIntro />
+                <SessionIntro onPick={(text) => prefillComposer(text)} />
               ) : (
                 <>
                   <Transcript
@@ -1477,6 +1514,7 @@ export function App() {
                     onApprove={approve}
                     running={isRunning}
                     onRetry={retry}
+                    onSwitchModel={openModelSetup}
                     canResume={canResume}
                     onResume={resume}
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
