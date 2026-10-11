@@ -96,6 +96,9 @@ struct Authority {
     /// Local MCP servers the user has stated do not reach the network (ADR-0061).
     #[serde(default)]
     local_only_servers: BTreeSet<String>,
+    /// Workspace (canonical path, or "" for every workspace) -> path -> rule (ADR-0061).
+    #[serde(default)]
+    path_overrides: BTreeMap<String, BTreeMap<String, PathRule>>,
 }
 
 fn authority_path(state_dir: &Path) -> PathBuf {
@@ -219,8 +222,18 @@ pub fn settings(state_dir: &Path) -> Result<Value, ShadowReadError> {
         .iter()
         .map(|(host, mark)| json!({"host": host, "mark": mark}))
         .collect();
+    let path_overrides: Vec<Value> = authority
+        .path_overrides
+        .iter()
+        .flat_map(|(workspace, paths)| {
+            paths.iter().map(move |(path, rule)| {
+                json!({"workspace": workspace, "path": path, "rule": rule.as_str()})
+            })
+        })
+        .collect();
     Ok(json!({
         "ok": true,
+        "path_overrides": path_overrides,
         "default_level": authority.default_level.map(EgressLevel::as_str),
         "is_chosen": authority.default_level.is_some(),
         "workspaces": workspaces,
@@ -545,6 +558,8 @@ pub struct OutboundTarget {
     pub mark: Option<EndpointMark>,
     /// For a local process: the user stated it does not reach the network.
     pub local_only: bool,
+    /// The path a per-path rule can name (see [`path_key`]).
+    pub path: String,
 }
 
 /// What may happen with an outbound tool call.
@@ -624,6 +639,7 @@ pub fn decide_outbound(level: Option<EgressLevel>, target: &OutboundTarget) -> O
 pub fn outbound_target(
     state_dir: &Path,
     metadata: &ToolMetadata,
+    tool_name: &str,
     arguments: Option<&Value>,
 ) -> Result<Option<OutboundTarget>, String> {
     let category = metadata
@@ -678,23 +694,248 @@ pub fn outbound_target(
         host,
         mark,
         local_only,
+        path: path_key(tool_name, metadata),
     }))
 }
 
 /// Whether the model is offered `metadata`'s tool in `workspace`: a tool the level refuses for
 /// every call is not offered at all. Errors hide the tool.
-pub fn offered_to_model(state_dir: &Path, workspace: &str, metadata: &ToolMetadata) -> bool {
+pub fn offered_to_model(
+    state_dir: &Path,
+    workspace: &str,
+    tool_name: &str,
+    metadata: &ToolMetadata,
+) -> bool {
     let Ok(level) = level_for(state_dir, workspace) else {
         return false;
     };
-    match outbound_target(state_dir, metadata, None) {
+    match outbound_target(state_dir, metadata, tool_name, None) {
         Ok(None) => true,
-        Ok(Some(target)) => !matches!(
-            decide_outbound(level, &target),
-            OutboundDecision::Deny(_) | OutboundDecision::NotChosen
-        ),
+        Ok(Some(target)) => {
+            let Ok(rule) = path_rule(state_dir, workspace, &target.path) else {
+                return false;
+            };
+            !matches!(
+                decide_path(level, &target, rule),
+                OutboundDecision::Deny(_) | OutboundDecision::NotChosen
+            )
+        }
         Err(_) => false,
     }
+}
+
+/// A rule the user sets for one path in one workspace (ADR-0061 point 3). It replaces the level's
+/// decision for that path: `allow` lets it go without the level's refusal, `ask` asks for each call,
+/// `deny` refuses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathRule {
+    Allow,
+    Ask,
+    Deny,
+}
+
+impl PathRule {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "allow" => Ok(Self::Allow),
+            "ask" => Ok(Self::Ask),
+            "deny" => Ok(Self::Deny),
+            other => Err(format!("unknown path rule: {other}")),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Ask => "ask",
+            Self::Deny => "deny",
+        }
+    }
+}
+
+/// The path a tool's decision is kept under: a remote or local MCP server by name, the web tools
+/// and browser automation by family, anything else by its tool name.
+pub fn path_key(tool_name: &str, metadata: &ToolMetadata) -> String {
+    let category = metadata
+        .category
+        .as_deref()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if category == "mcp" {
+        return format!("mcp:{}", metadata.server.as_deref().unwrap_or(""));
+    }
+    if tool_name.starts_with("browser_") {
+        return "browser".to_owned();
+    }
+    tool_name.to_owned()
+}
+
+/// Paths a rule may name: the web tools, browser automation, opening an address, and MCP servers.
+fn is_path_key(path: &str) -> bool {
+    matches!(path, "web_search" | "web_fetch" | "browser" | "open_url")
+        || path
+            .strip_prefix("mcp:")
+            .is_some_and(|name| !name.trim().is_empty())
+}
+
+/// The workspace key rules are stored under: its canonical path, or "" for every workspace.
+fn workspace_key(workspace: &str) -> String {
+    if workspace.trim().is_empty() {
+        return String::new();
+    }
+    canonical_workspace(workspace).unwrap_or_else(|_| workspace.to_owned())
+}
+
+/// The rule in force for `path` in `workspace`: the workspace's own rule, else the rule for every
+/// workspace, else none.
+pub fn path_rule(
+    state_dir: &Path,
+    workspace: &str,
+    path: &str,
+) -> Result<Option<PathRule>, ShadowReadError> {
+    let authority = load(state_dir)?;
+    if !workspace.trim().is_empty() {
+        let own = authority
+            .path_overrides
+            .get(&workspace_key(workspace))
+            .and_then(|paths| paths.get(path));
+        if let Some(rule) = own {
+            return Ok(Some(*rule));
+        }
+    }
+    Ok(authority
+        .path_overrides
+        .get("")
+        .and_then(|paths| paths.get(path))
+        .copied())
+}
+
+/// The decision for a call on `target` under `level`, with the path's rule applied when there is
+/// one. Without a chosen level nothing is allowed, whatever the rule says.
+pub fn decide_path(
+    level: Option<EgressLevel>,
+    target: &OutboundTarget,
+    rule: Option<PathRule>,
+) -> OutboundDecision {
+    if level.is_none() {
+        return OutboundDecision::NotChosen;
+    }
+    match rule {
+        None => decide_outbound(level, target),
+        Some(PathRule::Allow) => OutboundDecision::Allow,
+        Some(PathRule::Ask) => OutboundDecision::Ask,
+        Some(PathRule::Deny) => OutboundDecision::Deny(
+            "Blocked for this path by a rule in Settings ▸ Privacy. Nothing was sent.".to_owned(),
+        ),
+    }
+}
+
+/// How much a decision lets through: a larger number lets more content go.
+fn decision_rank(decision: &OutboundDecision) -> u8 {
+    match decision {
+        OutboundDecision::Allow => 2,
+        OutboundDecision::Ask => 1,
+        OutboundDecision::Deny(_) | OutboundDecision::NotChosen => 0,
+    }
+}
+
+/// Set (`rule` is `Some`) or remove (`None`) the rule for `path` in `workspace` (`""` for every
+/// workspace). `class` is the destination class the path has: `any_public` for the web tools and
+/// browser automation, `fixed_public` or `local_process` for an MCP server. A rule that lets more
+/// content go than the level does now asks for confirmation; removing a rule takes effect at once.
+pub fn set_path_rule(
+    state_dir: &Path,
+    workspace: &str,
+    path: &str,
+    class: &str,
+    rule: Option<PathRule>,
+    is_confirmed: bool,
+) -> Result<Value, ShadowReadError> {
+    let invalid = |why: &str| ShadowReadError::Parse(why.to_owned());
+    if !is_path_key(path) {
+        return Err(invalid("unknown path for a rule"));
+    }
+    let Some(level) = level_for(state_dir, workspace)? else {
+        return Err(invalid(
+            "choose a default egress level before setting a per-path rule",
+        ));
+    };
+    let class =
+        DestinationClass::parse(class).ok_or_else(|| invalid("unknown destination class"))?;
+    let is_mcp = path.starts_with("mcp:");
+    let class_fits = if is_mcp {
+        matches!(
+            class,
+            DestinationClass::FixedPublic | DestinationClass::LocalProcess
+        )
+    } else {
+        class == DestinationClass::AnyPublic
+    };
+    if !class_fits {
+        return Err(invalid("the destination class does not fit this path"));
+    }
+    let local_only = match path.strip_prefix("mcp:") {
+        Some(server) if class == DestinationClass::LocalProcess => {
+            is_local_only(state_dir, server)?
+        }
+        _ => false,
+    };
+    let target = OutboundTarget {
+        class,
+        host: String::new(),
+        mark: None,
+        local_only,
+        path: path.to_owned(),
+    };
+
+    let key = workspace_key(workspace);
+    let mut authority = load(state_dir)?;
+    let inherited = if key.is_empty() {
+        None
+    } else {
+        authority
+            .path_overrides
+            .get("")
+            .and_then(|paths| paths.get(path))
+            .copied()
+    };
+    let before = path_rule(state_dir, workspace, path)?;
+    let from = decide_path(Some(level), &target, before);
+    let after = rule.or(inherited);
+    let to = decide_path(Some(level), &target, after);
+    if decision_rank(&to) > decision_rank(&from) && !is_confirmed {
+        return Ok(needs_confirmation("allowing this path"));
+    }
+
+    let emptied = {
+        let paths = authority.path_overrides.entry(key.clone()).or_default();
+        match rule {
+            Some(rule) => {
+                paths.insert(path.to_owned(), rule);
+            }
+            None => {
+                paths.remove(path);
+            }
+        }
+        paths.is_empty()
+    };
+    if emptied {
+        authority.path_overrides.remove(&key);
+    }
+    save(state_dir, &authority)?;
+    record_change(
+        state_dir,
+        &key,
+        json!({
+            "scope": "path",
+            "path": path,
+            "from": before.map(PathRule::as_str),
+            "to": rule.map(PathRule::as_str),
+            "confirmed": is_confirmed,
+        }),
+    );
+    settings(state_dir)
 }
 
 fn outbound_refusal(level: EgressLevel, class: DestinationClass) -> String {
@@ -725,6 +966,7 @@ mod tests {
             host: "example.test".to_owned(),
             mark,
             local_only: false,
+            path: "web_search".to_owned(),
         }
     }
 
@@ -781,16 +1023,22 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let state = temp.path();
         let stdio = metadata("mcp", Some("local_process"));
-        let target = outbound_target(state, &stdio, None).unwrap().unwrap();
+        let target = outbound_target(state, &stdio, "notes", None)
+            .unwrap()
+            .unwrap();
         assert!(!target.local_only);
         set_local_only(state, "notes", true, true).unwrap();
-        let target = outbound_target(state, &stdio, None).unwrap().unwrap();
+        let target = outbound_target(state, &stdio, "notes", None)
+            .unwrap()
+            .unwrap();
         assert!(target.local_only);
         assert_eq!(target.class, DestinationClass::LocalProcess);
         // A tool outside the outbound categories has no target.
-        assert!(outbound_target(state, &metadata("read", None), None)
-            .unwrap()
-            .is_none());
+        assert!(
+            outbound_target(state, &metadata("read", None), "read_report", None)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]
@@ -803,20 +1051,30 @@ mod tests {
         let local_read = metadata("read", None);
 
         // No chosen level: outbound tools are not offered; nothing outside them is hidden.
-        assert!(!offered_to_model(state, workspace, &web));
-        assert!(offered_to_model(state, workspace, &local_read));
+        assert!(!offered_to_model(state, workspace, "web_fetch", &web));
+        assert!(offered_to_model(
+            state,
+            workspace,
+            "read_report",
+            &local_read
+        ));
 
         set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
-        assert!(!offered_to_model(state, workspace, &web));
-        assert!(!offered_to_model(state, workspace, &stdio));
-        assert!(offered_to_model(state, workspace, &local_read));
+        assert!(!offered_to_model(state, workspace, "web_fetch", &web));
+        assert!(!offered_to_model(state, workspace, "notes", &stdio));
+        assert!(offered_to_model(
+            state,
+            workspace,
+            "read_report",
+            &local_read
+        ));
 
         set_local_only(state, "notes", true, true).unwrap();
-        assert!(offered_to_model(state, workspace, &stdio));
+        assert!(offered_to_model(state, workspace, "notes", &stdio));
 
         // Ask each time offers every outbound tool: each call is asked, not refused.
         set_default_level(state, EgressLevel::AskEachTime, true).unwrap();
-        assert!(offered_to_model(state, workspace, &web));
+        assert!(offered_to_model(state, workspace, "web_fetch", &web));
     }
 
     #[test]
@@ -897,6 +1155,147 @@ mod tests {
             "docs.example.test"
         );
         assert_eq!(url_host("not a url"), "");
+    }
+
+    #[test]
+    fn a_path_rule_replaces_the_levels_decision_and_loosening_is_confirmed() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
+        let search = target(DestinationClass::AnyPublic, None);
+        assert!(matches!(
+            decide_path(Some(EgressLevel::PrivateOnly), &search, None),
+            OutboundDecision::Deny(_)
+        ));
+
+        let asked = set_path_rule(
+            state,
+            "",
+            "web_search",
+            "any_public",
+            Some(PathRule::Allow),
+            false,
+        )
+        .unwrap();
+        assert_eq!(asked["needs_confirmation"], true);
+        assert_eq!(path_rule(state, "", "web_search").unwrap(), None);
+
+        set_path_rule(
+            state,
+            "",
+            "web_search",
+            "any_public",
+            Some(PathRule::Allow),
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            path_rule(state, "", "web_search").unwrap(),
+            Some(PathRule::Allow)
+        );
+        assert_eq!(
+            decide_path(
+                Some(EgressLevel::PrivateOnly),
+                &search,
+                path_rule(state, "", "web_search").unwrap()
+            ),
+            OutboundDecision::Allow
+        );
+        assert_eq!(
+            settings(state).unwrap()["path_overrides"][0]["rule"],
+            "allow"
+        );
+
+        // Removing the rule tightens at once, without confirmation.
+        set_path_rule(state, "", "web_search", "any_public", None, false).unwrap();
+        assert_eq!(path_rule(state, "", "web_search").unwrap(), None);
+        assert!(settings(state).unwrap()["path_overrides"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn a_deny_rule_hides_the_tool_even_when_the_level_allows_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        set_default_level(state, EgressLevel::Open, false).unwrap();
+        let web = metadata("web", Some("any_public"));
+        assert!(offered_to_model(state, "", "web_fetch", &web));
+        set_path_rule(
+            state,
+            "",
+            "web_fetch",
+            "any_public",
+            Some(PathRule::Deny),
+            false,
+        )
+        .unwrap();
+        assert!(!offered_to_model(state, "", "web_fetch", &web));
+        // Another path is untouched.
+        assert!(offered_to_model(
+            state,
+            "",
+            "web_search",
+            &metadata("web", Some("any_public"))
+        ));
+    }
+
+    #[test]
+    fn a_workspace_rule_takes_precedence_over_the_rule_for_every_workspace() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        let workspace = tempfile::tempdir().unwrap();
+        let workspace_path = workspace.path().to_string_lossy().to_string();
+        set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
+        set_path_rule(
+            state,
+            "",
+            "web_fetch",
+            "any_public",
+            Some(PathRule::Deny),
+            false,
+        )
+        .unwrap();
+        set_path_rule(
+            state,
+            &workspace_path,
+            "web_fetch",
+            "any_public",
+            Some(PathRule::Allow),
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            path_rule(state, &workspace_path, "web_fetch").unwrap(),
+            Some(PathRule::Allow)
+        );
+        assert_eq!(
+            path_rule(state, "", "web_fetch").unwrap(),
+            Some(PathRule::Deny)
+        );
+        // A workspace without its own rule follows the rule for every workspace.
+        let other = tempfile::tempdir().unwrap();
+        assert_eq!(
+            path_rule(state, &other.path().to_string_lossy(), "web_fetch").unwrap(),
+            Some(PathRule::Deny)
+        );
+    }
+
+    #[test]
+    fn path_rules_name_only_known_paths_with_a_class_that_fits() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
+        let rule = Some(PathRule::Allow);
+        assert!(set_path_rule(state, "", "shell", "any_public", rule, true).is_err());
+        assert!(set_path_rule(state, "", "web_search", "fixed_public", rule, true).is_err());
+        assert!(set_path_rule(state, "", "mcp:", "local_process", rule, true).is_err());
+        assert!(set_path_rule(state, "", "mcp:notes", "any_public", rule, true).is_err());
+        assert!(set_path_rule(state, "", "mcp:notes", "local_process", rule, true).is_ok());
+        // Without a chosen level no rule can be set.
+        let fresh = tempfile::tempdir().unwrap();
+        assert!(set_path_rule(fresh.path(), "", "web_search", "any_public", rule, true).is_err());
     }
 
     fn state() -> tempfile::TempDir {

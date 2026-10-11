@@ -691,6 +691,7 @@ pub fn run() {
             runtime_ipc::set_workspace_egress,
             runtime_ipc::set_endpoint_mark,
             runtime_ipc::set_local_only,
+            runtime_ipc::set_path_rule,
             runtime_ipc::session_revert,
             runtime_ipc::restore_file_version,
             runtime_ipc::get_web_search_settings,

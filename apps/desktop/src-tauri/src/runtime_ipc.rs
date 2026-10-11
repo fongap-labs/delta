@@ -566,6 +566,21 @@ pub fn set_endpoint_mark(
 }
 
 #[tauri::command]
+pub fn set_path_rule(
+    state: State<'_, RuntimeRegistry>,
+    workspace: String,
+    path: String,
+    class: String,
+    rule: Option<String>,
+    is_confirmed: bool,
+) -> Value {
+    match state.set_path_rule(&workspace, &path, &class, rule.as_deref(), is_confirmed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
 pub fn set_local_only(
     state: State<'_, RuntimeRegistry>,
     server: String,

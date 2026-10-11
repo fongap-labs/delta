@@ -149,5 +149,5 @@ Deviations from the decision above, to be closed in step 2:
 - `web_search` is `any_public`, not `fixed_public`. Its engines come from a credential-store value that is not read at dispatch, so the gate cannot yet name the provider hosts. `any_public` is the stricter class: in *Approved endpoints* it asks for each call instead of allowing approved providers.
 - Local MCP servers can be marked *local-only* (`set_local_only`, with confirmation). The mark is stored in the egress authority and read by the gate. Settings ▸ Privacy lists the local (stdio) servers and sets the mark.
 - Tools that the level refuses for every call are not offered to the model (`offered_to_model`). A call refused for a particular target is still refused at dispatch.
-- No per-path overrides yet, and no desktop override list.
-- Suite connectors do not declare their destinations yet.
+- Per-path rules (`set_path_rule`, point 3): a rule for one path (`web_search`, `web_fetch`, `browser`, `open_url`, or `mcp:<server>`) in one workspace, or for every workspace. It is `allow`, `ask` or `deny`, replaces the level's decision for that path, and is the only way a rule can be set (desktop settings command). A rule that lets more content go than the level does now asks for confirmation; removing it takes effect at once. The ledger's `egress` object names the path and the rule in force.
+- Suite connectors do not declare their destinations yet. Connector paths are added with the connectors.
