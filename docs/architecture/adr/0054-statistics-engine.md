@@ -1,6 +1,6 @@
 # ADR-0054: Which statistics engine produces reportable figures
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet.
+Status: **Accepted** (owner, 2026-10-11), **amended** the same day: R is invoked directly by a Rust-native capability, not through a Python worker (see Amendment). Not implemented yet.
 
 ## Context
 
@@ -11,7 +11,8 @@ Today Delta has no statistics capability. What exists (checked, not assumed):
 1. The Capability ABI runs process workers through `WorkerProcessRunner` (`crates/delta-core/src/capability/runners.rs`), which accepts any program: Python, PowerShell and Shell have helpers, "and other controlled workers" use `WorkerProcessRunner::new(program, arguments)`.
 2. The only worker SDK is the Python `delta-worker-sdk` (`packages/delta_worker_sdk`).
 3. The blueprint lists Python, PowerShell and Shell as task execution languages (section 8.2). R is not listed.
-4. Without a statistics capability the model would compute or recall numbers itself. For formulation / CMC users (stability shelf life, dissolution f2, DOE) a number that is not produced by a deterministic, versioned engine is not usable.
+4. The desktop app does not ship Python. `packaging/portable/build-portable.ps1` states that Python is not an application dependency, and ADR-0058 records that the Rust runtime does not call the Python tools under `integrations/`. Baseline capabilities (documents, web) are Rust-native capabilities registered in `CapabilityHost::product_defaults`.
+5. Without a statistics capability the model would compute or recall numbers itself. For formulation / CMC users (stability shelf life, dissolution f2, DOE) a number that is not produced by a deterministic, versioned engine is not usable.
 
 The owner asked that the statistics stack use libraries regulators accept (2026-10-11). That needs to be made precise, because no regulator publishes a list of approved statistical libraries:
 
@@ -36,14 +37,20 @@ The facts about regulatory statements and pilots above are from public documents
 - Plus: meets the requirement with a documented compliance basis; keeps one worker SDK and the existing ABI; R is used only as a computation engine, not as an authority.
 - Minus: adds R as a task execution language; R must be present (packaging); package versions must be pinned and risk-assessed.
 
+**B2. R as the engine, invoked directly by a Rust-native capability (chosen by the amendment).**
+- A capability registered in `CapabilityHost::product_defaults` runs a fixed R entry script with `Rscript` through `WorkerProcessRunner`, which already runs any program under the Runtime's timeout and cancellation.
+- Plus: the user needs R only, not R and Python; one fewer process between the Runtime and the computation; cancellation reaches the R process directly; the validation pack covers R alone.
+- Minus: a small R-side interface for inputs and results; Rust prepares input tables (it already reads XLSX, CSV and DOCX since ADR-0058).
+
 **C. Drive the user's own validated JMP, Minitab or SAS installation.**
 - Plus: uses the tools users already validated.
 - Minus: commercial licences; scripting and automation differ per tool and per platform; Delta cannot ship or test against them. This is better as a later export or adapter in Suite (for example, emitting a JMP script) than as the engine.
 
-## Decision: B, with optional JMP / SAS script export
+## Decision: B2 (amended from B), with optional JMP / SAS script export
 
-1. **Engine.** Any figure that can appear in a formal Artifact (report, table, chart caption) is computed by R. Python (NumPy, pandas) may only read, reshape and validate data, and render the result; it does not compute reportable statistics.
-2. **Shape.** The Foundation capability is `statistics.*` (for example `statistics.describe`, `statistics.regression`, `statistics.anova`, `statistics.ancova`), implemented as a Python worker using `delta-worker-sdk` that calls `Rscript` with scripts shipped alongside the worker. The worker is a controlled worker under the Capability ABI: scoped inputs, staging output, timeout and cancel, no authority.
+1. **Engine.** Any figure that can appear in a formal Artifact (report, table, chart caption) is computed by R. Rust may only read, reshape and validate input data and render results; it does not compute reportable statistics.
+2. **Shape.** The Foundation capability is `statistics.*` (for example `statistics.describe`, `statistics.regression`, `statistics.anova`, `statistics.ancova`), a Rust-native capability that runs `Rscript` with R scripts compiled into the binary (so their SHA-256 is fixed per build). The R process is a controlled worker under the Capability ABI: scoped inputs, staging output, timeout and cancel, no authority.
+   - **Interface in base R only.** Rust writes the input table as CSV and the parameters as a DCF file (`read.dcf`, base R). The R script writes its results as DCF, with every number printed by `sprintf("%.17g")` so the double round-trips exactly. No JSON package is needed, so Foundation stays on base R and recommended packages (point 4).
 3. **Pinned environment.**
    - The R version and every package version are pinned.
    - The R version is the current R release (the release CRAN publishes as current) at the time the worker is built, pinned to its exact `x.y.z`.
@@ -67,7 +74,7 @@ The facts about regulatory statements and pilots above are from public documents
    - an independent cross-check against statsmodels/SciPy in the test suite.
 
    A mismatch beyond a stated tolerance fails the release.
-7. **Availability.** The portable build does not bundle R in the first version. The capability detects a supported R installation; if none is found, it reports itself unavailable with a clear reason and never falls back to Python. Bundling is a separate packaging decision (size, GPL licence obligations for redistributed binaries).
+7. **Availability.** The portable build does not bundle R in the first version. The capability detects a supported R installation; if none is found, it reports itself unavailable with a clear reason and never falls back to another engine. Bundling is a separate packaging decision (size, GPL licence obligations for redistributed binaries).
 8. **Blueprint.** Section 8.2 adds R to the task execution languages, with the same Worker rules (scoped input and output, timeout, least privilege, no authority).
 9. **Optional JMP / SAS script export (option C as an export, not as the engine).** A Suite adapter may write, next to a result, a JMP (JSL) or SAS script that reproduces the same analysis on the same input file.
    - It is optional and off unless the user asks for it.
@@ -76,8 +83,8 @@ The facts about regulatory statements and pilots above are from public documents
 
 ## Consequences
 
-- New worker and scripts under `integrations/capabilities/` (statistics), with a manifest per `schemas/capability-manifest.schema.json`.
-- No change to the Runtime, the ABI or the Python worker SDK. `WorkerProcessRunner` already runs the Python worker; R is a child process of that worker, inside the same job, timeout and cancellation.
+- A new `statistics` module in `delta-core` (registration, input preparation, result parsing) and its R scripts, registered in `CapabilityHost::product_defaults` beside the document and web capabilities.
+- No change to the ABI or the Python worker SDK. `WorkerProcessRunner` runs `Rscript` directly, inside the job's timeout and cancellation.
 - A validation pack grows with the capability:
   - the package risk assessments;
   - the reference test results per release;
@@ -91,8 +98,13 @@ The facts about regulatory statements and pilots above are from public documents
 1. B accepted: R computes, Python orchestrates and handles data and rendering.
 2. Optional JMP / SAS script export is planned in Suite (decision point 9).
 3. Pin the current R release, not the previous minor version (decision point 3).
+4. Amendment: R is invoked directly by a Rust-native capability, not through a Python worker, because the desktop app does not ship Python (option B2).
+
+## Amendment (2026-10-11)
+
+The first decision (B) had a Python worker drive R. The desktop app does not ship Python (Context, point 4), so B would have required every user to install both Python and R for statistics, and would have put a Python process between the Runtime and R. The owner chose B2. Everything else in this ADR is unchanged: R computes every reportable figure, the environment is pinned and checked, every result carries its provenance, and reference tests gate releases. Python (statsmodels) remains in the test suite only, as the independent cross-check of point 6.
 
 ## Not verified
 
 - The statements about FDA, EMA, NMPA and R Consortium pilots are from public documents as known at the time of writing, not re-read for this ADR.
-- No R worker has been built yet. Running `Rscript` as a child of a supervised Python worker on Windows (process-tree termination on cancel) must be tested.
+- No R capability has been built yet. On Windows `Rscript.exe` starts the R engine as a further process; cancellation must end that process tree (for example through a job object, as the controlled browser does) and must be tested.

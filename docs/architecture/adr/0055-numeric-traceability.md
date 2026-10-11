@@ -51,7 +51,7 @@ Extracting every number from free text and guessing where it came from is not de
 3. **New validation rule `numeric_trace`.** Criteria name a report and its binding manifest. The rule passes only if all of these hold:
    - every binding in the manifest points to a result artifact registered in the same run whose SHA-256 matches the ledger;
    - the key exists in that artifact;
-   - formatting the raw value with the declared format gives exactly the rendered text;
+   - formatting the raw value with the declared format gives exactly the rendered text. Formats are a fixed subset (fixed decimals `%.Nf`, significant figures, integer, percent). Rounding is **round half up** (a 5 in the first dropped digit rounds away from zero), applied to the shortest decimal form that reads back as the same double, so 2.675 renders as 2.68 at two decimals. Binary floating-point artefacts and banker's rounding are not used;
    - the rendered text appears in the report at the recorded location. For DOCX, the rule reads the document's text from `word/document.xml`, and does not compare raw bytes.
    - `forbid_unbound_numbers`: the report's text may not contain digits outside bindings, except for an allowlist of patterns (section numbers, dates, conditions such as "25 °C/60% RH") declared in the criteria.
      - **On by default for every formal report.** A report is formal when the Skill's validation declares it `formal: true`; a Skill cannot switch the rule off for a formal report, only add allowlist patterns, and every allowlist pattern is shown with the verdict.
@@ -77,6 +77,7 @@ Extracting every number from free text and guessing where it came from is not de
 
 1. B accepted.
 2. Forbidding unbound figures is the default rule for formal reports.
+3. Rounding is round half up (decision point 3).
 
 ## Not verified
 
