@@ -517,7 +517,7 @@ Rust = Runtime + Trust + Work + Automation + Learning authority + Capability Hos
 
 这些是任务执行语言，不是 Delta 核心架构 Authority。
 
-R 只作为统计计算引擎，由 Python Worker 调度；正式成果中的统计数字由 R 计算（ADR-0054）。
+R 只作为统计计算引擎，由 Rust 原生能力直接调用；正式成果中的统计数字由 R 计算（ADR-0054）。
 
 Worker 必须满足：
 
