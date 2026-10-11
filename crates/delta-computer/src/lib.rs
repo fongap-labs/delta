@@ -2,9 +2,11 @@
 //! and links. Each is a tool the model may call, behind the same grants and approvals as every
 //! other capability, and every one asks the user each time.
 //!
-//! What is deliberately not here: moving the mouse or typing. That is a separate, later step with
-//! its own consent model.
+//! It also drives a controlled browser window (ADR-0056). What is deliberately not here: moving the
+//! mouse or typing anywhere on the desktop. That is a separate, later step with its own consent
+//! model.
 
+mod browser;
 mod screen;
 
 use std::path::{Path, PathBuf};
@@ -16,6 +18,7 @@ use delta_core::capability::{
 };
 use serde_json::{json, Value};
 
+pub use browser::{BrowserHost, Settings as BrowserSettings};
 pub use screen::{Frame, Scope};
 
 /// Largest clipboard text read or written, in characters.
@@ -30,12 +33,56 @@ const OPENABLE: [&str; 12] = [
 
 type CaptureFn = fn(Scope) -> Result<Frame, String>;
 
-/// Register every computer capability.
-pub fn register(host: &CapabilityHost) -> Result<(), String> {
+static BROWSER: std::sync::OnceLock<Arc<BrowserHost>> = std::sync::OnceLock::new();
+
+/// Register every computer capability. `state_dir` is where the controlled browser keeps its own
+/// profile.
+pub fn register(host: &CapabilityHost, state_dir: &Path) -> Result<(), String> {
     for registration in registrations(screen::capture) {
         host.register(registration)?;
     }
+    let browser = BROWSER
+        .get_or_init(|| BrowserHost::new(state_dir.to_path_buf(), BrowserSettings::from_env()))
+        .clone();
+    for registration in browser::registrations(&browser) {
+        host.register(registration)?;
+    }
     Ok(())
+}
+
+/// Close the controlled browser, if open. Called when the app quits.
+pub fn shutdown() {
+    if let Some(browser) = BROWSER.get() {
+        browser.shutdown();
+    }
+}
+
+/// Keep a picture a tool took in the workspace, as a record of what the agent saw (swept after a
+/// week), and return its workspace-relative path.
+fn keep_image(
+    job: &delta_core::capability::CapabilityJob,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<String, String> {
+    let workspace = job
+        .workspace
+        .as_deref()
+        .ok_or("a task workspace is needed to keep the picture")?;
+    let run = safe_segment(job.run_id.as_deref().unwrap_or("run"));
+    let directory = PathBuf::from(workspace)
+        .join(".delta")
+        .join("screens")
+        .join(&run);
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| format!("could not keep the picture: {error}"))?;
+    let number = std::fs::read_dir(&directory)
+        .map(|d| d.count())
+        .unwrap_or(0)
+        + 1;
+    let file = format!("{number:03}.{extension}");
+    std::fs::write(directory.join(&file), bytes)
+        .map_err(|error| format!("could not keep the picture: {error}"))?;
+    Ok(format!(".delta/screens/{run}/{file}"))
 }
 
 /// The registrations, with the screen capture swappable so tests can run without a display.
@@ -113,9 +160,9 @@ fn screenshot(capture: CaptureFn) -> CapabilityRegistration {
                 Err(error) => return failed(&job.job_id, &error, "arguments"),
             };
             let edge = screen::clamp_edge(job.arguments.get("max_edge").and_then(Value::as_i64));
-            let Some(workspace) = job.workspace.as_deref() else {
+            if job.workspace.is_none() {
                 return failed(&job.job_id, "a task workspace is needed to keep the screenshot", "workspace");
-            };
+            }
             if control.is_cancelled() {
                 return CapabilityResult::cancelled(&job.job_id);
             }
@@ -128,18 +175,10 @@ fn screenshot(capture: CaptureFn) -> CapabilityRegistration {
                 Ok(png) => png,
                 Err(error) => return failed(&job.job_id, &error, "encode_failed"),
             };
-            // Kept in the workspace as a record of what the agent saw; swept after a week.
-            let run = safe_segment(job.run_id.as_deref().unwrap_or("run"));
-            let directory = PathBuf::from(workspace).join(".delta").join("screens").join(&run);
-            if let Err(error) = std::fs::create_dir_all(&directory) {
-                return failed(&job.job_id, &format!("could not keep the screenshot: {error}"), "write_failed");
-            }
-            let number = std::fs::read_dir(&directory).map(|d| d.count()).unwrap_or(0) + 1;
-            let file = format!("{number:03}.png");
-            if let Err(error) = std::fs::write(directory.join(&file), &png) {
-                return failed(&job.job_id, &format!("could not keep the screenshot: {error}"), "write_failed");
-            }
-            let saved = format!(".delta/screens/{run}/{file}");
+            let saved = match keep_image(job, "png", &png) {
+                Ok(saved) => saved,
+                Err(error) => return failed(&job.job_id, &error, "write_failed"),
+            };
             CapabilityResult::completed(
                 &job.job_id,
                 json!({

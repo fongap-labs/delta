@@ -12,6 +12,7 @@
 | [0053](0053-resume-run-identity.md) | Which run identity a resumed run uses |
 | [0054](0054-baseline-work-capabilities.md) | Baseline work capabilities live in Foundation |
 | [0055](0055-computer-capabilities.md) | Computer capabilities, in steps (screenshot, clipboard, open; acting on the screen not yet decided) |
+| [0056](0056-controlled-browser.md) | A controlled browser for the agent (Edge or Chrome over DevTools; own profile, same network guard as web_fetch) |
 
 ## Numbers cited in code but not stored here
 

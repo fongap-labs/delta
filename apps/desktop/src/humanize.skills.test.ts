@@ -2,6 +2,7 @@
 // as a human-readable "Used skill: X" step, whether model-invoked or forced via /skill.
 import { describe, expect, it } from "vitest";
 import { humanizeApprovalTitle, humanizeAsk, humanizeTool } from "./humanize";
+import { scopeNote } from "./components/ApprovalCard";
 
 describe("humanizeTool(load_skill)", () => {
   it("renders the Used-skill line with the skill name", () => {
@@ -39,5 +40,31 @@ describe("humanize computer tools", () => {
     expect(humanizeApprovalTitle("open_url", { url: "https://example.com/a" })).toMatchObject({ obj: "https://example.com/a" });
     expect(humanizeTool("screenshot", {})).toMatchObject({ pre: "Looked at your screen" });
     expect(humanizeTool("open_url", { url: "https://example.com/a" })).toMatchObject({ obj: "example.com" });
+  });
+});
+
+describe("humanize browser tools", () => {
+  it("names the page element or text, so the approval is about something the user can see", () => {
+    expect(humanizeApprovalTitle("browser_navigate", { url: "https://example.com/a" })).toMatchObject({
+      pre: "Open in the Delta browser: ",
+      obj: "https://example.com/a",
+    });
+    expect(humanizeApprovalTitle("browser_click", { ref: "e3", label: "Place order" })).toMatchObject({
+      pre: "Click ",
+      obj: "“Place order”",
+    });
+    expect(humanizeApprovalTitle("browser_type", { ref: "e1", label: "Email", text: "ada@example.com" })).toMatchObject({
+      pre: "Type ",
+      obj: "“ada@example.com”",
+      post: " into “Email”",
+      postVars: { label: "Email" },
+    });
+    expect(humanizeTool("browser_click", { label: "Next" })).toMatchObject({ pre: "Clicked ", obj: "“Next”" });
+    expect(humanizeTool("browser_close", {})).toMatchObject({ pre: "Closed the Delta browser" });
+  });
+
+  it("explains in the scope note where browser actions happen", () => {
+    const t = (key: string) => key;
+    expect(scopeNote(t, "browser_click", { label: "Next" }, "computer").text).toBe("approval.scope.browser");
   });
 });

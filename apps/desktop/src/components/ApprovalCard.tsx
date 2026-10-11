@@ -119,6 +119,8 @@ export function scopeNote(
   // What the screen shows or the clipboard holds is handed to the model, and so to its provider.
   if (name === "screenshot" || name === "clipboard_read")
     return { text: t("approval.scope.sendsToModel"), external: false };
+  // The page's text and picture go to the model; clicks and typing act inside Delta's own window.
+  if (name.startsWith("browser_")) return { text: t("approval.scope.browser"), external: false };
   if (category === "computer") return { text: t("approval.scope.actsOnComputer"), external: false };
   if (EXTERNAL.has(name)) {
     const platform = String(args?.target ?? "").split(":")[0];

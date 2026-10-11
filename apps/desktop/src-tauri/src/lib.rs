@@ -889,6 +889,10 @@ pub fn run() {
                     state.0.lock().unwrap().take();
                 }
             }
+            if matches!(event, RunEvent::Exit) {
+                // The controlled browser window goes with the app.
+                delta_computer::shutdown();
+            }
         });
 }
 

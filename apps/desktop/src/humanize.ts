@@ -96,6 +96,26 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Opened ", preKey: "humanize.opened", obj: baseName(String(a.path ?? "a file")) };
     case "open_url":
       return { pre: "Opened in your browser: ", preKey: "humanize.openedUrl", obj: trunc(urlHost(a.url), 50) };
+    case "browser_navigate":
+      return { pre: "Opened in the Delta browser: ", preKey: "humanize.browserNavigate", obj: trunc(urlHost(a.url), 50) };
+    case "browser_snapshot":
+      return { pre: "Read the page in the Delta browser", preKey: "humanize.browserSnapshot" };
+    case "browser_click":
+      return { pre: "Clicked ", preKey: "humanize.browserClick", obj: `“${trunc(String(a.label ?? ""), 50)}”` };
+    case "browser_type":
+      return { pre: "Typed into ", preKey: "humanize.browserType", obj: `“${trunc(String(a.label ?? ""), 50)}”` };
+    case "browser_select":
+      return { pre: "Chose ", preKey: "humanize.browserSelect", obj: `“${trunc(String(a.option ?? ""), 50)}”` };
+    case "browser_press_key":
+      return { pre: "Pressed ", preKey: "humanize.browserKey", obj: trunc(String(a.key ?? ""), 20) };
+    case "browser_scroll":
+      return { pre: "Scrolled the page", preKey: "humanize.browserScroll" };
+    case "browser_back":
+      return { pre: "Went back a page", preKey: "humanize.browserBack" };
+    case "browser_screenshot":
+      return { pre: "Looked at the browser page", preKey: "humanize.browserScreenshot" };
+    case "browser_close":
+      return { pre: "Closed the Delta browser", preKey: "humanize.browserClose" };
     case "write_file":
       return { pre: "Wrote ", preKey: "humanize.wrote", obj: baseName(String(a.path ?? "a file")) };
     case "create_document":
@@ -217,6 +237,30 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
         : { pre: "Open ", preKey: "humanize.apOpen", obj: baseName(String(a.path ?? "a file")) };
     case "open_url":
       return { pre: "Open in your browser: ", preKey: "humanize.apOpenUrl", obj: trunc(String(a.url ?? ""), 80) };
+    case "browser_navigate":
+      return { pre: "Open in the Delta browser: ", preKey: "humanize.apBrowserNavigate", obj: trunc(String(a.url ?? ""), 80) };
+    case "browser_click":
+      return { pre: "Click ", preKey: "humanize.apBrowserClick", obj: `“${trunc(String(a.label ?? ""), 50)}”` };
+    case "browser_type":
+      return {
+        pre: "Type ",
+        preKey: "humanize.apBrowserType",
+        obj: `“${trunc(String(a.text ?? ""), 60)}”`,
+        post: ` into “${trunc(String(a.label ?? ""), 40)}”`,
+        postKey: "humanize.apBrowserTypeInto",
+        postVars: { label: trunc(String(a.label ?? ""), 40) },
+      };
+    case "browser_select":
+      return {
+        pre: "Choose ",
+        preKey: "humanize.apBrowserSelect",
+        obj: `“${trunc(String(a.option ?? ""), 50)}”`,
+        post: ` in “${trunc(String(a.label ?? ""), 40)}”`,
+        postKey: "humanize.apBrowserSelectIn",
+        postVars: { label: trunc(String(a.label ?? ""), 40) },
+      };
+    case "browser_press_key":
+      return { pre: "Press the key ", preKey: "humanize.apBrowserKey", obj: trunc(String(a.key ?? ""), 20) };
     case "web_fetch":
       return { pre: "Read the web page ", preKey: "humanize.apWebFetch", obj: trunc(urlHost(a.url), 50) };
     case "web_search":

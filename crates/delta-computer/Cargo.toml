@@ -11,15 +11,22 @@ publish = false
 delta-core = { path = "../delta-core" }
 # Clipboard text only: no image support, no Wayland or X11 system libraries needed to build.
 arboard = { version = "3", default-features = false }
+base64 = "0.22"
 opener = "0.8"
 png = "0.18"
 serde_json = "1"
 url = "2"
+# The controlled browser (ADR-0056) talks to Edge or Chrome over the DevTools websocket. Plain
+# websocket client only: no TLS (the connection is to 127.0.0.1) and no async runtime.
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
     "Win32_UI_WindowsAndMessaging",
 ] }
 
