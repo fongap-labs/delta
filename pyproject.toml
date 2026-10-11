@@ -13,7 +13,7 @@ dependencies = [
     "ddgs==9.16.0",
     # PDF fallback: pypdf extracts text; pypdfium2 rasterizes scanned pages without AGPL PyMuPDF.
     "pypdf==6.19.0",
-    "pypdfium2==5.13.0",
+    "pypdfium2==5.14.0",
 ]
 
 [project.optional-dependencies]
