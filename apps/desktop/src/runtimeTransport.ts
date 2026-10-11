@@ -428,6 +428,8 @@ export const updateWorkspaceTrust = (path: string, isTrusted: boolean) =>
   invokeAuthority("update_workspace_trust", { path, isTrusted });
 export const directSessionRevert = (sessionId: string, index: number) =>
   invokeAuthority("session_revert", { sessionId, index });
+export const directRestoreFileVersion = (sessionId: string, backup: string, target: string) =>
+  invokeAuthority("restore_file_version", { sessionId, backup, target });
 export const updateSessionReasoning = (sessionId: string, effort: string) =>
   invokeAuthority("update_session_reasoning", { sessionId, effort });
 export const directSessionRoots = (sessionId: string) =>

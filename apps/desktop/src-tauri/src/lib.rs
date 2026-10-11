@@ -687,6 +687,7 @@ pub fn run() {
             runtime_ipc::workspaces_trusted,
             runtime_ipc::update_workspace_trust,
             runtime_ipc::session_revert,
+            runtime_ipc::restore_file_version,
             runtime_ipc::update_session_reasoning,
             runtime_ipc::session_roots,
             runtime_ipc::add_session_root,

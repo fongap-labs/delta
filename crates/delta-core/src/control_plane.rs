@@ -478,6 +478,72 @@ pub fn get_session_workspace(
     session_workspace(state_dir, session_id)
 }
 
+/// Put a kept earlier version of a file back (the undo for a file the agent replaced).
+///
+/// `backup` must be a file under the workspace's `.delta/versions/`, `target` a workspace-relative
+/// path outside `.delta`. The version being replaced is itself kept under
+/// `.delta/versions/restored-<time>/`, so a restore can be undone too.
+pub fn restore_file_version(
+    state_dir: &Path,
+    session_id: &str,
+    backup: &str,
+    target: &str,
+) -> Result<Value, ShadowReadError> {
+    let workspace = get_session_workspace(state_dir, session_id)?;
+    if workspace.is_empty() {
+        return Ok(json!({"ok": false, "error": "this task has no workspace"}));
+    }
+    restore_version_in(Path::new(&workspace), backup, target)
+}
+
+fn restore_version_in(
+    workspace: &Path,
+    backup: &str,
+    target: &str,
+) -> Result<Value, ShadowReadError> {
+    let fail = |message: &str| Ok(json!({"ok": false, "error": message}));
+    let Ok(workspace) = workspace.canonicalize() else {
+        return fail("the workspace is unavailable");
+    };
+    let relative_ok = |path: &str| {
+        let path = Path::new(path);
+        !path.as_os_str().is_empty()
+            && path
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+    };
+    if !relative_ok(backup) || !relative_ok(target) {
+        return fail("paths must be relative to the workspace");
+    }
+    let versions = workspace.join(".delta").join("versions");
+    let Ok(source) = workspace.join(backup).canonicalize() else {
+        return fail("that earlier version is no longer available");
+    };
+    if !source.starts_with(&versions) || !source.is_file() {
+        return fail("that is not a kept earlier version");
+    }
+    let destination = workspace.join(target);
+    if destination.starts_with(workspace.join(".delta")) {
+        return fail("that location is reserved");
+    }
+    if destination.exists() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let kept = versions.join(format!("restored-{stamp}")).join(target);
+        if let Some(parent) = kept.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(&destination, &kept)?;
+    } else if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let bytes = fs::read(&source)?;
+    atomic_write(&destination, &bytes)?;
+    Ok(json!({"ok": true, "path": target}))
+}
+
 fn rewrite_messages(
     state_dir: &Path,
     session_id: &str,
@@ -1058,6 +1124,56 @@ mod tests {
             .find(|s| s["session_id"] == "legacy")
             .unwrap();
         assert_eq!(legacy["title"], "Old question");
+    }
+
+    #[test]
+    fn a_kept_version_can_be_restored_and_the_restore_can_be_undone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws = tmp.path();
+        fs::create_dir_all(ws.join(".delta/versions/run-1/reports")).unwrap();
+        fs::create_dir_all(ws.join("reports")).unwrap();
+        fs::write(ws.join(".delta/versions/run-1/reports/a.md"), "original").unwrap();
+        fs::write(ws.join("reports/a.md"), "replaced").unwrap();
+        let backup = ".delta/versions/run-1/reports/a.md";
+        let done = restore_version_in(ws, backup, "reports/a.md").unwrap();
+        assert_eq!(done["ok"], true, "{done}");
+        assert_eq!(
+            fs::read_to_string(ws.join("reports/a.md")).unwrap(),
+            "original"
+        );
+        // What was replaced is kept, so the restore is undoable.
+        let kept: Vec<_> = fs::read_dir(ws.join(".delta/versions"))
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("restored-"))
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(
+            fs::read_to_string(kept[0].path().join("reports/a.md")).unwrap(),
+            "replaced"
+        );
+    }
+
+    #[test]
+    fn restoring_refuses_paths_outside_the_kept_versions_or_into_reserved_space() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws = tmp.path();
+        fs::create_dir_all(ws.join(".delta/versions/run-1")).unwrap();
+        fs::write(ws.join(".delta/versions/run-1/a.md"), "x").unwrap();
+        fs::write(ws.join("secret.txt"), "s").unwrap();
+        for (backup, target) in [
+            ("secret.txt", "out.txt"),
+            ("../secret.txt", "out.txt"),
+            (".delta/versions/run-1/a.md", "../out.txt"),
+            (".delta/versions/run-1/a.md", ".delta/state.db"),
+            (".delta/versions/run-1/a.md", "/abs/out.txt"),
+            (".delta/versions/missing.md", "out.txt"),
+            ("", "out.txt"),
+        ] {
+            let result = restore_version_in(ws, backup, target).unwrap();
+            assert_eq!(result["ok"], false, "{backup} -> {target}");
+        }
+        assert!(!ws.join("out.txt").exists());
     }
 
     #[test]

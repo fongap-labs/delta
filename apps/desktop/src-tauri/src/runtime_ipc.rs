@@ -522,6 +522,16 @@ pub fn session_revert(
 }
 
 #[tauri::command]
+pub fn restore_file_version(
+    state: State<'_, RuntimeRegistry>,
+    session_id: String,
+    backup: String,
+    target: String,
+) -> Value {
+    authority_result(state.restore_file_version(&session_id, &backup, &target))
+}
+
+#[tauri::command]
 pub fn update_session_reasoning(
     state: State<'_, RuntimeRegistry>,
     session_id: String,

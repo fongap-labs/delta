@@ -225,8 +225,35 @@ impl RuntimeHost {
             if let Some(parent) = target.parent() {
                 fs::create_dir_all(parent).map_err(|error| error.to_string())?;
             }
+            // Replacing a file must never destroy what was there: the old version moves to
+            // `.delta/versions/<run>/<path>` (the first replacement in a run keeps the original),
+            // and the result says where, so the user can get it back.
+            let mut previous_version = None;
             if target.exists() {
-                fs::remove_file(&target).map_err(|error| error.to_string())?;
+                let kept = workspace
+                    .join(".delta")
+                    .join("versions")
+                    .join(&run_id)
+                    .join(relative);
+                if !kept.exists() {
+                    if let Some(parent) = kept.parent() {
+                        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+                    }
+                    if fs::rename(&target, &kept).is_err() {
+                        fs::copy(&target, &kept).map_err(|error| error.to_string())?;
+                    }
+                }
+                previous_version = Some(
+                    Path::new(".delta")
+                        .join("versions")
+                        .join(&run_id)
+                        .join(relative)
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
+                if target.exists() {
+                    fs::remove_file(&target).map_err(|error| error.to_string())?;
+                }
             }
             if fs::rename(&source, &target).is_err() {
                 fs::copy(&source, &target).map_err(|error| error.to_string())?;
@@ -253,7 +280,11 @@ impl RuntimeHost {
             ArtifactRegistryWriter::new(&authorities.ledger.lock().unwrap())
                 .register(&artifact, now_ts(), workspace_text)
                 .map_err(|error| error.to_string())?;
-            formalized.push(artifact.registered_payload());
+            let mut payload = artifact.registered_payload();
+            if let Some(previous) = previous_version {
+                payload["previous_version"] = Value::String(previous);
+            }
+            formalized.push(payload);
         }
         Ok(formalized)
     }

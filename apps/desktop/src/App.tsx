@@ -18,6 +18,7 @@ import {
   deleteSession,
   renameSession,
   revertSession,
+  restoreFileVersion,
   getResumable,
   setReasoningEffort,
   runAutomation,
@@ -1098,6 +1099,16 @@ export function App() {
     send(r.text, attachments);
   };
 
+  // Put back the version of a file the agent replaced; null when it worked, else the reason.
+  const restoreVersion = async (backup: string, target: string): Promise<string | null> => {
+    const result = await restoreFileVersion(sessionId, backup, target).catch(
+      (): { ok: false; error: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (!result.ok) return result.error || tr("transcript.restoreFailed");
+    setBrowserRefreshKey((k) => k + 1);
+    return null;
+  };
+
   const openInboxSession = (sid: string, ws: string) => selectSession(sid, ws);
   const selectSession = async (id: string, ws: string) => {
     setSurface("session"); // selecting a conversation always returns to the conversation view
@@ -1515,6 +1526,8 @@ export function App() {
                     running={isRunning}
                     onRetry={retry}
                     onSwitchModel={openModelSetup}
+                    onSaveAsSkill={() => send(tr("skill.savePrompt"))}
+                    onRestoreVersion={restoreVersion}
                     canResume={canResume}
                     onResume={resume}
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}

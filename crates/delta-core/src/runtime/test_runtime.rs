@@ -775,6 +775,69 @@ fn runtime_promotes_and_hashes_only_staged_worker_artifacts() {
         .is_some_and(|hash| hash.len() == 64));
 }
 
+#[test]
+fn replacing_a_file_keeps_the_previous_version_and_says_where() {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("workspace");
+    fs::create_dir_all(workspace.join("reports")).unwrap();
+    fs::write(workspace.join("reports/final.md"), "the original").unwrap();
+    let authorities = RuntimeAuthorities::open(temp.path()).unwrap();
+    let run = "run-replace";
+    let staging = workspace
+        .join(".delta")
+        .join("staging")
+        .join(run)
+        .join("job");
+    fs::create_dir_all(&staging).unwrap();
+    let mut results = Vec::new();
+    for (round, text) in ["second version", "third version"].into_iter().enumerate() {
+        let staged_path = staging.join(format!("candidate-{round}"));
+        fs::write(&staged_path, text).unwrap();
+        let mut host = RuntimeHost::new(
+            "session-replace",
+            RuntimeConfig {
+                workspace: Some(workspace.to_string_lossy().to_string()),
+                ..RuntimeConfig::default()
+            },
+        )
+        .with_authorities(authorities.clone())
+        .with_tools(tool_contract("low", false))
+        .with_tool_executor(Arc::new(CountingExecutor {
+            calls: Arc::new(AtomicUsize::new(0)),
+            staged: Some(StagedArtifact {
+                staging_path: staged_path,
+                relative_path: "reports/final.md".to_string(),
+                kind: "markdown".to_string(),
+                incomplete: false,
+            }),
+        }));
+        host.set_run_id(run.to_string());
+        let result = host.execute_tool_call(&ToolCall {
+            id: format!("call-{round}"),
+            name: "write_report".to_string(),
+            arguments: json!({"path": "reports/final.md"}),
+        });
+        assert!(result.error.is_none(), "{:?}", result.error);
+        results.push(result);
+    }
+    assert_eq!(
+        fs::read_to_string(workspace.join("reports/final.md")).unwrap(),
+        "third version"
+    );
+    let kept = workspace
+        .join(".delta/versions")
+        .join(run)
+        .join("reports/final.md");
+    // The first replacement in a run keeps the original; later ones do not overwrite it.
+    assert_eq!(fs::read_to_string(&kept).unwrap(), "the original");
+    for result in &results {
+        assert_eq!(
+            result.output["artifacts"][0]["previous_version"],
+            format!(".delta/versions/{run}/reports/final.md")
+        );
+    }
+}
+
 #[derive(Default)]
 struct CaptureSink {
     frames: Mutex<Vec<Value>>,

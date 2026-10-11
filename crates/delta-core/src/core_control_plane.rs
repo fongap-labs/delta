@@ -71,6 +71,8 @@ impl CoreControlPlane {
         let application =
             Arc::new(ApplicationStore::open(&state_dir).map_err(|error| error.to_string())?);
         let capability_host = CapabilityHost::product_defaults()?;
+        let skills = Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?);
+        capability_host.register(crate::skills::save_registration(skills.clone()))?;
 
         // Rust ApplicationStore remains the sole product credential authority.
         // Capability jobs receive only the exact grant-scoped keys requested by
@@ -124,7 +126,7 @@ impl CoreControlPlane {
             )),
             mcp: Arc::new(McpStore::open(&state_dir).map_err(|error| error.to_string())?),
             mcp_runtime: Arc::new(McpRuntime::new()),
-            skills: Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?),
+            skills,
             application,
             state_dir,
         })
@@ -869,6 +871,16 @@ impl CoreControlPlane {
 
     pub fn revert_session(&self, session_id: &str, index: usize) -> Result<Value, String> {
         control_plane::revert_session(&self.state_dir, session_id, index)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn restore_file_version(
+        &self,
+        session_id: &str,
+        backup: &str,
+        target: &str,
+    ) -> Result<Value, String> {
+        control_plane::restore_file_version(&self.state_dir, session_id, backup, target)
             .map_err(|error| error.to_string())
     }
 

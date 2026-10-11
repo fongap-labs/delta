@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { filesDeliveredSinceLastUser, Transcript } from "./Transcript";
+import { deliveredSinceLastUser, filesDeliveredSinceLastUser, Transcript } from "./Transcript";
 import { SessionIntro } from "./SessionIntro";
 import { I18nProvider } from "@delta/i18n/I18nContext";
 import type { Item } from "../types";
@@ -63,5 +63,54 @@ describe("starting points", () => {
     expect(buttons).toHaveLength(4);
     fireEvent.click(buttons[2]);
     expect(onPick).toHaveBeenCalledWith(buttons[2].textContent);
+  });
+});
+
+describe("save as skill", () => {
+  const tool = (name: string): Item => ({ kind: "tool", id: name + Math.random(), name, args: {}, status: "ok" });
+  it("is offered after a request with at least three steps, once the run has ended", () => {
+    const onSave = vi.fn();
+    const items: Item[] = [{ kind: "user", text: "go" }, tool("read_file"), tool("web_search"), tool("web_fetch"), { kind: "assistant", text: "Done." }];
+    const { rerender } = render(wrap(<Transcript items={items} running={true} onApprove={() => {}} onSaveAsSkill={onSave} />));
+    expect(screen.queryByTestId("save-as-skill")).toBeNull();
+    rerender(wrap(<Transcript items={items} running={false} onApprove={() => {}} onSaveAsSkill={onSave} />));
+    fireEvent.click(screen.getByTestId("save-as-skill"));
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it("is not offered for a quick request", () => {
+    const items: Item[] = [{ kind: "user", text: "hi" }, tool("read_file"), { kind: "assistant", text: "Hello." }];
+    render(wrap(<Transcript items={items} running={false} onApprove={() => {}} onSaveAsSkill={() => {}} />));
+    expect(screen.queryByTestId("save-as-skill")).toBeNull();
+  });
+});
+
+describe("restoring a replaced file", () => {
+  const replaced = (): Item[] => [
+    { kind: "user", text: "update the report" },
+    {
+      kind: "tool", id: "t1", name: "write_file", args: { path: "reports/q3.md" }, status: "ok",
+      preview: JSON.stringify({ ok: true, artifacts: [{ path: "reports/q3.md", previous_version: ".delta/versions/run-1/reports/q3.md" }] }),
+    },
+    { kind: "assistant", text: "Updated." },
+  ];
+
+  it("reads the kept version from the stored tool result, and ignores a cut-off preview", () => {
+    expect(deliveredSinceLastUser(replaced())).toEqual([
+      { path: "reports/q3.md", previous: ".delta/versions/run-1/reports/q3.md" },
+    ]);
+    const cut = replaced();
+    (cut[1] as any).preview = '{"ok":true,"artifacts":[{"path":"reports/q3';
+    expect(deliveredSinceLastUser(cut)).toEqual([{ path: "reports/q3.md" }]);
+  });
+
+  it("offers the restore, reports success and shows a failure's reason", async () => {
+    const restore = vi.fn().mockResolvedValueOnce("that earlier version is no longer available").mockResolvedValueOnce(null);
+    render(wrap(<Transcript items={replaced()} running={false} onApprove={() => {}} onRestoreVersion={restore} />));
+    fireEvent.click(screen.getByTestId("restore-version"));
+    expect((await screen.findByTestId("restore-error")).textContent).toContain("no longer available");
+    fireEvent.click(screen.getByTestId("restore-version"));
+    await screen.findByTestId("restore-done");
+    expect(restore).toHaveBeenCalledWith(".delta/versions/run-1/reports/q3.md", "reports/q3.md");
   });
 });

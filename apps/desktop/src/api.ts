@@ -52,6 +52,7 @@ import {
   directSessionRename,
   deleteSessionRoot,
   directSessionRevert,
+  directRestoreFileVersion,
   directSessionRoots,
   updateSessionFlags,
   updateSessionReasoning,
@@ -317,6 +318,15 @@ export async function revertSession(
   index: number,
 ): Promise<{ ok: boolean; error?: string; text?: string }> {
   return await directSessionRevert(sessionId, index);
+}
+
+/** Put back the earlier version the runtime kept when the agent replaced `target`. */
+export async function restoreFileVersion(
+  sessionId: string,
+  backup: string,
+  target: string,
+): Promise<{ ok: boolean; error?: string; path?: string }> {
+  return await directRestoreFileVersion(sessionId, backup, target);
 }
 
 export async function setReasoningEffort(
