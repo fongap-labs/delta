@@ -24,6 +24,7 @@ mod registry;
 mod runners;
 
 pub use abi::*;
+pub(crate) use host::resolve_read_path;
 pub use host::CapabilityHost;
 pub use registry::{
     CapabilityControl, CapabilityRegistration, CapabilityRegistry, CapabilityRunner,
@@ -180,6 +181,7 @@ mod tests {
             vec![
                 "ask_user",
                 "propose_plan",
+                "read_document",
                 "read_file",
                 "request_directory",
                 "web_fetch",
@@ -225,6 +227,52 @@ mod tests {
             &tool_context(temp.path()),
         );
         assert_eq!(missing.state, crate::runtime::ToolExitState::Failed);
+    }
+
+    #[test]
+    fn read_document_reads_office_files_from_the_workspace_and_counts_as_a_source() {
+        use std::io::Write;
+        let temp = tempfile::tempdir().unwrap();
+        let mut bytes = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
+            writer
+                .start_file(
+                    "word/document.xml",
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+            writer
+                .write_all(b"<w:document xmlns:w=\"w\"><w:body><w:p><w:r><w:t>Quarterly report</w:t></w:r></w:p></w:body></w:document>")
+                .unwrap();
+            writer.finish().unwrap();
+        }
+        std::fs::write(temp.path().join("report.docx"), &bytes).unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let call = |path: &str| ToolCall {
+            id: "call-doc".to_string(),
+            name: "read_document".to_string(),
+            arguments: serde_json::json!({"path": path}),
+        };
+        let result = host.execute(&call("report.docx"), &tool_context(temp.path()));
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
+        assert_eq!(result.output["kind"], "docx");
+        assert!(result.output["text"]
+            .as_str()
+            .unwrap()
+            .contains("Quarterly report"));
+        // The host hashed the file before dispatch, so the runtime can record it as a source read.
+        assert_eq!(result.verified_inputs.len(), 1);
+
+        let outside = host.execute(&call("../escape.docx"), &tool_context(temp.path()));
+        assert_eq!(outside.state, crate::runtime::ToolExitState::Failed);
+        let unsupported = host.execute(&call("notes.txt"), &tool_context(temp.path()));
+        assert_eq!(unsupported.state, crate::runtime::ToolExitState::Failed);
     }
 
     #[test]

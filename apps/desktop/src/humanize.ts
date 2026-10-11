@@ -56,6 +56,15 @@ function messageTarget(target: string): { platform: string; tail: string } {
   return { platform: names[platform] || platform, tail };
 }
 
+const urlHost = (url: unknown): string => {
+  const raw = String(url ?? "");
+  try {
+    return new URL(raw).host || raw;
+  } catch {
+    return raw;
+  }
+};
+
 export function humanizeTool(name: string, args: any): HumanLine {
   const a = args && typeof args === "object" ? args : {};
   switch (name) {
@@ -75,8 +84,12 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Stopped a background command", preKey: "humanize.stopBackground" };
     case "read_file":
       return { pre: "Read ", preKey: "humanize.read", obj: baseName(String(a.path ?? "a file")) };
+    case "read_document":
+      return { pre: "Read ", preKey: "humanize.read", obj: baseName(String(a.path ?? "a document")) };
     case "write_file":
       return { pre: "Wrote ", preKey: "humanize.wrote", obj: baseName(String(a.path ?? "a file")) };
+    case "create_document":
+      return { pre: "Created ", preKey: "humanize.created", obj: baseName(String(a.path ?? "a document")) };
     case "replace_in_file":
     case "apply_patch":
     case "apply_unified_diff":
@@ -130,15 +143,8 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.webSearch",
         obj: `“${trunc(String(a.query ?? ""), 60)}”`,
       };
-    case "web_fetch": {
-      let host = String(a.url ?? "");
-      try {
-        host = new URL(host).host || host;
-      } catch {
-        /* keep raw */
-      }
-      return { pre: "Read a web page — ", preKey: "humanize.webFetch", obj: trunc(host, 50) };
-    }
+    case "web_fetch":
+      return { pre: "Read a web page — ", preKey: "humanize.webFetch", obj: trunc(urlHost(a.url), 50) };
     case "explore":
       return {
         pre: "Sent a sub-agent to explore — ",
@@ -187,6 +193,12 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
         obj: a.path ? baseName(String(a.path)) : "files",
         ...(a.path ? {} : { objKey: "humanize.files" }),
       };
+    case "create_document":
+      return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "web_fetch":
+      return { pre: "Read the web page ", preKey: "humanize.apWebFetch", obj: trunc(urlHost(a.url), 50) };
+    case "web_search":
+      return { pre: "Search the web for ", preKey: "humanize.apWebSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
     case "run_shell": {
       const desc = typeof a.description === "string" && a.description.trim() ? a.description.trim() : "";
       return {
@@ -244,6 +256,12 @@ export function humanizeAsk(name: string, args: any): HumanLine {
         obj: a.path ? baseName(String(a.path)) : "files",
         ...(a.path ? {} : { objKey: "humanize.files" }),
       };
+    case "create_document":
+      return { pre: "Wanted to create ", preKey: "humanize.askCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "web_fetch":
+      return { pre: "Wanted to read the web page ", preKey: "humanize.askWebFetch", obj: trunc(urlHost(a.url), 50) };
+    case "web_search":
+      return { pre: "Wanted to search the web for ", preKey: "humanize.askWebSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
     case "send_message": {
       const { platform, tail } = messageTarget(String(a.target ?? ""));
       if (!tail) return { pre: "Wanted to send a message", preKey: "humanize.askSendMsg" };
