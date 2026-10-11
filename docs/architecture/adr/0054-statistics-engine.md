@@ -1,6 +1,6 @@
 # ADR-0054: Which statistics engine produces reportable figures
 
-Status: **Proposed** (2026-10-11). Awaiting the owner's decision.
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The R version line is still open (see Owner's answers).
 
 ## Context
 
@@ -40,7 +40,7 @@ The facts about regulatory statements and pilots above are from public documents
 - Plus: uses the tools users already validated.
 - Minus: commercial licences; scripting and automation differ per tool and per platform; Delta cannot ship or test against them. This is better as a later export or adapter in Suite (for example, emitting a JMP script) than as the engine.
 
-## Decision (proposed): B
+## Decision: B, with optional JMP / SAS script export
 
 1. **Engine.** Any figure that can appear in a formal Artifact (report, table, chart caption) is computed by R. Python (NumPy, pandas) may only read, reshape and validate data, and render the result; it does not compute reportable statistics.
 2. **Shape.** The Foundation capability is `statistics.*` (for example `statistics.describe`, `statistics.regression`, `statistics.anova`, `statistics.ancova`), implemented as a Python worker using `delta-worker-sdk` that calls `Rscript` with scripts shipped alongside the worker. The worker is a controlled worker under the Capability ABI: scoped inputs, staging output, timeout and cancel, no authority.
@@ -67,6 +67,10 @@ The facts about regulatory statements and pilots above are from public documents
    A mismatch beyond a stated tolerance fails the release.
 7. **Availability.** The portable build does not bundle R in the first version. The capability detects a supported R installation; if none is found, it reports itself unavailable with a clear reason and never falls back to Python. Bundling is a separate packaging decision (size, GPL licence obligations for redistributed binaries).
 8. **Blueprint.** Section 8.2 adds R to the task execution languages, with the same Worker rules (scoped input and output, timeout, least privilege, no authority).
+9. **Optional JMP / SAS script export (option C as an export, not as the engine).** A Suite adapter may write, next to a result, a JMP (JSL) or SAS script that reproduces the same analysis on the same input file.
+   - It is optional and off unless the user asks for it.
+   - It writes a script artifact; it never runs JMP or SAS, and never feeds their output back into a Delta report.
+   - Reportable figures in Delta always come from the R engine. The export lets a user re-run the analysis in a tool their organisation has already validated and compare the results.
 
 ## Consequences
 
@@ -80,11 +84,14 @@ The facts about regulatory statements and pilots above are from public documents
   This is the material a user's QA needs to judge fitness for intended use. Delta does not claim the capability is "validated" or "accepted by regulators".
 - CI needs an R toolchain on the runners that execute the statistics tests (central CI in Action Worker).
 
-## Questions for the owner
+## Owner's answers (2026-10-11)
 
-1. Accept B, with Python only for data handling and rendering?
-2. Which R version line to pin first (the current release, or the previous minor version for broader availability)?
-3. Should a JMP or SAS script export (option C) be planned in Suite as a later adapter?
+1. B accepted: R computes, Python orchestrates and handles data and rendering.
+2. Optional JMP / SAS script export is planned in Suite (decision point 9).
+
+## Open question
+
+Which R version line to pin first: the current release, or the previous minor version for broader availability on users' machines.
 
 ## Not verified
 

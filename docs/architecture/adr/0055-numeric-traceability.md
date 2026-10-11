@@ -1,6 +1,6 @@
 # ADR-0055: Every figure in a report traces to a computed result
 
-Status: **Proposed** (2026-10-11). Awaiting the owner's decision. Depends on [ADR-0054](0054-statistics-engine.md).
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet. Depends on [ADR-0054](0054-statistics-engine.md).
 
 ## Context
 
@@ -37,7 +37,7 @@ Extracting every number from free text and guessing where it came from is not de
 **C. Model self-declaration.** The model lists the figures it used and where they came from.
 - Minus: the model reporting on itself is not a deterministic fact (blueprint section 4.4). Rejected.
 
-## Decision (proposed): B
+## Decision: B
 
 1. **Result artifact.** A computational capability (for example `statistics.*` from ADR-0054) writes a JSON result artifact. It contains:
    - `values`: named values, each with a `value`, a `unit` (optional) and a `kind` (`estimate`, `ci_lower`, `p_value`, ...);
@@ -53,7 +53,9 @@ Extracting every number from free text and guessing where it came from is not de
    - the key exists in that artifact;
    - formatting the raw value with the declared format gives exactly the rendered text;
    - the rendered text appears in the report at the recorded location. For DOCX, the rule reads the document's text from `word/document.xml`, and does not compare raw bytes.
-   - Optional `forbid_unbound_numbers`: named sections may not contain digits outside bindings, except for an allowlist of patterns (section numbers, dates, units such as "25 °C/60% RH" declared in the criteria).
+   - `forbid_unbound_numbers`: the report's text may not contain digits outside bindings, except for an allowlist of patterns (section numbers, dates, conditions such as "25 °C/60% RH") declared in the criteria.
+     - **On by default for every formal report.** A report is formal when the Skill's validation declares it `formal: true`; a Skill cannot switch the rule off for a formal report, only add allowlist patterns, and every allowlist pattern is shown with the verdict.
+     - Drafts and exploratory notes that are not declared formal are not checked. The trust strip says "not a formal report: figures not checked" instead of showing a pass.
 4. **Criteria supplied by Skills.** A Skill that produces a formal report declares `numeric_trace` criteria in its validation. The rule itself is generic and knows nothing about any domain. Domain rule sets (for example "the stability report must bind the shelf life and both confidence limits") live in Suite Skills.
 5. **Surface.** The artifact trust strip already shows the validation verdict and the sources read (#132, #139). For a report, it adds "N figures bound to M results". The figure-level detail (value, result file, key, SHA-256) is shown on demand.
 
@@ -71,10 +73,10 @@ Extracting every number from free text and guessing where it came from is not de
   - oversized or malformed DOCX fails closed.
 - No migration: existing artifacts and validations are unaffected.
 
-## Questions for the owner
+## Owner's answers (2026-10-11)
 
-1. Accept B?
-2. Make `forbid_unbound_numbers` the default for formal reports, or opt-in per Skill?
+1. B accepted.
+2. Forbidding unbound figures is the default rule for formal reports.
 
 ## Not verified
 

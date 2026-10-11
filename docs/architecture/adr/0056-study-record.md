@@ -43,15 +43,27 @@ What exists (checked, not assumed):
 
 1. **Record.** The study record is `study.json`, validated against `schemas/study.schema.json`. It holds:
    - the objective;
-   - the responses;
-   - the factors with their ranges;
-   - the allowed adjustment range;
+   - the responses, with their targets or acceptance criteria;
+   - the factors with their current ranges;
+   - the allowed adjustments (outer bounds, factors that may be added);
    - the stopping rule;
+   - the analysis plan (model, significance level, confidence level);
    - the rounds (design, data artifacts, analysis result artifacts);
    - the decisions (who, when, what, why).
 
    Domain fields (for example a stability protocol's storage conditions and pull points) go under an `extensions` object owned by the Suite Skill that uses them.
-2. **Locked fields.** `objective`, `allowed_adjustments` and `stopping_rule` are locked once the first round starts.
+2. **Locked fields.** These fields are locked once the first round starts:
+   - `objective`;
+   - `responses`, with their targets or acceptance criteria;
+   - `allowed_adjustments`: the outer bounds every factor range must stay within, and which new factors may be added;
+   - `stopping_rule`;
+   - `analysis_plan`: the planned model, significance level and confidence level.
+
+   The current factor ranges are **not** locked. Narrowing, widening or adding a factor inside `allowed_adjustments` is the normal work of a sequential design (`DELTA_BLUEPRINT.md` section 2.2). Each such change is a decision entry with a reason, and starts only from the user's decision (point 3). A change that would leave `allowed_adjustments` is an amendment.
+
+   Why this set: each locked field is one that, if changed after seeing the data, lets the result be steered toward a wanted answer. That covers the goal, what counts as success, how far the design may move, when to stop, and how the data will be judged. Factor ranges inside the declared bounds do not have that effect, so locking them would only force an approval on every round.
+
+   Rules for locked fields:
    - They can only be changed through the `study.amend` capability.
    - `study.amend` is declared so that policy classifies it as L4, which is never auto-allowed. The approval card shows the old value, the new value and the reason.
    - The `study_schema` validation rule rejects any other run's registration of `study.json` that changes a locked field.
@@ -72,7 +84,14 @@ What exists (checked, not assumed):
   - history lists registrations across sessions in order;
   - a recommendation alone does not start a round.
 
+## Owner's answers (2026-10-11)
+
+On the locked set the owner asked for a recommendation. Decision point 2 now holds it:
+
+- lock the objective, the responses with their targets, the outer adjustment bounds, the stopping rule and the analysis plan;
+- keep factor ranges inside those bounds movable, each change recorded as a decision.
+
 ## Questions for the owner
 
 1. Accept A, and revisit B only with evidence?
-2. Are `objective`, `allowed_adjustments` and `stopping_rule` the right locked set, or should factor ranges also lock?
+2. Confirm the locked set in decision point 2.

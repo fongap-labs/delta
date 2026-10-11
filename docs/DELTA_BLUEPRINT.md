@@ -450,7 +450,7 @@ Skill
 
 第一个行业方向是**制剂 / CMC 研究分析**（稳定性与货架期、溶出曲线比较、处方与工艺 DOE、研究报告）。行业名称、法规条款和行业流程不进入 Foundation 的 Authority 逻辑。
 
-相关提案：ADR-0054（统计引擎）、ADR-0055（数值溯源）、ADR-0056（研究记录）。
+相关决策：ADR-0054（统计引擎，已接受）、ADR-0055（数值溯源，已接受）、ADR-0056（研究记录，提案）、ADR-0057（工作区敏感度与模型出境，提案）。
 
 ---
 
@@ -513,9 +513,11 @@ TypeScript = Experience。
 
 Rust = Runtime + Trust + Work + Automation + Learning authority + Capability Host。
 
-### 8.2 Python / PowerShell / Shell
+### 8.2 Python / R / PowerShell / Shell
 
 这些是任务执行语言，不是 Delta 核心架构 Authority。
+
+R 只作为统计计算引擎，由 Python Worker 调度；正式成果中的统计数字由 R 计算（ADR-0054）。
 
 Worker 必须满足：
 
