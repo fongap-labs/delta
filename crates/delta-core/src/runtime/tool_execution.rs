@@ -395,6 +395,10 @@ impl RuntimeHost {
             .as_ref()
             .and_then(|metadata| metadata.category.as_deref())
             == Some("read");
+        let outbound = match self.gate_outbound_tool(call, metadata.as_ref()) {
+            Ok(outbound) => outbound,
+            Err(error) => return ToolResult::failure(&call.id, error),
+        };
         let (level, decision) = match self.policy_for(call, metadata) {
             Ok(outcome) => outcome,
             Err(error) => return ToolResult::failure(&call.id, error),
@@ -408,15 +412,35 @@ impl RuntimeHost {
         if let Err(error) = self.ensure_event_delivery() {
             return ToolResult::failure(&call.id, error);
         }
+        let egress = outbound
+            .as_ref()
+            .map(|gate| gate.egress.clone())
+            .unwrap_or(Value::Null);
         if let Err(error) = self.ledger_append(
         "tool.proposed",
         "model",
-        json!({"tool_call_id": call.id, "tool": call.name, "arguments": call.arguments, "level": format!("{level:?}")}),
+        json!({"tool_call_id": call.id, "tool": call.name, "arguments": call.arguments, "level": format!("{level:?}"), "egress": egress}),
     ) {
         return ToolResult::failure(&call.id, error);
     }
+        if let Some(refusal) = outbound.as_ref().and_then(|gate| gate.refusal()) {
+            return self.fail_after_ledger(
+                call,
+                "tool.failed",
+                "runtime",
+                json!({"tool_call_id": call.id, "tool": call.name, "stage": "egress", "error": &refusal, "egress": egress}),
+                refusal,
+            );
+        }
+        // An outbound call the level makes *Ask each time* or *Approved endpoints* must be approved
+        // by the user for this call: no standing grant and no automatic approval applies to it.
+        let asks_for_call = outbound
+            .as_ref()
+            .is_some_and(|gate| gate.requires_call_approval());
+        let ask_reason = outbound.as_ref().map(|gate| gate.ask_reason.clone());
 
         if !decision.allowed
+            && !asks_for_call
             && self
                 .approvals
                 .has_standing_grant(&call.name, &call.arguments)
@@ -431,8 +455,8 @@ impl RuntimeHost {
             ) {
                 return ToolResult::failure(&call.id, error);
             }
-        } else if !decision.allowed {
-            if !decision.needs_user {
+        } else if !decision.allowed || asks_for_call {
+            if !decision.allowed && !decision.needs_user {
                 if let Err(error) = self.record_approval(
                     call,
                     "policy_denied",
@@ -457,7 +481,11 @@ impl RuntimeHost {
                 decision.reason,
             );
             }
-            match self.require_approval(call, &decision.reason, level) {
+            let reason = match &ask_reason {
+                Some(ask_reason) if asks_for_call => ask_reason.as_str(),
+                _ => decision.reason.as_str(),
+            };
+            match self.require_approval(call, reason, level) {
                 Ok(approval) if approval.is_approved() => {}
                 Ok(_) => {
                     return self.fail_after_ledger(

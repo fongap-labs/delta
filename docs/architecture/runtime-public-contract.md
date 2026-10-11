@@ -206,7 +206,13 @@ read_at       RFC 3339 时间
 - 判定依赖端点地址时（`private_only`、`approved_endpoints` 下的私有端点），连接固定到判定时检查过的地址，不再重新解析；
 - 每次发出的请求写入 `model.request`：`iteration`、`endpoint`（主机）、`endpoint_class`、`model`、`protocol`、`level`、`bytes`（消息体大小）、`sources`（本 Run 已读来源的 `source_id` 与 SHA-256）。它不包含消息内容，也不声称某个来源的内容一定在这次请求里。
 
-出站工具的执行点随 ADR-0061 的实现 PR 补充到本节。
+出站工具的执行点（ADR-0061）：
+
+- 把内容送出本机的工具声明 `destination`：`fixed_public`、`any_public`、`private` 或 `local_process`。远程 MCP 服务器声明 `fixed_public` 并带上 URL，本地（stdio）MCP 服务器声明 `local_process`，网页工具和浏览器自动化声明 `any_public`。`web` 或 `mcp` 类工具未声明 `destination` 时按 `any_public` 处理；
+- 工具提出调用前，Runtime 按工作区档位判定：`open` 放行；`ask_each_time` 每次调用都确认；`approved_endpoints` 放行私有目的地和已批准主机，`any_public` 每次确认，其余固定公网服务和本地进程拒绝；`private_only` 只放行私有目的地，其余拒绝；未选择档位则拒绝；
+- 被拒绝的调用不执行，写入 `tool.failed`（`stage` 为 `egress`）；需要确认的调用只对这一次调用有效，长期授权和自动批准不适用；
+- `tool.proposed` 带 `egress` 对象：`class`、`host`、`level`、`decision`（`allowed`、`ask`、`blocked`、`not_chosen`）；不向本机之外送出内容的工具为 `null`；
+- 尚未实现（ADR-0061 第二步）：按路径覆盖、本地进程的 `local-only` 标记、Suite 连接器声明，以及把被拒绝的工具从模型可用列表中隐藏。
 
 ## 4. Transport 与 IPC
 

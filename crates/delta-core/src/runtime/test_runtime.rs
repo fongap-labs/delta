@@ -2636,3 +2636,213 @@ fn a_notice_is_dismissed_without_a_running_session() {
         "resolved"
     );
 }
+
+/// A tool declared the way the product declares an outbound tool (ADR-0061).
+fn outbound_contract(
+    name: &str,
+    category: &str,
+    requires_approval: bool,
+    destination: &str,
+) -> Value {
+    json!([{
+        "type": "function",
+        "function": {
+            "name": name,
+            "parameters": {
+                "type": "object",
+                "properties": {"url": {"type": "string"}}
+            },
+            "metadata": {
+                "risk_level": if requires_approval { "medium" } else { "low" },
+                "requires_approval": requires_approval,
+                "category": category,
+                "capabilities": [],
+                "destination": destination
+            }
+        }
+    }])
+}
+
+/// A host whose workspace level is `level` (`None`: the user has not chosen one yet).
+fn outbound_host(
+    state_dir: &Path,
+    level: Option<crate::egress::EgressLevel>,
+    contract: Value,
+    calls: Arc<AtomicUsize>,
+) -> (RuntimeHost, RuntimeAuthorities) {
+    let authorities = RuntimeAuthorities::open(state_dir).unwrap();
+    if let Some(level) = level {
+        crate::egress::set_default_level(state_dir, level, false).unwrap();
+    }
+    let mut host = RuntimeHost::new("session-outbound", RuntimeConfig::default())
+        .with_authorities(authorities.clone())
+        .with_tools(contract)
+        .with_tool_executor(Arc::new(CountingExecutor {
+            calls,
+            staged: None,
+        }));
+    host.set_run_id("run-outbound".to_string());
+    (host, authorities)
+}
+
+fn outbound_events(authorities: &RuntimeAuthorities) -> Vec<crate::ledger::LedgerEvent> {
+    authorities
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events("run-outbound")
+        .unwrap()
+}
+
+#[test]
+fn private_only_refuses_a_public_fetch_before_anything_runs() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::PrivateOnly),
+        outbound_contract("web_fetch", "web", true, "any_public"),
+        calls.clone(),
+    );
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-fetch".to_string(),
+        name: "web_fetch".to_string(),
+        arguments: json!({"url": "https://docs.example.test/page"}),
+    });
+    let error = result.error.expect("the call must be refused");
+    assert!(error.contains("Private only"), "{error}");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let events = outbound_events(&authorities);
+    let proposed = events
+        .iter()
+        .find(|event| event.r#type == "tool.proposed")
+        .expect("the proposal is recorded");
+    assert_eq!(proposed.payload["egress"]["class"], "any_public");
+    assert_eq!(proposed.payload["egress"]["host"], "docs.example.test");
+    assert_eq!(proposed.payload["egress"]["level"], "private_only");
+    assert_eq!(proposed.payload["egress"]["decision"], "blocked");
+    let failed = events
+        .iter()
+        .find(|event| event.r#type == "tool.failed")
+        .expect("the refusal is recorded");
+    assert_eq!(failed.payload["stage"], "egress");
+}
+
+#[test]
+fn nothing_outbound_runs_before_the_user_chooses_a_level() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, _authorities) = outbound_host(
+        temp.path(),
+        None,
+        outbound_contract("web_search", "web", true, "any_public"),
+        calls.clone(),
+    );
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-search".to_string(),
+        name: "web_search".to_string(),
+        arguments: json!({"query": "shelf life"}),
+    });
+    let error = result.error.expect("the call must be refused");
+    assert!(error.contains("Choose where"), "{error}");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn ask_each_time_asks_for_an_outbound_call_even_when_the_tool_needs_no_approval() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, _authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::AskEachTime),
+        // A local server the user has set to run without approval: normally automatic.
+        outbound_contract("local_notes", "mcp", false, "local_process"),
+        calls.clone(),
+    );
+    let host = Arc::new(host);
+    let worker_host = host.clone();
+    let worker = std::thread::spawn(move || {
+        worker_host.execute_tool_call(&ToolCall {
+            id: "call-ask".to_string(),
+            name: "local_notes".to_string(),
+            arguments: json!({}),
+        })
+    });
+    for _ in 0..200 {
+        if host.approvals.pending_ids() == ["call-ask"] {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(host.approvals.pending_ids(), ["call-ask"]);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    host.approvals
+        .resolve(Some("call-ask"), ApprovalDecision::Once)
+        .unwrap();
+    let result = worker.join().unwrap();
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_local_process_tool_is_refused_under_private_only_and_runs_when_open() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, _authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::PrivateOnly),
+        outbound_contract("local_notes", "mcp", false, "local_process"),
+        calls.clone(),
+    );
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-local".to_string(),
+        name: "local_notes".to_string(),
+        arguments: json!({}),
+    });
+    assert!(result.error.is_some());
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let open_temp = tempfile::tempdir().unwrap();
+    let open_calls = Arc::new(AtomicUsize::new(0));
+    let (open_host, _open_authorities) = outbound_host(
+        open_temp.path(),
+        Some(crate::egress::EgressLevel::Open),
+        outbound_contract("local_notes", "mcp", false, "local_process"),
+        open_calls.clone(),
+    );
+    let result = open_host.execute_tool_call(&ToolCall {
+        id: "call-local-open".to_string(),
+        name: "local_notes".to_string(),
+        arguments: json!({}),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(open_calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_tool_that_sends_nothing_off_the_machine_runs_under_private_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::PrivateOnly),
+        tool_contract("low", false),
+        calls.clone(),
+    );
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-local-write".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let events = outbound_events(&authorities);
+    let proposed = events
+        .iter()
+        .find(|event| event.r#type == "tool.proposed")
+        .expect("the proposal is recorded");
+    assert!(proposed.payload["egress"].is_null());
+}

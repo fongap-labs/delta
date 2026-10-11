@@ -430,7 +430,11 @@ fn open_url() -> CapabilityRegistration {
             "type": "object", "required": ["url"],
             "properties": {"url": {"type": "string", "description": "An http:// or https:// address."}}
         }),
-        metadata: metadata("computer.open_url"),
+        metadata: json!({
+            "risk_level": "medium", "requires_approval": true,
+            "category": "computer", "capabilities": ["computer.open_url"],
+            "destination": "any_public"
+        }),
         grants: CapabilityGrants::default(),
         workspace_write: false,
         runner: Arc::new(NativeCapabilityRunner::new(|job, _| {

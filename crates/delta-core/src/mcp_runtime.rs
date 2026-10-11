@@ -842,6 +842,9 @@ impl McpRuntime {
                 .cloned()
                 .filter(Value::is_object)
                 .unwrap_or_else(|| json!({"type": "object", "properties": {}}));
+            // A remote server is a fixed service at its URL; a local server is outside Delta's view
+            // (ADR-0061).
+            let remote_url = config.get("url").and_then(Value::as_str);
             let metadata = json!({
                 "category": "mcp",
                 "server": name,
@@ -849,6 +852,8 @@ impl McpRuntime {
                 "risk_level": if requires_approval { "medium" } else { "low" },
                 "requires_approval": requires_approval,
                 "capabilities": ["mcp"],
+                "destination": if remote_url.is_some() { "fixed_public" } else { "local_process" },
+                "destination_url": remote_url,
             });
             let registration = CapabilityRegistration {
                 capability_id: format!("mcp.{name}.{remote_name}"),

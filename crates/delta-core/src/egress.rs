@@ -456,9 +456,226 @@ pub fn decide_model_request(level: Option<EgressLevel>, class: &EndpointClass) -
     }
 }
 
+/// Where an outbound tool sends content (ADR-0061).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DestinationClass {
+    /// A fixed public service, identified by its host.
+    FixedPublic,
+    /// Any public host: the model chooses it (web fetch, browser automation).
+    AnyPublic,
+    /// A host on this machine or the private network, or one the user marked private.
+    Private,
+    /// A local process; its own network traffic is outside Delta's view.
+    LocalProcess,
+}
+
+impl DestinationClass {
+    /// The class a tool declares in its metadata, or `None` for an unknown name.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "fixed_public" => Some(Self::FixedPublic),
+            "any_public" => Some(Self::AnyPublic),
+            "private" => Some(Self::Private),
+            "local_process" => Some(Self::LocalProcess),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::FixedPublic => "fixed_public",
+            Self::AnyPublic => "any_public",
+            Self::Private => "private",
+            Self::LocalProcess => "local_process",
+        }
+    }
+}
+
+/// Where one outbound tool call goes, as far as Delta knows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboundTarget {
+    pub class: DestinationClass,
+    /// The host, or empty when the call names none (a local process, or the page a browser shows).
+    pub host: String,
+    /// The user's mark for the host, if there is one.
+    pub mark: Option<EndpointMark>,
+}
+
+/// What may happen with an outbound tool call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OutboundDecision {
+    Allow,
+    /// Allowed once the user approves this call. Standing grants and automatic approval do not apply.
+    Ask,
+    /// Refused; the reason names the level and the destination class. Nothing is sent.
+    Deny(String),
+    /// The user has not chosen a default level yet; nothing may be sent.
+    NotChosen,
+}
+
+/// The host of `url`, lowercase and without a trailing dot; empty when it has none.
+pub fn url_host(url: &str) -> String {
+    Url::parse(url.trim())
+        .ok()
+        .and_then(|parsed| {
+            parsed
+                .host_str()
+                .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
+        })
+        .unwrap_or_default()
+}
+
+/// The user's mark for `host`, if any.
+pub fn endpoint_mark(
+    state_dir: &Path,
+    host: &str,
+) -> Result<Option<EndpointMark>, ShadowReadError> {
+    Ok(load(state_dir)?.endpoint_marks.get(host).copied())
+}
+
+/// The class the rules of every level see: a host the user marked private is private (ADR-0057).
+pub fn effective_class(target: &OutboundTarget) -> DestinationClass {
+    match (target.class, target.mark) {
+        (
+            DestinationClass::FixedPublic | DestinationClass::AnyPublic,
+            Some(EndpointMark::Private),
+        ) => DestinationClass::Private,
+        (class, _) => class,
+    }
+}
+
+/// Decide an outbound tool call to `target` under `level` (ADR-0061, table in point 2).
+pub fn decide_outbound(level: Option<EgressLevel>, target: &OutboundTarget) -> OutboundDecision {
+    let Some(level) = level else {
+        return OutboundDecision::NotChosen;
+    };
+    let class = effective_class(target);
+    let approved = target.mark == Some(EndpointMark::Approved);
+    match level {
+        EgressLevel::Open => OutboundDecision::Allow,
+        EgressLevel::AskEachTime => OutboundDecision::Ask,
+        EgressLevel::ApprovedEndpoints => match class {
+            DestinationClass::Private => OutboundDecision::Allow,
+            DestinationClass::FixedPublic if approved => OutboundDecision::Allow,
+            DestinationClass::AnyPublic => OutboundDecision::Ask,
+            _ => OutboundDecision::Deny(outbound_refusal(level, class)),
+        },
+        EgressLevel::PrivateOnly => match class {
+            DestinationClass::Private => OutboundDecision::Allow,
+            _ => OutboundDecision::Deny(outbound_refusal(level, class)),
+        },
+    }
+}
+
+fn outbound_refusal(level: EgressLevel, class: DestinationClass) -> String {
+    let level = match level {
+        EgressLevel::ApprovedEndpoints => "Approved endpoints",
+        EgressLevel::PrivateOnly => "Private only",
+        EgressLevel::Open => "Open",
+        EgressLevel::AskEachTime => "Ask each time",
+    };
+    let destination = match class {
+        DestinationClass::FixedPublic => "a public service that is not approved",
+        DestinationClass::AnyPublic => "a public site chosen by the model",
+        DestinationClass::Private => "a private network",
+        DestinationClass::LocalProcess => "a local program whose traffic Delta cannot see",
+    };
+    format!(
+        "This workspace's egress level is {level}, and this tool would send content to {destination}. Nothing was sent. Change the level in Settings ▸ Privacy."
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn target(class: DestinationClass, mark: Option<EndpointMark>) -> OutboundTarget {
+        OutboundTarget {
+            class,
+            host: "example.test".to_owned(),
+            mark,
+        }
+    }
+
+    #[test]
+    fn outbound_decisions_follow_the_level_table() {
+        use DestinationClass::*;
+        use EgressLevel::*;
+        let allowed = |decision: OutboundDecision| decision == OutboundDecision::Allow;
+        let denied = |decision: &OutboundDecision| matches!(decision, OutboundDecision::Deny(_));
+
+        assert_eq!(
+            decide_outbound(None, &target(AnyPublic, None)),
+            OutboundDecision::NotChosen
+        );
+        for class in [FixedPublic, AnyPublic, Private, LocalProcess] {
+            assert!(allowed(decide_outbound(Some(Open), &target(class, None))));
+            assert_eq!(
+                decide_outbound(Some(AskEachTime), &target(class, None)),
+                OutboundDecision::Ask
+            );
+        }
+        // Approved endpoints: fixed services only when approved, pages asked per call, private allowed.
+        assert!(denied(&decide_outbound(
+            Some(ApprovedEndpoints),
+            &target(FixedPublic, None)
+        )));
+        assert!(allowed(decide_outbound(
+            Some(ApprovedEndpoints),
+            &target(FixedPublic, Some(EndpointMark::Approved))
+        )));
+        assert_eq!(
+            decide_outbound(Some(ApprovedEndpoints), &target(AnyPublic, None)),
+            OutboundDecision::Ask
+        );
+        assert!(allowed(decide_outbound(
+            Some(ApprovedEndpoints),
+            &target(Private, None)
+        )));
+        assert!(denied(&decide_outbound(
+            Some(ApprovedEndpoints),
+            &target(LocalProcess, None)
+        )));
+        // Private only: nothing public, a private host or a local process is refused.
+        assert!(denied(&decide_outbound(
+            Some(PrivateOnly),
+            &target(FixedPublic, None)
+        )));
+        assert!(denied(&decide_outbound(
+            Some(PrivateOnly),
+            &target(AnyPublic, None)
+        )));
+        assert!(denied(&decide_outbound(
+            Some(PrivateOnly),
+            &target(LocalProcess, None)
+        )));
+        assert!(allowed(decide_outbound(
+            Some(PrivateOnly),
+            &target(Private, None)
+        )));
+    }
+
+    #[test]
+    fn a_host_marked_private_counts_as_private_under_every_level() {
+        let marked = target(DestinationClass::AnyPublic, Some(EndpointMark::Private));
+        assert!(matches!(
+            decide_outbound(Some(EgressLevel::PrivateOnly), &marked),
+            OutboundDecision::Allow
+        ));
+        assert!(matches!(
+            decide_outbound(Some(EgressLevel::ApprovedEndpoints), &marked),
+            OutboundDecision::Allow
+        ));
+    }
+
+    #[test]
+    fn url_host_is_lowercase_without_trailing_dot() {
+        assert_eq!(
+            url_host("https://Docs.Example.TEST./a?b=1"),
+            "docs.example.test"
+        );
+        assert_eq!(url_host("not a url"), "");
+    }
 
     fn state() -> tempfile::TempDir {
         tempfile::tempdir().unwrap()
