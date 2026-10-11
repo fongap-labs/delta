@@ -517,6 +517,54 @@ pub fn update_workspace_trust(
     }
 }
 
+/// Egress levels (ADR-0057): the settings, and the changes only the user makes from the settings
+/// page or the first-run choice. A loosening change returns `needs_confirmation` until confirmed.
+#[tauri::command]
+pub fn get_egress_settings(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.egress_settings() {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
+pub fn set_egress_default(
+    state: State<'_, RuntimeRegistry>,
+    level: String,
+    is_confirmed: bool,
+) -> Value {
+    match state.set_egress_default(&level, is_confirmed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
+pub fn set_workspace_egress(
+    state: State<'_, RuntimeRegistry>,
+    workspace: String,
+    level: Option<String>,
+    is_confirmed: bool,
+) -> Value {
+    match state.set_workspace_egress(&workspace, level.as_deref(), is_confirmed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
+pub fn set_endpoint_mark(
+    state: State<'_, RuntimeRegistry>,
+    host: String,
+    mark: Option<String>,
+    is_confirmed: bool,
+) -> Value {
+    match state.set_endpoint_mark(&host, mark.as_deref(), is_confirmed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
 #[tauri::command]
 pub fn session_revert(
     state: State<'_, RuntimeRegistry>,
