@@ -1,6 +1,6 @@
 # ADR-0058: The workspace egress level also governs outbound tools
 
-Status: **Proposed** (2026-10-11). Follows [ADR-0057](0057-workspace-sensitivity-model-egress.md). The owner decided that the egress level must also cover web search, remote MCP servers and connectors, in a separate ADR (2026-10-11).
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet. Follows [ADR-0057](0057-workspace-sensitivity-model-egress.md). The owner decided that the egress level must also cover web search, remote MCP servers and connectors, in a separate ADR (2026-10-11).
 
 ## Context
 
@@ -41,7 +41,7 @@ The result: with ADR-0057 alone, a *Private only* workspace would still send a m
 - Plus: maximal flexibility.
 - Minus: easy to misconfigure; the user has to understand every path to be safe; it contradicts ADR-0057's single choice.
 
-## Decision (proposed): B
+## Decision: B
 
 ### 1. Destination classes
 
@@ -131,7 +131,7 @@ ADR-0057 point 5 applies to outbound tools too: until the user has chosen a defa
   - every outbound call's ledger event carries the `egress` object;
   - before the first-run choice, outbound tool calls are refused.
 
-## Questions for the owner
+## Owner's answers (2026-10-11)
 
-1. Accept B, with the classes and default rules above?
-2. Should per-path overrides that loosen the level be allowed at all, or should loosening only be possible by changing the whole workspace's level?
+1. B accepted, with the destination classes and default rules above.
+2. Per-path overrides that loosen the level are allowed, with the confirmation and recording of point 3.

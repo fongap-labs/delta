@@ -14,7 +14,7 @@
 | [0055](0055-numeric-traceability.md) | Every figure in a report traces to a computed result |
 | [0056](0056-study-record.md) | Where a multi-round study keeps its design and decisions |
 | [0057](0057-workspace-sensitivity-model-egress.md) | Workspace sensitivity and what may be sent to a model endpoint |
-| [0058](0058-egress-level-outbound-tools.md) | The workspace egress level also governs outbound tools (proposed) |
+| [0058](0058-egress-level-outbound-tools.md) | The workspace egress level also governs outbound tools |
 
 ## Numbers cited in code but not stored here
 
