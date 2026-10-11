@@ -40,6 +40,7 @@ const MESSAGES = [
 test.beforeEach(async ({ page }) => {
   await patchMockState(page, {
     sessionMessages: { [SESSION]: MESSAGES },
+    e2eArtifacts: ARTIFACTS,
     runSources: {
       "run-1": [
         { source_id: "s1", origin: "file", location: "data/sales.csv", fingerprint: "ab12cd34ef567890", read_at: "2026-10-10T08:00:00Z", cited: false },
@@ -47,7 +48,7 @@ test.beforeEach(async ({ page }) => {
       ],
     },
   });
-  await overrideMockCommand(page, "artifacts_list", `(args) => ({ artifacts: ${JSON.stringify(ARTIFACTS)} })`);
+  await overrideMockCommand(page, "artifacts_list", `(args) => ({ artifacts: $state.e2eArtifacts })`);
   await overrideMockCommand(page, "artifact_read", `(args) => ({ ok: true, path: args.path, kind: "markdown", content: "# " + args.path })`);
 });
 
