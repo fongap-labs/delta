@@ -1,4 +1,4 @@
-# ADR-0058: The workspace egress level also governs outbound tools
+# ADR-0061: The workspace egress level also governs outbound tools
 
 Status: **Accepted** (owner, 2026-10-11). Not implemented yet. Follows [ADR-0057](0057-workspace-sensitivity-model-egress.md). The owner decided that the egress level must also cover web search, remote MCP servers and connectors, in a separate ADR (2026-10-11).
 
@@ -6,7 +6,7 @@ Status: **Accepted** (owner, 2026-10-11). Not implemented yet. Follows [ADR-0057
 
 ADR-0057 gives each workspace a user-chosen egress level (Open, Approved endpoints, Private only, Ask each time) and enforces it on model requests. Model requests are not the only way content leaves the machine. Tool arguments are model-chosen text, and a search query or a connector query can carry the same confidential content as a prompt. Today (checked, not assumed):
 
-1. **Web tools.** `web_search` and `web_fetch` are declared `risk_level="medium"`, `requires_approval=True`, category `web` (`integrations/web/tool.py`, `integrations/web/fetch.py`).
+1. **Web tools.** `web_search` and `web_fetch` are declared `risk_level="medium"`, `requires_approval=True`, category `web`. On `main` they are the Python tools in `integrations/web/tool.py` and `integrations/web/fetch.py`. ADR-0058 (baseline work capabilities, PR #153) moves them into Rust (`crates/delta-core/src/web/mod.rs`) with the same metadata, and ADR-0060 adds a controlled browser that uses the same address guard.
    - Policy maps approval-gated medium risk outside local categories to L3 (`policy.rs`, `band_level`).
    - L3 is allowed only with an explicit approval or a standing policy grant (`restrict_grants`). So a standing policy can let web search run without asking.
    - `web_search` goes to a fixed provider host (DuckDuckGo by default; Tavily or Brave with a key, `integrations/web/providers.py`). `web_fetch` goes to any public host the address guard accepts.
