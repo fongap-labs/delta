@@ -23,6 +23,7 @@ pub mod control_plane;
 pub mod core_control_plane;
 pub mod document;
 pub mod durability;
+pub mod egress;
 pub mod extension_manifest;
 pub mod idemlog;
 pub mod inbox;

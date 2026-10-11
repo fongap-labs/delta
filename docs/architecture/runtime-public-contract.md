@@ -188,6 +188,18 @@ read_at       RFC 3339 时间
 - 尊重 side-effect uncertainty；
 - 不把已经产生的副作用伪装成未发生。
 
+### Egress level（出境档位，ADR-0057 / ADR-0061）
+
+- 每个工作区一个档位：`open`、`approved_endpoints`、`private_only`、`ask_each_time`；未单独设置的工作区跟随默认档位；
+- 默认档位由用户在首次启动（或升级后首次启动）时选择，Delta 不预选；未选择前不发送任何内容；
+- 权威数据只在 Rust：状态目录下的 `egress.json`（仅本人可读，原子写入；读不出或结构不符时一律按失败处理，且不覆盖）；
+- 只有桌面端设置命令能修改档位和端点标记（`approved` / `private`）；会让内容去到以前去不了的地方的修改，必须带用户确认，否则不生效；收紧立即生效；
+- 每次修改写入审计日志（`audit_events.db`，tool 为 `egress.settings`）；
+- 端点分类：用户标记优先；否则解析主机地址，全部地址都在本机或私有网络才算私有，混合或无法解析都不算私有；
+- 判定：`open` 放行；`ask_each_time` 每次运行确认一次；`approved_endpoints` 放行已批准、私有或标记为私有的端点；`private_only` 只放行私有或标记为私有的端点。
+
+对模型请求和出站工具的执行点、`model.request` 账本事件，随各自实现 PR 补充到本节。
+
 ## 4. Transport 与 IPC
 
 Desktop 主路径：
