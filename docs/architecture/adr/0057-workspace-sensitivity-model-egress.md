@@ -1,6 +1,6 @@
 # ADR-0057: Workspace sensitivity and what may be sent to a model endpoint
 
-Status: **Proposed** (2026-10-11). The owner asked for options the user chooses from, not a fixed policy (2026-10-11). This ADR defines those options and the rules that hold whichever option the user picks.
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The owner asked for options the user chooses from, not a fixed policy. This ADR defines those options and the rules that hold whichever option the user picks. Outbound tools (web search, remote MCP servers, connectors) are covered by [ADR-0061](0061-egress-level-outbound-tools.md).
 
 ## Context
 
@@ -32,7 +32,7 @@ Each workspace has one **egress level**, chosen by the user in the workspace set
 
 Two more choices, independent of the level:
 
-- **Default for new workspaces.** The user picks which level new workspaces start at. Out of the box it is *Open*, which matches today's behaviour.
+- **Default for new workspaces.** The user picks which level new workspaces start at, in the first-run setup (see decision point 5). Delta does not choose one silently. The user can change the default later in the settings.
 - **Endpoint marks.** In the model settings the user can mark an endpoint as *approved* or *private*. Delta can classify a loopback or private-network address by itself. It does not assume that a public host name is private.
 
 ### Alternatives considered
@@ -45,14 +45,14 @@ Two more choices, independent of the level:
 **C. Labels only, no enforcement.** The user tags a workspace, and Delta only shows a warning.
 - Rejected: a label that the Runtime does not enforce is a promise the product cannot keep. It also contradicts "people control consequences" (blueprint section 4.3).
 
-## Decision (proposed): B
+## Decision: B
 
 Whichever level the user picks, these rules hold:
 
 1. **The Runtime enforces it.** Before each model request, `resolve_runtime_config` (or its caller) checks the workspace's level against the resolved endpoint.
    - A disallowed endpoint fails the turn with a typed error that names the level and the endpoint.
    - The Runtime never falls back silently to another endpoint.
-2. **Only the user changes it.** The level is changed only from the workspace settings in the desktop app.
+2. **Only the user changes it.** The level is set only by the user: in the first-run setup (decision point 5) or in the workspace settings in the desktop app.
    - No model, Skill, worker, automation or Learning can change it.
    - Lowering the level (toward *Open*) asks for confirmation and is recorded.
    - Raising it takes effect at once.
@@ -68,14 +68,19 @@ Whichever level the user picks, these rules hold:
    - the ids and SHA-256 of the sources whose content was in the request.
 
    It never contains the content itself. The trust strip shows "Sent to <host> (N requests, M KB)" for the run that made an artifact.
-5. **Scope.** This ADR covers model endpoints. Other outbound paths (web search queries, remote MCP servers, connectors) already go through tools and approvals. Whether the egress level should also restrict them is a follow-up decision, listed below.
+5. **First-run choice.** The first-run setup asks the user to pick the default level for new workspaces, with a one-line explanation of each level. No level is preselected.
+   - Existing installs are asked the same question on the first launch after the upgrade. The existing workspaces then take the chosen level.
+   - Until the user has chosen, no model request is sent. The Runtime fails the turn with a typed error saying the egress level has not been chosen, and the desktop shows the choice.
+   - An automation that fires before the choice is made fails with the same typed error. The error lands in the Inbox; nothing is sent.
+6. **Scope.** This ADR covers model endpoints. Other outbound paths (web search queries, remote MCP servers, connectors) already go through tools and approvals. The owner decided the level must govern them too; [ADR-0061](0061-egress-level-outbound-tools.md) defines how.
 
 ## Consequences
 
-- Workspace authority gains an `egress_level` per workspace and a default for new workspaces. A missing value reads as the user's chosen default, which is *Open* unless changed, so existing workspaces keep working.
+- Workspace authority gains an `egress_level` per workspace and a default for new workspaces. A missing per-workspace value reads as the user's chosen default. Before the user has chosen a default, there is none, and model requests are refused (decision point 5).
 - Model settings gain per-endpoint marks (*approved*, *private*).
 - New ledger event `model.request`, defined in `runtime-public-contract.md` (what it records and what it does not claim).
 - Desktop:
+  - the first-run choice of the default level, also shown once after upgrading;
   - a level selector in the workspace settings;
   - the endpoint marks in the model settings;
   - the confirmation for *Ask each time* and for lowering a level;
@@ -89,10 +94,13 @@ Whichever level the user picks, these rules hold:
   - nothing but the desktop settings command can change a level;
   - `model.request` is written for every request and contains no message content;
   - *Ask each time* asks once per run, not once per turn;
-  - a run that is resumed under ADR-0053 asks again if its level is *Ask each time*.
+  - a run that is resumed under ADR-0053 asks again if its level is *Ask each time*;
+  - before the first-run choice, a turn and an automation both fail with the typed error and send nothing;
+  - after an upgrade, existing workspaces take the level chosen at the first launch.
 
-## Questions for the owner
+## Owner's answers (2026-10-11)
 
-1. Accept B, with the four levels above?
-2. Is *Open* the right out-of-the-box default for new workspaces (keeps today's behaviour), or should the first-run setup ask the user to pick one?
-3. Should the egress level also restrict web search, remote MCP servers and connectors, in a follow-up ADR?
+1. B accepted, with the four levels: Open, Approved endpoints, Private only, Ask each time.
+2. No built-in default: the first-run setup asks the user to pick the default level (decision point 5).
+
+3. The egress level must also govern web search, remote MCP servers and connectors, in a separate ADR: [ADR-0061](0061-egress-level-outbound-tools.md).

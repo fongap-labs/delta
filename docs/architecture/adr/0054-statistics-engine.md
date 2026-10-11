@@ -1,6 +1,6 @@
 # ADR-0054: Which statistics engine produces reportable figures
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The R version line is still open (see Owner's answers).
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet.
 
 ## Context
 
@@ -46,6 +46,8 @@ The facts about regulatory statements and pilots above are from public documents
 2. **Shape.** The Foundation capability is `statistics.*` (for example `statistics.describe`, `statistics.regression`, `statistics.anova`, `statistics.ancova`), implemented as a Python worker using `delta-worker-sdk` that calls `Rscript` with scripts shipped alongside the worker. The worker is a controlled worker under the Capability ABI: scoped inputs, staging output, timeout and cancel, no authority.
 3. **Pinned environment.**
    - The R version and every package version are pinned.
+   - The R version is the current R release (the release CRAN publishes as current) at the time the worker is built, pinned to its exact `x.y.z`.
+   - Moving to a newer R release is a deliberate update: the lock changes, the reference tests (point 6) pass on the new version, and the CHANGELOG names both versions.
    - A package lock is shipped with the worker, for example an `renv.lock` or a dated repository snapshot.
    - At start-up the worker checks that the installed environment matches the lock. If it does not, it fails closed with a typed error; it never runs on an unpinned environment.
 4. **Package admission.**
@@ -88,10 +90,7 @@ The facts about regulatory statements and pilots above are from public documents
 
 1. B accepted: R computes, Python orchestrates and handles data and rendering.
 2. Optional JMP / SAS script export is planned in Suite (decision point 9).
-
-## Open question
-
-Which R version line to pin first: the current release, or the previous minor version for broader availability on users' machines.
+3. Pin the current R release, not the previous minor version (decision point 3).
 
 ## Not verified
 
