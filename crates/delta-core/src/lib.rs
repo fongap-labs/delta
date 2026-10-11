@@ -44,6 +44,7 @@ pub mod source_citation;
 pub mod taskstore;
 pub mod tool_lifecycle;
 pub mod validation;
+pub mod web;
 pub mod wire;
 
 pub use agent::{AgentDefinition, WorkspacePolicy, DELTA_AGENT};

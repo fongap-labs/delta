@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- feat: the model can now read the web. Two native tools, `web_fetch` (one page as readable text, HTML reduced to text, GBK and Big5 pages decoded) and `web_search` (titles, links and snippets from DuckDuckGo, then Bing if that finds nothing; no key needed), run in the Rust runtime with the same approval as any outbound action. Both refuse loopback, private, link-local (including the cloud metadata address), shared carrier-grade NAT, multicast and reserved addresses, also when written as an IPv4 address inside an IPv6 one, check every redirect hop, and connect only to the address that passed the check, so a name that changes its answer cannot redirect the connection; a page is read to 5 MB or 30 seconds at most. This ports the checks of the Python `integrations/web` code (ADR-0054). The search parsers are tested against sample markup, not the live sites, which could not be reached from the test environment.
+- docs: add ADR-0054 (accepted): reading and creating common work files and reading the web are baseline capabilities that Foundation provides natively, because a Foundation with no extension could not read a document or the web at all; specialist capabilities stay optional extensions.
+
 - feat: while a task runs, the status bar names the step in progress ("Step 3 · Read report.xlsx") instead of only "Working…"; a message sent during a run is marked "Added to the current task"; a provider failure offers Switch model next to Retry; and when a request ends, a card lists the files it wrote or edited, each with a Preview button that opens the artifact panel. A finished task also raises a system notification when the window is in the background.
 - feat: an empty task shows four starting points (sort files, summarise a PDF, find topics, turn a spreadsheet into a report). Picking one only fills the composer; nothing runs until the user sends it.
 

@@ -182,9 +182,49 @@ mod tests {
                 "propose_plan",
                 "read_file",
                 "request_directory",
+                "web_fetch",
+                "web_search",
                 "write_file"
             ]
         );
+    }
+
+    #[test]
+    fn web_tools_are_approval_gated_and_refuse_private_addresses() {
+        let temp = tempfile::tempdir().unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        for tool in ["web_fetch", "web_search"] {
+            let schemas = host.tool_schemas();
+            let entry = schemas
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|schema| schema["function"]["name"] == tool)
+                .unwrap();
+            assert!(entry["function"]["description"]
+                .as_str()
+                .unwrap()
+                .contains("external"));
+        }
+        let result = host.execute(
+            &ToolCall {
+                id: "call-fetch".to_string(),
+                name: "web_fetch".to_string(),
+                arguments: serde_json::json!({"url": "http://169.254.169.254/latest/meta-data/"}),
+            },
+            &tool_context(temp.path()),
+        );
+        assert_eq!(result.state, crate::runtime::ToolExitState::Failed);
+        assert!(result.error.unwrap().contains("refusing to fetch"));
+        let missing = host.execute(
+            &ToolCall {
+                id: "call-search".to_string(),
+                name: "web_search".to_string(),
+                arguments: serde_json::json!({}),
+            },
+            &tool_context(temp.path()),
+        );
+        assert_eq!(missing.state, crate::runtime::ToolExitState::Failed);
     }
 
     #[test]

@@ -50,6 +50,8 @@ impl CapabilityHost {
         let host = Self::new();
         host.register(native_read_registration())?;
         host.register(native_write_registration())?;
+        host.register(crate::web::fetch_registration())?;
+        host.register(crate::web::search_registration())?;
         host.register(interaction_registration(
             "request_directory",
             "Request access to an additional directory.",
