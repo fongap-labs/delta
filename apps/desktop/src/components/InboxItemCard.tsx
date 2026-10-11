@@ -391,6 +391,12 @@ export function InboxItemCard({
           </button>
         </div>
         </>
+      ) : item.kind === "notice" ? (
+        <div className="flex items-center gap-2 mt-2.5">
+          <button className={BTN_BORDERED} onClick={() => onResolve(item.id, "dismissed")}>
+            {t("inbox.notice.dismiss")}
+          </button>
+        </div>
       ) : isQuestion ? (
         <QuestionCard item={item} onResolve={onResolve} chip={chip} />
       ) : item.kind === "directory" ? (

@@ -431,6 +431,14 @@ export const directSessionRevert = (sessionId: string, index: number) =>
 export const directRestoreFileVersion = (sessionId: string, backup: string, target: string) =>
   invokeAuthority("restore_file_version", { sessionId, backup, target });
 export const directWebSearchSettings = () => invokeAuthority("get_web_search_settings", {});
+// Egress levels (ADR-0057): where a workspace's content may be sent. Only these settings commands change them.
+export const directEgressSettings = () => invokeAuthority("get_egress_settings", {});
+export const updateEgressDefault = (level: string, isConfirmed: boolean) =>
+  invokeAuthority("set_egress_default", { level, isConfirmed });
+export const updateWorkspaceEgress = (workspace: string, level: string | null, isConfirmed: boolean) =>
+  invokeAuthority("set_workspace_egress", { workspace, level, isConfirmed });
+export const updateEndpointMark = (host: string, mark: string | null, isConfirmed: boolean) =>
+  invokeAuthority("set_endpoint_mark", { host, mark, isConfirmed });
 export const directSetWebSearchSettings = (engines: unknown) =>
   invokeAuthority("set_web_search_settings", { engines });
 export const directTestWebSearchEngine = (id: string) => invokeAuthority("test_web_search_engine", { id });

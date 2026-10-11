@@ -12,6 +12,7 @@ import {
   deleteMemory,
   updateMemory,
   getSettings,
+  getEgressSettings,
   getInbox,
   getUnattended,
   resolveInboxItem,
@@ -70,6 +71,7 @@ import { ApprovalCard } from "./components/ApprovalCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
+import { EgressChoice } from "./components/EgressChoice";
 
 const newId = () => {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID().slice(0, 12);
@@ -368,6 +370,9 @@ export function App() {
   // server may not answer for a second or two. Only fall back to the gate once it's truly up.
   const [isBooting, setBooting] = useState(true);
   const [isOnboarding, setOnboarding] = useState(false);
+  // ADR-0057: until a default egress level is chosen the runtime sends nothing to a model, so the
+  // choice is asked on first run and once after the upgrade that introduced it.
+  const [isEgressUnchosen, setEgressUnchosen] = useState(false);
   // True once we've resumed a prior conversation on boot (drives the splash wording).
   const [hasResumedExisting, setResumedExisting] = useState(false);
   // Latched: keep the boot splash up until the restored session is actually CONNECTED (not just
@@ -416,6 +421,9 @@ export function App() {
           if (isTauri()) {
             getSettings()
               .then((s) => !cancelled && !s.onboarded && setOnboarding(true))
+              .catch(() => {});
+            getEgressSettings()
+              .then((e) => !cancelled && !e.is_chosen && setEgressUnchosen(true))
               .catch(() => {});
           }
           // Settle the active session BEFORE clearing `booting` (which unblocks the connection
@@ -1337,6 +1345,7 @@ export function App() {
           <Icon name="sidebar" size={16} />
         </button>
       )}
+      {isEgressUnchosen && !isOnboarding && <EgressChoice onChosen={() => setEgressUnchosen(false)} />}
       {isOnboarding && (
         <Onboarding
           onDone={(next) => {

@@ -225,6 +225,8 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       };
     case "create_document":
       return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "model.request":
+      return { pre: "Send this task to ", preKey: "humanize.apModelRequest", obj: String(a.endpoint ?? "the model") };
     case "screenshot":
       return { pre: "Take a picture of your screen", preKey: "humanize.apScreenshot" };
     case "clipboard_read":

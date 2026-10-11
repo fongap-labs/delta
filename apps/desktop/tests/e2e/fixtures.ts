@@ -296,6 +296,12 @@ function commandSources(): Record<string, string> {
     settings_add_model: `(args) => { if (!$state.settings.models.includes(args.modelId)) $state.settings.models.push(args.modelId); return { ok: true, models: $state.settings.models }; }`,
     settings_remove_model: `(args) => { $state.settings.models = $state.settings.models.filter((m) => m !== args.modelId); return { ok: true, models: $state.settings.models }; }`,
     settings_set_surfaces: `(args) => ({ ok: true, surfaces: { delta: true } })`,
+    // Egress levels (ADR-0057). The seeded state counts as chosen so the first-run chooser does not
+    // cover every test; a test that needs the chooser overrides get_egress_settings.
+    get_egress_settings: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [] })`,
+    set_egress_default: `(args) => ({ ok: true, default_level: args.level, is_chosen: true, workspaces: [], endpoint_marks: [] })`,
+    set_workspace_egress: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: args.level ? [{ workspace: args.workspace, level: args.level }] : [], endpoint_marks: [] })`,
+    set_endpoint_mark: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: args.mark ? [{ host: args.host, mark: args.mark }] : [] })`,
     // Same shape as the runtime's WebSearchSettings::public_view: the built-in engines, no keys.
     get_web_search_settings: `(args) => ({ ok: true, engines: [
       { id: "google", name: "Google", builtin: true, enabled: true, needs_key: false, accepts_key: true, has_key: false, has_cx: false, template: "", auth_header: "" },
