@@ -688,6 +688,8 @@ pub fn run() {
             runtime_ipc::update_workspace_trust,
             runtime_ipc::session_revert,
             runtime_ipc::restore_file_version,
+            runtime_ipc::get_web_search_settings,
+            runtime_ipc::set_web_search_settings,
             runtime_ipc::update_session_reasoning,
             runtime_ipc::session_roots,
             runtime_ipc::add_session_root,

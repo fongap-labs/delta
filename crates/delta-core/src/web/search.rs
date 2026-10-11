@@ -8,7 +8,9 @@
 use base64::Engine;
 use url::Url;
 
-use super::fetch::{decode_body, fetch_raw, Limits};
+use serde_json::{json, Value};
+
+use super::fetch::{decode_body, fetch_raw, request_raw, Limits, Request};
 use super::html::{attribute, elements, inline_text};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +24,129 @@ pub struct SearchResult {
 pub struct SearchOutput {
     pub provider: &'static str,
     pub results: Vec<SearchResult>,
+    /// Why a better source was skipped (a rejected key, an unreachable service), when one was.
+    pub note: Option<String>,
+}
+
+/// Search services with an API: stable JSON answers, better results, a key from the user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyedProvider {
+    Brave,
+    Tavily,
+}
+
+impl KeyedProvider {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "brave" => Some(Self::Brave),
+            "tavily" => Some(Self::Tavily),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Brave => "brave",
+            Self::Tavily => "tavily",
+        }
+    }
+}
+
+/// A provider and the user's key for it.
+#[derive(Clone, Copy)]
+pub struct SearchKey<'a> {
+    pub provider: KeyedProvider,
+    pub key: &'a str,
+}
+
+fn json_results(
+    value: &Value,
+    list: &[&str],
+    title: &str,
+    url: &str,
+    snippet: &str,
+) -> Vec<SearchResult> {
+    let mut node = value;
+    for part in list {
+        node = node.get(part).unwrap_or(&Value::Null);
+    }
+    node.as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let text = |key: &str| item.get(key).and_then(Value::as_str).unwrap_or("");
+                    let link = text(url);
+                    let valid =
+                        Url::parse(link).is_ok_and(|u| matches!(u.scheme(), "http" | "https"));
+                    valid.then(|| SearchResult {
+                        title: inline_text(text(title)),
+                        url: link.to_owned(),
+                        snippet: inline_text(text(snippet)),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Brave Search API: `{"web": {"results": [{"title", "url", "description"}]}}`.
+pub fn parse_brave(body: &str) -> Vec<SearchResult> {
+    serde_json::from_str::<Value>(body)
+        .map(|v| json_results(&v, &["web", "results"], "title", "url", "description"))
+        .unwrap_or_default()
+}
+
+/// Tavily: `{"results": [{"title", "url", "content"}]}`.
+pub fn parse_tavily(body: &str) -> Vec<SearchResult> {
+    serde_json::from_str::<Value>(body)
+        .map(|v| json_results(&v, &["results"], "title", "url", "content"))
+        .unwrap_or_default()
+}
+
+fn search_with_key(
+    search_key: SearchKey<'_>,
+    query: &str,
+    max: usize,
+    limits: Limits,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<SearchResult>, String> {
+    let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
+    let (url, headers, body): (String, Vec<(&str, String)>, Option<String>) = match search_key
+        .provider
+    {
+        KeyedProvider::Brave => (
+            format!("https://api.search.brave.com/res/v1/web/search?q={encoded}&count={max}"),
+            vec![("X-Subscription-Token", search_key.key.to_owned())],
+            None,
+        ),
+        KeyedProvider::Tavily => (
+            "https://api.tavily.com/search".to_owned(),
+            vec![("Authorization", format!("Bearer {}", search_key.key))],
+            Some(json!({"query": query, "max_results": max, "search_depth": "basic"}).to_string()),
+        ),
+    };
+    let request = Request {
+        url: &url,
+        accept: "application/json",
+        headers,
+        json_body: body,
+    };
+    let page = request_raw(&request, limits, is_cancelled).map_err(|error| {
+        if error.contains("HTTP 401") || error.contains("HTTP 403") {
+            format!(
+                "{} rejected the search key ({error}); check it in Settings",
+                search_key.provider.name()
+            )
+        } else {
+            error
+        }
+    })?;
+    let body = decode_body(&page.bytes, &page.content_type);
+    Ok(match search_key.provider {
+        KeyedProvider::Brave => parse_brave(&body),
+        KeyedProvider::Tavily => parse_tavily(&body),
+    })
 }
 
 /// Most results a caller may ask for.
@@ -179,6 +304,7 @@ fn keep_valid(results: Vec<SearchResult>, max: usize) -> Vec<SearchResult> {
 pub fn search(
     query: &str,
     max_results: Option<i64>,
+    key: Option<SearchKey<'_>>,
     limits: Limits,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<SearchOutput, String> {
@@ -192,6 +318,26 @@ pub fn search(
     };
     let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
     let mut problems = Vec::new();
+    // The user's own search service first; if it fails, the keyless ones still answer, and the
+    // note says why the better source was skipped.
+    if let Some(search_key) = key {
+        match search_with_key(search_key, query, max, limits, is_cancelled) {
+            Ok(results) => {
+                let results = keep_valid(results, max);
+                if !results.is_empty() {
+                    return Ok(SearchOutput {
+                        provider: search_key.provider.name(),
+                        results,
+                        note: None,
+                    });
+                }
+                problems.push(format!("{}: no results", search_key.provider.name()));
+            }
+            Err(error) if error == "cancelled" => return Err(error),
+            Err(error) => problems.push(format!("{}: {error}", search_key.provider.name())),
+        }
+    }
+    let skipped = (!problems.is_empty()).then(|| problems.join("; "));
     for provider in &PROVIDERS {
         let url = format!("{}{encoded}", provider.endpoint);
         match fetch_raw(
@@ -207,6 +353,7 @@ pub fn search(
                     return Ok(SearchOutput {
                         provider: provider.name,
                         results,
+                        note: skipped.clone(),
                     });
                 }
                 problems.push(format!("{}: no results found on the page", provider.name));
@@ -313,8 +460,29 @@ mod tests {
     }
 
     #[test]
+    fn keyed_service_answers_are_read_and_unusable_entries_dropped() {
+        let brave = r#"{"web":{"results":[
+            {"title":"Rust <strong>lang</strong>","url":"https://www.rust-lang.org/","description":"Fast &amp; safe"},
+            {"title":"bad scheme","url":"javascript:alert(1)","description":"x"},
+            {"title":"no url","description":"x"}]}}"#;
+        let found = parse_brave(brave);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].title, "Rust lang");
+        assert_eq!(found[0].snippet, "Fast & safe");
+        let tavily = r#"{"results":[{"title":"Docs","url":"https://doc.rust-lang.org/","content":"The book."}]}"#;
+        assert_eq!(parse_tavily(tavily)[0].url, "https://doc.rust-lang.org/");
+        assert!(parse_brave("not json").is_empty());
+        assert!(parse_tavily("{}").is_empty());
+        assert_eq!(
+            KeyedProvider::from_name("brave"),
+            Some(KeyedProvider::Brave)
+        );
+        assert_eq!(KeyedProvider::from_name("google"), None);
+    }
+
+    #[test]
     fn an_empty_query_is_refused_without_a_request() {
-        let error = search("  ", None, Limits::PRODUCT, &|| false).unwrap_err();
+        let error = search("  ", None, None, Limits::PRODUCT, &|| false).unwrap_err();
         assert_eq!(error, "query is required");
     }
 }

@@ -53,6 +53,8 @@ import {
   deleteSessionRoot,
   directSessionRevert,
   directRestoreFileVersion,
+  directWebSearchSettings,
+  directSetWebSearchSettings,
   directSessionRoots,
   updateSessionFlags,
   updateSessionReasoning,
@@ -327,6 +329,27 @@ export async function restoreFileVersion(
   target: string,
 ): Promise<{ ok: boolean; error?: string; path?: string }> {
   return await directRestoreFileVersion(sessionId, backup, target);
+}
+
+export type WebSearchProvider = "auto" | "brave" | "tavily";
+
+/** The chosen web search service and whether a key is saved; the key itself is never returned. */
+export async function getWebSearchSettings(): Promise<{ provider: WebSearchProvider; has_key: boolean }> {
+  const out = (await directWebSearchSettings()) as { ok?: boolean; provider?: string; has_key?: boolean; error?: string };
+  if (out?.ok === false) throw new Error(out.error || "could not read the search settings");
+  return { provider: (out.provider as WebSearchProvider) || "auto", has_key: !!out.has_key };
+}
+
+export async function setWebSearchSettings(
+  provider: WebSearchProvider,
+  apiKey?: string,
+): Promise<{ ok: boolean; error?: string; provider?: WebSearchProvider; has_key?: boolean }> {
+  return (await directSetWebSearchSettings(provider, apiKey)) as {
+    ok: boolean;
+    error?: string;
+    provider?: WebSearchProvider;
+    has_key?: boolean;
+  };
 }
 
 export async function setReasoningEffort(

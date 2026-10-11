@@ -8,7 +8,7 @@ pub mod html;
 pub mod search;
 
 pub use fetch::{fetch_page, Limits, Page};
-pub use search::{search, SearchOutput, SearchResult};
+pub use search::{search, KeyedProvider, SearchKey, SearchOutput, SearchResult};
 
 use std::sync::Arc;
 
@@ -26,6 +26,10 @@ fn web_grants() -> CapabilityGrants {
         ..CapabilityGrants::read_only()
     }
 }
+
+/// Secret names the search tool may receive: the user's search service and its key.
+pub const SEARCH_PROVIDER_SECRET: &str = "web_search.provider";
+pub const SEARCH_KEY_SECRET: &str = "web_search.api_key";
 
 /// Egress to a model-chosen destination: medium risk, always asks (see `policy.rs` EGRESS_TOOLS).
 fn web_metadata(capability: &str) -> Value {
@@ -90,7 +94,13 @@ pub fn search_registration() -> CapabilityRegistration {
             }
         }),
         metadata: web_metadata("search"),
-        grants: web_grants(),
+        grants: CapabilityGrants {
+            secrets: vec![
+                SEARCH_PROVIDER_SECRET.to_owned(),
+                SEARCH_KEY_SECRET.to_owned(),
+            ],
+            ..web_grants()
+        },
         workspace_write: false,
         runner: Arc::new(NativeCapabilityRunner::new(|job, control| {
             let Some(query) = job.arguments.get("query").and_then(Value::as_str) else {
@@ -102,11 +112,23 @@ pub fn search_registration() -> CapabilityRegistration {
             };
             let max_results = job.arguments.get("max_results").and_then(Value::as_i64);
             let cancelled = || control.is_cancelled();
-            match search(query, max_results, Limits::PRODUCT, &cancelled) {
+            let secret = |name: &str| {
+                job.secret_values
+                    .get(name)
+                    .map(String::as_str)
+                    .unwrap_or("")
+            };
+            let key = KeyedProvider::from_name(secret(SEARCH_PROVIDER_SECRET))
+                .filter(|_| !secret(SEARCH_KEY_SECRET).trim().is_empty())
+                .map(|provider| SearchKey {
+                    provider,
+                    key: secret(SEARCH_KEY_SECRET).trim(),
+                });
+            match search(query, max_results, key, Limits::PRODUCT, &cancelled) {
                 Ok(found) => CapabilityResult::completed(
                     &job.job_id,
                     json!({
-                        "ok": true, "provider": found.provider,
+                        "ok": true, "provider": found.provider, "note": found.note,
                         "results": found.results.iter().map(|r| json!({
                             "title": r.title, "url": r.url, "snippet": r.snippet,
                         })).collect::<Vec<_>>(),

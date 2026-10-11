@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import {
   getSettingsStrict,
   getTrustedWorkspaces,
+  getWebSearchSettings,
+  setWebSearchSettings,
+  type WebSearchProvider,
   setCompactionSettings,
   setContextBar,
   setOnboarded,
@@ -134,6 +137,9 @@ export function SettingsView({
                 sub={t("settings.models.sub")}
               />
               <ModelsTab />
+              <div className="mt-6">
+                <WebSearchCard />
+              </div>
               {/* Token savings is model-spend behavior, so it lives here (UX-021),
                   not under General. */}
               <div className="mt-6">
@@ -689,6 +695,115 @@ function TokenSavingsCard() {
         </label>
       </div>
       <div className={FIELD_HELP}>{t("settings.pdf.help3")}</div>
+    </div>
+  );
+}
+
+// -- Web search: the free search pages by default, or the user's own search service ---------------
+// The key is written to the credential store and never read back into the UI: after saving, the
+// card only knows that a key exists.
+const SEARCH_SERVICES: { id: WebSearchProvider; labelKey: TranslationKey; url?: string }[] = [
+  { id: "auto", labelKey: "settings.search.auto" },
+  { id: "brave", labelKey: "settings.search.brave", url: "https://brave.com/search/api/" },
+  { id: "tavily", labelKey: "settings.search.tavily", url: "https://tavily.com/" },
+];
+
+export function WebSearchCard() {
+  const { t } = useI18n();
+  const [saved, setSaved] = useState<{ provider: WebSearchProvider; has_key: boolean } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [provider, setProvider] = useState<WebSearchProvider>("auto");
+  const [key, setKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    setFailed(false);
+    getWebSearchSettings()
+      .then((s) => {
+        setSaved(s);
+        setProvider(s.provider);
+      })
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
+
+  if (failed && !saved) return <LoadError what={t("settings.search.title")} onRetry={load} />;
+  if (!saved) return null;
+
+  const needsKey = provider !== "auto";
+  // Keeping the saved key is allowed only for the service it was saved for.
+  const canKeepKey = saved.has_key && saved.provider === provider;
+  const unchanged = provider === saved.provider && key.trim() === "";
+  const canSave = !busy && !unchanged && (!needsKey || key.trim() !== "" || canKeepKey);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await setWebSearchSettings(provider, key.trim() || undefined).catch(() => ({
+      ok: false as const,
+      error: t("settings.search.saveFailed"),
+    }));
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error || t("settings.search.saveFailed"));
+      return;
+    }
+    setKey("");
+    setSaved({ provider: result.provider ?? provider, has_key: !!result.has_key });
+  };
+  const service = SEARCH_SERVICES.find((s) => s.id === provider);
+
+  return (
+    <div className={CARD + " p-4"} data-testid="web-search-card">
+      <div className={FIELD_LABEL}>{t("settings.search.title")}</div>
+      <div className={FIELD_HELP}>{t("settings.search.help")}</div>
+      <div className="seg mt-3" role="radiogroup" aria-label={t("settings.search.title")} data-testid="search-provider">
+        {SEARCH_SERVICES.map((s) => (
+          <button key={s.id} className={provider === s.id ? "active" : ""} onClick={() => setProvider(s.id)}>
+            {t(s.labelKey)}
+          </button>
+        ))}
+      </div>
+      {needsKey && (
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              className={INPUT}
+              value={key}
+              data-testid="search-key"
+              placeholder={canKeepKey ? t("settings.search.keySaved") : t("settings.search.keyPlaceholder")}
+              onChange={(e) => setKey(e.target.value)}
+            />
+          </div>
+          {service?.url && (
+            <div className={FIELD_HELP}>
+              {t("settings.search.getKey")}{" "}
+              <a href={service.url} target="_blank" rel="noreferrer" className="text-primary underline">
+                {service.url.replace("https://", "")}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="mt-3 flex items-center gap-3">
+        <button className={BTN_ACCENT} disabled={!canSave} onClick={save} data-testid="search-save">
+          {t("common.save", undefined, "Save")}
+        </button>
+        {unchanged && saved.provider !== "auto" && (
+          <span className="text-[12px] text-muted" data-testid="search-status">
+            {t("settings.search.inUse", { service: t(SEARCH_SERVICES.find((s) => s.id === saved.provider)!.labelKey) })}
+          </span>
+        )}
+        {error && (
+          <span className="text-[12px] text-danger" role="alert" data-testid="search-error">
+            {error}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

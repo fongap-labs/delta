@@ -78,8 +78,43 @@ pub fn fetch_raw(
     limits: Limits,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<RawPage, String> {
-    let mut current = url.to_owned();
-    for _ in 0..=MAX_REDIRECTS {
+    request_raw(&Request::get(url, accept), limits, is_cancelled)
+}
+
+/// One HTTP request. A request with a JSON body is a POST and is never redirected: an API that
+/// answers a POST with a redirect is misconfigured, and the body (which may carry a key) must not
+/// follow it anywhere.
+pub struct Request<'a> {
+    pub url: &'a str,
+    pub accept: &'a str,
+    /// Extra headers, such as an API key. Sent only to `url`, never on a redirect.
+    pub headers: Vec<(&'a str, String)>,
+    pub json_body: Option<String>,
+}
+
+impl<'a> Request<'a> {
+    pub fn get(url: &'a str, accept: &'a str) -> Self {
+        Request {
+            url,
+            accept,
+            headers: Vec::new(),
+            json_body: None,
+        }
+    }
+}
+
+pub fn request_raw(
+    request: &Request<'_>,
+    limits: Limits,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<RawPage, String> {
+    let mut current = request.url.to_owned();
+    let redirects = if request.json_body.is_some() {
+        0
+    } else {
+        MAX_REDIRECTS
+    };
+    for hop in 0..=redirects {
         if is_cancelled() {
             return Err("cancelled".to_owned());
         }
@@ -91,7 +126,24 @@ pub fn fetch_raw(
             .timeout_read(Duration::from_secs(20))
             .resolver(Pinned(target.addrs.clone()))
             .build();
-        let response = match agent.get(target.url.as_str()).set("Accept", accept).call() {
+        let mut call = match &request.json_body {
+            Some(_) => agent.post(target.url.as_str()),
+            None => agent.get(target.url.as_str()),
+        }
+        .set("Accept", request.accept);
+        // Credentials go to the URL the caller named and nowhere a redirect might lead.
+        if hop == 0 {
+            for (name, value) in &request.headers {
+                call = call.set(name, value);
+            }
+        }
+        let result = match &request.json_body {
+            Some(body) => call
+                .set("Content-Type", "application/json")
+                .send_string(body),
+            None => call.call(),
+        };
+        let response = match result {
             Ok(response) => response,
             Err(ureq::Error::Status(code, _)) => {
                 return Err(format!("the server answered HTTP {code}"))
@@ -99,6 +151,9 @@ pub fn fetch_raw(
             Err(error) => return Err(format!("fetch failed: {error}")),
         };
         if (300..400).contains(&response.status()) {
+            if request.json_body.is_some() {
+                return Err("the server redirected an API request".to_owned());
+            }
             if let Some(location) = response.header("location") {
                 // A relative Location stays on the logical host, not on the pinned address.
                 current = target

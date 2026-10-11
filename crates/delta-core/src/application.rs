@@ -157,6 +157,9 @@ struct ApplicationState {
     dm_session: Option<String>,
 }
 
+/// The credential profile that holds the web search service and its key.
+const WEB_SEARCH_PROFILE: &str = "web_search";
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct ApplicationAuthority {
     #[serde(default)]
@@ -399,6 +402,63 @@ impl ApplicationStore {
         );
         self.write_authority(&authority)?;
         Ok(json!({"ok": true, "account": account}))
+    }
+
+    /// Which search service the user chose and whether a key is saved. The key itself never
+    /// leaves the authority except to the search capability that is granted it.
+    pub fn web_search_settings(&self) -> Result<Value, ShadowReadError> {
+        let authority = self.read_authority()?;
+        let profile = authority.secrets.get(WEB_SEARCH_PROFILE);
+        let provider = profile
+            .and_then(|p| p.get("provider"))
+            .map(String::as_str)
+            .unwrap_or("auto");
+        let has_key = profile
+            .and_then(|p| p.get("api_key"))
+            .is_some_and(|key| !key.trim().is_empty());
+        Ok(json!({"ok": true, "provider": provider, "has_key": has_key}))
+    }
+
+    /// Choose the search service. `auto` uses the free search pages and removes any saved key;
+    /// `brave` and `tavily` need a key, which may be omitted only to keep the one already saved
+    /// for that same service.
+    pub fn set_web_search(
+        &self,
+        provider: &str,
+        api_key: Option<&str>,
+    ) -> Result<Value, ShadowReadError> {
+        let mut authority = self.read_authority()?;
+        if provider == "auto" {
+            authority.secrets.remove(WEB_SEARCH_PROFILE);
+            self.write_authority(&authority)?;
+            return Ok(json!({"ok": true, "provider": "auto", "has_key": false}));
+        }
+        if !matches!(provider, "brave" | "tavily") {
+            return Ok(json!({"ok": false, "error": "unknown search service"}));
+        }
+        let new_key = api_key.map(str::trim).filter(|key| !key.is_empty());
+        let kept = authority
+            .secrets
+            .get(WEB_SEARCH_PROFILE)
+            .filter(|profile| profile.get("provider").map(String::as_str) == Some(provider))
+            .and_then(|profile| profile.get("api_key"))
+            .filter(|key| !key.trim().is_empty())
+            .cloned();
+        let Some(key) = new_key.map(str::to_owned).or(kept) else {
+            return Ok(json!({"ok": false, "error": "an API key is required"}));
+        };
+        if key.len() > 512 || key.chars().any(char::is_control) {
+            return Ok(json!({"ok": false, "error": "that does not look like an API key"}));
+        }
+        authority.secrets.insert(
+            WEB_SEARCH_PROFILE.to_owned(),
+            BTreeMap::from([
+                ("provider".to_owned(), provider.to_owned()),
+                ("api_key".to_owned(), key),
+            ]),
+        );
+        self.write_authority(&authority)?;
+        Ok(json!({"ok": true, "provider": provider, "has_key": true}))
     }
 
     /// Resolve the exact secret keys granted to one capability job.
@@ -711,6 +771,62 @@ mod tests {
             .unwrap()
             .contains("secret-value"));
         assert!(store.connected_names().unwrap().contains("email"));
+    }
+
+    #[test]
+    fn the_search_key_is_stored_privately_granted_only_by_name_and_never_shown() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = ApplicationStore::open(temp.path()).unwrap();
+        assert_eq!(store.web_search_settings().unwrap()["provider"], "auto");
+        assert_eq!(store.web_search_settings().unwrap()["has_key"], false);
+
+        // A service needs a key.
+        assert_eq!(store.set_web_search("brave", None).unwrap()["ok"], false);
+        assert_eq!(
+            store.set_web_search("brave", Some("  ")).unwrap()["ok"],
+            false
+        );
+        assert_eq!(
+            store.set_web_search("google", Some("k")).unwrap()["ok"],
+            false
+        );
+        assert_eq!(
+            store.set_web_search("brave", Some("bad\nkey")).unwrap()["ok"],
+            false
+        );
+
+        let saved = store.set_web_search("brave", Some(" BSA-secret ")).unwrap();
+        assert_eq!(saved["has_key"], true);
+        let shown = serde_json::to_string(&store.web_search_settings().unwrap()).unwrap();
+        assert!(shown.contains("brave") && !shown.contains("BSA-secret"));
+        let granted = store
+            .resolve_capability_secrets(&[
+                "web_search.provider".to_string(),
+                "web_search.api_key".to_string(),
+            ])
+            .unwrap();
+        assert_eq!(granted["web_search.api_key"], "BSA-secret");
+        assert_eq!(granted["web_search.provider"], "brave");
+
+        // Re-saving the same service without a key keeps the key; another service needs its own.
+        assert_eq!(store.set_web_search("brave", None).unwrap()["ok"], true);
+        assert_eq!(store.set_web_search("tavily", None).unwrap()["ok"], false);
+        assert_eq!(
+            store.set_web_search("tavily", Some("tvly-1")).unwrap()["provider"],
+            "tavily"
+        );
+
+        // Going back to the free search removes the key.
+        assert_eq!(
+            store.set_web_search("auto", None).unwrap()["has_key"],
+            false
+        );
+        assert!(store
+            .resolve_capability_secrets(&["web_search.api_key".to_string()])
+            .unwrap()
+            .is_empty());
+        // The key is not a connector: it never appears in the connector list.
+        assert!(!store.connected_names().unwrap().contains("web_search"));
     }
 
     #[test]

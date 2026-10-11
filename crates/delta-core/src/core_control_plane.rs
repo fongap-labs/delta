@@ -508,6 +508,15 @@ impl CoreControlPlane {
             config.model_settings["reasoning_effort"] = Value::String(effort);
         }
 
+        // Housekeeping for what the runtime keeps in the workspace for safety (old versions of
+        // replaced files, abandoned staging folders). Cheap, best effort, never blocks a run.
+        if let Some(workspace) = workspace.as_deref() {
+            control_plane::prune_workspace_leftovers(
+                std::path::Path::new(workspace),
+                std::time::SystemTime::now(),
+            );
+        }
+
         let mut prompt = DELTA_AGENT.system_prompt.to_string();
         if mode.as_deref() == Some("plan") {
             prompt.push_str("\n\nPlan mode is active. Inspect and reason, but do not perform writes until the user explicitly approves the plan.");

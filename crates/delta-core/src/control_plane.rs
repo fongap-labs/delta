@@ -478,6 +478,51 @@ pub fn get_session_workspace(
     session_workspace(state_dir, session_id)
 }
 
+/// How long a kept earlier version of a replaced file stays in the workspace.
+pub const KEPT_VERSION_DAYS: u64 = 30;
+/// How long an abandoned staging folder stays (staged files are promoted at once; what is left
+/// belongs to a run that failed).
+const STAGING_LEFTOVER_DAYS: u64 = 7;
+
+fn remove_old_children(
+    dir: &Path,
+    now: std::time::SystemTime,
+    max_age: std::time::Duration,
+) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let old = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .ok()
+            .and_then(|modified| now.duration_since(modified).ok())
+            .is_some_and(|age| age > max_age);
+        // Only folders the runtime made (one per run); anything else in there is left alone.
+        if old && path.is_dir() && fs::remove_dir_all(&path).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+/// Delete what the runtime keeps in a workspace for safety once it is old: earlier versions of
+/// replaced files after [`KEPT_VERSION_DAYS`], abandoned staging folders after a week. Best effort:
+/// a folder that cannot be removed is left for next time. Returns how many folders went.
+pub fn prune_workspace_leftovers(workspace: &Path, now: std::time::SystemTime) -> usize {
+    let day = std::time::Duration::from_secs(24 * 60 * 60);
+    let delta = workspace.join(".delta");
+    remove_old_children(&delta.join("versions"), now, day * KEPT_VERSION_DAYS as u32)
+        + remove_old_children(
+            &delta.join("staging"),
+            now,
+            day * STAGING_LEFTOVER_DAYS as u32,
+        )
+}
+
 /// Put a kept earlier version of a file back (the undo for a file the agent replaced).
 ///
 /// `backup` must be a file under the workspace's `.delta/versions/`, `target` a workspace-relative
@@ -1174,6 +1219,35 @@ mod tests {
             assert_eq!(result["ok"], false, "{backup} -> {target}");
         }
         assert!(!ws.join("out.txt").exists());
+    }
+
+    #[test]
+    fn old_kept_versions_and_staging_leftovers_are_pruned_and_recent_ones_stay() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws = tmp.path();
+        for dir in [
+            ".delta/versions/run-a/x",
+            ".delta/versions/restored-1",
+            ".delta/staging/run-b/job",
+        ] {
+            fs::create_dir_all(ws.join(dir)).unwrap();
+        }
+        fs::write(ws.join(".delta/versions/run-a/x/f.md"), "old").unwrap();
+        fs::write(ws.join(".delta/versions/not-a-run.txt"), "keep").unwrap();
+        let now = std::time::SystemTime::now();
+        let day = std::time::Duration::from_secs(24 * 60 * 60);
+        // Just made: nothing goes.
+        assert_eq!(prune_workspace_leftovers(ws, now), 0);
+        // 8 days on: only the staging leftover is old enough.
+        assert_eq!(prune_workspace_leftovers(ws, now + day * 8), 1);
+        assert!(ws.join(".delta/versions/run-a/x/f.md").exists());
+        assert!(!ws.join(".delta/staging/run-b").exists());
+        // 31 days on: the kept versions go too; a plain file in `versions` is never touched.
+        assert_eq!(prune_workspace_leftovers(ws, now + day * 31), 2);
+        assert!(!ws.join(".delta/versions/run-a").exists());
+        assert!(ws.join(".delta/versions/not-a-run.txt").exists());
+        // No `.delta` folder at all is fine.
+        assert_eq!(prune_workspace_leftovers(&ws.join("missing"), now), 0);
     }
 
     #[test]

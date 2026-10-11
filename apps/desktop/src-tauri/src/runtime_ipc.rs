@@ -925,6 +925,25 @@ pub fn connector_connect(
     authority_result(state.application().connect(&name, &fields))
 }
 
+/// Which web search service is chosen and whether a key is saved (the key is never returned).
+#[tauri::command]
+pub fn get_web_search_settings(state: State<'_, RuntimeRegistry>) -> Value {
+    authority_result(state.application().web_search_settings())
+}
+
+#[tauri::command]
+pub fn set_web_search_settings(
+    state: State<'_, RuntimeRegistry>,
+    provider: String,
+    api_key: Option<String>,
+) -> Value {
+    authority_result(
+        state
+            .application()
+            .set_web_search(&provider, api_key.as_deref()),
+    )
+}
+
 #[tauri::command]
 pub fn connector_disconnect(state: State<'_, RuntimeRegistry>, name: String) -> Value {
     authority_result(state.application().disconnect(&name))
