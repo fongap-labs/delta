@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: a report can refer to a computed figure with a binding, `{{result:<path>#<key>|<format>}}`, and the figure is rendered in its declared format: fixed decimals or a whole number, rounded half up on the shortest decimal form of the value, so 2.675 renders as 2.68 at two decimals (ADR-0055, step 1). The binding check and the binding manifest follow.
+
 - feat: the first statistics figures are computed by R. A new `statistics` module describes one CSV column (n, mean, sample sd, min, max, median) with R run under a time limit; the R program is compiled in, and each result records its R version and the SHA-256 of the program and of the input (ADR-0054, step 2a). Not yet a capability the model can call.
 
 - feat [security]: connector tools are governed by the workspace egress level. A tool in category `connector` that declares no destination is treated as going to any public site, so it is refused in Private only and asked for in Approved endpoints; each connector has its own per-path rule (`connector:<name>`). Suite connectors do not declare a destination yet (ADR-0061, step 2d).
