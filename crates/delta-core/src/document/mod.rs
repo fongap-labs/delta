@@ -525,7 +525,7 @@ mod tests {
                <w:r><w:delText>deleted</w:delText></w:r></w:p>\
              <w:p/>\
              <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Region</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc></w:tr>\
-               <w:tr><w:tc><w:p><w:r><w:t>华东</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>1</w:t></w:r></w:p><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc></w:tr></w:tbl>\
+               <w:tr><w:tc><w:p><w:r><w:t>&#x534e;&#x4e1c;</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>1</w:t></w:r></w:p><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc></w:tr></w:tbl>\
              <w:p><w:r><w:t>after &#x4e2d;&#25991;</w:t></w:r></w:p>",
         );
         let document = parse(Kind::Docx, &bytes).unwrap();
@@ -803,9 +803,8 @@ mod tests {
         let (_, bytes, _) = create("b.xlsx", &sample_xlsx()).unwrap();
         let sheets = parse(Kind::Xlsx, &bytes).unwrap().blocks;
         assert_eq!(sheets[0].label, "sheet '销售-Q3'");
-        assert!(sheets[0]
-            .text
-            .contains("4: 合计 | =SUM(B2:B3) | =SUM(C2:C3)"));
+        let total_row = format!("4: {} | =SUM(B2:B3) | =SUM(C2:C3)", "合计");
+        assert!(sheets[0].text.contains(&total_row));
         assert!(sheets[0].text.contains("2: 华东 | 120 | 0.35 | TRUE"));
         let (_, bytes, _) = create("r.docx", &sample_docx()).unwrap();
         let text = parse(Kind::Docx, &bytes).unwrap().blocks[0].text.clone();
