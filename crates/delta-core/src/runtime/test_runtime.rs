@@ -2933,3 +2933,36 @@ fn a_confirmed_allow_rule_lets_a_refused_search_run_after_its_approval() {
     assert_eq!(proposed.payload["egress"]["path"], "web_search");
     assert_eq!(proposed.payload["egress"]["decision"], "allowed");
 }
+
+#[test]
+fn a_connector_tool_without_a_declared_destination_is_refused_under_private_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let contract = json!([{
+        "type": "function",
+        "function": {
+            "name": "mail_send",
+            "parameters": {"type": "object", "properties": {}},
+            "metadata": {
+                "risk_level": "low",
+                "requires_approval": false,
+                "category": "connector",
+                "capabilities": ["integration"],
+                "connector": "mail"
+            }
+        }
+    }]);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, _authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::PrivateOnly),
+        contract,
+        calls.clone(),
+    );
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-mail".to_string(),
+        name: "mail_send".to_string(),
+        arguments: json!({}),
+    });
+    assert!(result.error.is_some());
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}

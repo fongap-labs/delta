@@ -595,7 +595,7 @@ pub fn endpoint_mark(
 }
 
 /// Governed categories: tools in them reach outside the machine unless they declare otherwise.
-const GOVERNED_CATEGORIES: &[&str] = &["web", "mcp"];
+const GOVERNED_CATEGORIES: &[&str] = &["web", "mcp", "connector"];
 
 /// The class the rules of every level see: a host the user marked private is private (ADR-0057).
 pub fn effective_class(target: &OutboundTarget) -> DestinationClass {
@@ -765,6 +765,9 @@ pub fn path_key(tool_name: &str, metadata: &ToolMetadata) -> String {
     if category == "mcp" {
         return format!("mcp:{}", metadata.server.as_deref().unwrap_or(""));
     }
+    if category == "connector" {
+        return format!("connector:{}", metadata.connector.as_deref().unwrap_or(""));
+    }
     if tool_name.starts_with("browser_") {
         return "browser".to_owned();
     }
@@ -776,6 +779,9 @@ fn is_path_key(path: &str) -> bool {
     matches!(path, "web_search" | "web_fetch" | "browser" | "open_url")
         || path
             .strip_prefix("mcp:")
+            .is_some_and(|name| !name.trim().is_empty())
+        || path
+            .strip_prefix("connector:")
             .is_some_and(|name| !name.trim().is_empty())
 }
 
@@ -863,11 +869,15 @@ pub fn set_path_rule(
     };
     let class =
         DestinationClass::parse(class).ok_or_else(|| invalid("unknown destination class"))?;
-    let is_mcp = path.starts_with("mcp:");
-    let class_fits = if is_mcp {
+    let class_fits = if path.starts_with("mcp:") {
         matches!(
             class,
             DestinationClass::FixedPublic | DestinationClass::LocalProcess
+        )
+    } else if path.starts_with("connector:") {
+        matches!(
+            class,
+            DestinationClass::FixedPublic | DestinationClass::AnyPublic
         )
     } else {
         class == DestinationClass::AnyPublic
@@ -979,6 +989,7 @@ mod tests {
             destination: destination.map(str::to_owned),
             destination_url: None,
             server: Some("notes".to_owned()),
+            connector: None,
         }
     }
 
@@ -1296,6 +1307,36 @@ mod tests {
         // Without a chosen level no rule can be set.
         let fresh = tempfile::tempdir().unwrap();
         assert!(set_path_rule(fresh.path(), "", "web_search", "any_public", rule, true).is_err());
+    }
+
+    #[test]
+    fn a_connector_without_a_declared_destination_is_any_public_and_keyed_by_name() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        let mut connector = metadata("connector", None);
+        connector.connector = Some("mail".to_owned());
+        assert_eq!(path_key("mail_send", &connector), "connector:mail");
+        let target = outbound_target(state, &connector, "mail_send", None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(target.class, DestinationClass::AnyPublic);
+
+        set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
+        assert!(!offered_to_model(state, "", "mail_send", &connector));
+        set_default_level(state, EgressLevel::Open, true).unwrap();
+        assert!(offered_to_model(state, "", "mail_send", &connector));
+    }
+
+    #[test]
+    fn a_connector_rule_accepts_only_a_fixed_or_public_destination() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
+        let rule = Some(PathRule::Allow);
+        assert!(set_path_rule(state, "", "connector:mail", "fixed_public", rule, true).is_ok());
+        assert!(set_path_rule(state, "", "connector:mail", "any_public", rule, true).is_ok());
+        assert!(set_path_rule(state, "", "connector:mail", "local_process", rule, true).is_err());
+        assert!(set_path_rule(state, "", "connector:", "fixed_public", rule, true).is_err());
     }
 
     fn state() -> tempfile::TempDir {

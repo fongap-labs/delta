@@ -92,6 +92,9 @@ pub struct ToolMetadata {
     /// The MCP server a tool belongs to; a local server may carry the user's local-only mark.
     #[serde(default)]
     pub server: Option<String>,
+    /// The connector a tool belongs to (ADR-0061): a connector path is named after it.
+    #[serde(default)]
+    pub connector: Option<String>,
 }
 
 /// A permission decision from the PermissionEngine.
@@ -617,6 +620,7 @@ mod tests {
             destination: None,
             destination_url: None,
             server: None,
+            connector: None,
         }
     }
 
@@ -912,6 +916,7 @@ mod tests {
             destination: None,
             destination_url: None,
             server: None,
+            connector: None,
         }
     }
 
@@ -924,6 +929,7 @@ mod tests {
             destination: None,
             destination_url: None,
             server: None,
+            connector: None,
         }
     }
 
@@ -936,6 +942,7 @@ mod tests {
             destination: None,
             destination_url: None,
             server: None,
+            connector: None,
         }
     }
 

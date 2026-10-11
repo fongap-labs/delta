@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat [security]: connector tools are governed by the workspace egress level. A tool in category `connector` that declares no destination is treated as going to any public site, so it is refused in Private only and asked for in Approved endpoints; each connector has its own per-path rule (`connector:<name>`). Suite connectors do not declare a destination yet (ADR-0061, step 2d).
+
 - feat [security]: a per-path rule lets the user allow, ask for, or block one tool family or one MCP server in one workspace (or in every workspace), replacing the workspace level's decision for that path. Only the settings command sets a rule; a rule that lets more content go asks for confirmation first, and removing a rule takes effect at once. The rule in force is recorded on the outbound call's ledger event (ADR-0061, step 2c).
 
 - feat [security]: Settings ▸ Privacy lists the local tool servers (stdio MCP) and lets the user mark each one local-only. The mark is the user's statement that the server does not reach the network; adding it asks for confirmation, because it lets the server run in Approved endpoints and Private only workspaces, and removing it takes effect at once (ADR-0061, step 2b).
