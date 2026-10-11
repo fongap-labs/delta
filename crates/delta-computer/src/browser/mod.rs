@@ -497,7 +497,8 @@ fn metadata(capability: &str, should_ask: bool) -> Value {
     json!({
         "risk_level": if should_ask { "medium" } else { "low" },
         "requires_approval": should_ask,
-        "category": "computer", "capabilities": [capability]
+        "category": "computer", "capabilities": [capability],
+        "destination": "any_public"
     })
 }
 

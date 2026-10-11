@@ -40,6 +40,7 @@ pub(crate) use handle::interrupted_run_of;
 mod egress_gate;
 mod human_control;
 mod model_turn;
+mod outbound_gate;
 mod tool_execution;
 
 use human_control::InteractionController;

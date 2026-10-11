@@ -82,6 +82,13 @@ pub struct ToolMetadata {
     pub requires_approval: Option<bool>,
     pub category: Option<String>,
     pub capabilities: Option<Vec<String>>,
+    /// Where an outbound tool sends content (`fixed_public`, `any_public`, `private`,
+    /// `local_process`; ADR-0061). Governed categories without it are `any_public`.
+    #[serde(default)]
+    pub destination: Option<String>,
+    /// The fixed URL an outbound tool calls, when it has one (a remote MCP server).
+    #[serde(default)]
+    pub destination_url: Option<String>,
 }
 
 /// A permission decision from the PermissionEngine.
@@ -604,6 +611,8 @@ mod tests {
             requires_approval: Some(false),
             category: Some("filesystem".to_string()),
             capabilities: Some(vec![]),
+            destination: None,
+            destination_url: None,
         }
     }
 
@@ -896,6 +905,8 @@ mod tests {
             requires_approval: Some(false),
             category: Some("read".to_string()),
             capabilities: Some(vec!["file.read".to_string()]),
+            destination: None,
+            destination_url: None,
         }
     }
 
@@ -905,6 +916,8 @@ mod tests {
             requires_approval: Some(true),
             category: Some("filesystem".to_string()),
             capabilities: Some(vec!["file.write".to_string()]),
+            destination: None,
+            destination_url: None,
         }
     }
 
@@ -914,6 +927,8 @@ mod tests {
             requires_approval: Some(true),
             category: Some("connector".to_string()),
             capabilities: Some(vec!["message.send".to_string()]),
+            destination: None,
+            destination_url: None,
         }
     }
 

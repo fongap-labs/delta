@@ -1,0 +1,145 @@
+//! The egress check before an outbound tool call (ADR-0061).
+//!
+//! A tool that sends content off the machine declares where it sends it. The workspace's egress
+//! level decides whether the call may go ahead. *Ask each time* and *Approved endpoints* make a
+//! call that is allowed only after the user approves that call; standing grants and automatic
+//! approval never apply to it. A refused call is not run. Every outbound call records its
+//! destination in the ledger, on the `tool.proposed` event or on the refusal.
+
+use super::*;
+
+use crate::egress::{self, DestinationClass, EgressLevel, OutboundDecision, OutboundTarget};
+use crate::policy::ToolMetadata;
+
+/// Categories whose tools reach outside the machine. A tool in one of them that declares no
+/// destination is treated as `any_public` (fail closed).
+const GOVERNED_CATEGORIES: &[&str] = &["web", "mcp"];
+
+/// The text of the refusal when no default level has been chosen yet.
+const NOT_CHOSEN: &str = "Choose where this workspace's content may be sent (Settings ▸ Privacy) before a tool sends anything. Nothing was sent.";
+
+/// The outcome of the outbound check for one call.
+pub(super) struct OutboundGate {
+    pub decision: OutboundDecision,
+    /// The text shown on the approval card when the call must be approved.
+    pub ask_reason: String,
+    /// The ledger object: destination class, host, level and the decision.
+    pub egress: Value,
+}
+
+impl OutboundGate {
+    /// The refusal for a call that must not run; `None` when it may run, possibly after approval.
+    pub(super) fn refusal(&self) -> Option<String> {
+        match &self.decision {
+            OutboundDecision::Deny(reason) => Some(reason.clone()),
+            OutboundDecision::NotChosen => Some(NOT_CHOSEN.to_string()),
+            OutboundDecision::Allow | OutboundDecision::Ask => None,
+        }
+    }
+
+    /// Whether the user must approve this call, whatever the policy and the standing grants say.
+    pub(super) fn requires_call_approval(&self) -> bool {
+        self.decision == OutboundDecision::Ask
+    }
+}
+
+impl RuntimeHost {
+    /// Decide an outbound tool call. `Ok(None)` for a tool that sends nothing off the machine.
+    /// `Err` is a failure to read the settings or to check the destination; nothing is run then.
+    pub(super) fn gate_outbound_tool(
+        &self,
+        call: &ToolCall,
+        metadata: Option<&ToolMetadata>,
+    ) -> Result<Option<OutboundGate>, String> {
+        let Some(metadata) = metadata else {
+            return Ok(None);
+        };
+        let category = metadata
+            .category
+            .as_deref()
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let declared = metadata.destination.as_deref();
+        if declared.is_none() && !GOVERNED_CATEGORIES.contains(&category.as_str()) {
+            return Ok(None);
+        }
+        // Hosts built without authorities are test hosts; the product always has them.
+        let Some(authorities) = self.authorities.clone() else {
+            return Ok(None);
+        };
+        let state_dir = authorities.state_dir().to_path_buf();
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        let level = egress::level_for(&state_dir, &workspace).map_err(|error| {
+            format!("The egress settings could not be read, so nothing was sent: {error}")
+        })?;
+
+        // An unknown or missing destination is `any_public`: the stricter class for every level.
+        let mut class = declared
+            .and_then(DestinationClass::parse)
+            .unwrap_or(DestinationClass::AnyPublic);
+        // A fixed URL (a remote MCP server) is judged by where it resolves, as a model endpoint is.
+        let host = match &metadata.destination_url {
+            Some(url) => {
+                if class == DestinationClass::FixedPublic {
+                    if let Ok(info) = egress::classify_endpoint(&state_dir, url) {
+                        if info.class == egress::EndpointClass::Private
+                            || info.class == egress::EndpointClass::MarkedPrivate
+                        {
+                            class = DestinationClass::Private;
+                        }
+                    }
+                }
+                egress::url_host(url)
+            }
+            None => call
+                .arguments
+                .get("url")
+                .and_then(Value::as_str)
+                .map(egress::url_host)
+                .unwrap_or_default(),
+        };
+        let mark = if host.is_empty() {
+            None
+        } else {
+            egress::endpoint_mark(&state_dir, &host).map_err(|error| {
+                format!("The endpoint marks could not be read, so nothing was sent: {error}")
+            })?
+        };
+        let target = OutboundTarget {
+            class,
+            host: host.clone(),
+            mark,
+        };
+        let decision = egress::decide_outbound(level, &target);
+        let effective = egress::effective_class(&target);
+        let egress_object = json!({
+            "class": effective.as_str(),
+            "host": host,
+            "level": level.map(EgressLevel::as_str),
+            "decision": decision_label(&decision),
+        });
+        let ask_reason = format!(
+            "This workspace asks each time: {} will send content to {}. Nothing is sent until you approve this call.",
+            call.name,
+            if target.host.is_empty() {
+                effective.as_str()
+            } else {
+                target.host.as_str()
+            }
+        );
+        Ok(Some(OutboundGate {
+            decision,
+            ask_reason,
+            egress: egress_object,
+        }))
+    }
+}
+
+fn decision_label(decision: &OutboundDecision) -> &'static str {
+    match decision {
+        OutboundDecision::Allow => "allowed",
+        OutboundDecision::Ask => "ask",
+        OutboundDecision::Deny(_) => "blocked",
+        OutboundDecision::NotChosen => "not_chosen",
+    }
+}

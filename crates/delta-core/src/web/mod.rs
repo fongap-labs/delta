@@ -35,7 +35,8 @@ pub const SEARCH_CONFIG_SECRET: &str = "web_search.config";
 fn web_metadata(capability: &str) -> Value {
     json!({
         "risk_level": "medium", "requires_approval": true,
-        "category": "web", "capabilities": [capability]
+        "category": "web", "capabilities": [capability],
+        "destination": "any_public"
     })
 }
 

@@ -1,6 +1,6 @@
 # ADR-0061: The workspace egress level also governs outbound tools
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet. Follows [ADR-0057](0057-workspace-sensitivity-model-egress.md). The owner decided that the egress level must also cover web search, remote MCP servers and connectors, in a separate ADR (2026-10-11).
+Status: **Accepted** (owner, 2026-10-11). Partly implemented: see [Implementation status](#implementation-status). Follows [ADR-0057](0057-workspace-sensitivity-model-egress.md). The owner decided that the egress level must also cover web search, remote MCP servers and connectors, in a separate ADR (2026-10-11).
 
 ## Context
 
@@ -135,3 +135,18 @@ ADR-0057 point 5 applies to outbound tools too: until the user has chosen a defa
 
 1. B accepted, with the destination classes and default rules above.
 2. Per-path overrides that loosen the level are allowed, with the confirmation and recording of point 3.
+
+## Implementation status
+
+Step 1 (runtime decision and ledger record):
+
+- Every outbound tool call is decided with the workspace level before it is proposed. A refused call does not run; a call that must be asked is approved for that call only, and standing grants and automatic approval do not apply to it.
+- Tools declare `destination`. Web tools and browser automation are `any_public`; remote HTTP MCP servers are `fixed_public` with their URL, judged by where they resolve; stdio MCP servers are `local_process`. A governed category (`web`, `mcp`) without a declared destination is `any_public`.
+- `tool.proposed` carries the `egress` object (`class`, `host`, `level`, `decision`).
+
+Deviations from the decision above, to be closed in step 2:
+
+- `web_search` is `any_public`, not `fixed_public`. Its engines come from a credential-store value that is not read at dispatch, so the gate cannot yet name the provider hosts. `any_public` is the stricter class: in *Approved endpoints* it asks for each call instead of allowing approved providers.
+- No per-path overrides and no *local-only* mark yet: a local process is refused in *Approved endpoints* and *Private only* until the user can mark it.
+- Refused tools are still offered to the model; the refusal happens at dispatch.
+- Suite connectors and the desktop override list are not yet part of this change.
