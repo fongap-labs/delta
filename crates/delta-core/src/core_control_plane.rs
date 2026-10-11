@@ -878,6 +878,41 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    /// Egress levels (ADR-0057): the settings, and the three changes only the user may make.
+    pub fn egress_settings(&self) -> Result<Value, String> {
+        crate::egress::settings(&self.state_dir).map_err(|error| error.to_string())
+    }
+
+    pub fn set_egress_default(&self, level: &str, is_confirmed: bool) -> Result<Value, String> {
+        let level = crate::egress::EgressLevel::parse(level)?;
+        crate::egress::set_default_level(&self.state_dir, level, is_confirmed)
+            .map_err(|error| error.to_string())
+    }
+
+    /// `level` is `None` to make the workspace follow the default again.
+    pub fn set_workspace_egress(
+        &self,
+        workspace: &str,
+        level: Option<&str>,
+        is_confirmed: bool,
+    ) -> Result<Value, String> {
+        let level = level.map(crate::egress::EgressLevel::parse).transpose()?;
+        crate::egress::set_workspace_level(&self.state_dir, workspace, level, is_confirmed)
+            .map_err(|error| error.to_string())
+    }
+
+    /// `mark` is `None` to remove the host's mark.
+    pub fn set_endpoint_mark(
+        &self,
+        host: &str,
+        mark: Option<&str>,
+        is_confirmed: bool,
+    ) -> Result<Value, String> {
+        let mark = mark.map(crate::egress::EndpointMark::parse).transpose()?;
+        crate::egress::set_endpoint_mark(&self.state_dir, host, mark, is_confirmed)
+            .map_err(|error| error.to_string())
+    }
+
     pub fn revert_session(&self, session_id: &str, index: usize) -> Result<Value, String> {
         control_plane::revert_session(&self.state_dir, session_id, index)
             .map_err(|error| error.to_string())
