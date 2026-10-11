@@ -521,6 +521,7 @@ export const en = {
   "transcript.planApproved": "Plan approved",
   "transcript.planFeedback": "Sent back with feedback",
   "transcript.retry": "Retry",
+  "transcript.resume": "Resume",
   "transcript.modelSwitchedTo": "Switched to {model}",
   "transcript.modelSwitchImageWarning": "earlier images can't be read by this model",
   "transcript.memoryUpdated": "I've updated what I remember",

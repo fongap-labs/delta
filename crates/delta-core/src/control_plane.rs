@@ -385,6 +385,27 @@ fn session_workspace(state_dir: &Path, session_id: &str) -> Result<String, Shado
     .map_err(ShadowReadError::from)
 }
 
+/// The model and mode a session was last run with, so a resumed run continues under the same
+/// settings instead of the caller supplying them again.
+pub fn get_session_model_and_mode(
+    state_dir: &Path,
+    session_id: &str,
+) -> Result<(String, String), ShadowReadError> {
+    let conn = open_conn(&state_dir.join("core.db"))?;
+    conn.query_row(
+        "SELECT model, mode FROM sessions WHERE session_id = ?1",
+        params![session_id],
+        |row| {
+            Ok((
+                row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                row.get::<_, Option<String>>(1)?
+                    .unwrap_or_else(|| "interactive".to_string()),
+            ))
+        },
+    )
+    .map_err(ShadowReadError::from)
+}
+
 pub fn get_session_workspace(
     state_dir: &Path,
     session_id: &str,

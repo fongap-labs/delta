@@ -522,6 +522,7 @@ export const zh: Record<TranslationKey, string> = {
   "transcript.planApproved": "计划已批准",
   "transcript.planFeedback": "已附反馈退回",
   "transcript.retry": "重试",
+  "transcript.resume": "恢复",
   "transcript.modelSwitchedTo": "已切换至 {model}",
   "transcript.modelSwitchImageWarning": "此模型无法读取之前的图片",
   "transcript.memoryUpdated": "我已更新记忆",

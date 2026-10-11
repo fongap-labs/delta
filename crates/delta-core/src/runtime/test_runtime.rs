@@ -2016,3 +2016,124 @@ fn resume_without_a_run_ledger_is_rejected() {
         .unwrap_err()
         .contains("ledger is unavailable"));
 }
+
+#[test]
+fn resume_after_a_restart_builds_the_runtime_from_the_persisted_session() {
+    let temp = tempfile::tempdir().unwrap();
+    let state_dir = temp.path();
+    let provider = MockProvider::start(1);
+    let models = crate::model_authority::ModelAuthority::open(state_dir).unwrap();
+    models
+        .set_provider(
+            "gateway",
+            Some("openai"),
+            &json!({"api_key": "k", "base_url": provider.base_url}),
+        )
+        .unwrap();
+    models.add_model("gateway:model-a").unwrap();
+
+    // The state of a session whose process died mid-run: a persisted session row, its messages and
+    // an interrupted run. No runtime handle exists; the new process builds one on resume.
+    let plane = crate::CoreControlPlane::open(state_dir).unwrap();
+    crate::control_plane::ensure_session(state_dir, "session-resume", None, "gateway:model-a")
+        .unwrap();
+    seed_session_run(
+        plane.runtime_authorities(),
+        "run-old",
+        Some("run.interrupted"),
+    );
+
+    assert_eq!(
+        plane.runtime_resumable("session-resume"),
+        json!({"resumable": true, "runId": "run-old"})
+    );
+    let accepted = plane.resume_runtime("session-resume", Arc::new(crate::NullSink));
+    assert_eq!(accepted["ok"], true, "{accepted}");
+    assert_eq!(accepted["runId"], "run-old");
+    provider
+        .first_response_started
+        .recv_timeout(Duration::from_secs(5))
+        .unwrap();
+    provider.release_first_response.send(()).unwrap();
+    for _ in 0..500 {
+        let status = plane
+            .runtime_authorities()
+            .ledger
+            .lock()
+            .unwrap()
+            .reader()
+            .unwrap()
+            .run_status("run-old")
+            .unwrap();
+        if status == "ok" {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    provider.finish();
+
+    let types: Vec<String> = run_events(plane.runtime_authorities(), "run-old")
+        .into_iter()
+        .map(|event| event.r#type)
+        .collect();
+    assert_eq!(
+        types.iter().filter(|kind| *kind == "run.started").count(),
+        1,
+        "{types:?}"
+    );
+    assert_eq!(
+        types.iter().filter(|kind| *kind == "run.resumed").count(),
+        1,
+        "{types:?}"
+    );
+    assert_eq!(types.last().map(String::as_str), Some("run.completed"));
+    assert_eq!(
+        plane.runtime_resumable("session-resume")["resumable"],
+        false
+    );
+}
+
+#[test]
+fn resume_through_the_control_plane_is_rejected_without_writing_when_nothing_is_interrupted() {
+    let temp = tempfile::tempdir().unwrap();
+    let plane = crate::CoreControlPlane::open(temp.path()).unwrap();
+    seed_session_run(
+        plane.runtime_authorities(),
+        "run-done",
+        Some("run.completed"),
+    );
+    let before = plane
+        .runtime_authorities()
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .all_events()
+        .unwrap()
+        .len();
+    let rejected = plane.resume_runtime("session-resume", Arc::new(crate::NullSink));
+    assert_eq!(rejected["ok"], false);
+    assert!(
+        rejected["error"]
+            .as_str()
+            .unwrap()
+            .contains("not interrupted"),
+        "{rejected}"
+    );
+    let after = plane
+        .runtime_authorities()
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .all_events()
+        .unwrap()
+        .len();
+    assert_eq!(before, after);
+    assert_eq!(
+        plane.runtime_resumable("session-resume")["resumable"],
+        false
+    );
+}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Transcript } from "./Transcript";
+import { interruptedAnchor, Transcript } from "./Transcript";
 import { humanizeTool } from "../humanize";
 import { I18nProvider } from "@delta/i18n/I18nContext";
 import type { Item } from "../types";
@@ -266,5 +266,47 @@ describe("humanizeTool", () => {
   it("still renders pre-rename todo_write histories (legacy `items` key)", () => {
     const line = humanizeTool("todo_write", { items: [{ content: "Old plan", status: "pending" }] });
     expect(line.obj).toContain("Old plan");
+  });
+});
+
+describe("Resume on the Interrupted notice", () => {
+  const INTERRUPTED: Item[] = [
+    { kind: "user", text: "build the report" },
+    { kind: "notice", tone: "warn", text: "Interrupted." },
+  ];
+
+  it("offers Resume only when the runtime said it can and the session is idle", () => {
+    const onResume = vi.fn();
+    renderTranscript(<Transcript items={INTERRUPTED} onApprove={vi.fn()} canResume onResume={onResume} />);
+    fireEvent.click(screen.getByTestId("notice-resume"));
+    expect(onResume).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows no button when the runtime has not confirmed, or while a run is going", () => {
+    const { rerender } = renderTranscript(<Transcript items={INTERRUPTED} onApprove={vi.fn()} onResume={vi.fn()} />);
+    expect(screen.queryByTestId("notice-resume")).toBeNull();
+    rerender(
+      <I18nProvider locale="en-US">
+        <Transcript items={INTERRUPTED} onApprove={vi.fn()} canResume running onResume={vi.fn()} />
+      </I18nProvider>,
+    );
+    expect(screen.queryByTestId("notice-resume")).toBeNull();
+  });
+
+  it("is only the tail notice: an older interruption is history", () => {
+    const later: Item[] = [...INTERRUPTED, { kind: "user", text: "ok, new question" }, { kind: "assistant", text: "Sure." }];
+    expect(interruptedAnchor(later)).toBe(-1);
+    renderTranscript(<Transcript items={later} onApprove={vi.fn()} canResume onResume={vi.fn()} />);
+    expect(screen.queryByTestId("notice-resume")).toBeNull();
+  });
+
+  it("looks through a model-switch marker after the interruption, like Retry does", () => {
+    const items: Item[] = [...INTERRUPTED, { kind: "notice", tone: "info", text: "Model switched", modelSwitchModel: "m2" }];
+    expect(interruptedAnchor(items)).toBe(1);
+  });
+
+  it("an error notice is not an interruption", () => {
+    const items: Item[] = [{ kind: "notice", tone: "warn", text: "Error: boom", retriable: true }];
+    expect(interruptedAnchor(items)).toBe(-1);
   });
 });
