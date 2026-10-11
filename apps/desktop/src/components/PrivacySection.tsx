@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import {
   EGRESS_LEVELS,
   getEgressSettings,
+  getMcpServers,
   pickWorkspaceFolder,
   setEgressDefault,
   setEndpointMark,
+  setLocalOnly,
   setWorkspaceEgress,
   type EgressChange,
   type EgressLevel,
@@ -111,6 +113,7 @@ export function PrivacySection() {
   const [hasFailed, setFailed] = useState(false);
   const [host, setHost] = useState("");
   const [mark, setMark] = useState<EndpointMark>("approved");
+  const [localServers, setLocalServers] = useState<string[]>([]);
   const { run, dialog, error } = useConfirmedChange(setSettings);
 
   const load = () => {
@@ -120,6 +123,14 @@ export function PrivacySection() {
       .catch(() => setFailed(true));
   };
   useEffect(load, []);
+  useEffect(() => {
+    // Only local (stdio) servers can carry the mark; a remote server is judged by its address.
+    getMcpServers()
+      .then((servers) =>
+        setLocalServers(servers.filter((server) => server.transport === "stdio").map((server) => server.name)),
+      )
+      .catch(() => setLocalServers([]));
+  }, []);
 
   if (hasFailed && !settings) return <LoadError what={t("egress.what")} onRetry={load} />;
   if (!settings) return null;
@@ -230,6 +241,28 @@ export function PrivacySection() {
             {t("egress.endpoints.add")}
           </button>
         </div>
+      </section>
+
+      <section className={CARD}>
+        <div className="text-[13.5px] font-semibold">{t("egress.localOnly.title")}</div>
+        <div className="text-[12px] text-muted mt-1 mb-3">{t("egress.localOnly.sub")}</div>
+        {localServers.length === 0 ? (
+          <div className="text-[12.5px] text-muted">{t("egress.localOnly.empty")}</div>
+        ) : (
+          localServers.map((server) => (
+            <label key={server} className="flex items-center gap-2 py-1.5" data-testid="egress-local-server">
+              <span className="flex-1 min-w-0 text-[12.5px] break-all">{server}</span>
+              <input
+                type="checkbox"
+                checked={settings.local_only_servers.includes(server)}
+                onChange={(e) =>
+                  void run((isConfirmed) => setLocalOnly(server, e.target.checked, isConfirmed))
+                }
+              />
+              <span className="text-[12px] text-muted">{t("egress.localOnly.label")}</span>
+            </label>
+          ))
+        )}
       </section>
     </div>
   );

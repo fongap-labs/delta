@@ -566,6 +566,19 @@ pub fn set_endpoint_mark(
 }
 
 #[tauri::command]
+pub fn set_local_only(
+    state: State<'_, RuntimeRegistry>,
+    server: String,
+    is_local_only: bool,
+    is_confirmed: bool,
+) -> Value {
+    match state.set_local_only(&server, is_local_only, is_confirmed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
 pub fn session_revert(
     state: State<'_, RuntimeRegistry>,
     session_id: String,
