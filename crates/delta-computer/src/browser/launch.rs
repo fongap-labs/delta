@@ -22,6 +22,8 @@ pub struct Settings {
     pub allow_loopback: bool,
     /// Close the browser after this long without a browser tool call.
     pub idle_timeout: Duration,
+    /// How long a cold start may take before the launch is reported as failed.
+    pub launch_timeout: Duration,
 }
 
 impl Default for Settings {
@@ -32,6 +34,7 @@ impl Default for Settings {
             extra_args: Vec::new(),
             allow_loopback: false,
             idle_timeout: Duration::from_secs(10 * 60),
+            launch_timeout: Duration::from_secs(20),
         }
     }
 }
@@ -186,7 +189,7 @@ pub fn launch(settings: &Settings, profile: &Path) -> Result<(Process, Endpoint)
         _job: job,
     };
 
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + settings.launch_timeout;
     loop {
         if let Some(endpoint) = read_endpoint(&port_file) {
             return Ok((process, endpoint));

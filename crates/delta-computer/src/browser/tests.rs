@@ -27,6 +27,13 @@ fn test_browser() -> Option<PathBuf> {
     })
 }
 
+/// Cold-starting Chromium takes seconds on a loaded CI runner, and the launch gives up after 20 s.
+/// The tests that start a browser run one at a time so their launches do not compete for the CPU.
+fn one_browser_at_a_time() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 fn settings(executable: PathBuf) -> Settings {
     Settings {
         executable: Some(executable),
@@ -36,6 +43,8 @@ fn settings(executable: PathBuf) -> Settings {
             .to_vec(),
         allow_loopback: true,
         idle_timeout: Duration::from_secs(600),
+        // A cold start on a loaded CI runner can take well over the product's 20 seconds.
+        launch_timeout: Duration::from_secs(90),
     }
 }
 
@@ -235,6 +244,7 @@ fn the_agent_can_browse_fill_in_and_submit_a_form() {
         eprintln!("no browser installed; skipping");
         return;
     };
+    let _serial = one_browser_at_a_time();
     let port = serve();
     let rig = rig(settings(executable));
     let base = format!("http://127.0.0.1:{port}");
@@ -359,6 +369,7 @@ fn the_browser_refuses_addresses_on_the_users_own_network() {
         eprintln!("no browser installed; skipping");
         return;
     };
+    let _serial = one_browser_at_a_time();
     let port = serve();
     let rig = rig(Settings {
         allow_loopback: false,
@@ -381,6 +392,7 @@ fn the_browser_closes_itself_when_unused_and_comes_back_when_needed() {
         eprintln!("no browser installed; skipping");
         return;
     };
+    let _serial = one_browser_at_a_time();
     let port = serve();
     let rig = rig(Settings {
         idle_timeout: Duration::from_secs(1),

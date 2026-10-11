@@ -137,6 +137,7 @@ impl RuntimeHost {
             api_key: self.config.api_key.clone(),
             base_url: self.config.base_url.clone(),
             timeout_secs: self.config.ttft_timeout,
+            pinned_addrs: Vec::new(),
         }
     }
 
@@ -273,6 +274,8 @@ impl RuntimeHost {
     pub(super) fn loop_turn(&mut self) -> Result<String, String> {
         let mut iterations = 0usize;
         let mut turn_retries = 0u32;
+        // An *Ask each time* confirmation covers one run; a resumed or retried run asks again.
+        let mut is_egress_confirmed = false;
         loop {
             self.ensure_event_delivery()?;
             if iterations >= self.config.max_iterations {
@@ -296,7 +299,23 @@ impl RuntimeHost {
             // provider-only token and interrupts the live stream.
             self.provider_cancel.store(false, Ordering::SeqCst);
             self.drain_steering();
-            let req = self.build_request();
+            let mut req = self.build_request();
+            match self.gate_model_request(&req, iterations, &mut is_egress_confirmed) {
+                Ok(pinned) => req.pinned_addrs = pinned,
+                Err(error) => {
+                    self.messages.push(
+                        json!({"role": "notice", "kind": "error", "text": &error, "ts": now_ts()}),
+                    );
+                    self.emit_event(RuntimeEvent::Error {
+                        error: error.clone(),
+                        error_type: "egress".to_string(),
+                        terminal: true,
+                        retry: None,
+                    });
+                    self.ensure_event_delivery()?;
+                    return Err(error);
+                }
+            }
             let mut turn: Option<AssistantTurn> = None;
             let mut streamed_text: Vec<String> = Vec::new();
             let mut streamed_reasoning: Vec<String> = Vec::new();

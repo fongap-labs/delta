@@ -10,7 +10,7 @@
 //! closed and is never overwritten.
 
 use std::collections::BTreeMap;
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -347,47 +347,70 @@ pub enum EndpointClass {
     Public,
 }
 
+/// A classified endpoint and, when its class came from its addresses, the addresses that were
+/// checked. A connection that relies on the class must use exactly these addresses.
+#[derive(Debug, Clone)]
+pub struct EndpointInfo {
+    pub host: String,
+    pub class: EndpointClass,
+    pub addrs: Vec<SocketAddr>,
+}
+
+impl EndpointClass {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Private => "private",
+            Self::MarkedPrivate => "marked_private",
+            Self::Approved => "approved",
+            Self::Public => "public",
+        }
+    }
+}
+
 /// Classify the endpoint at `base_url`. Names are resolved here; a name that cannot be resolved is
-/// an error, never "private". The model transport must later connect to the addresses checked here.
-pub fn classify_endpoint(
-    state_dir: &Path,
-    base_url: &str,
-) -> Result<(String, EndpointClass), String> {
+/// an error, never "private".
+pub fn classify_endpoint(state_dir: &Path, base_url: &str) -> Result<EndpointInfo, String> {
     let url = Url::parse(base_url.trim()).map_err(|_| "endpoint url is not valid".to_owned())?;
-    let host_text = url
+    let host = url
         .host_str()
         .ok_or_else(|| "endpoint url has no host".to_owned())?
         .trim_end_matches('.')
         .to_ascii_lowercase();
     let authority = load(state_dir).map_err(|error| error.to_string())?;
-    match authority.endpoint_marks.get(&host_text) {
-        Some(EndpointMark::Private) => return Ok((host_text, EndpointClass::MarkedPrivate)),
-        Some(EndpointMark::Approved) => return Ok((host_text, EndpointClass::Approved)),
-        None => {}
+    let marked = match authority.endpoint_marks.get(&host) {
+        Some(EndpointMark::Private) => Some(EndpointClass::MarkedPrivate),
+        Some(EndpointMark::Approved) => Some(EndpointClass::Approved),
+        None => None,
+    };
+    if let Some(class) = marked {
+        return Ok(EndpointInfo {
+            host,
+            class,
+            addrs: Vec::new(),
+        });
     }
-    let addresses: Vec<IpAddr> = match url.host() {
-        Some(Host::Ipv4(ip)) => vec![IpAddr::V4(ip)],
-        Some(Host::Ipv6(ip)) => vec![IpAddr::V6(ip)],
-        Some(Host::Domain(name)) => {
-            let port = url.port_or_known_default().unwrap_or(443);
-            (name, port)
-                .to_socket_addrs()
-                .map_err(|error| format!("could not resolve {name}: {error}"))?
-                .map(|addr| addr.ip())
-                .collect()
-        }
+    let port = url
+        .port_or_known_default()
+        .ok_or_else(|| "endpoint url has no port".to_owned())?;
+    let addrs: Vec<SocketAddr> = match url.host() {
+        Some(Host::Ipv4(ip)) => vec![SocketAddr::new(IpAddr::V4(ip), port)],
+        Some(Host::Ipv6(ip)) => vec![SocketAddr::new(IpAddr::V6(ip), port)],
+        Some(Host::Domain(name)) => (name, port)
+            .to_socket_addrs()
+            .map_err(|error| format!("could not resolve {name}: {error}"))?
+            .collect(),
         None => return Err("endpoint url has no host".to_owned()),
     };
-    let is_private = !addresses.is_empty()
-        && addresses
+    let is_private = !addrs.is_empty()
+        && addrs
             .iter()
-            .all(|ip| blocked_reason(*ip, AddressPolicy::STRICT).is_some());
+            .all(|addr| blocked_reason(addr.ip(), AddressPolicy::STRICT).is_some());
     let class = if is_private {
         EndpointClass::Private
     } else {
         EndpointClass::Public
     };
-    Ok((host_text, class))
+    Ok(EndpointInfo { host, class, addrs })
 }
 
 /// What may happen with a model request.
@@ -530,10 +553,9 @@ mod tests {
             true,
         )
         .unwrap();
-        let (host, class) =
-            classify_endpoint(dir.path(), "https://gateway.example.com/v1").unwrap();
-        assert_eq!(host, "gateway.example.com");
-        assert_eq!(class, EndpointClass::Approved);
+        let info = classify_endpoint(dir.path(), "https://gateway.example.com/v1").unwrap();
+        assert_eq!(info.host, "gateway.example.com");
+        assert_eq!(info.class, EndpointClass::Approved);
         let removed = set_endpoint_mark(dir.path(), "gateway.example.com", None, false).unwrap();
         assert_eq!(removed["ok"], true);
     }
@@ -549,16 +571,14 @@ mod tests {
             "http://[fd00::1]/v1",
             "http://localhost:11434",
         ] {
-            assert_eq!(
-                classify_endpoint(dir.path(), url).unwrap().1,
-                EndpointClass::Private,
-                "{url}"
-            );
+            let info = classify_endpoint(dir.path(), url).unwrap();
+            assert_eq!(info.class, EndpointClass::Private, "{url}");
+            assert!(!info.addrs.is_empty(), "{url}");
         }
         assert_eq!(
             classify_endpoint(dir.path(), "https://8.8.8.8/v1")
                 .unwrap()
-                .1,
+                .class,
             EndpointClass::Public
         );
     }
@@ -576,7 +596,7 @@ mod tests {
         assert_eq!(
             classify_endpoint(dir.path(), "https://llm.corp.example/v1")
                 .unwrap()
-                .1,
+                .class,
             EndpointClass::MarkedPrivate
         );
     }

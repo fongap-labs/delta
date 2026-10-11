@@ -37,6 +37,7 @@ use crate::LedgerWriter;
 
 mod handle;
 pub(crate) use handle::interrupted_run_of;
+mod egress_gate;
 mod human_control;
 mod model_turn;
 mod tool_execution;
@@ -437,6 +438,9 @@ impl ToolExecutor for UnavailableToolExecutor {
 /// controls remain independent.
 #[derive(Clone)]
 pub struct RuntimeAuthorities {
+    /// The state directory these authorities live in; the egress authority (ADR-0057) is read
+    /// from it before every model request.
+    state_dir: PathBuf,
     ledger: Arc<Mutex<LedgerWriter>>,
     idempotency: Arc<Mutex<IdempotencyWriter>>,
     approvals: Arc<Mutex<ApprovalWriter>>,
@@ -448,6 +452,7 @@ impl RuntimeAuthorities {
         let state_dir = state_dir.as_ref();
         fs::create_dir_all(state_dir).map_err(|error| error.to_string())?;
         Ok(Self {
+            state_dir: state_dir.to_path_buf(),
             ledger: Arc::new(Mutex::new(
                 LedgerWriter::open(state_dir.join("run_events.db"))
                     .map_err(|error| error.to_string())?,
@@ -465,6 +470,10 @@ impl RuntimeAuthorities {
                     .map_err(|error| error.to_string())?,
             ),
         })
+    }
+
+    pub fn state_dir(&self) -> &Path {
+        &self.state_dir
     }
 
     pub fn ledger(&self) -> Arc<Mutex<LedgerWriter>> {

@@ -198,7 +198,15 @@ read_at       RFC 3339 时间
 - 端点分类：用户标记优先；否则解析主机地址，全部地址都在本机或私有网络才算私有，混合或无法解析都不算私有；
 - 判定：`open` 放行；`ask_each_time` 每次运行确认一次；`approved_endpoints` 放行已批准、私有或标记为私有的端点；`private_only` 只放行私有或标记为私有的端点。
 
-对模型请求和出站工具的执行点、`model.request` 账本事件，随各自实现 PR 补充到本节。
+模型请求的执行点（ADR-0057）：
+
+- 每次模型请求前，Runtime 按工作区档位判定端点；未选择档位、被拒绝或用户未确认时，请求不发出，Run 以 `egress` 错误结束（`run.failed`），并写入 `model.request_refused`（端点主机、模型、档位、原因，不含内容）；
+- `ask_each_time` 通过正常审批路径确认，每次 Run 一次（恢复或重试的 Run 重新确认），无人值守的 Run 停在 Inbox；长期授权不适用；
+- 无人值守的 Run 被拒绝时，同时在 Inbox 留一条 `notice`（每个会话、每种原因一条）；
+- 判定依赖端点地址时（`private_only`、`approved_endpoints` 下的私有端点），连接固定到判定时检查过的地址，不再重新解析；
+- 每次发出的请求写入 `model.request`：`iteration`、`endpoint`（主机）、`endpoint_class`、`model`、`protocol`、`level`、`bytes`（消息体大小）、`sources`（本 Run 已读来源的 `source_id` 与 SHA-256）。它不包含消息内容，也不声称某个来源的内容一定在这次请求里。
+
+出站工具的执行点随 ADR-0061 的实现 PR 补充到本节。
 
 ## 4. Transport 与 IPC
 
