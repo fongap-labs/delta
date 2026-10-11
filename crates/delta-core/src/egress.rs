@@ -9,7 +9,7 @@
 //! the valid first-run state; a file that cannot be read or does not match the expected shape fails
 //! closed and is never overwritten.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
@@ -19,6 +19,7 @@ use url::{Host, Url};
 
 use crate::approval::{ApprovalRecordInput, ApprovalWriter};
 use crate::durability::atomic_write_private;
+use crate::policy::ToolMetadata;
 use crate::web::guard::{blocked_reason, AddressPolicy};
 use crate::ShadowReadError;
 
@@ -92,6 +93,9 @@ struct Authority {
     /// Lower-case host -> mark.
     #[serde(default)]
     endpoint_marks: BTreeMap<String, EndpointMark>,
+    /// Local MCP servers the user has stated do not reach the network (ADR-0061).
+    #[serde(default)]
+    local_only_servers: BTreeSet<String>,
 }
 
 fn authority_path(state_dir: &Path) -> PathBuf {
@@ -221,6 +225,7 @@ pub fn settings(state_dir: &Path) -> Result<Value, ShadowReadError> {
         "is_chosen": authority.default_level.is_some(),
         "workspaces": workspaces,
         "endpoint_marks": marks,
+        "local_only_servers": authority.local_only_servers,
     }))
 }
 
@@ -330,6 +335,45 @@ pub fn set_endpoint_mark(
         state_dir,
         "",
         json!({"scope": "endpoint", "host": host, "from": from, "to": mark, "confirmed": is_confirmed}),
+    );
+    settings(state_dir)
+}
+
+/// Whether the user stated that the local MCP server `server` does not reach the network.
+pub fn is_local_only(state_dir: &Path, server: &str) -> Result<bool, ShadowReadError> {
+    Ok(load(state_dir)?.local_only_servers.contains(server))
+}
+
+/// Mark a local MCP server as local-only, or remove the mark. The mark is the user's statement
+/// (ADR-0061); Delta does not verify it. Marking lets the server run in *Approved endpoints* and
+/// *Private only* workspaces, so it must be confirmed; removing the mark takes effect at once.
+pub fn set_local_only(
+    state_dir: &Path,
+    server: &str,
+    is_local_only: bool,
+    is_confirmed: bool,
+) -> Result<Value, ShadowReadError> {
+    let server = server.trim();
+    if server.is_empty() {
+        return Err(ShadowReadError::Parse(
+            "the local server name is empty".to_owned(),
+        ));
+    }
+    let mut authority = load(state_dir)?;
+    let was_local_only = authority.local_only_servers.contains(server);
+    if is_local_only && !was_local_only && !is_confirmed {
+        return Ok(needs_confirmation("marking this server as local-only"));
+    }
+    if is_local_only {
+        authority.local_only_servers.insert(server.to_owned());
+    } else {
+        authority.local_only_servers.remove(server);
+    }
+    save(state_dir, &authority)?;
+    record_change(
+        state_dir,
+        "",
+        json!({"scope": "local_only", "server": server, "from": was_local_only, "to": is_local_only, "confirmed": is_confirmed}),
     );
     settings(state_dir)
 }
@@ -499,6 +543,8 @@ pub struct OutboundTarget {
     pub host: String,
     /// The user's mark for the host, if there is one.
     pub mark: Option<EndpointMark>,
+    /// For a local process: the user stated it does not reach the network.
+    pub local_only: bool,
 }
 
 /// What may happen with an outbound tool call.
@@ -533,6 +579,9 @@ pub fn endpoint_mark(
     Ok(load(state_dir)?.endpoint_marks.get(host).copied())
 }
 
+/// Governed categories: tools in them reach outside the machine unless they declare otherwise.
+const GOVERNED_CATEGORIES: &[&str] = &["web", "mcp"];
+
 /// The class the rules of every level see: a host the user marked private is private (ADR-0057).
 pub fn effective_class(target: &OutboundTarget) -> DestinationClass {
     match (target.class, target.mark) {
@@ -557,13 +606,94 @@ pub fn decide_outbound(level: Option<EgressLevel>, target: &OutboundTarget) -> O
         EgressLevel::ApprovedEndpoints => match class {
             DestinationClass::Private => OutboundDecision::Allow,
             DestinationClass::FixedPublic if approved => OutboundDecision::Allow,
+            DestinationClass::LocalProcess if target.local_only => OutboundDecision::Allow,
             DestinationClass::AnyPublic => OutboundDecision::Ask,
             _ => OutboundDecision::Deny(outbound_refusal(level, class)),
         },
         EgressLevel::PrivateOnly => match class {
             DestinationClass::Private => OutboundDecision::Allow,
+            DestinationClass::LocalProcess if target.local_only => OutboundDecision::Allow,
             _ => OutboundDecision::Deny(outbound_refusal(level, class)),
         },
+    }
+}
+
+/// The outbound target of a tool call, or `None` for a tool that sends nothing off the machine
+/// (ADR-0061). A tool in a governed category without a declared destination is `any_public`.
+/// `arguments` is `None` when the call is not known yet, as when the model is offered the tool.
+pub fn outbound_target(
+    state_dir: &Path,
+    metadata: &ToolMetadata,
+    arguments: Option<&Value>,
+) -> Result<Option<OutboundTarget>, String> {
+    let category = metadata
+        .category
+        .as_deref()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let declared = metadata.destination.as_deref();
+    if declared.is_none() && !GOVERNED_CATEGORIES.contains(&category.as_str()) {
+        return Ok(None);
+    }
+    let mut class = declared
+        .and_then(DestinationClass::parse)
+        .unwrap_or(DestinationClass::AnyPublic);
+    // A fixed URL (a remote MCP server) is judged by where it resolves, as a model endpoint is.
+    let host = match &metadata.destination_url {
+        Some(url) => {
+            if class == DestinationClass::FixedPublic {
+                if let Ok(info) = classify_endpoint(state_dir, url) {
+                    if matches!(
+                        info.class,
+                        EndpointClass::Private | EndpointClass::MarkedPrivate
+                    ) {
+                        class = DestinationClass::Private;
+                    }
+                }
+            }
+            url_host(url)
+        }
+        None => arguments
+            .and_then(|arguments| arguments.get("url"))
+            .and_then(Value::as_str)
+            .map(url_host)
+            .unwrap_or_default(),
+    };
+    let local_only = match (&metadata.server, class) {
+        (Some(server), DestinationClass::LocalProcess) => is_local_only(state_dir, server)
+            .map_err(|error| {
+                format!("The local server marks could not be read, so nothing was sent: {error}")
+            })?,
+        _ => false,
+    };
+    let mark = if host.is_empty() {
+        None
+    } else {
+        endpoint_mark(state_dir, &host).map_err(|error| {
+            format!("The endpoint marks could not be read, so nothing was sent: {error}")
+        })?
+    };
+    Ok(Some(OutboundTarget {
+        class,
+        host,
+        mark,
+        local_only,
+    }))
+}
+
+/// Whether the model is offered `metadata`'s tool in `workspace`: a tool the level refuses for
+/// every call is not offered at all. Errors hide the tool.
+pub fn offered_to_model(state_dir: &Path, workspace: &str, metadata: &ToolMetadata) -> bool {
+    let Ok(level) = level_for(state_dir, workspace) else {
+        return false;
+    };
+    match outbound_target(state_dir, metadata, None) {
+        Ok(None) => true,
+        Ok(Some(target)) => !matches!(
+            decide_outbound(level, &target),
+            OutboundDecision::Deny(_) | OutboundDecision::NotChosen
+        ),
+        Err(_) => false,
     }
 }
 
@@ -594,7 +724,99 @@ mod tests {
             class,
             host: "example.test".to_owned(),
             mark,
+            local_only: false,
         }
+    }
+
+    fn metadata(category: &str, destination: Option<&str>) -> ToolMetadata {
+        ToolMetadata {
+            risk_level: Some("medium".to_owned()),
+            requires_approval: Some(true),
+            category: Some(category.to_owned()),
+            capabilities: Some(Vec::new()),
+            destination: destination.map(str::to_owned),
+            destination_url: None,
+            server: Some("notes".to_owned()),
+        }
+    }
+
+    #[test]
+    fn a_local_server_marked_local_only_runs_in_the_restrictive_levels() {
+        let local = |local_only| OutboundTarget {
+            local_only,
+            ..target(DestinationClass::LocalProcess, None)
+        };
+        for level in [EgressLevel::ApprovedEndpoints, EgressLevel::PrivateOnly] {
+            assert!(matches!(
+                decide_outbound(Some(level), &local(false)),
+                OutboundDecision::Deny(_)
+            ));
+            assert_eq!(
+                decide_outbound(Some(level), &local(true)),
+                OutboundDecision::Allow
+            );
+        }
+    }
+
+    #[test]
+    fn marking_a_local_server_needs_confirmation_and_removing_the_mark_does_not() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        let asked = set_local_only(state, "notes", true, false).unwrap();
+        assert_eq!(asked["needs_confirmation"], true);
+        assert!(!is_local_only(state, "notes").unwrap());
+
+        set_local_only(state, "notes", true, true).unwrap();
+        assert!(is_local_only(state, "notes").unwrap());
+        assert_eq!(settings(state).unwrap()["local_only_servers"][0], "notes");
+
+        // Removing the mark tightens at once.
+        set_local_only(state, "notes", false, false).unwrap();
+        assert!(!is_local_only(state, "notes").unwrap());
+        assert!(set_local_only(state, "  ", true, true).is_err());
+    }
+
+    #[test]
+    fn outbound_target_reads_the_local_only_mark_for_the_server() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        let stdio = metadata("mcp", Some("local_process"));
+        let target = outbound_target(state, &stdio, None).unwrap().unwrap();
+        assert!(!target.local_only);
+        set_local_only(state, "notes", true, true).unwrap();
+        let target = outbound_target(state, &stdio, None).unwrap().unwrap();
+        assert!(target.local_only);
+        assert_eq!(target.class, DestinationClass::LocalProcess);
+        // A tool outside the outbound categories has no target.
+        assert!(outbound_target(state, &metadata("read", None), None)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn a_tool_the_level_refuses_for_every_call_is_not_offered_to_the_model() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path();
+        let workspace = "";
+        let web = metadata("web", Some("any_public"));
+        let stdio = metadata("mcp", Some("local_process"));
+        let local_read = metadata("read", None);
+
+        // No chosen level: outbound tools are not offered; nothing outside them is hidden.
+        assert!(!offered_to_model(state, workspace, &web));
+        assert!(offered_to_model(state, workspace, &local_read));
+
+        set_default_level(state, EgressLevel::PrivateOnly, false).unwrap();
+        assert!(!offered_to_model(state, workspace, &web));
+        assert!(!offered_to_model(state, workspace, &stdio));
+        assert!(offered_to_model(state, workspace, &local_read));
+
+        set_local_only(state, "notes", true, true).unwrap();
+        assert!(offered_to_model(state, workspace, &stdio));
+
+        // Ask each time offers every outbound tool: each call is asked, not refused.
+        set_default_level(state, EgressLevel::AskEachTime, true).unwrap();
+        assert!(offered_to_model(state, workspace, &web));
     }
 
     #[test]

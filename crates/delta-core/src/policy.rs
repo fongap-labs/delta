@@ -89,6 +89,9 @@ pub struct ToolMetadata {
     /// The fixed URL an outbound tool calls, when it has one (a remote MCP server).
     #[serde(default)]
     pub destination_url: Option<String>,
+    /// The MCP server a tool belongs to; a local server may carry the user's local-only mark.
+    #[serde(default)]
+    pub server: Option<String>,
 }
 
 /// A permission decision from the PermissionEngine.
@@ -613,6 +616,7 @@ mod tests {
             capabilities: Some(vec![]),
             destination: None,
             destination_url: None,
+            server: None,
         }
     }
 
@@ -907,6 +911,7 @@ mod tests {
             capabilities: Some(vec!["file.read".to_string()]),
             destination: None,
             destination_url: None,
+            server: None,
         }
     }
 
@@ -918,6 +923,7 @@ mod tests {
             capabilities: Some(vec!["file.write".to_string()]),
             destination: None,
             destination_url: None,
+            server: None,
         }
     }
 
@@ -929,6 +935,7 @@ mod tests {
             capabilities: Some(vec!["message.send".to_string()]),
             destination: None,
             destination_url: None,
+            server: None,
         }
     }
 

@@ -2846,3 +2846,38 @@ fn a_tool_that_sends_nothing_off_the_machine_runs_under_private_only() {
         .expect("the proposal is recorded");
     assert!(proposed.payload["egress"].is_null());
 }
+
+#[test]
+fn a_local_server_the_user_marked_local_only_runs_under_private_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let contract = json!([{
+        "type": "function",
+        "function": {
+            "name": "notes_search",
+            "parameters": {"type": "object", "properties": {}},
+            "metadata": {
+                "risk_level": "low",
+                "requires_approval": false,
+                "category": "mcp",
+                "capabilities": ["mcp"],
+                "destination": "local_process",
+                "server": "notes"
+            }
+        }
+    }]);
+    let (host, _authorities) = outbound_host(
+        temp.path(),
+        Some(crate::egress::EgressLevel::PrivateOnly),
+        contract,
+        calls.clone(),
+    );
+    crate::egress::set_local_only(temp.path(), "notes", true, true).unwrap();
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-notes".to_string(),
+        name: "notes_search".to_string(),
+        arguments: json!({}),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}

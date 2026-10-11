@@ -21,7 +21,7 @@ use crate::mcp::McpStore;
 use crate::mcp_runtime::McpRuntime;
 use crate::memory::MemoryStore;
 use crate::model_authority::ModelAuthority;
-use crate::policy::ExecutionMode;
+use crate::policy::{ExecutionMode, ToolMetadata};
 use crate::runtime::{
     EventSink, RecoveryReport, RuntimeAuthorities, RuntimeConfig, RuntimeHandle, RuntimeHost,
     ToolCall, ToolExecutionContext, ToolExecutor, ToolExitState,
@@ -588,7 +588,17 @@ impl CoreControlPlane {
             }
         }
 
+        // A tool the egress level refuses for every call is not offered to the model (ADR-0061).
+        let workspace = config.workspace.clone().unwrap_or_default();
         let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
+            let offered = serde_json::from_value::<ToolMetadata>(registration.metadata.clone())
+                .map(|metadata| {
+                    crate::egress::offered_to_model(&self.state_dir, &workspace, &metadata)
+                })
+                .unwrap_or(false);
+            if !offered {
+                return false;
+            }
             let Some(connector) = registration
                 .metadata
                 .get("connector")
@@ -917,6 +927,17 @@ impl CoreControlPlane {
     ) -> Result<Value, String> {
         let mark = mark.map(crate::egress::EndpointMark::parse).transpose()?;
         crate::egress::set_endpoint_mark(&self.state_dir, host, mark, is_confirmed)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Mark a local MCP server as local-only, or remove the mark (ADR-0061).
+    pub fn set_local_only(
+        &self,
+        server: &str,
+        is_local_only: bool,
+        is_confirmed: bool,
+    ) -> Result<Value, String> {
+        crate::egress::set_local_only(&self.state_dir, server, is_local_only, is_confirmed)
             .map_err(|error| error.to_string())
     }
 

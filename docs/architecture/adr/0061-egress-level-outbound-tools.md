@@ -147,6 +147,7 @@ Step 1 (runtime decision and ledger record):
 Deviations from the decision above, to be closed in step 2:
 
 - `web_search` is `any_public`, not `fixed_public`. Its engines come from a credential-store value that is not read at dispatch, so the gate cannot yet name the provider hosts. `any_public` is the stricter class: in *Approved endpoints* it asks for each call instead of allowing approved providers.
-- No per-path overrides and no *local-only* mark yet: a local process is refused in *Approved endpoints* and *Private only* until the user can mark it.
-- Refused tools are still offered to the model; the refusal happens at dispatch.
-- Suite connectors and the desktop override list are not yet part of this change.
+- Local MCP servers can be marked *local-only* (`set_local_only`, with confirmation). The mark is stored in the egress authority and read by the gate. The desktop command and settings screen are not yet part of this change, so a user cannot set the mark from the app.
+- Tools that the level refuses for every call are not offered to the model (`offered_to_model`). A call refused for a particular target is still refused at dispatch.
+- No per-path overrides yet, and no desktop override list.
+- Suite connectors do not declare their destinations yet.

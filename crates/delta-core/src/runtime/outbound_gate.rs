@@ -8,12 +8,8 @@
 
 use super::*;
 
-use crate::egress::{self, DestinationClass, EgressLevel, OutboundDecision, OutboundTarget};
+use crate::egress::{self, EgressLevel, OutboundDecision};
 use crate::policy::ToolMetadata;
-
-/// Categories whose tools reach outside the machine. A tool in one of them that declares no
-/// destination is treated as `any_public` (fail closed).
-const GOVERNED_CATEGORIES: &[&str] = &["web", "mcp"];
 
 /// The text of the refusal when no default level has been chosen yet.
 const NOT_CHOSEN: &str = "Choose where this workspace's content may be sent (Settings ▸ Privacy) before a tool sends anything. Nothing was sent.";
@@ -54,82 +50,39 @@ impl RuntimeHost {
         let Some(metadata) = metadata else {
             return Ok(None);
         };
-        let category = metadata
-            .category
-            .as_deref()
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        let declared = metadata.destination.as_deref();
-        if declared.is_none() && !GOVERNED_CATEGORIES.contains(&category.as_str()) {
-            return Ok(None);
-        }
         // Hosts built without authorities are test hosts; the product always has them.
         let Some(authorities) = self.authorities.clone() else {
             return Ok(None);
         };
         let state_dir = authorities.state_dir().to_path_buf();
+        let Some(target) = egress::outbound_target(&state_dir, metadata, Some(&call.arguments))?
+        else {
+            return Ok(None);
+        };
         let workspace = self.config.workspace.clone().unwrap_or_default();
         let level = egress::level_for(&state_dir, &workspace).map_err(|error| {
             format!("The egress settings could not be read, so nothing was sent: {error}")
         })?;
 
-        // An unknown or missing destination is `any_public`: the stricter class for every level.
-        let mut class = declared
-            .and_then(DestinationClass::parse)
-            .unwrap_or(DestinationClass::AnyPublic);
-        // A fixed URL (a remote MCP server) is judged by where it resolves, as a model endpoint is.
-        let host = match &metadata.destination_url {
-            Some(url) => {
-                if class == DestinationClass::FixedPublic {
-                    if let Ok(info) = egress::classify_endpoint(&state_dir, url) {
-                        if info.class == egress::EndpointClass::Private
-                            || info.class == egress::EndpointClass::MarkedPrivate
-                        {
-                            class = DestinationClass::Private;
-                        }
-                    }
-                }
-                egress::url_host(url)
-            }
-            None => call
-                .arguments
-                .get("url")
-                .and_then(Value::as_str)
-                .map(egress::url_host)
-                .unwrap_or_default(),
-        };
-        let mark = if host.is_empty() {
-            None
-        } else {
-            egress::endpoint_mark(&state_dir, &host).map_err(|error| {
-                format!("The endpoint marks could not be read, so nothing was sent: {error}")
-            })?
-        };
-        let target = OutboundTarget {
-            class,
-            host: host.clone(),
-            mark,
-        };
         let decision = egress::decide_outbound(level, &target);
         let effective = egress::effective_class(&target);
+        let destination = if target.host.is_empty() {
+            effective.as_str().to_owned()
+        } else {
+            target.host.clone()
+        };
         let egress_object = json!({
             "class": effective.as_str(),
-            "host": host,
+            "host": target.host,
             "level": level.map(EgressLevel::as_str),
             "decision": decision_label(&decision),
         });
-        let ask_reason = format!(
-            "This workspace asks each time: {} will send content to {}. Nothing is sent until you approve this call.",
-            call.name,
-            if target.host.is_empty() {
-                effective.as_str()
-            } else {
-                target.host.as_str()
-            }
-        );
         Ok(Some(OutboundGate {
             decision,
-            ask_reason,
+            ask_reason: format!(
+                "This workspace asks each time: {} will send content to {destination}. Nothing is sent until you approve this call.",
+                call.name
+            ),
             egress: egress_object,
         }))
     }
