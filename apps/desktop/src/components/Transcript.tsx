@@ -516,6 +516,10 @@ interface Props {
   // Re-run the failed turn (no new user message). Offered only on a retriable notice that
   // is the transcript tail of an idle session — anywhere else the error is history.
   onRetry?: () => void;
+  // Continue an interrupted run. Offered only on the transcript's tail "Interrupted." notice of an
+  // idle session, and only when the runtime said it can resume (`canResume`).
+  canResume?: boolean;
+  onResume?: () => void;
   // MEMORY-SPEC §5.1: undo a just-announced write. `previous` (set when the write was
   // an edit) is the text to restore; without it the memory is deleted.
   onUndoMemory?: (id: number, previous?: string) => void;
@@ -538,7 +542,19 @@ export function retryAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, onRetry, onUndoMemory, onEditMessage, onRegenerate }: Props) {
+// The transcript index of the tail "Interrupted." notice (looking through info notices after it), or
+// -1 when the transcript ends in anything else. Only that notice can offer Resume.
+export function interruptedAnchor(items: Item[]): number {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.kind !== "notice") return -1;
+    if (it.tone === "warn" && !it.retriable && it.text === "Interrupted.") return i;
+    if (it.tone !== "info") return -1;
+  }
+  return -1;
+}
+
+export function Transcript({ items, running, streamingText, onRetry, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -739,6 +755,16 @@ export function Transcript({ items, running, streamingText, onRetry, onUndoMemor
             }
             // Errors/warnings get the view-then-collapse treatment (a raw API dump used
             // to sit expanded in the transcript forever).
+            if (item.tone === "warn" && canResume && !running && onResume && block.i === interruptedAnchor(items)) {
+              return (
+                <div className="notice notice-event" key={bi}>
+                  {localizeNoticeText(item.text, t)}
+                  <button className="btn ml-2" data-testid="notice-resume" onClick={onResume}>
+                    {t("transcript.resume", undefined, "Resume")}
+                  </button>
+                </div>
+              );
+            }
             if (item.tone === "warn") return <CollapsibleNotice key={bi} text={item.text} />;
             // Info notices are runtime events (model switch, compaction divider): quiet,
             // centered, compact — never chat-content weight.

@@ -422,6 +422,54 @@ impl CoreControlPlane {
     }
 
     pub fn start_runtime(&self, request: RuntimeStartRequest, sink: Arc<dyn EventSink>) -> Value {
+        self.start_runtime_with(request, sink, false)
+    }
+
+    /// Whether the session has an interrupted run that `resume_runtime` would continue (ADR-0053).
+    /// Read-only; the runtime answers, the UI derives nothing.
+    pub fn runtime_resumable(&self, session_id: &str) -> Value {
+        match crate::runtime::interrupted_run_of(&self.authorities, session_id) {
+            Ok(run_id) => json!({"resumable": true, "runId": run_id}),
+            Err(reason) => json!({"resumable": false, "reason": reason}),
+        }
+    }
+
+    /// Resume the session's interrupted run under its own run id, with the model, workspace and
+    /// mode the session was last run with. Works after a restart: the runtime handle is created
+    /// the same way a new run creates it. Rejected, writing nothing, when there is nothing to resume.
+    pub fn resume_runtime(&self, session_id: &str, sink: Arc<dyn EventSink>) -> Value {
+        if let Err(error) = crate::runtime::interrupted_run_of(&self.authorities, session_id) {
+            return json!({"ok": false, "error": error});
+        }
+        let (model_id, mode) =
+            match control_plane::get_session_model_and_mode(&self.state_dir, session_id) {
+                Ok(settings) => settings,
+                Err(error) => return json!({"ok": false, "error": error.to_string()}),
+            };
+        self.start_runtime_with(
+            RuntimeStartRequest {
+                session_id: session_id.to_string(),
+                model_id,
+                user_input: String::new(),
+                workspace: None,
+                attachments: None,
+                skill: None,
+                mode: Some(mode),
+                max_iterations: None,
+                max_retries: None,
+                source: None,
+            },
+            sink,
+            true,
+        )
+    }
+
+    fn start_runtime_with(
+        &self,
+        request: RuntimeStartRequest,
+        sink: Arc<dyn EventSink>,
+        is_resume: bool,
+    ) -> Value {
         let RuntimeStartRequest {
             session_id,
             model_id,
@@ -577,8 +625,11 @@ impl CoreControlPlane {
             hosts.insert(session_id.clone(), handle.clone());
             handle
         };
-        let accepted =
-            handle.run_with_attachments(user_input, attachments.unwrap_or_default(), source);
+        let accepted = if is_resume {
+            handle.resume()
+        } else {
+            handle.run_with_attachments(user_input, attachments.unwrap_or_default(), source)
+        };
         drop(hosts);
 
         match accepted {
@@ -594,16 +645,6 @@ impl CoreControlPlane {
 
     fn runtime_handle(&self, session_id: &str) -> Option<Arc<RuntimeHandle>> {
         self.hosts.lock().ok()?.get(session_id).cloned()
-    }
-
-    pub fn runtime_resume(&self, session_id: &str) -> Value {
-        match self.runtime_handle(session_id) {
-            Some(handle) => match handle.resume() {
-                Ok(run_id) => json!({"ok": true, "accepted": true, "runId": run_id}),
-                Err(error) => json!({"ok": false, "error": error}),
-            },
-            None => json!({"ok": false, "error": format!("session not found: {session_id}")}),
-        }
     }
 
     pub fn runtime_retry(&self, session_id: &str) -> Value {

@@ -646,6 +646,7 @@ pub fn run() {
             runtime_ipc::health,
             runtime_ipc::runtime_run,
             runtime_ipc::runtime_resume,
+            runtime_ipc::runtime_resumable,
             runtime_ipc::runtime_retry,
             runtime_ipc::runtime_steer,
             runtime_ipc::runtime_follow_up,

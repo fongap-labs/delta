@@ -43,6 +43,8 @@ import {
   resolveArtifactPath,
   prepareAutomationRun,
   directRetry,
+  directResume,
+  directResumable,
   directRun,
   directSessionDelete,
   directSessionMessages,
@@ -660,6 +662,11 @@ export interface RunSource {
 export async function getRunSources(runId: string): Promise<RunSource[]> {
   const out = throwOnError(await directListRunSources(runId));
   return out.sources ?? [];
+}
+
+/** Whether the runtime can resume an interrupted run for this session (it decides, the UI asks). */
+export async function getResumable(sessionId: string): Promise<boolean> {
+  return (await directResumable(sessionId)).resumable;
 }
 
 export interface BrowserState {
@@ -1587,6 +1594,12 @@ export class Session {
   // guards on the history tail so a stray frame is a no-op.
   retry() {
     void directRetry(this.sessionId);
+  }
+
+  // Continue the interrupted run under its own run id. The runtime picks the run and refuses when
+  // nothing is interrupted; the transcript updates from the events it emits.
+  resume() {
+    void directResume(this.sessionId);
   }
 
   setMode(mode: string) {

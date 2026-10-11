@@ -36,6 +36,7 @@ use crate::provider::{self, ProviderRequest};
 use crate::LedgerWriter;
 
 mod handle;
+pub(crate) use handle::interrupted_run_of;
 mod human_control;
 mod model_turn;
 mod tool_execution;

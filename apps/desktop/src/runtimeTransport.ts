@@ -75,6 +75,17 @@ export async function directResume(
   }
 }
 
+/** Whether the runtime has an interrupted run it could resume for this session (read-only). */
+export async function directResumable(
+  sessionId: string,
+): Promise<{ resumable: boolean; runId?: string }> {
+  const out = (await invoke("runtime_resumable", { sessionId })) as Record<string, unknown> | null;
+  return {
+    resumable: out?.resumable === true,
+    runId: typeof out?.runId === "string" ? out.runId : undefined,
+  };
+}
+
 export async function directRetry(
   sessionId: string,
 ): Promise<DirectRuntimeAcceptance> {

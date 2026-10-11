@@ -127,30 +127,7 @@ impl RuntimeHandle {
             .authorities
             .as_ref()
             .ok_or_else(|| "nothing to resume: the run ledger is unavailable".to_string())?;
-        let run_id = {
-            let ledger = authorities.ledger.lock().unwrap();
-            let reader = ledger.reader().map_err(|error| error.to_string())?;
-            CheckpointReader::from_reader(reader)
-                .list(None, Some(&self.session_id))
-                .map_err(|error| error.to_string())?
-                .into_iter()
-                .max_by_key(|checkpoint| checkpoint.created_at.clone())
-                .map(|checkpoint| checkpoint.run_id)
-                .ok_or_else(|| "nothing to resume: this session has no recorded run".to_string())?
-        };
-        let status = authorities
-            .ledger
-            .lock()
-            .unwrap()
-            .reader()
-            .and_then(|reader| reader.run_status(&run_id))
-            .map_err(|error| error.to_string())?;
-        if status != "interrupted" {
-            return Err(format!(
-                "nothing to resume: the session's last run is {status}, not interrupted"
-            ));
-        }
-        Ok(run_id)
+        interrupted_run_of(authorities, &self.session_id)
     }
 
     pub fn retry(&self) -> Result<String, String> {
@@ -448,4 +425,36 @@ fn state_from_result(result: &Result<Value, String>) -> RuntimeState {
         }
         Ok(_) => RuntimeState::Completed,
     }
+}
+
+/// The run a session can resume (ADR-0053): the run in its latest checkpoint, if the ledger says its
+/// last lifecycle state is `interrupted`. Read-only; the error says why nothing can be resumed.
+pub(crate) fn interrupted_run_of(
+    authorities: &RuntimeAuthorities,
+    session_id: &str,
+) -> Result<String, String> {
+    let run_id = {
+        let ledger = authorities.ledger.lock().unwrap();
+        let reader = ledger.reader().map_err(|error| error.to_string())?;
+        CheckpointReader::from_reader(reader)
+            .list(None, Some(session_id))
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .max_by_key(|checkpoint| checkpoint.created_at.clone())
+            .map(|checkpoint| checkpoint.run_id)
+            .ok_or_else(|| "nothing to resume: this session has no recorded run".to_string())?
+    };
+    let status = authorities
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .and_then(|reader| reader.run_status(&run_id))
+        .map_err(|error| error.to_string())?;
+    if status != "interrupted" {
+        return Err(format!(
+            "nothing to resume: the session's last run is {status}, not interrupted"
+        ));
+    }
+    Ok(run_id)
 }

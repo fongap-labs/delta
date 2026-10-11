@@ -160,8 +160,23 @@ pub fn runtime_run(
 }
 
 #[tauri::command]
-pub fn runtime_resume(state: State<'_, RuntimeRegistry>, session_id: String) -> Value {
-    state.runtime_resume(&session_id)
+pub fn runtime_resume(
+    app: AppHandle,
+    state: State<'_, RuntimeRegistry>,
+    session_id: String,
+) -> Value {
+    state.resume_runtime(
+        &session_id,
+        Arc::new(TauriEventSink {
+            app,
+            core: state.inner().clone(),
+        }),
+    )
+}
+
+#[tauri::command]
+pub fn runtime_resumable(state: State<'_, RuntimeRegistry>, session_id: String) -> Value {
+    state.runtime_resumable(&session_id)
 }
 
 #[tauri::command]

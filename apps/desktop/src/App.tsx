@@ -18,6 +18,7 @@ import {
   deleteSession,
   renameSession,
   revertSession,
+  getResumable,
   setReasoningEffort,
   runAutomation,
   setSessionFlags,
@@ -52,7 +53,7 @@ import { Icon } from "./components/Icon";
 import { Sidebar } from "./components/Sidebar";
 import { Composer } from "./components/Composer";
 import { RunStatusBar } from "./components/RunStatusBar";
-import { ThinkingBlock, Transcript } from "./components/Transcript";
+import { interruptedAnchor, ThinkingBlock, Transcript } from "./components/Transcript";
 import { Markdown } from "./components/Markdown";
 import { SessionIntro } from "./components/SessionIntro";
 import { Onboarding } from "./components/Onboarding";
@@ -127,6 +128,8 @@ export function App() {
   const [mode, setMode] = useState("interactive");
   const [isConnected, setConnected] = useState(false);
   const [isRunning, setRunning] = useState(false);
+  // The runtime's answer to "can this session resume an interrupted run?" (it decides; the UI asks).
+  const [canResume, setCanResume] = useState(false);
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
   // cleared by whatever the engine emits next — the summarizer call is otherwise a
   // multi-second silent stall mid-turn.
@@ -870,6 +873,31 @@ export function App() {
   const prefillComposer = (text: string, attachments?: Attachment[]) =>
     setComposerPrefill((p) => ({ text, attachments, nonce: (p?.nonce ?? 0) + 1 }));
   const interrupt = () => sessionRef.current?.interrupt();
+  // Ask the runtime whether the interrupted run can resume, only while the transcript ends in an
+  // "Interrupted." notice and nothing is running. A failed ask shows no button.
+  const hasInterruptedTail = interruptedAnchor(items) !== -1;
+  useEffect(() => {
+    if (!sessionId || isRunning || !hasInterruptedTail) {
+      setCanResume(false);
+      return;
+    }
+    let isCurrent = true;
+    getResumable(sessionId)
+      .then((isResumable) => {
+        if (isCurrent) setCanResume(isResumable);
+      })
+      .catch(() => {
+        if (isCurrent) setCanResume(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [sessionId, isRunning, hasInterruptedTail]);
+  const resume = () => {
+    setCanResume(false);
+    setRunning(true); // turn_start confirms; a refused resume still ends in turn_done
+    sessionRef.current?.resume();
+  };
   const retry = () => {
     // Optimistic running: turn_start confirms; a rejected retry still ends in turn_done.
     setRunning(true);
@@ -1383,6 +1411,8 @@ export function App() {
                     onApprove={approve}
                     running={isRunning}
                     onRetry={retry}
+                    canResume={canResume}
+                    onResume={resume}
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
                     onEditMessage={(index) => void editMessage(index)}
                     onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
