@@ -33,6 +33,10 @@ import {
   directListAutomations,
   directOpenWorkspace,
   directPickFolder,
+  directEgressSettings,
+  updateEgressDefault,
+  updateWorkspaceEgress,
+  updateEndpointMark,
   directRecentWorkspaces,
   directRemoveModel,
   directRemoveProvider,
@@ -302,6 +306,49 @@ export async function openWorkspace(
   command_trust?: WorkspaceCommandTrust;
 }> {
   return await directOpenWorkspace(path, shouldCreate);
+}
+
+/** Where a workspace's content may be sent (ADR-0057). */
+export type EgressLevel = "open" | "approved_endpoints" | "private_only" | "ask_each_time";
+export const EGRESS_LEVELS: EgressLevel[] = ["open", "approved_endpoints", "private_only", "ask_each_time"];
+export type EndpointMark = "approved" | "private";
+
+export interface EgressSettings {
+  default_level: EgressLevel | null;
+  is_chosen: boolean;
+  workspaces: { workspace: string; level: EgressLevel }[];
+  endpoint_marks: { host: string; mark: EndpointMark }[];
+}
+
+/** A settings change: the new settings, or `needs_confirmation` when it loosens a level. */
+export type EgressChange =
+  | ({ ok: true } & EgressSettings)
+  | { ok: false; needs_confirmation?: boolean; error?: string };
+
+export async function getEgressSettings(): Promise<EgressSettings> {
+  const out = await directEgressSettings();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the egress settings");
+  return out as EgressSettings;
+}
+
+export async function setEgressDefault(level: EgressLevel, isConfirmed: boolean): Promise<EgressChange> {
+  return (await updateEgressDefault(level, isConfirmed)) as EgressChange;
+}
+
+export async function setWorkspaceEgress(
+  workspace: string,
+  level: EgressLevel | null,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updateWorkspaceEgress(workspace, level, isConfirmed)) as EgressChange;
+}
+
+export async function setEndpointMark(
+  host: string,
+  mark: EndpointMark | null,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updateEndpointMark(host, mark, isConfirmed)) as EgressChange;
 }
 
 export async function getTrustedWorkspaces(): Promise<WorkspaceCommandTrust[]> {
@@ -1026,7 +1073,7 @@ export async function setSessionSkill(
 export interface InboxItem {
   id: string;
   session_id: string;
-  kind: "approval" | "question" | "notification" | "directory" | "plan";
+  kind: "approval" | "question" | "notification" | "notice" | "directory" | "plan";
   title: string;
   body: string;
   state: "pending" | "resolved";

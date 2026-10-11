@@ -109,6 +109,8 @@ export function scopeNote(
   // save_skill's corner answers WHERE (SKILLS-SPEC §5.2): the exact place to find, edit,
   // or turn off the skill afterwards.
   if (name === "save_skill") return { text: t("approval.scope.savesToSettings"), external: false };
+  // An *Ask each time* workspace confirms the model endpoint for the task (ADR-0057).
+  if (name === "model.request") return { text: t("approval.scope.modelEndpoint"), external: false };
   if (category === "connector") return { text: t("approval.scope.connectedService"), external: true };
   // These only describe the effect. `external` stays false on purpose: it switches on the "confirm
   // the recipient and content" lock meant for messages and files that leave the computer, and the

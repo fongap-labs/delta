@@ -47,6 +47,7 @@ import { useI18n, type TranslationKey } from "@delta/i18n/I18nContext";
 import type { Locale } from "@delta/i18n/types";
 import { Icon } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
+import { PrivacySection } from "./PrivacySection";
 import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
 import { SkillsTab } from "./SkillsTab";
@@ -58,7 +59,7 @@ import { SkillsTab } from "./SkillsTab";
 // Models + Skills host the existing tab components inside the page shell.
 // "appearance" is the General tab's stable key — callers deep-link with it, so the
 // rename (UX-021) changed only the label. "files" folded into General as a card.
-type SetTab = "appearance" | "models" | "skills" | "voice" | "memory";
+type SetTab = "appearance" | "models" | "privacy" | "skills" | "voice" | "memory";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
 const ZH_CN_LABEL = "简体中文";
@@ -73,10 +74,11 @@ const BTN_BORDERED =
 const SET_TABS: {
   key: SetTab;
   labelKey: TranslationKey;
-  icon: "sliders" | "code" | "mic" | "archive" | "book";
+  icon: "sliders" | "code" | "shield" | "mic" | "archive" | "book";
 }[] = [
   { key: "appearance", labelKey: "settings.general.title", icon: "sliders" },
   { key: "models", labelKey: "settings.models.title", icon: "code" },
+  { key: "privacy", labelKey: "settings.privacy.title", icon: "shield" },
   { key: "skills", labelKey: "settings.skills.title", icon: "book" },
   { key: "voice", labelKey: "settings.voice.title", icon: "mic" },
   { key: "memory", labelKey: "settings.memory.title", icon: "archive" },
@@ -148,6 +150,11 @@ export function SettingsView({
                 <TokenSavingsCard />
                 <CompactionCard />
               </div>
+            </section>
+          ) : tab === "privacy" ? (
+            <section>
+              <PanelHead title={t("settings.privacy.title")} sub={t("settings.privacy.sub")} />
+              <PrivacySection />
             </section>
           ) : tab === "skills" ? (
             <SkillsTab onCreateSkill={onCreateSkill} />
