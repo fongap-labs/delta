@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   EGRESS_LEVELS,
+  getConnectors,
   getEgressSettings,
   getMcpServers,
   pickWorkspaceFolder,
@@ -117,6 +118,7 @@ export function PrivacySection() {
   const [mark, setMark] = useState<EndpointMark>("approved");
   const [mcpServers, setMcpServers] = useState<{ name: string; transport: string }[]>([]);
   const [pathWorkspace, setPathWorkspace] = useState("");
+  const [connectedConnectors, setConnectedConnectors] = useState<{ name: string; title: string }[]>([]);
   const { run, dialog, error } = useConfirmedChange(setSettings);
 
   const load = () => {
@@ -126,6 +128,18 @@ export function PrivacySection() {
       .catch(() => setFailed(true));
   };
   useEffect(load, []);
+  useEffect(() => {
+    getConnectors()
+      .then((connectors) =>
+        setConnectedConnectors(
+          connectors.filter((connector) => connector.connected).map((connector) => ({
+            name: connector.name,
+            title: connector.title,
+          })),
+        ),
+      )
+      .catch(() => setConnectedConnectors([]));
+  }, []);
   useEffect(() => {
     getMcpServers()
       .then((servers) => setMcpServers(servers.map((server) => ({ name: server.name, transport: server.transport }))))
@@ -147,6 +161,12 @@ export function PrivacySection() {
       path: `mcp:${server.name}`,
       label: server.name,
       destinationClass: server.transport === "stdio" ? "local_process" : "fixed_public",
+    })),
+    // A connector tool with no declared destination is any_public (ADR-0061).
+    ...connectedConnectors.map((connector) => ({
+      path: `connector:${connector.name}`,
+      label: connector.title,
+      destinationClass: "any_public",
     })),
   ];
 
