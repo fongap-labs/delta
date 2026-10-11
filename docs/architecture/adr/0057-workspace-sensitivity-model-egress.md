@@ -1,6 +1,6 @@
 # ADR-0057: Workspace sensitivity and what may be sent to a model endpoint
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The owner asked for options the user chooses from, not a fixed policy. This ADR defines those options and the rules that hold whichever option the user picks. Whether the level also covers web search, remote MCP servers and connectors is still open.
+Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The owner asked for options the user chooses from, not a fixed policy. This ADR defines those options and the rules that hold whichever option the user picks. Outbound tools (web search, remote MCP servers, connectors) are covered by [ADR-0058](0058-egress-level-outbound-tools.md).
 
 ## Context
 
@@ -72,7 +72,7 @@ Whichever level the user picks, these rules hold:
    - Existing installs are asked the same question on the first launch after the upgrade. The existing workspaces then take the chosen level.
    - Until the user has chosen, no model request is sent. The Runtime fails the turn with a typed error saying the egress level has not been chosen, and the desktop shows the choice.
    - An automation that fires before the choice is made fails with the same typed error. The error lands in the Inbox; nothing is sent.
-6. **Scope.** This ADR covers model endpoints. Other outbound paths (web search queries, remote MCP servers, connectors) already go through tools and approvals. Whether the egress level should also restrict them is still open (see Open question).
+6. **Scope.** This ADR covers model endpoints. Other outbound paths (web search queries, remote MCP servers, connectors) already go through tools and approvals. The owner decided the level must govern them too; [ADR-0058](0058-egress-level-outbound-tools.md) defines how.
 
 ## Consequences
 
@@ -103,6 +103,4 @@ Whichever level the user picks, these rules hold:
 1. B accepted, with the four levels: Open, Approved endpoints, Private only, Ask each time.
 2. No built-in default: the first-run setup asks the user to pick the default level (decision point 5).
 
-## Open question
-
-Should the egress level also restrict web search, remote MCP servers and connectors? If so, that is a follow-up ADR.
+3. The egress level must also govern web search, remote MCP servers and connectors, in a separate ADR: [ADR-0058](0058-egress-level-outbound-tools.md).
