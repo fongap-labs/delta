@@ -142,16 +142,38 @@ class _BackgroundTask:
         self._base = 0  # absolute index of the deque's first element
         self.has_head_drop = False  # a read skipped lines that already fell off
         self._cursor = 0
+        # Set when the reader thread hit stdout EOF. Process exit (poll()) and output
+        # drain are independent: on a loaded box poll() can win while produced output
+        # still sits unread in the pipe, so "exited" must also require the drain.
+        self._has_eof = False
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
 
     def _read_loop(self) -> None:
         assert self.proc.stdout is not None
-        for line in self.proc.stdout:
+        try:
+            for line in self.proc.stdout:
+                with self._lock:
+                    if len(self._lines) == self._lines.maxlen:
+                        self._base += 1
+                    self._lines.append(line)
+        finally:
             with self._lock:
-                if len(self._lines) == self._lines.maxlen:
-                    self._base += 1
-                self._lines.append(line)
+                self._has_eof = True
+
+    @property
+    def has_eof(self) -> bool:
+        with self._lock:
+            return self._has_eof
+
+    def wait_eof(self, timeout: float) -> bool:
+        """Block until the reader drained stdout (or timeout). Returns the eof state."""
+        deadline = time.monotonic() + timeout
+        while not self.has_eof:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
+        return self.has_eof
 
     def get_output(self) -> tuple[str, bool]:
         """Output appended since the last read. Returns ``(text, has_head_drop)`` —
@@ -489,9 +511,13 @@ class LocalExecutor(Executor):
         if truncated:
             output = output[-self.max_output_chars :]
         exit_code = task.proc.poll()
+        # "exited" needs BOTH the process gone and its output drained — poll() can
+        # beat the reader thread on a loaded box, and reporting an empty output as
+        # final would lose the tail verdicts callers read this for.
+        exited = exit_code is not None and task.has_eof
         result = {
             "task_id": task_id,
-            "status": "running" if exit_code is None else "exited",
+            "status": "running" if not exited else "exited",
             "exit_code": exit_code,
             "output": output,
             "truncated": truncated or head_dropped,
@@ -512,6 +538,9 @@ class LocalExecutor(Executor):
             task.proc.wait(timeout=5)
         except (subprocess.TimeoutExpired, OSError):
             pass
+        # A force-killed process closes its pipe; give the reader thread a moment to
+        # reach EOF so the next shell_task_output reports "exited" (not "running").
+        task.wait_eof(2.0)
         self._emit_process_event("process.killed", task)
         return {
             "task_id": task_id,
