@@ -49,7 +49,7 @@ def stamp_toml_table(path: str, table: str, version: str) -> None:
 
 
 def stamp_lock_package(path: str, package: str, version: str) -> None:
-    """Set the version of one ``[[package]]`` entry of a Cargo.lock or uv.lock file."""
+    """Set the version of one ``[[package]]`` entry of a Cargo.lock file."""
     text = read_text(path)
     updated, count = re.subn(
         rf'(\[\[package\]\]\r?\nname = "{re.escape(package)}"\r?\nversion = ")[^"]*(")',
@@ -99,7 +99,6 @@ def main() -> None:
     version = sys.argv[1]
 
     stamp_toml_table("pyproject.toml", "project", version)
-    stamp_lock_package("uv.lock", "delta", version)
     stamp_json("apps/desktop/package.json", version)
     stamp_json("apps/desktop/package-lock.json", version, is_package_lock=True)
     stamp_json("apps/desktop/src-tauri/tauri.conf.json", version)
