@@ -172,29 +172,43 @@ install_rust_crates_system_packages() {
 }
 
 # The statistics tests and the statistics_describe tool compute only with R 4.6.0 (ADR-0054). The
-# release comes from the CRAN apt repository for Ubuntu noble and must match exactly; if it is not
-# there, or another R is installed, the job fails instead of testing with another R.
+# release is built from the CRAN source tarball, whose SHA-256 is pinned below: a download that
+# does not match, or an empty pin, fails the job instead of testing with another R.
 install_pinned_r() {
   local version="4.6.0"
-  local series="noble-cran40"
-  if command -v Rscript >/dev/null 2>&1 && Rscript --version 2>&1 | grep -q "version ${version} "; then
+  local archive="R-${version}.tar.xz"
+  local url="https://cran.r-project.org/src/base/R-4/${archive}"
+  local sha256="__PIN_R_SOURCE_SHA256_HERE__"
+  local prefix="/opt/R-${version}"
+  if [ -x "$prefix/bin/Rscript" ] && "$prefix/bin/Rscript" --version 2>&1 | grep -q "version ${version} "; then
+    export PATH="$prefix/bin:$PATH"
     return 0
   fi
-  sudo install -d -m 0755 /etc/apt/keyrings
-  curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc \
-    | sudo tee /etc/apt/keyrings/cran.asc >/dev/null
-  echo "deb [signed-by=/etc/apt/keyrings/cran.asc] https://cloud.r-project.org/bin/linux/ubuntu ${series}/" \
-    | sudo tee /etc/apt/sources.list.d/cran.list >/dev/null
-  sudo apt-get update -qq
-  local candidate
-  candidate="$(apt-cache madison r-base-core | awk -v v="$version" '$3 ~ ("^" v "-") { print $3; exit }')"
-  if [ -z "$candidate" ]; then
-    echo "central-ci: R ${version} is not available from the CRAN apt repository ${series}" >&2
+  if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "central-ci: the SHA-256 of ${archive} is not pinned" >&2
     exit 1
   fi
-  sudo apt-get install -y "r-base-core=${candidate}"
+
+  local workdir
+  workdir="$(mktemp -d)"
+  curl -fsSL -o "$workdir/$archive" "$url"
+  echo "${sha256}  $workdir/$archive" | sha256sum -c - >/dev/null || {
+    echo "central-ci: ${archive} does not match the pinned SHA-256" >&2
+    exit 1
+  }
+  tar -C "$workdir" -xJf "$workdir/$archive"
+
+  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev
+  (
+    cd "$workdir/R-${version}"
+    ./configure --prefix="$prefix" --without-x --without-readline --without-recommended-packages \
+      >configure.log 2>&1 || { tail -n 60 configure.log >&2; exit 1; }
+    make -j"$(nproc)" >make.log 2>&1 || { tail -n 80 make.log >&2; exit 1; }
+    sudo make install >install.log 2>&1 || { tail -n 40 install.log >&2; exit 1; }
+  )
+  export PATH="$prefix/bin:$PATH"
   if ! Rscript --version 2>&1 | grep -q "version ${version} "; then
-    echo "central-ci: Rscript is not R ${version} after installing it" >&2
+    echo "central-ci: Rscript is not R ${version} after building it" >&2
     exit 1
   fi
 }
