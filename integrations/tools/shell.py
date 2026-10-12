@@ -145,7 +145,7 @@ class _BackgroundTask:
         # Set when the reader thread hit stdout EOF. Process exit (poll()) and output
         # drain are independent: on a loaded box poll() can win while produced output
         # still sits unread in the pipe, so "exited" must also require the drain.
-        self._eof = False
+        self._has_eof = False
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
 
@@ -159,21 +159,21 @@ class _BackgroundTask:
                     self._lines.append(line)
         finally:
             with self._lock:
-                self._eof = True
+                self._has_eof = True
 
     @property
-    def eof(self) -> bool:
+    def has_eof(self) -> bool:
         with self._lock:
-            return self._eof
+            return self._has_eof
 
     def wait_eof(self, timeout: float) -> bool:
         """Block until the reader drained stdout (or timeout). Returns the eof state."""
         deadline = time.monotonic() + timeout
-        while not self.eof:
+        while not self.has_eof:
             if time.monotonic() >= deadline:
                 break
             time.sleep(0.01)
-        return self.eof
+        return self.has_eof
 
     def get_output(self) -> tuple[str, bool]:
         """Output appended since the last read. Returns ``(text, has_head_drop)`` —
@@ -514,7 +514,7 @@ class LocalExecutor(Executor):
         # "exited" needs BOTH the process gone and its output drained — poll() can
         # beat the reader thread on a loaded box, and reporting an empty output as
         # final would lose the tail verdicts callers read this for.
-        exited = exit_code is not None and task.eof
+        exited = exit_code is not None and task.has_eof
         result = {
             "task_id": task_id,
             "status": "running" if not exited else "exited",
