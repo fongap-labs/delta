@@ -9,10 +9,6 @@
     "node_version_file": ".nvmrc",
     "python_version_file": ".python-version",
     "sbom_asset": "delta-windows-x64-portable.sbom.cdx.json",
-    "version_source": {
-        "type": "cargo-package",
-        "path": "apps/desktop/src-tauri/Cargo.toml"
-    },
     "builds": [
         {
             "id": "windows-portable",

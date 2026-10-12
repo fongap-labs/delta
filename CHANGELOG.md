@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat [breaking, migration]: the release version is only the version entered when the release is started. The release build writes it into the version fields of its checkout (`scripts/stamp_release_version.py`) and verifies the portable metadata against it. The version-consistency check, the required dated CHANGELOG release section and `version_source` in the release manifest are removed.
+
 - fix: a background shell task is reported as exited only after its output has been read. The process can be gone while its last lines still sit unread in the pipe (the reader thread lags on a loaded machine), and the status used to flip to `exited` then, so `shell_task_output` answered with an empty output and the command's verdict was lost — the flaky `test_background_task_runs_and_exits` failure in CI. The exited status now requires both the process being gone and the output drained; a kill waits briefly for the drain so the read after it reports `exited` with the full output.
 
 - feat: statistics are computed only by R 4.6.0 (locked, ADR-0054 amendment 2026-10-12). The `statistics_describe` tool refuses any other R release and computes nothing, so a result always comes from the validated environment. CI does not install R 4.6.0 yet.

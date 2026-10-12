@@ -56,8 +56,8 @@ while IFS= read -r path; do
       python_advisories=true
       ;;
 
-    # Release-version gate implementation is covered by Python tests.
-    scripts/check_release_versions.py)
+    # Release version stamping is covered by Python tests.
+    scripts/stamp_release_version.py)
       python=true
       ;;
 
