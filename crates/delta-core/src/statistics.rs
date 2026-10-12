@@ -13,7 +13,19 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+
+use crate::capability::{
+    CapabilityGrants, CapabilityRegistration, CapabilityResult, NativeCapabilityRunner,
+};
+
+/// The R release the statistics are computed with (ADR-0054, amended 2026-10-12). Any other R is
+/// refused: the figures must come from the one environment that was validated.
+pub const PINNED_R_VERSION: &str = "4.6.0";
 
 /// The R program for `describe`. Its arguments are the CSV path and the column name.
 const DESCRIBE_SCRIPT: &str = r#"
@@ -33,6 +45,120 @@ cat(sep = "",
   "r_version: ", paste(R.version$major, R.version$minor, sep = "."), "\n"
 )
 "#;
+
+/// The `statistics.describe` capability: describe one column of a CSV file in the workspace.
+/// R computes the figures; the model only receives them with their provenance. When R is not
+/// installed the capability says so and computes nothing else (ADR-0054 point 7).
+pub fn describe_registration() -> CapabilityRegistration {
+    CapabilityRegistration {
+        capability_id: "statistics.describe".to_owned(),
+        tool_name: "statistics_describe".to_owned(),
+        description: "Describe one numeric column of a CSV file in the workspace: n, mean, sample \
+            standard deviation, min, max and median. The figures are computed by R; the result \
+            records the R version and the hashes of the program and the input."
+            .to_owned(),
+        parameters: json!({
+            "type": "object", "required": ["path", "column"],
+            "properties": {
+                "path": {"type": "string", "description": "CSV file path, relative to the workspace."},
+                "column": {"type": "string", "description": "Column header to describe."}
+            }
+        }),
+        metadata: json!({
+            "risk_level": "low", "requires_approval": false,
+            "category": "read", "capabilities": ["statistics.describe"]
+        }),
+        grants: CapabilityGrants::read_only(),
+        workspace_write: false,
+        runner: Arc::new(NativeCapabilityRunner::new(|job, control| {
+            let Some(path) = job.arguments.get("path").and_then(Value::as_str) else {
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    "path is required",
+                    Some("arguments"),
+                );
+            };
+            let Some(column) = job.arguments.get("column").and_then(Value::as_str) else {
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    "column is required",
+                    Some("arguments"),
+                );
+            };
+            let resolved = match crate::capability::resolve_read_path(job, path) {
+                Ok(resolved) => resolved,
+                Err((code, message)) => {
+                    return CapabilityResult::failed(&job.job_id, &message, Some(code))
+                }
+            };
+            if control.is_cancelled() {
+                return CapabilityResult::cancelled(&job.job_id);
+            }
+            let rscript = match find_rscript() {
+                Ok(rscript) => rscript,
+                Err(message) => {
+                    return CapabilityResult::failed(&job.job_id, &message, Some("unavailable"));
+                }
+            };
+            match describe(&rscript, &resolved, column, DESCRIBE_TIMEOUT) {
+                Ok(result) => CapabilityResult::completed(&job.job_id, description_json(&result)),
+                Err(error) => {
+                    CapabilityResult::failed(&job.job_id, &error, Some("statistics_failed"))
+                }
+            }
+        })),
+    }
+}
+
+/// How long R may take to describe one column.
+const DESCRIBE_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The Rscript on PATH, if it is the pinned release. Another release, or none, is an error that
+/// says which version was found.
+fn find_rscript() -> Result<PathBuf, String> {
+    let output = Command::new("Rscript").arg("--version").output();
+    let Ok(output) = output else {
+        return Err("R (Rscript) is not installed, so statistics are unavailable".to_owned());
+    };
+    // Rscript prints its version on standard error.
+    let text = String::from_utf8_lossy(&output.stderr).into_owned()
+        + &String::from_utf8_lossy(&output.stdout);
+    check_pinned_version(&text)?;
+    Ok(PathBuf::from("Rscript"))
+}
+
+/// Accept the output of `Rscript --version` only for the pinned release.
+fn check_pinned_version(version_output: &str) -> Result<(), String> {
+    let found = version_output
+        .split_once("version ")
+        .and_then(|(_, rest)| rest.split_whitespace().next())
+        .unwrap_or("unknown");
+    if found == PINNED_R_VERSION {
+        Ok(())
+    } else {
+        Err(format!(
+            "statistics need R {PINNED_R_VERSION}, but R {found} was found, so nothing was computed"
+        ))
+    }
+}
+
+fn description_json(result: &Description) -> Value {
+    json!({
+        "n": result.n,
+        "mean": result.mean,
+        "sd": result.sd,
+        "min": result.min,
+        "max": result.max,
+        "median": result.median,
+        "provenance": {
+            "engine": "R",
+            "r_version": result.r_version,
+            "script_sha256": result.script_sha256,
+            "input_sha256": result.input_sha256,
+            "method": "describe",
+        },
+    })
+}
 
 /// A descriptive summary of one column, with the provenance every result carries (ADR-0054 point 5).
 #[derive(Debug, Clone, PartialEq)]
@@ -184,6 +310,58 @@ mod tests {
         let path = directory.join("data.csv");
         std::fs::write(&path, text).unwrap();
         path
+    }
+
+    #[test]
+    fn the_describe_capability_is_a_read_only_tool_the_product_offers() {
+        let registration = describe_registration();
+        assert_eq!(registration.capability_id, "statistics.describe");
+        assert_eq!(registration.metadata["category"], "read");
+        assert_eq!(registration.metadata["requires_approval"], false);
+        let host = crate::capability::CapabilityHost::product_defaults().unwrap();
+        let names: Vec<String> = host
+            .tool_schemas()
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|tool| tool["function"]["name"].as_str().map(str::to_owned))
+            .collect();
+        assert!(
+            names.iter().any(|name| name == "statistics_describe"),
+            "{names:?}"
+        );
+    }
+
+    #[test]
+    fn a_description_carries_its_provenance_and_its_figures() {
+        let value = description_json(&Description {
+            n: 5.0,
+            mean: 4.0,
+            sd: 3.5,
+            min: 1.0,
+            max: 10.0,
+            median: 3.0,
+            r_version: "4.3".to_owned(),
+            script_sha256: "aa".to_owned(),
+            input_sha256: "bb".to_owned(),
+        });
+        assert_eq!(value["mean"], 4.0);
+        assert_eq!(value["provenance"]["engine"], "R");
+        assert_eq!(value["provenance"]["script_sha256"], "aa");
+        assert_eq!(value["provenance"]["input_sha256"], "bb");
+    }
+
+    #[test]
+    fn only_the_pinned_r_release_is_accepted() {
+        let pinned = "R scripting front-end version 4.6.0 (2026-04-01)";
+        assert!(check_pinned_version(pinned).is_ok());
+        let other = "R scripting front-end version 4.3.3 (2024-02-29)";
+        let error = check_pinned_version(other).unwrap_err();
+        assert!(
+            error.contains("4.6.0") && error.contains("4.3.3"),
+            "{error}"
+        );
+        assert!(check_pinned_version("no version here").is_err());
     }
 
     #[test]

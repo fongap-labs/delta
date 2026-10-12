@@ -185,6 +185,7 @@ mod tests {
                 "read_document",
                 "read_file",
                 "request_directory",
+                "statistics_describe",
                 "web_fetch",
                 "web_search",
                 "write_file"
