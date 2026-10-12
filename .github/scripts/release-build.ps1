@@ -3,6 +3,10 @@ param(
   [string]$Target,
 
   [Parameter(Mandatory = $true)]
+  [ValidatePattern('^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')]
+  [string]$Version,
+
+  [Parameter(Mandatory = $true)]
   [string]$OutputDir
 )
 
@@ -15,7 +19,9 @@ if ($Target -ne "x86_64-pc-windows-msvc") {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $repoRoot
 
-python scripts/check_release_versions.py --quiet --release
+# The release version is the one entered when the release was started; write it into the
+# version fields of this build checkout.
+python scripts/stamp_release_version.py $Version
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
@@ -124,11 +130,8 @@ if ($env:WINDOWS_SIGNING_CERT -and $env:WINDOWS_SIGNING_PASSWORD) {
 
 [xml]$appInfo = Get-Content -LiteralPath (Join-Path $verifyRoot "Delta\Other\AppInfo\appinfo.xml") -Raw
 $actualVersion = [string]$appInfo.appinfo.version
-$declaredVersion = (
-  Select-String -Path "apps\desktop\src-tauri\Cargo.toml" -Pattern '^version\s*=\s*"([^"]+)"'
-).Matches.Groups[1].Value
-if ($actualVersion -ne $declaredVersion) {
-  throw "portable metadata version mismatch: expected $declaredVersion, got $actualVersion"
+if ($actualVersion -ne $Version) {
+  throw "portable metadata version mismatch: expected $Version, got $actualVersion"
 }
 
 $appExe = Join-Path $verifyRoot "Delta\App\Delta\Delta.exe"
