@@ -174,7 +174,13 @@ install_rust_crates_system_packages() {
 # The statistics tests and the statistics_describe tool compute only with R 4.6.0 (ADR-0054). The
 # release is built from the CRAN source tarball, whose SHA-256 is pinned below: a download that
 # does not match, or an empty pin, fails the job instead of testing with another R.
+# Building R from source only works on Linux; on other platforms the tests must provide R
+# 4.6.0 themselves (or skip the statistics tests).
 install_pinned_r() {
+  if [ "$(uname -s)" != "Linux" ]; then
+    echo "central-ci: skipping pinned R build on non-Linux platform ($(uname -s))" >&2
+    return 0
+  fi
   local version="4.6.0"
   local archive="R-${version}.tar.xz"
   local url="https://cran.r-project.org/src/base/R-4/${archive}"
