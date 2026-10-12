@@ -178,7 +178,7 @@ install_pinned_r() {
   local version="4.6.0"
   local archive="R-${version}.tar.xz"
   local url="https://cran.r-project.org/src/base/R-4/${archive}"
-  local sha256="__PIN_R_SOURCE_SHA256_HERE__"
+  local sha256="91f2b3693fa5252cdea9b62abc84a1c58db5547cb9f0fe3d15f44eef8aff5a27"
   local prefix="/opt/R-${version}"
   if [ -x "$prefix/bin/Rscript" ] && "$prefix/bin/Rscript" --version 2>&1 | grep -q "version ${version} "; then
     export PATH="$prefix/bin:$PATH"
