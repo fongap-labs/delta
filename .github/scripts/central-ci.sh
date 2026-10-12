@@ -171,6 +171,48 @@ install_rust_crates_system_packages() {
   sudo apt-get install -y libasound2-dev pkg-config
 }
 
+# The statistics tests and the statistics_describe tool compute only with R 4.6.0 (ADR-0054). The
+# release is built from the CRAN source tarball, whose SHA-256 is pinned below: a download that
+# does not match, or an empty pin, fails the job instead of testing with another R.
+install_pinned_r() {
+  local version="4.6.0"
+  local archive="R-${version}.tar.xz"
+  local url="https://cran.r-project.org/src/base/R-4/${archive}"
+  local sha256="91f2b3693fa5252cdea9b62abc84a1c58db5547cb9f0fe3d15f44eef8aff5a27"
+  local prefix="/opt/R-${version}"
+  if [ -x "$prefix/bin/Rscript" ] && "$prefix/bin/Rscript" --version 2>&1 | grep -q "version ${version} "; then
+    export PATH="$prefix/bin:$PATH"
+    return 0
+  fi
+  if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "central-ci: the SHA-256 of ${archive} is not pinned" >&2
+    exit 1
+  fi
+
+  local workdir
+  workdir="$(mktemp -d)"
+  curl -fsSL -o "$workdir/$archive" "$url"
+  echo "${sha256}  $workdir/$archive" | sha256sum -c - >/dev/null || {
+    echo "central-ci: ${archive} does not match the pinned SHA-256" >&2
+    exit 1
+  }
+  tar -C "$workdir" -xJf "$workdir/$archive"
+
+  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev libcurl4-openssl-dev
+  (
+    cd "$workdir/R-${version}"
+    ./configure --prefix="$prefix" --without-x --without-readline --without-recommended-packages \
+      >configure.log 2>&1 || { tail -n 60 configure.log >&2; exit 1; }
+    make -j"$(nproc)" >make.log 2>&1 || { tail -n 80 make.log >&2; exit 1; }
+    sudo make install >install.log 2>&1 || { tail -n 40 install.log >&2; exit 1; }
+  )
+  export PATH="$prefix/bin:$PATH"
+  if ! Rscript --version 2>&1 | grep -q "version ${version} "; then
+    echo "central-ci: Rscript is not R ${version} after building it" >&2
+    exit 1
+  fi
+}
+
 # Building cargo-deny from source on every run took minutes. On Linux x86_64 the pinned upstream
 # release binary is installed instead, and it is used only if its SHA-256 matches. Any other
 # platform keeps building the same version from source.
@@ -359,6 +401,9 @@ if [ "$rust_required" = "true" ]; then
   fi
 
   if run_shard rust-crates; then
+    phase_begin rust-crates-r-toolchain
+    install_pinned_r
+    phase_end
     phase_begin rust-crates
     run_pool 2 run_rust_workspace \
       "crates/delta-core" \
