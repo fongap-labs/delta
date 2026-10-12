@@ -198,7 +198,7 @@ install_pinned_r() {
   }
   tar -C "$workdir" -xJf "$workdir/$archive"
 
-  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev
+  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev libcurl4-openssl-dev
   (
     cd "$workdir/R-${version}"
     ./configure --prefix="$prefix" --without-x --without-readline --without-recommended-packages \
