@@ -171,6 +171,34 @@ install_rust_crates_system_packages() {
   sudo apt-get install -y libasound2-dev pkg-config
 }
 
+# The statistics tests and the statistics_describe tool compute only with R 4.6.0 (ADR-0054). The
+# release comes from the CRAN apt repository for Ubuntu noble and must match exactly; if it is not
+# there, or another R is installed, the job fails instead of testing with another R.
+install_pinned_r() {
+  local version="4.6.0"
+  local series="noble-cran40"
+  if command -v Rscript >/dev/null 2>&1 && Rscript --version 2>&1 | grep -q "version ${version} "; then
+    return 0
+  fi
+  sudo install -d -m 0755 /etc/apt/keyrings
+  curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc \
+    | sudo tee /etc/apt/keyrings/cran.asc >/dev/null
+  echo "deb [signed-by=/etc/apt/keyrings/cran.asc] https://cloud.r-project.org/bin/linux/ubuntu ${series}/" \
+    | sudo tee /etc/apt/sources.list.d/cran.list >/dev/null
+  sudo apt-get update -qq
+  local candidate
+  candidate="$(apt-cache madison r-base-core | awk -v v="$version" '$3 ~ ("^" v "-") { print $3; exit }')"
+  if [ -z "$candidate" ]; then
+    echo "central-ci: R ${version} is not available from the CRAN apt repository ${series}" >&2
+    exit 1
+  fi
+  sudo apt-get install -y "r-base-core=${candidate}"
+  if ! Rscript --version 2>&1 | grep -q "version ${version} "; then
+    echo "central-ci: Rscript is not R ${version} after installing it" >&2
+    exit 1
+  fi
+}
+
 # Building cargo-deny from source on every run took minutes. On Linux x86_64 the pinned upstream
 # release binary is installed instead, and it is used only if its SHA-256 matches. Any other
 # platform keeps building the same version from source.
@@ -359,6 +387,9 @@ if [ "$rust_required" = "true" ]; then
   fi
 
   if run_shard rust-crates; then
+    phase_begin rust-crates-r-toolchain
+    install_pinned_r
+    phase_end
     phase_begin rust-crates
     run_pool 2 run_rust_workspace \
       "crates/delta-core" \
