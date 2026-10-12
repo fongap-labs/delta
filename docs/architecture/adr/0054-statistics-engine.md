@@ -104,6 +104,15 @@ The facts about regulatory statements and pilots above are from public documents
 
 The first decision (B) had a Python worker drive R. The desktop app does not ship Python (Context, point 4), so B would have required every user to install both Python and R for statistics, and would have put a Python process between the Runtime and R. The owner chose B2. Everything else in this ADR is unchanged: R computes every reportable figure, the environment is pinned and checked, every result carries its provenance, and reference tests gate releases. Python (statsmodels) remains in the test suite only, as the independent cross-check of point 6.
 
+## Amendment (2026-10-12): R 4.6.0 is locked
+
+The owner locked the R release to **4.6.0** (exact version). This pins point 3 of the decision:
+
+- Statistics are computed only by R 4.6.0. The capability reads the version `Rscript` reports and refuses any other release, so nothing is computed in an unvalidated environment (`statistics::PINNED_R_VERSION`).
+- Upgrading to another release is a controlled change: a new decision, the reference tests passing on it, and a CHANGELOG entry naming both versions.
+- Delivery follows the controlled-environment practice the owner described (2026-10-12): the version, the package lock and the system libraries are frozen together. CI, the validation environment and server deployments use a container image pinned by digest; the desktop app, which runs on the user's own computer where Docker is not assumed, uses an R 4.6.0 installation checked at start-up against the same lock. Both are reviewed on a 12-month cycle, and a new release is adopted only after the reference tests and the numeric trace checks pass on it.
+- The exact image digest, the package lock (`renv.lock`) and the NIST StRD reference results are not yet in the repository; they are the next items.
+
 ## Not verified
 
 - The statements about FDA, EMA, NMPA and R Consortium pilots are from public documents as known at the time of writing, not re-read for this ADR.

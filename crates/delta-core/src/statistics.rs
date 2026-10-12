@@ -23,6 +23,10 @@ use crate::capability::{
     CapabilityGrants, CapabilityRegistration, CapabilityResult, NativeCapabilityRunner,
 };
 
+/// The R release the statistics are computed with (ADR-0054, amended 2026-10-12). Any other R is
+/// refused: the figures must come from the one environment that was validated.
+pub const PINNED_R_VERSION: &str = "4.6.0";
+
 /// The R program for `describe`. Its arguments are the CSV path and the column name.
 const DESCRIBE_SCRIPT: &str = r#"
 args <- commandArgs(trailingOnly = TRUE)
@@ -91,13 +95,9 @@ pub fn describe_registration() -> CapabilityRegistration {
                 return CapabilityResult::cancelled(&job.job_id);
             }
             let rscript = match find_rscript() {
-                Some(rscript) => rscript,
-                None => {
-                    return CapabilityResult::failed(
-                        &job.job_id,
-                        "R (Rscript) is not installed, so statistics are unavailable",
-                        Some("unavailable"),
-                    )
+                Ok(rscript) => rscript,
+                Err(message) => {
+                    return CapabilityResult::failed(&job.job_id, &message, Some("unavailable"));
                 }
             };
             match describe(&rscript, &resolved, column, DESCRIBE_TIMEOUT) {
@@ -113,14 +113,33 @@ pub fn describe_registration() -> CapabilityRegistration {
 /// How long R may take to describe one column.
 const DESCRIBE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// The Rscript on PATH, if there is one.
-fn find_rscript() -> Option<PathBuf> {
-    Command::new("Rscript")
-        .arg("--version")
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|_| PathBuf::from("Rscript"))
+/// The Rscript on PATH, if it is the pinned release. Another release, or none, is an error that
+/// says which version was found.
+fn find_rscript() -> Result<PathBuf, String> {
+    let output = Command::new("Rscript").arg("--version").output();
+    let Ok(output) = output else {
+        return Err("R (Rscript) is not installed, so statistics are unavailable".to_owned());
+    };
+    // Rscript prints its version on standard error.
+    let text = String::from_utf8_lossy(&output.stderr).into_owned()
+        + &String::from_utf8_lossy(&output.stdout);
+    check_pinned_version(&text)?;
+    Ok(PathBuf::from("Rscript"))
+}
+
+/// Accept the output of `Rscript --version` only for the pinned release.
+fn check_pinned_version(version_output: &str) -> Result<(), String> {
+    let found = version_output
+        .split_once("version ")
+        .and_then(|(_, rest)| rest.split_whitespace().next())
+        .unwrap_or("unknown");
+    if found == PINNED_R_VERSION {
+        Ok(())
+    } else {
+        Err(format!(
+            "statistics need R {PINNED_R_VERSION}, but R {found} was found, so nothing was computed"
+        ))
+    }
 }
 
 fn description_json(result: &Description) -> Value {
@@ -330,6 +349,19 @@ mod tests {
         assert_eq!(value["provenance"]["engine"], "R");
         assert_eq!(value["provenance"]["script_sha256"], "aa");
         assert_eq!(value["provenance"]["input_sha256"], "bb");
+    }
+
+    #[test]
+    fn only_the_pinned_r_release_is_accepted() {
+        let pinned = "R scripting front-end version 4.6.0 (2026-04-01)";
+        assert!(check_pinned_version(pinned).is_ok());
+        let other = "R scripting front-end version 4.3.3 (2024-02-29)";
+        let error = check_pinned_version(other).unwrap_err();
+        assert!(
+            error.contains("4.6.0") && error.contains("4.3.3"),
+            "{error}"
+        );
+        assert!(check_pinned_version("no version here").is_err());
     }
 
     #[test]
