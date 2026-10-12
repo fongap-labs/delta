@@ -33,6 +33,7 @@ pub mod mcp_runtime;
 pub mod memory;
 pub mod model_authority;
 mod model_catalog;
+pub mod numeric_trace;
 pub mod persistent_worker;
 pub mod policy;
 pub mod private_fs;
