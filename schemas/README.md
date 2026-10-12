@@ -9,6 +9,7 @@
 | --- | --- |
 | `execution-grant.schema.json` | Execution Grant data contract |
 | `capability-manifest.schema.json` | Worker capability manifest |
+| `study.schema.json` | Study record of a multi-round study (ADR-0056) |
 
 Schemas are versioned via the `"$id"` field. Extension code must not define
 relaxed alternates of these shapes silently; breaking changes require a new

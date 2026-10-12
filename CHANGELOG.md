@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- feat: a multi-round study keeps its design in a `study.json` record, with a published schema. The module reads and checks it (every problem is reported; a range must stay inside its declared bounds; a factor needs bounds; significance and confidence levels are between 0 and 1) and reports which locked fields differ between two registrations: the objective, the responses, the outer adjustment bounds, the stopping rule and the analysis plan. Factor ranges inside the bounds, rounds, decisions and recommendations are not locked (ADR-0056, step 1). Nothing calls it yet: the amend capability, the history query and the validation rule follow.
 - feat: a report can refer to a computed figure with a binding, `{{result:<path>#<key>|<format>}}`, and the figure is rendered in its declared format: fixed decimals or a whole number, rounded half up on the shortest decimal form of the value, so 2.675 renders as 2.68 at two decimals (ADR-0055, step 1). The binding check and the binding manifest follow.
 
 - feat: the first statistics figures are computed by R. A new `statistics` module describes one CSV column (n, mean, sample sd, min, max, median) with R run under a time limit; the R program is compiled in, and each result records its R version and the SHA-256 of the program and of the input (ADR-0054, step 2a). Not yet a capability the model can call.
