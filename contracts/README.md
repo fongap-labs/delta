@@ -1,52 +1,17 @@
-# Delta Foundation Contracts
+# Delta Foundation 合同
 
-> Stable, versioned contracts that define the boundary between Delta Foundation
-> and Delta Suite. Contract is the **only** extension boundary.
+> 稳定、版本化的合同，定义 Delta Foundation 与 Delta Suite 之间的边界。合同是 Suite 与 Foundation 之间**唯一**的扩展边界。
 
-## Capability ABI
+本目录的机器读取规则与数据形状位于 [CONTRACT_RULES.md](CONTRACT_RULES.md)。该文件是唯一权威来源，本文不重复其中的规则，以免两处内容分叉。本目录中的中文说明属于 [CONTRACT_GOVERNANCE.md](../docs/governance/CONTRACT_GOVERNANCE.md) 第 7 节记录的语言例外。
 
-See `docs/architecture/capability-abi.md` for the authoritative Capability ABI
-specification. The data shapes below are the canonical, versioned contract
-types.
+## 合同类型
 
-## Execution Grant
+- **Capability ABI**：能力与 Worker 之间的边界。权威规范见 [capability-abi.md](../docs/architecture/capability-abi.md)。
+- **Execution Grant（执行授权）**：把一次能力调用绑定到一次运行、一个执行纪元、一个权限范围与一个过期时间。它防止过期任务继续执行，并阻止跨范围或纪元之外的调用。其 JSON Schema 位于 `schemas/execution-grant.schema.json`。
+- **Capability Request（能力请求）**：一次能力调用的请求结构，包括运行、工具调用、能力标识、截止时间、工作区、输入、权限与限制。
 
-Bound a capability invocation to a run, an execution epoch, a permission
-scope, and an expiry. Grants prevent stale jobs from continuing and prevent
-cross-scope or out-of-epoch calls. Timestamps are Unix epoch seconds (f64).
+## 相关文档
 
-```json
-{
-  "run_id": "run_...",
-  "execution_epoch": 1715932000.0,
-  "capability_id": "research.statistics.anova",
-  "permission_scope": ["filesystem.read"],
-  "expires_at": 1715935600.0
-}
-```
-
-See `schemas/execution-grant.schema.json`.
-
-## Capability Request
-
-```json
-{
-  "run_id": "run_...",
-  "tool_call_id": "tool_...",
-  "capability": "research.statistics.anova",
-  "deadline": "2026-09-17T12:00:00Z",
-  "workspace": { "id": "ws_..." },
-  "inputs": [],
-  "permissions": [],
-  "limits": {}
-}
-```
-
-## Contract stability rules
-
-1. Breaking changes require a version bump and a contract test.
-2. Foundation never imports Suite contract impls.
-3. Suite consumes Foundation contracts only through the Delta SDK crate
-   (`crates/delta-sdk`) or the `delta.extensions` entry-point group.
-4. New contract types must be added to `schemas/` as JSON Schema before use
-   across a process boundary.
+- Suite 使用合同的途径与稳定性规则：[CONTRACT_RULES.md](CONTRACT_RULES.md)
+- 合同的修改评审与兼容性要求：[CONTRACT_GOVERNANCE.md](../docs/governance/CONTRACT_GOVERNANCE.md)
+- 扩展的激活方式：[extension-loading.md](../docs/architecture/extension-loading.md)

@@ -192,7 +192,7 @@ Pull Request → CI（lint、测试、合同、架构守卫、许可证）
 ### 7.1 漏洞报告
 
 - **公开 Issue：** 仅用于非安全缺陷。
-- **安全问题：** 发送邮件至 `security@delta.example.com`（占位地址），或使用 GitHub Security Advisories。
+- **安全问题：** 发送邮件至 `info@fongap.com`，或使用 GitHub Security Advisories。
 - **在修复发布且经过 7 天宽限期之前，不得公开披露。**
 
 ### 7.2 安全修复流程
@@ -234,7 +234,7 @@ Delta 采用 **Contributor Covenant v2.1**（https://www.contributor-covenant.or
 |---------|---------|
 | GitHub Discussions / Issues / PR | 公开社区 |
 | Delta Discord / Matrix | 实时聊天 |
-| 私下举报 | `conduct@delta.example.com`（占位地址） |
+| 私下举报 | `info@fongap.com` |
 
 **执行机构：** 社区版主团队（至少 3 名维护者，每季度轮换）。
 **申诉：** 架构评审委员会。

@@ -139,7 +139,7 @@
 | **GitHub Discussions** | 设计提案、问答、公告 | ARB 监督；决策使用 `governance` 标签 |
 | **GitHub Issues** | 缺陷报告、功能请求 | 由维护者分流 |
 | **Discord / Matrix** | 实时聊天、支持、社交 | 版主执行行为准则 |
-| **邮件列表**（`community@delta.example.com`，占位地址） | 正式公告、安全通告 | 多数人只读；由 ARB 发布 |
+| **邮件列表**（`info@fongap.com`） | 正式公告、安全通告 | 多数人只读；由 ARB 发布 |
 | **双周社区例会** | 同步进展、演示、问答 | 公开；发布会议纪要 |
 
 ### 6.2 贡献者认可

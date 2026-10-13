@@ -84,7 +84,7 @@ delta-artifact
 | 目录 | 当前职责 |
 | --- | --- |
 | `apps/` | 用户可运行的应用（当前为 `apps/desktop/`） |
-| `contracts/` | 版本化的跨进程 / 跨仓库合同定义（当前仅含 `README.md`；JSON Schema 位于 `schemas/`） |
+| `contracts/` | 版本化的跨进程 / 跨仓库合同定义（`README.md` 为中文说明，`CONTRACT_RULES.md` 为英文机器读取规则；JSON Schema 位于 `schemas/`） |
 | `core/` | 少量 Python 辅助代码（`roots.py`、`pdf_support.py`），不再承载 Runtime |
 | `crates/` | Rust workspace crates（`delta-core`、`delta-computer`、`delta-stt`、`delta-sdk` 等） |
 | `delta_extension_api/` | 面向已安装扩展的稳定 Python 扩展 API |
@@ -164,7 +164,7 @@ Anthropic-compatible
 
 面向已安装扩展的稳定 Python 扩展 API。扩展应从此包导入，而不是从 Foundation 的内部模块 `integrations.*` 或 `packages.*` 导入。
 
-仓库中目前找不到 `delta.extensions` entry-point 组的加载代码；`scripts/check_architecture_boundary.py` 与 `contracts/README.md` 仍引用该组名。
+仓库中不存在 `delta.extensions` entry-point 加载代码，也不得新增：可选扩展只通过 `<state>/extensions/<source>/` 下的已安装清单激活，决定与理由见 [extension-loading.md](extension-loading.md)。架构边界检查（`scripts/check_architecture_boundary.py`）禁止 entry-point 注册。
 
 ## `schemas/`
 
