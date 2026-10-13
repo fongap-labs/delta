@@ -3,8 +3,8 @@
 ## [Unreleased]
 
 - docs: `contracts/README.md` is written in Chinese as the human-facing guide. The machine-read contract rules and data shapes move to `contracts/CONTRACT_RULES.md` (English), the single authority that the README does not repeat. The exception to the machine-read contracts language rule is recorded in `docs/governance/CONTRACT_GOVERNANCE.md` section 7.
-- fix [contract]: `model.request` has one definition, the Runtime ledger event in `runtime-public-contract.md`. The opt-in telemetry event that used the same name is renamed `model.usage`, and a contract test fails if another governed document defines `model.request`. The Runtime emission test checks the exact field list.
-- docs [governance]: optional extensions are activated only by installed manifests under `<state>/extensions/<source>/`. Python entry points are not an activation mechanism, and the architecture guard now rejects entry-point registration (`docs/architecture/extension-loading.md`).
+- fix [security]: `model.request` has one definition, the Runtime ledger event in `runtime-public-contract.md`. The opt-in telemetry event that used the same name is renamed `model.usage`, and a contract test fails if another governed document defines `model.request`. The Runtime emission test checks the exact field list.
+- docs: optional extensions are activated only by installed manifests under `<state>/extensions/<source>/`. Python entry points are not an activation mechanism, and the architecture guard now rejects entry-point registration (`docs/architecture/extension-loading.md`).
 - docs: the security, conduct, community and extension contact addresses are `info@fongap.com` instead of placeholder `delta.example.com` addresses.
 - feat [breaking, migration]: the release version is only the version entered when the release is started. The release build writes it into the version fields of its checkout (`scripts/stamp_release_version.py`) and verifies the portable metadata against it. The version-consistency check, the required dated CHANGELOG release section and `version_source` in the release manifest are removed.
 
