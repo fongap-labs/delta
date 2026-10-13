@@ -2,13 +2,12 @@
 
 本文记录需要所有者决定、法务审查或另行处理、且本仓库本次没有结论的事项。每一项写明现状与需要的输入，不作替代判断。
 
-## 1. 审计文档缺失
+## 1. 审计文档缺失（已移除引用）
 
-- `scripts/check_provenance_policy.py` 的 `LEGAL_AND_HISTORY` 列表引用两份文件：`docs/audits/phase-1-provenance-license-audit.md` 与 `docs/audits/phase-2.5-foundation-cleanup-audit.md`。
-- 这两份文件从未进入本仓库的任何提交。已取完整历史（143 个提交），并检查了 origin 上的 `main`、`claude/compassionate-dirac-29hfcp` 与 `claude/sharp-goodall-0cyamn` 分支，均不存在。本机也未找到副本。
-- 本仓库中唯一被删除的治理文档（`DELTA_GOVERNANCE.md`、`AI_AGENT_INSTRUCTIONS.md`、`AI_AGENT_RULES.md`、`DEVELOPMENT_POLICY.md`、`baseline/ARCHITECTURE_GOVERNANCE.md`）是为消除与共用治理的重复而删除的，不是审计文档，也不应恢复。
-- 另一个会话的 scratchpad 中存在名为 `audit-report.md` 的跨仓库文档审计（英文，2026-10-13）。它不在任务指定的路径，覆盖范围是部分阅读，其中关于 delta 的条目未经验证。它未被导入。
-- 需要所有者提供：原始的两份审计文档，或决定是否导入上述跨仓库审计（以及导入后的文件名与中文化范围）。在此之前，`check_provenance_policy.py` 中的引用指向不存在的文件。
+- 原 `scripts/check_provenance_policy.py` 的 `LEGAL_AND_HISTORY` 列表引用两份不存在的文件：`docs/audits/phase-1-provenance-license-audit.md` 与 `docs/audits/phase-2.5-foundation-cleanup-audit.md`。这两份文件从未进入本仓库的任何提交（已取完整历史，并检查了 origin 上的全部分支），本机也未找到副本。
+- 所有者决定：移除脚本中对这两份文件的引用。脚本不再声称存在这两份审计，也不再因此通过。
+- 后续：需要时，基于仓库当前状态另行撰写带日期与审查范围的审计记录，并让脚本指向新文件。不得根据不存在的旧审计补写结论。
+- 另一个会话的 scratchpad 中存在的跨仓库 `audit-report.md` 未被导入，其中关于 delta 的条目未经验证。
 
 ## 2. 法务审查（不作结论）
 

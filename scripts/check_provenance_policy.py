@@ -33,8 +33,6 @@ LEGAL_AND_HISTORY = {
     pathlib.Path("PROVENANCE.md"),
     pathlib.Path("THIRD_PARTY_NOTICES.md"),
     pathlib.Path("CHANGELOG.md"),
-    pathlib.Path("docs/audits/phase-1-provenance-license-audit.md"),
-    pathlib.Path("docs/audits/phase-2.5-foundation-cleanup-audit.md"),
 }
 
 TEXT_SUFFIXES = {
