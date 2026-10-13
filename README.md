@@ -4,9 +4,7 @@
 
 # Delta
 
-**本地优先的个人工作 AI Agent**
-
-日常办公 · 研究分析 · 内容创作
+本地优先的个人 AI 工作助手，专注于日常办公、研究分析与内容创作。
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-286F78?style=flat-square&labelColor=1D3F45)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12-3E7F86?style=flat-square&labelColor=1D3F45)](.python-version)
@@ -65,6 +63,11 @@ flowchart LR
 
 另外还需要 [Tauri 的系统依赖](https://tauri.app/start/prerequisites/)，按其官方说明安装即可。
 
+> **开始前须知**
+> - `uv` 必须精确为 0.12.3。
+> - 首次启动必须选择出站级别；选择之前不会向任何模型发送请求。
+> - 首次编译 Rust 需要几分钟。
+
 ### 2. 获取代码并启动
 
 在终端中依次运行（每行一步）：
@@ -89,11 +92,13 @@ npm run tauri dev              # 启动桌面应用（首次编译 Rust 需要�
 
 > **端点（endpoint）**：模型服务的网络地址。
 
+端点可以是云端服务，使用时的费用由所选服务商计费；选择『仅私有』时只使用本机或内网端点。
+
 ### 常见问题
 
 - **`uv sync` 报版本错误**：运行 `uv --version`，必须显示 `0.12.3`。
 - **第一次编译很慢**：Rust 首次编译需要几分钟，属正常现象。
-- **平台**：发布产物为 Windows 便携版。其他系统的开发支持未在本文确认，请以维护者说明为准。
+- **平台**：目前已支持 Windows x64，发布产物为便携版 zip（构建目标 `x86_64-pc-windows-msvc`）。其他系统的开发支持未在本文确认，请以维护者说明为准。
 
 ## 进阶：Delta 如何工作
 
@@ -135,21 +140,6 @@ Delta 的共用工程规则由 **Action Worker**（Fongap Labs 的统一 CI 与�
 - **validate-merge**：唯一的合并许可。
 - **AI Review**：AI 给出的参考意见，不替代以上任何检查。
 
-### 本地检查
-
-以下检查在 CI 中统一执行，本地运行用于提前发现问题。
-
-| 命令 | 作用 |
-| --- | --- |
-| `python scripts/check_brand_icons.py --verify` | 检查图标是否与品牌源文件一致 |
-| `python scripts/check_naming.py` | 检查文件命名 |
-| `python scripts/check_repository_boundary.py` | 检查扩展边界 |
-| `cd apps/desktop && npm test` | 桌面端单元测试 |
-| `cd apps/desktop && npm run e2e` | 桌面端端到端测试（需要浏览器） |
-| 在对应 crate 目录内运行 `cargo test` | Rust 测试 |
-
-本仓库没有根级 `tests/` 目录。Python 合同测试位于 `fongap-labs/action-worker`，Rust 与桌面端测试与代码放在一起。
-
 ### 发布
 
 ```mermaid
@@ -179,9 +169,27 @@ flowchart LR
 - 提交遵循 Conventional Commits，并用 `git commit -s` 签署 DCO（确认你有权提交这段代码）。
 - PR 默认以 Squash merge 合并（把一个分支的所有提交压成一个再合并）。
 
+### 本地检查
+
+以下检查在 CI 中统一执行，本地运行用于提前发现问题。
+
+| 命令 | 作用 |
+| --- | --- |
+| `python scripts/check_brand_icons.py --verify` | 检查图标是否与品牌源文件一致 |
+| `python scripts/check_naming.py` | 检查文件命名 |
+| `python scripts/check_repository_boundary.py` | 检查扩展边界 |
+| `cd apps/desktop && npm test` | 桌面端单元测试 |
+| `cd apps/desktop && npm run e2e` | 桌面端端到端测试（需要浏览器） |
+| 在对应 crate 目录内运行 `cargo test` | Rust 测试 |
+
+本仓库没有根级 `tests/` 目录。Python 合同测试位于 `fongap-labs/action-worker`，Rust 与桌面端测试与代码放在一起。
+
 ## 安全
 
 请不要在公开 Issue 中披露漏洞。使用 GitHub 私密报告：**Security → Advisories → Report a vulnerability**。详见 [SECURITY.md](SECURITY.md)。
+
+- 首次启动选择出站级别之前，不向任何模型发送请求。
+- 对外发送内容等高风险动作需先经用户审批。
 
 ## 许可与商标
 
