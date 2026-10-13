@@ -4,9 +4,7 @@
 
 # Delta
 
-**本地优先的个人工作 AI Agent**
-
-日常办公 · 研究分析 · 内容创作
+本地优先的个人 AI 工作助手，专注于日常办公、研究分析与内容创作。
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-286F78?style=flat-square&labelColor=1D3F45)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12-3E7F86?style=flat-square&labelColor=1D3F45)](.python-version)
