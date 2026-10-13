@@ -47,6 +47,9 @@ See `schemas/execution-grant.schema.json`.
 1. Breaking changes require a version bump and a contract test.
 2. Foundation never imports Suite contract impls.
 3. Suite consumes Foundation contracts only through the Delta SDK crate
-   (`crates/delta-sdk`) or the `delta.extensions` entry-point group.
+   (`crates/delta-sdk`), the public Python extension API (`delta_extension_api`,
+   `delta_worker_sdk`), and the manifests installed under
+   `<state>/extensions/<source>/`. Python entry points are not an activation
+   mechanism (see `docs/architecture/extension-loading.md`).
 4. New contract types must be added to `schemas/` as JSON Schema before use
    across a process boundary.

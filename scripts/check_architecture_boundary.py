@@ -277,10 +277,12 @@ RULES = (
         lambda rel: rel.endswith(".py") and _under(rel, "integrations/capabilities") and not rel.endswith("_test.py") and "test_" not in rel.split("/")[-1],
     ),
 Rule(
-        "entry-point-consistency",
-        "Extension entry point group must be 'delta.extensions' (reject non-standard groups)",
-        re.compile(r"ENTRY_POINT_GROUP\s*=\s*[\"'](?!delta\.extensions)[\"']"),
-        lambda rel: rel.endswith(".py") and _under(rel, "extensions", "integrations/connectors"),
+        "entry-point-discovery",
+        "Optional extensions are activated only by installed manifests under <state>/extensions/<source>/; Python entry points are not an activation mechanism (docs/architecture/extension-loading.md)",
+        re.compile(
+            r"\[project\.entry-points\b|\bentry_points\s*\(|\bENTRY_POINT_GROUP\b|\biter_entry_points\b"
+        ),
+        lambda rel: True,
     ),
 )
 
