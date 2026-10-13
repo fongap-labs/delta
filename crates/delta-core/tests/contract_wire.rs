@@ -440,10 +440,8 @@ fn governed_markdown_files() -> Vec<std::path::PathBuf> {
 #[test]
 fn model_request_event_has_one_definition() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let contract = std::fs::read_to_string(
-        root.join("docs/architecture/runtime-public-contract.md"),
-    )
-    .unwrap();
+    let contract =
+        std::fs::read_to_string(root.join("docs/architecture/runtime-public-contract.md")).unwrap();
     let definition = contract
         .lines()
         .find(|line| line.contains("写入 `model.request`"))
