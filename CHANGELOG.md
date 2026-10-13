@@ -208,3 +208,5 @@ Initial Delta release.
 - Source, citation, artifact, validation, ledger, automation, and memory foundations.
 - Versioned Rust and Python worker contracts at the 0.1.0 baseline.
 - Repository governance and authority cleanup aligned to the initial 0.1.0 release surface.
+ 
+ 
