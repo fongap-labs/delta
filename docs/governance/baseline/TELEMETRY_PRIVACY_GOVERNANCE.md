@@ -83,8 +83,10 @@
 |-------|-------------------|
 | `ui.interaction` | `screen`、`action`、`element_id`、`duration_ms` |
 | `capability.detail` | `parameters_schema_hash`、`result_size_bytes`、`retry_count` |
-| `model.request` | `model_family`、`request_tokens`、`response_tokens`、`latency_ms` |
+| `model.usage` | `model_family`、`request_tokens`、`response_tokens`、`latency_ms` |
 | `search.query` | `query_length`、`result_count`、`source_type` |
+
+`model.usage` 是遥测事件，与 Runtime 台账事件 `model.request` 不同名、字段不同、去向不同。`model.request` 的唯一权威定义在 `docs/architecture/runtime-public-contract.md`，遥测文档不得再用该名称定义字段（由 `crates/delta-core/tests/contract_wire.rs` 中的 `model_request_event_has_one_definition` 检查）。
 
 ### 4.3 内容诊断（明确选择加入 + 范围 + 时效）
 

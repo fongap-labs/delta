@@ -2497,6 +2497,28 @@ fn a_private_only_workspace_may_use_a_local_model_and_records_the_request_withou
     assert_eq!(request.payload["endpoint_class"], "private");
     assert_eq!(request.payload["level"], "private_only");
     assert!(request.payload["bytes"].as_u64().unwrap() > 0);
+    // The emitted fields are exactly the ones runtime-public-contract.md defines.
+    let mut keys: Vec<&str> = request
+        .payload
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        [
+            "bytes",
+            "endpoint",
+            "endpoint_class",
+            "iteration",
+            "level",
+            "model",
+            "protocol",
+            "sources"
+        ]
+    );
     assert!(!request
         .payload
         .to_string()

@@ -204,7 +204,7 @@ read_at       RFC 3339 时间
 - `ask_each_time` 通过正常的审批路径确认，每次 Run 一次（恢复或重试的 Run 重新确认）；无人值守的 Run 停在 Inbox；长期授权不适用；
 - 无人值守的 Run 被拒绝时，同时在 Inbox 留一条 `notice`（每个会话、每种原因一条）；
 - 判定依赖端点地址时（`private_only`、`approved_endpoints` 下的私有端点），连接固定到判定时检查过的地址，不再重新解析；
-- 每次发出的请求写入 `model.request`：`iteration`、`endpoint`（主机）、`endpoint_class`、`model`、`protocol`、`level`、`bytes`（消息体大小）、`sources`（本 Run 已读来源的 `source_id` 与 SHA-256）。它不包含消息内容，也不声称某个来源的内容一定在这次请求里。
+- 每次发出的请求写入 `model.request`（本段是该事件的唯一权威定义；遥测使用其他事件名，见 `TELEMETRY_PRIVACY_GOVERNANCE.md` §4.2）：`iteration`、`endpoint`（主机）、`endpoint_class`、`model`、`protocol`、`level`、`bytes`（消息体大小）、`sources`（本 Run 已读来源的 `source_id` 与 SHA-256）。它不包含消息内容，也不声称某个来源的内容一定在这次请求里。
 
 出站工具的执行点（ADR-0061）：
 

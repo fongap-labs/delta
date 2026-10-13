@@ -413,3 +413,68 @@ fn artifact_record_serde_round_trip() {
     assert_eq!(back.sha256, "abc123");
     assert_eq!(back.size, 42);
 }
+
+/// Every Markdown file under `docs/`, relative to the repository root.
+fn governed_markdown_files() -> Vec<std::path::PathBuf> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "md") {
+                out.push(path);
+            }
+        }
+    }
+    let docs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let mut files = Vec::new();
+    walk(&docs, &mut files);
+    files
+}
+
+/// `model.request` is a Runtime ledger event. Its one authoritative definition
+/// is `docs/architecture/runtime-public-contract.md`, and the Runtime emits
+/// exactly the fields that definition lists. No other document may define the
+/// same event name in a table, because a second field list would contradict it
+/// (opt-in telemetry uses `model.usage` for that reason).
+#[test]
+fn model_request_event_has_one_definition() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let contract = std::fs::read_to_string(
+        root.join("docs/architecture/runtime-public-contract.md"),
+    )
+    .unwrap();
+    let definition = contract
+        .lines()
+        .find(|line| line.contains("写入 `model.request`"))
+        .expect("runtime contract defines the model.request ledger event");
+    for field in [
+        "iteration",
+        "endpoint",
+        "endpoint_class",
+        "model",
+        "protocol",
+        "level",
+        "bytes",
+        "sources",
+    ] {
+        assert!(
+            definition.contains(&format!("`{field}`")),
+            "model.request contract is missing field {field}"
+        );
+    }
+
+    for path in governed_markdown_files() {
+        let text = std::fs::read_to_string(&path).unwrap();
+        for row in text.lines().filter(|line| line.starts_with('|')) {
+            let event = row.split('|').nth(1).unwrap_or_default().trim();
+            assert_ne!(
+                event,
+                "`model.request`",
+                "{} redefines the model.request ledger event in a table; \
+                 only runtime-public-contract.md may define it",
+                path.display()
+            );
+        }
+    }
+}
