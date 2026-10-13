@@ -131,7 +131,7 @@
 
 - **提前访问：** 扩展作者可通过 GitHub prerelease 获取发布前的 SDK。
 - **兼容性 CI：** Suite CI 运行扩展兼容性测试（Dual-Repo Design §14，该文档未收录于本仓库）。
-- **直接渠道：** `extensions@delta.example.com`（占位地址）用于迁移问题咨询。
+- **直接渠道：** `info@fongap.com` 用于迁移问题咨询。
 
 ---
 

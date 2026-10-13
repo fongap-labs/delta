@@ -59,7 +59,7 @@
 
 | 渠道 | 用途 | 响应 |
 |---------|----------|----------|
-| `security@delta.example.com`（占位地址） | 所有漏洞 | 安全团队（加密通信） |
+| `info@fongap.com` | 所有漏洞 | 安全团队（加密通信） |
 | GitHub Security Advisories（私密） | Foundation 仓库漏洞 | 安全团队 |
 | 内部工单系统 | Suite / 托管服务漏洞 | 安全团队 + Suite 负责人 |
 | 公开 Issue | **绝不**用于漏洞报告 | 关闭 + 引导至私密渠道 |

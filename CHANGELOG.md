@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- fix [contract]: `model.request` has one definition, the Runtime ledger event in `runtime-public-contract.md`. The opt-in telemetry event that used the same name is renamed `model.usage`, and a contract test fails if another governed document defines `model.request`. The Runtime emission test checks the exact field list.
+- docs [governance]: optional extensions are activated only by installed manifests under `<state>/extensions/<source>/`. Python entry points are not an activation mechanism, and the architecture guard now rejects entry-point registration (`docs/architecture/extension-loading.md`).
+- docs: the security, conduct, community and extension contact addresses are `info@fongap.com` instead of placeholder `delta.example.com` addresses.
 - feat [breaking, migration]: the release version is only the version entered when the release is started. The release build writes it into the version fields of its checkout (`scripts/stamp_release_version.py`) and verifies the portable metadata against it. The version-consistency check, the required dated CHANGELOG release section and `version_source` in the release manifest are removed.
 
 - fix: a background shell task is reported as exited only after its output has been read. The process can be gone while its last lines still sit unread in the pipe (the reader thread lags on a loaded machine), and the status used to flip to `exited` then, so `shell_task_output` answered with an empty output and the command's verdict was lost — the flaky `test_background_task_runs_and_exits` failure in CI. The exited status now requires both the process being gone and the output drained; a kill waits briefly for the drain so the read after it reports `exited` with the full output.
