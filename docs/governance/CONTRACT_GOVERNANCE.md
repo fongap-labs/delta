@@ -1,155 +1,127 @@
-# Delta Contract Governance
+# Delta 合同治理（Contract Governance）
 
-Version: 1.0
+版本：1.0
 
-Status: Architecture Baseline
+状态：架构基线（Architecture Baseline）
 
+本文规定公开合同的范围、兼容性规则、SDK 边界，以及修改合同前的 AI 代理规则。
 
-## 1. Purpose
+## 1. 目的
 
-
-Contracts define the stable boundary between:
+合同定义以下三者之间的稳定边界：
 
 - Delta Foundation
 - Delta Suite
-- External Extensions
+- 外部扩展（External Extensions）
 
-
-Contracts are more stable than implementations.
-
+合同比实现更稳定。
 
 ---
 
-# 2. Contract Principle
+## 2. 合同原则
 
+Delta 遵循：
 
-Delta follows:
+**Contract over Implementation（合同优先于实现）**
 
+消费方依赖：
 
-Contract over Implementation
+- 接口（Interfaces）
+- Schema
+- 合同
 
+消费方绝不得依赖：
 
-Consumers depend on:
-
-- Interfaces
-- Schemas
-- Contracts
-
-
-Consumers MUST NOT depend on:
-
-- Internal modules
-- Private implementation details
-
+- 内部模块
+- 私有实现细节
 
 ---
 
-# 3. Contract Scope
+## 3. 合同范围
 
+合同定义以下内容。
 
-Contracts define:
+### Capability 合同
 
+定义：
 
-## Capability Contract
+- Capability 身份
+- 输入
+- 输出
+- 权限要求
 
-Defines:
+### Worker 合同
 
-- Capability identity
-- Input
-- Output
-- Permission requirement
+定义：
 
+- 执行接口
+- 状态报告
+- Artifact 输出
 
-## Worker Contract
+### Connector 合同
 
-Defines:
+定义：
 
-- Execution interface
-- Status reporting
-- Artifact output
+- 外部集成边界
 
+### Artifact 合同
 
-## Connector Contract
+定义：
 
-Defines:
+- 数据身份
+- 引用
+- 来源证明（provenance）
 
-- External integration boundary
+### Event 合同
 
+定义：
 
-## Artifact Contract
-
-Defines:
-
-- Data identity
-- Reference
-- Provenance
-
-
-## Event Contract
-
-Defines:
-
-- System events
-- State changes
-
+- 系统事件
+- 状态变更
 
 ---
 
-# 4. Compatibility Rules
+## 4. 兼容性规则
 
+合同变更需要评审。
 
-Contract changes require review.
+允许：
 
+- 新增可选字段
+- 扩展 Capability 元数据
+- 新增接口
 
-Allowed:
+需要评审：
 
-- Add optional fields
-- Extend capability metadata
-- Add new interfaces
-
-
-Requires review:
-
-- Remove fields
-- Change behavior
-- Break compatibility
-
+- 删除字段
+- 改变行为
+- 破坏兼容性
 
 ---
 
-# 5. SDK Boundary
+## 5. SDK 边界
 
+SDK 提供：
 
-SDK provides:
+- 扩展接口
+- 合同访问
+- 开发工具
 
+SDK 不暴露：
 
-- Extension interfaces
-- Contract access
-- Development utilities
-
-
-SDK does not expose:
-
-
-- Core internal implementation
-- Authority internals
-- Private state management
-
+- Core 内部实现
+- 权威内部机制
+- 私有状态管理
 
 ---
 
-# 6. AI Agent Rules
+## 6. AI 代理规则
 
+修改合同之前：
 
-Before changing contracts:
+1. 检查现有使用方。
+2. 考虑兼容性。
+3. 优先扩展。
+4. 避免破坏消费方。
 
-
-1. Check existing usage.
-2. Consider compatibility.
-3. Prefer extension.
-4. Avoid breaking consumers.
-
-
-Contracts are architectural assets.
-
-Do not modify casually.
+合同是架构资产，不得随意修改。

@@ -1,50 +1,47 @@
-# Architecture Decision Records
+# 架构决策记录（ADR）
 
-## In this repository
+本目录保存 Delta 的架构决策记录。每份 ADR 说明一项决定的背景、决定内容与后果。下表列出本仓库中保存的决策；"代码中引用但本仓库未保存的编号"一节说明源代码注释中仍在引用的旧编号体系。
 
-| ADR | Title |
+## 本仓库中的决策
+
+| ADR | 标题 |
 |---|---|
-| [0001](0001-one-delta-one-core.md) | One Delta, one core |
-| [0002](0002-foundation-suite-boundary.md) | Foundation / extension boundary (historical file name) |
-| [0003](0003-capability-over-fork.md) | Capability over fork |
-| [0004](0004-capability-execution-chain.md) | Capability execution chain |
-| [0052](0052-credential-storage.md) | Credential storage (proposed; numbered 0052 so it does not collide with the earlier ADR-005 ... ADR-051 numbers cited in code) |
-| [0053](0053-resume-run-identity.md) | Which run identity a resumed run uses |
-| [0054](0054-statistics-engine.md) | Which statistics engine produces reportable figures |
-| [0055](0055-numeric-traceability.md) | Every figure in a report traces to a computed result |
-| [0056](0056-study-record.md) | Where a multi-round study keeps its design and decisions |
-| [0057](0057-workspace-sensitivity-model-egress.md) | Workspace sensitivity and what may be sent to a model endpoint |
-| [0058](0058-baseline-work-capabilities.md) | Baseline work capabilities live in Foundation |
-| [0059](0059-computer-capabilities.md) | Computer capabilities, in steps (screenshot, clipboard, open; acting on the screen not yet decided) |
-| [0060](0060-controlled-browser.md) | A controlled browser for the agent (Edge or Chrome over DevTools; own profile, same network guard as web_fetch) |
-| [0061](0061-egress-level-outbound-tools.md) | The workspace egress level also governs outbound tools |
+| [0001](0001-one-delta-one-core.md) | 唯一的 Delta，唯一的核心 |
+| [0002](0002-foundation-suite-boundary.md) | Foundation 与扩展边界（文件名为历史遗留） |
+| [0003](0003-capability-over-fork.md) | 以能力代替分叉 |
+| [0004](0004-capability-execution-chain.md) | 能力标准执行链 |
+| [0052](0052-credential-storage.md) | 凭据存储（第一步已实现，第二步待所有者决定；编号 0052 以避免与代码中引用的 ADR-005 ... ADR-051 冲突） |
+| [0053](0053-resume-run-identity.md) | 恢复运行沿用哪个运行身份 |
+| [0054](0054-statistics-engine.md) | 哪个统计引擎产出可报告的数字 |
+| [0055](0055-numeric-traceability.md) | 报告中的每个数字都可追溯到计算结果 |
+| [0056](0056-study-record.md) | 多轮研究的设计与决策保存在哪里 |
+| [0057](0057-workspace-sensitivity-model-egress.md) | 工作区敏感度与可发送到模型端点的内容 |
+| [0058](0058-baseline-work-capabilities.md) | 基础办公能力归属 Foundation |
+| [0059](0059-computer-capabilities.md) | 电脑能力，分步实现（截图、剪贴板、打开；操作屏幕尚未决定） |
+| [0060](0060-controlled-browser.md) | 供 Agent 使用的受控浏览器（经 DevTools 驱动 Edge 或 Chrome；独立配置文件；与 `web_fetch` 相同的网络守卫） |
+| [0061](0061-egress-level-outbound-tools.md) | 工作区出境档位同样约束对外工具 |
 
-## Numbers cited in code but not stored here
+## 代码中引用但本仓库未保存的编号
 
-Source comments and docs also cite ADR numbers from an earlier numbering scheme
-(`ADR-005` ... `ADR-051`). Those decision documents are **not part of this repository**;
-the table only records what the citing code says each number covers, so a contributor
-knows what a comment refers to. Treat the code and `docs/architecture/runtime-public-contract.md`
-as the source of truth. When one of these decisions is written up in the current
-`NNNN-title.md` format, add it to the first table and drop it from this one.
+源代码注释与文档中还引用了旧编号体系中的 ADR（`ADR-005` ... `ADR-051`）。这些决策文档**不在本仓库中**；下表只记录引用处所说明的主题，便于贡献者理解注释指向什么。以代码及 `docs/architecture/runtime-public-contract.md` 为事实来源。当其中某项决策以当前 `NNNN-title.md` 格式写出后，应将其加入第一张表，并从本表删除。
 
-| ADR | Topic, as cited in code | Cited in |
+| ADR | 引用处所述主题 | 引用位置 |
 |---|---|---|
-| ADR-004 | Managed OAuth removed; manual connect | `apps/desktop/src` |
-| ADR-005 | Reliable task runtime (incl. WS3: Validation) | `crates/delta-core/src/artifact.rs`, `validation.rs` |
-| ADR-009 | Delta core architecture | `crates/delta-core/src/lib.rs` |
-| ADR-019 | R2 pre-plumbing; artifact registry shadow reader, validation shadow validator | `artifact.rs`, `validation.rs` |
-| ADR-020 | Rust write authority for the artifact registry | `artifact.rs` |
-| ADR-022 | Rust-authoritative tool idempotency state machine | `tool_lifecycle.rs` |
-| ADR-024 | Hard cut: Rust is the sole authority for the task store | `taskstore.rs` |
-| ADR-027 | R2 source / citation hard cut | `source_citation.rs` |
-| ADR-028 | Write authority for validation trusted facts | `validation.rs` |
-| ADR-029 | Checkpoint authority (`checkpoint.registered` events) | `lib.rs` |
-| ADR-030 | Policy authority (tool-call risk levels, policy slices) | `lib.rs` |
-| ADR-031 | Approval authority (approval audit events) | `lib.rs` |
-| ADR-037 | Cancellation decision authority | `tool_lifecycle.rs` |
-| ADR-038 | Timeout decision authority | `tool_lifecycle.rs` |
-| ADR-039 | Retry policy decision authority | `retry.rs` |
-| ADR-042 | Run lifecycle state machine and checkpoints | `ledger.rs`, `runtime.rs` |
-| ADR-044 | `next_run` computed by pure Python `compute_next_run()` | `taskstore.rs` |
-| ADR-051 | Rust core control-plane authority | `lib.rs` |
+| ADR-004 | 取消托管 OAuth，改为手动连接 | `apps/desktop/src` |
+| ADR-005 | 可靠的任务运行时（含 WS3：Validation） | `crates/delta-core/src/artifact.rs`、`validation.rs` |
+| ADR-009 | Delta 核心架构 | `crates/delta-core/src/lib.rs` |
+| ADR-019 | R2 预埋：成果物注册表的影子读取器，验证的影子校验器 | `artifact.rs`、`validation.rs` |
+| ADR-020 | 成果物注册表的 Rust 写入权威 | `artifact.rs` |
+| ADR-022 | Rust 权威的工具幂等状态机 | `tool_lifecycle.rs` |
+| ADR-024 | 硬切换：Rust 是任务存储的唯一权威 | `taskstore.rs` |
+| ADR-027 | R2 来源 / 引用硬切换 | `source_citation.rs` |
+| ADR-028 | 验证可信事实的写入权威 | `validation.rs` |
+| ADR-029 | 检查点权威（`checkpoint.registered` 事件） | `lib.rs` |
+| ADR-030 | 策略权威（工具调用风险等级、策略切片） | `lib.rs` |
+| ADR-031 | 审批权威（审批审计事件） | `lib.rs` |
+| ADR-037 | 取消决定权威 | `tool_lifecycle.rs` |
+| ADR-038 | 超时决定权威 | `tool_lifecycle.rs` |
+| ADR-039 | 重试策略决定权威 | `retry.rs` |
+| ADR-042 | 运行生命周期状态机与检查点 | `ledger.rs`、`runtime.rs` |
+| ADR-044 | `next_run` 由纯 Python `compute_next_run()` 计算 | `taskstore.rs` |
+| ADR-051 | Rust 核心控制平面权威 | `lib.rs` |

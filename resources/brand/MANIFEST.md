@@ -1,19 +1,21 @@
-# Delta Brand Manifest
+# Delta 品牌清单
 
-`resources/brand/` is the **single source of truth** for the Delta brand.
+本文说明 `resources/brand/` 中的品牌源文件与由其生成的产物之间的对应关系。
 
-## Canonical source
+`resources/brand/` 是 Delta 品牌的**唯一事实来源（single source of truth）**。
 
-- `delta-logo-512x512.png` — master logo raster. All generated logo derivatives trace back to this file.
-- `delta-logo-256x256.png` — 256px convenience export of the master logo.
+## 规范来源
 
-Brand assets must be edited **here** (or upstream, then synced here), never by hand-editing a generated icon. Check generated icon assets with `scripts/check_brand_icons.py`.
+- `delta-logo-512x512.png`：母版 Logo 位图。所有生成的 Logo 衍生文件均由此文件追溯。
+- `delta-logo-256x256.png`：母版 Logo 的 256px 便捷导出版本。
 
-## Generated artifact locations (trace back to the source)
+品牌资产必须在**此处**编辑（或在上游编辑后同步到此处），不得手工修改生成的图标。生成的图标资产请使用 `scripts/check_brand_icons.py` 检查。
 
-| Location | Purpose |
+## 生成产物位置（可追溯至源文件）
+
+| 位置 | 用途 |
 | --- | --- |
-| `apps/desktop/src-tauri/icons/` | Desktop app icons: `icon.png`, `icon.ico`, `icon.icns`, Tauri square/store logos (`32x32.png` … `Square310x310Logo.png`, `StoreLogo.png`), `tray.png` / `tray.rgba` (full-colour, Windows and Linux), `tray-template.png` / `tray-template.rgba` (single-colour macOS menu-bar template, produced by `python scripts/brand_tray_template.py`) |
-| `packaging/portable/launcher/icon.ico` | Portable launcher window icon |
+| `apps/desktop/src-tauri/icons/` | 桌面应用图标：`icon.png`、`icon.ico`、`icon.icns`、Tauri 方形与商店 Logo（`32x32.png` … `Square310x310Logo.png`、`StoreLogo.png`）、`tray.png` / `tray.rgba`（全彩，适用于 Windows 与 Linux），以及 `tray-template.png` / `tray-template.rgba`（macOS 菜单栏单色模板，由 `python scripts/brand_tray_template.py` 生成） |
+| `packaging/portable/launcher/icon.ico` | 便携版启动器的窗口图标 |
 
-Use `python scripts/check_brand_icons.py --verify` to confirm every generated artifact is present and newer than the brand source.
+使用 `python scripts/check_brand_icons.py --verify` 确认每个生成产物均已存在，且比品牌源文件新。

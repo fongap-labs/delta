@@ -1,119 +1,122 @@
-# ADR-0054: Which statistics engine produces reportable figures
+# ADR-0054：哪个统计引擎产出可报告的数字
 
-Status: **Accepted** (owner, 2026-10-11), **amended** the same day: R is invoked directly by a Rust-native capability, not through a Python worker (see Amendment). Not implemented yet.
+状态：**已接受**（所有者，2026-10-11），同日**修订**：R 由 Rust 原生能力直接调用，而不经 Python Worker（见"修订（2026-10-11）"）；2026-10-12 再次修订，R 版本锁定为 4.6.0（见"修订（2026-10-12）"）。
 
-## Context
+**部分实现**：已实现 `statistics_describe`（描述统计，仅由 R 4.6.0 计算）。其余 `statistics.*` 函数、参考测试、`renv.lock`，以及 CI 中安装 R，尚未完成（见 CHANGELOG）。
 
-The blueprint makes research analysis one of Delta's three product domains (`DELTA_BLUEPRINT.md` section 2.2): descriptive statistics, inference, regression, DOE, sequential design and a formal report. The first target domain is formulation / CMC research analysis, delivered as an extension in `fongap-labs/delta-suite`; Foundation keeps the generic statistics capability (owner, 2026-10-11).
+## 背景
 
-Today Delta has no statistics capability. What exists (checked, not assumed):
+蓝图把研究分析列为 Delta 的三个产品域之一（`DELTA_BLUEPRINT.md` 第 2.2 节）：描述统计、统计推断、回归、DOE、序贯设计与正式报告。第一个目标域是制剂 / CMC 研究分析，以扩展的形式在 `fongap-labs/delta-suite` 中交付；Foundation 保留通用的统计能力（所有者，2026-10-11）。
 
-1. The Capability ABI runs process workers through `WorkerProcessRunner` (`crates/delta-core/src/capability/runners.rs`), which accepts any program: Python, PowerShell and Shell have helpers, "and other controlled workers" use `WorkerProcessRunner::new(program, arguments)`.
-2. The only worker SDK is the Python `delta-worker-sdk` (`packages/delta_worker_sdk`).
-3. The blueprint lists Python, PowerShell and Shell as task execution languages (section 8.2). R is not listed.
-4. The desktop app does not ship Python. `packaging/portable/build-portable.ps1` states that Python is not an application dependency, and ADR-0058 records that the Rust runtime does not call the Python tools under `integrations/`. Baseline capabilities (documents, web) are Rust-native capabilities registered in `CapabilityHost::product_defaults`.
-5. Without a statistics capability the model would compute or recall numbers itself. For formulation / CMC users (stability shelf life, dissolution f2, DOE) a number that is not produced by a deterministic, versioned engine is not usable.
+撰写本 ADR 时，Delta 尚无统计能力。现存情况如下（已核对，并非假设）：
 
-The owner asked that the statistics stack use libraries regulators accept (2026-10-11). That needs to be made precise, because no regulator publishes a list of approved statistical libraries:
+1. 能力 ABI 通过 `WorkerProcessRunner`（`crates/delta-core/src/capability/runners.rs`）运行进程型 Worker，它接受任意程序：Python、PowerShell 与 Shell 有辅助函数，"其他受控 Worker"则使用 `WorkerProcessRunner::new(program, arguments)`。
+2. 唯一的 Worker SDK 是 Python 的 `delta-worker-sdk`（`packages/delta_worker_sdk`）。
+3. 蓝图在任务执行语言中列出了 Python、PowerShell 与 Shell（第 8.2 节）。R 未被列出。
+4. 桌面应用不随附 Python。`packaging/portable/build-portable.ps1` 声明 Python 不是应用依赖；ADR-0058 记录 Rust 运行时不调用 `integrations/` 下的 Python 工具。基础能力（文档、网页）是 `CapabilityHost::product_defaults` 中注册的 Rust 原生能力。
+5. 没有统计能力，模型就会自行计算数字，或凭记忆给出数字。对制剂 / CMC 用户（稳定性货架期、溶出 f2、DOE）而言，若一个数字不是由确定性、带版本的引擎产出的，就不可用。
 
-- The FDA's *Statistical Software Clarifying Statement* says the FDA does not require any specific statistical software; the sponsor is responsible for documenting the software and showing it is reliable for its use. As far as we know, EMA and NMPA also do not certify statistical software.
-- What regulators look at in practice is **documented validation and fitness for intended use**, plus precedent in submissions. By that measure:
-  - **SAS** has the longest submission history (mostly clinical).
-  - **R** has a published compliance basis: the R Foundation's *R: Regulatory Compliance and Validation Issues — A Guidance Document for the Use of R in Regulated Clinical Trial Environments*, the R Validation Hub's risk-based package assessment (`riskmetric`), and R Consortium pilot submissions to the FDA built in R.
-  - **JMP and Minitab** are the tools CMC and formulation scientists most often use for DOE, stability and capability analyses.
-  - **Python** (SciPy, statsmodels) is numerically sound but has no comparable regulatory validation guidance or submission precedent at the package level.
+所有者要求统计技术栈使用监管机构认可的库（2026-10-11）。这需要说得更精确，因为没有任何监管机构公布过经批准的统计库清单：
 
-The facts about regulatory statements and pilots above are from public documents as known at the time of writing. Check them against the current official texts before quoting them in any user-facing or validation material.
+- FDA 的《统计软件澄清声明》（*Statistical Software Clarifying Statement*）称，FDA 不要求任何特定的统计软件；申办方负责记录所用的软件，并证明其适用于预期用途。据我们所知，EMA 与 NMPA 也不认证统计软件。
+- 监管机构在实践中关注的是**有记录的验证与预期用途适用性**，以及递交资料中的先例。以此衡量：
+  - **SAS** 的递交历史最长（主要是临床领域）。
+  - **R** 有公开的合规依据：R 基金会的 *R: Regulatory Compliance and Validation Issues — A Guidance Document for the Use of R in Regulated Clinical Trial Environments*，R Validation Hub 基于风险的软件包评估（`riskmetric`），以及 R Consortium 用 R 完成、提交给 FDA 的试点案例。
+  - **JMP 与 Minitab** 是 CMC 与制剂科学家在 DOE、稳定性和能力分析中最常用的工具。
+  - **Python**（SciPy、statsmodels）在数值上是可靠的，但在软件包层面没有可比的监管验证指南或递交先例。
 
-## Options
+上述关于监管声明与试点的事实，来自撰写时已知的公开文件。在任何面向用户或验证材料中引用之前，应与最新的官方原文核对。
 
-**A. Python only (NumPy, SciPy, statsmodels) inside the existing Python worker SDK.**
-- Plus: no new runtime; one SDK; simple packaging.
-- Minus: does not meet the owner's requirement. There is no regulatory validation guidance or submission precedent to point to, so every user would have to justify the stack themselves.
+## 方案
 
-**B. R as the engine for reportable figures, driven by a Python worker (recommended).**
-- A Python worker built on `delta-worker-sdk` receives the job, prepares the inputs, runs a fixed R script with `Rscript`, and returns the results through the existing ABI.
-- Base R (`stats`) and a small, pinned set of CRAN packages compute every figure that can reach a formal report.
-- Plus: meets the requirement with a documented compliance basis; keeps one worker SDK and the existing ABI; R is used only as a computation engine, not as an authority.
-- Minus: adds R as a task execution language; R must be present (packaging); package versions must be pinned and risk-assessed.
+**A. 仅 Python（NumPy、SciPy、statsmodels），置于现有的 Python Worker SDK 之内。**
+- 优点：无需新的运行时；一个 SDK；打包简单。
+- 缺点：不满足所有者的要求。没有可以引用的监管验证指南或递交先例，因此每位用户都必须自行论证该技术栈。
 
-**B2. R as the engine, invoked directly by a Rust-native capability (chosen by the amendment).**
-- A capability registered in `CapabilityHost::product_defaults` runs a fixed R entry script with `Rscript` through `WorkerProcessRunner`, which already runs any program under the Runtime's timeout and cancellation.
-- Plus: the user needs R only, not R and Python; one fewer process between the Runtime and the computation; cancellation reaches the R process directly; the validation pack covers R alone.
-- Minus: a small R-side interface for inputs and results; Rust prepares input tables (it already reads XLSX, CSV and DOCX since ADR-0058).
+**B. 以 R 为可报告数字的引擎，由 Python Worker 驱动（推荐）。**
+- 基于 `delta-worker-sdk` 的 Python Worker 接收作业、准备输入、用 `Rscript` 运行固定的 R 脚本，并通过现有 ABI 返回结果。
+- 仅使用 Base R（`stats`）以及一小组固定版本的 CRAN 软件包，计算每一个可能进入正式报告的数字。
+- 优点：以有记录的合规依据满足要求；保持一个 Worker SDK 与现有 ABI；R 仅作为计算引擎，而不是权威。
+- 缺点：将 R 增加为任务执行语言；需要为打包引入 R；软件包版本必须固定，并经过风险评估。
 
-**C. Drive the user's own validated JMP, Minitab or SAS installation.**
-- Plus: uses the tools users already validated.
-- Minus: commercial licences; scripting and automation differ per tool and per platform; Delta cannot ship or test against them. This is better as a later export or adapter in Suite (for example, emitting a JMP script) than as the engine.
+**B2. 以 R 为引擎，由 Rust 原生能力直接调用（由修订采纳）。**
+- 注册在 `CapabilityHost::product_defaults` 中的能力，通过 `WorkerProcessRunner` 运行固定的 R 入口脚本（`Rscript`）。`WorkerProcessRunner` 已经能在运行时的超时与取消机制下运行任意程序。
+- 优点：用户只需 R，无需 R 与 Python 两者；运行时与计算之间少一个进程；取消直接作用于 R 进程；验证包只需覆盖 R。
+- 缺点：需要一个小型的 R 端接口来传递输入与结果；Rust 负责准备输入表（自 ADR-0058 起，它已经能够读取 XLSX、CSV 与 DOCX）。
 
-## Decision: B2 (amended from B), with optional JMP / SAS script export
+**C. 驱动用户自己已验证的 JMP、Minitab 或 SAS 安装。**
+- 优点：使用用户已经验证过的工具。
+- 缺点：商业许可；各工具、各平台的脚本与自动化方式各不相同；Delta 无法随附或针对它们进行测试。这更适合作为 Suite 中后续的导出或适配器（例如输出 JMP 脚本），而不是作为引擎。
 
-1. **Engine.** Any figure that can appear in a formal Artifact (report, table, chart caption) is computed by R. Rust may only read, reshape and validate input data and render results; it does not compute reportable statistics.
-2. **Shape.** The Foundation capability is `statistics.*` (for example `statistics.describe`, `statistics.regression`, `statistics.anova`, `statistics.ancova`), a Rust-native capability that runs `Rscript` with R scripts compiled into the binary (so their SHA-256 is fixed per build). The R process is a controlled worker under the Capability ABI: scoped inputs, staging output, timeout and cancel, no authority.
-   - **Interface in base R only.** Rust writes the input table as CSV and the parameters as a DCF file (`read.dcf`, base R). The R script writes its results as DCF, with every number printed by `sprintf("%.17g")` so the double round-trips exactly. No JSON package is needed, so Foundation stays on base R and recommended packages (point 4).
-3. **Pinned environment.**
-   - The R version and every package version are pinned.
-   - The R version is the current R release (the release CRAN publishes as current) at the time the worker is built, pinned to its exact `x.y.z`.
-   - Moving to a newer R release is a deliberate update: the lock changes, the reference tests (point 6) pass on the new version, and the CHANGELOG names both versions.
-   - A package lock is shipped with the worker, for example an `renv.lock` or a dated repository snapshot.
-   - At start-up the worker checks that the installed environment matches the lock. If it does not, it fails closed with a typed error; it never runs on an unpinned environment.
-4. **Package admission.**
-   - Foundation uses base R and recommended packages.
-   - Every other package needs a recorded risk assessment (R Validation Hub method) and a licence check against `DEPENDENCY_POLICY.md` before it is admitted.
-   - Domain packages (for example a bootstrap f2 implementation) are admitted and pinned in Suite, not in Foundation.
-5. **Provenance in every result.** The result payload carries:
-   - the R version;
-   - the package names and versions actually loaded;
-   - the SHA-256 of the R script and of each input file;
-   - the method name and its parameters.
+## 决定：B2（由 B 修订而来），并可选导出 JMP / SAS 脚本
 
-   This is what [ADR-0055](0055-numeric-traceability.md) binds report figures to.
-6. **Verification.** Each `statistics.*` function has reference tests that must pass before release:
-   - NIST Statistical Reference Datasets (StRD) for numeric accuracy (linear regression, ANOVA);
-   - worked examples from published guidance;
-   - an independent cross-check against statsmodels/SciPy in the test suite.
+1. **引擎。** 任何可能出现在正式 Artifact（报告、表格、图注）中的数字，都由 R 计算。Rust 只能读取、重塑与校验输入数据，并渲染结果；它不计算可报告的统计数字。
+2. **形态。** Foundation 能力为 `statistics.*`（例如 `statistics.describe`、`statistics.regression`、`statistics.anova`、`statistics.ancova`）。它是一个 Rust 原生能力，通过 `Rscript` 运行编译进二进制文件的 R 脚本，因此每次构建中的 R 脚本 SHA-256 是固定的。R 进程是能力 ABI 下的受控 Worker：限定范围的输入、暂存的输出、超时与取消，且不拥有任何权限。
+   - **接口仅使用 Base R。** Rust 将输入表写为 CSV，将参数写为 DCF 文件（`read.dcf`，Base R）。R 脚本将结果写为 DCF，每个数字都经由 `sprintf("%.17g")` 输出，使双精度数可以精确往返。无需 JSON 包，因此 Foundation 仅依赖 Base R 与推荐包（第 4 点）。
+3. **固定环境。**
+   - R 版本与每个软件包的版本都要固定。
+   - R 版本为构建 Worker 时 CRAN 发布为当前版本的 R 发行版，并固定到确切的 `x.y.z`。
+   - 升级到更新的 R 发行版属于有意识的更新：锁文件随之变化，参考测试（第 6 点）须在新版本上通过，CHANGELOG 中同时写明两个版本。
+   - 软件包锁随 Worker 一同提供，例如 `renv.lock` 或带日期的仓库快照。
+   - 启动时，Worker 检查已安装的环境是否与锁文件一致。若不一致，则以类型化错误失败即关闭；绝不在未固定的环境中运行。
+4. **软件包准入。**
+   - Foundation 只使用 Base R 与推荐包。
+   - 其他每个软件包在准入之前，都需要记录在案的风险评估（R Validation Hub 方法），以及对照 `DEPENDENCY_POLICY.md` 的许可证检查。
+   - 领域软件包（例如 bootstrap f2 的实现）在 Suite 中准入并固定，不在 Foundation 中。
+5. **每个结果都附带来源证明（provenance）。** 结果载荷包含：
+   - R 版本；
+   - 实际加载的软件包名称与版本；
+   - R 脚本与每个输入文件的 SHA-256；
+   - 方法名称及其参数。
 
-   A mismatch beyond a stated tolerance fails the release.
-7. **Availability.** The portable build does not bundle R in the first version. The capability detects a supported R installation; if none is found, it reports itself unavailable with a clear reason and never falls back to another engine. Bundling is a separate packaging decision (size, GPL licence obligations for redistributed binaries).
-8. **Blueprint.** Section 8.2 adds R to the task execution languages, with the same Worker rules (scoped input and output, timeout, least privilege, no authority).
-9. **Optional JMP / SAS script export (option C as an export, not as the engine).** A Suite adapter may write, next to a result, a JMP (JSL) or SAS script that reproduces the same analysis on the same input file.
-   - It is optional and off unless the user asks for it.
-   - It writes a script artifact; it never runs JMP or SAS, and never feeds their output back into a Delta report.
-   - Reportable figures in Delta always come from the R engine. The export lets a user re-run the analysis in a tool their organisation has already validated and compare the results.
+   这正是 [ADR-0055](0055-numeric-traceability.md) 用来把报告数字绑定到计算结果的依据。
+6. **验证。** 每个 `statistics.*` 函数在发布之前都必须通过参考测试：
+   - 用 NIST 统计参考数据集（StRD）检验数值精度（线性回归、ANOVA）；
+   - 已发表指南中的示例；
+   - 测试套件中与 statsmodels / SciPy 的独立交叉核对。
 
-## Consequences
+   超出既定容差的偏差会使发布失败。
+7. **可用性。** 首个版本的便携版不捆绑 R。该能力检测受支持的 R 安装；若未找到，它会报告自身不可用并给出明确原因，且绝不回退到其他引擎。是否捆绑 R 是单独的打包决定（涉及体积以及再分发二进制时的 GPL 许可义务）。
+8. **蓝图。** 第 8.2 节将 R 加入任务执行语言，并遵守相同的 Worker 规则：限定范围的输入与输出、超时、最小权限、无权限。
+9. **可选的 JMP / SAS 脚本导出（选项 C，作为导出而非引擎）。** Suite 适配器可以在结果旁边写出 JMP（JSL）或 SAS 脚本，在同一输入文件上复现相同的分析。
+   - 该功能是可选的，除非用户要求，否则默认关闭。
+   - 它只写出脚本成果；从不运行 JMP 或 SAS，也绝不把它们的输出回馈到 Delta 报告中。
+   - Delta 中可报告的数字始终来自 R 引擎。导出的作用是让用户能够在其组织已验证的工具中重新运行分析，并比对结果。
 
-- A new `statistics` module in `delta-core` (registration, input preparation, result parsing) and its R scripts, registered in `CapabilityHost::product_defaults` beside the document and web capabilities.
-- No change to the ABI or the Python worker SDK. `WorkerProcessRunner` runs `Rscript` directly, inside the job's timeout and cancellation.
-- A validation pack grows with the capability:
-  - the package risk assessments;
-  - the reference test results per release;
-  - the environment lock.
+## 后果
 
-  This is the material a user's QA needs to judge fitness for intended use. Delta does not claim the capability is "validated" or "accepted by regulators".
-- CI needs an R toolchain on the runners that execute the statistics tests (central CI in Action Worker).
+- `delta-core` 新增 `statistics` 模块（注册、输入准备、结果解析）及其 R 脚本，与文档、网页能力一同注册在 `CapabilityHost::product_defaults` 中。
+- ABI 与 Python Worker SDK 不变。`WorkerProcessRunner` 直接运行 `Rscript`，并处于作业的超时与取消机制之下。
+- 验证包随能力一同增长：
+  - 软件包风险评估；
+  - 每个版本的参考测试结果；
+  - 环境锁文件。
 
-## Owner's answers (2026-10-11)
+  这些材料是用户的 QA 判断预期用途适用性所需的依据。Delta 不声称该能力"已验证"或"已获监管机构接受"。
+- CI 需要在执行统计测试的 Runner 上安装 R 工具链（中央 CI 位于 Action Worker）。
 
-1. B accepted: R computes, Python orchestrates and handles data and rendering.
-2. Optional JMP / SAS script export is planned in Suite (decision point 9).
-3. Pin the current R release, not the previous minor version (decision point 3).
-4. Amendment: R is invoked directly by a Rust-native capability, not through a Python worker, because the desktop app does not ship Python (option B2).
+## 所有者的答复（2026-10-11）
 
-## Amendment (2026-10-11)
+1. 接受 B：R 负责计算，Python 负责编排、数据处理与渲染。
+2. 可选的 JMP / SAS 脚本导出计划在 Suite 中实现（决定第 9 点）。
+3. 固定当前的 R 发行版，而非上一个次版本（决定第 3 点）。
+4. 修订：R 由 Rust 原生能力直接调用，而不经 Python Worker，因为桌面应用不随附 Python（选项 B2）。
 
-The first decision (B) had a Python worker drive R. The desktop app does not ship Python (Context, point 4), so B would have required every user to install both Python and R for statistics, and would have put a Python process between the Runtime and R. The owner chose B2. Everything else in this ADR is unchanged: R computes every reportable figure, the environment is pinned and checked, every result carries its provenance, and reference tests gate releases. Python (statsmodels) remains in the test suite only, as the independent cross-check of point 6.
+## 修订（2026-10-11）
 
-## Amendment (2026-10-12): R 4.6.0 is locked
+第一版决定（B）让 Python Worker 驱动 R。桌面应用不随附 Python（背景第 4 点），因此 B 会要求每位用户同时安装 Python 与 R 才能使用统计功能，并且会在运行时与 R 之间插入一个 Python 进程。所有者选择了 B2。本 ADR 的其余内容保持不变：R 计算每一个可报告的数字；环境被固定并检查；每个结果都附带来源证明；参考测试对发布起门禁作用。Python（statsmodels）仅保留在测试套件中，作为第 6 点的独立交叉核对。
 
-The owner locked the R release to **4.6.0** (exact version). This pins point 3 of the decision:
+## 修订（2026-10-12）：锁定 R 4.6.0
 
-- Statistics are computed only by R 4.6.0. The capability reads the version `Rscript` reports and refuses any other release, so nothing is computed in an unvalidated environment (`statistics::PINNED_R_VERSION`).
-- Upgrading to another release is a controlled change: a new decision, the reference tests passing on it, and a CHANGELOG entry naming both versions.
-- Delivery follows the controlled-environment practice the owner described (2026-10-12): the version, the package lock and the system libraries are frozen together. CI, the validation environment and server deployments use a container image pinned by digest; the desktop app, which runs on the user's own computer where Docker is not assumed, uses an R 4.6.0 installation checked at start-up against the same lock. Both are reviewed on a 12-month cycle, and a new release is adopted only after the reference tests and the numeric trace checks pass on it.
-- The exact image digest, the package lock (`renv.lock`) and the NIST StRD reference results are not yet in the repository; they are the next items.
+所有者将 R 发行版锁定为 **4.6.0**（确切版本）。这固定了决定第 3 点：
 
-## Not verified
+- 统计仅由 R 4.6.0 计算。该能力读取 `Rscript` 报告的版本，并拒绝任何其他发行版，因此绝不会在未经验证的环境中计算（`statistics::PINNED_R_VERSION`）。
+- 升级到其他发行版属于受控变更：需要新的决定、在新版本上通过参考测试，并在 CHANGELOG 中写明两个版本。
+- 交付遵循所有者描述的受控环境做法（2026-10-12）：版本、软件包锁与系统库一同冻结。CI、验证环境与服务器部署使用按摘要（digest）固定的容器镜像；桌面应用运行在用户自己的电脑上，不假定有 Docker，它使用 R 4.6.0 的安装，并在启动时按同一锁文件进行检查。两者每 12 个月审查一次，新发行版只有在参考测试与数值溯源检查在其上通过之后，才会被采用。
+- 确切的镜像摘要、软件包锁（`renv.lock`）以及 NIST StRD 参考结果尚未纳入仓库；它们是下一步工作。
 
-- The statements about FDA, EMA, NMPA and R Consortium pilots are from public documents as known at the time of writing, not re-read for this ADR.
-- No R capability has been built yet. On Windows `Rscript.exe` starts the R engine as a further process; cancellation must end that process tree (for example through a job object, as the controlled browser does) and must be tested.
+## 未验证事项
+
+- 关于 FDA、EMA、NMPA 与 R Consortium 试点的陈述，来自撰写时已知的公开文件，未在撰写本 ADR 时重新核对。
+- 撰写本 ADR 时尚未构建 R 能力。截至 CHANGELOG 最新条目，`statistics_describe` 已经落地，但 CI 尚未安装 R 4.6.0；NIST 参考测试与 `renv.lock` 也尚未完成。
+- 在 Windows 上，`Rscript.exe` 会把 R 引擎作为另一个进程启动；取消操作必须结束整个进程树（例如通过作业对象，与受控浏览器的做法相同），并且必须经过测试。

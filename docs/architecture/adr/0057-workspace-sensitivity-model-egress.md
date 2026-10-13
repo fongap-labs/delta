@@ -1,106 +1,107 @@
-# ADR-0057: Workspace sensitivity and what may be sent to a model endpoint
+# ADR-0057：工作区敏感度与可发送到模型端点的内容
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet. The owner asked for options the user chooses from, not a fixed policy. This ADR defines those options and the rules that hold whichever option the user picks. Outbound tools (web search, remote MCP servers, connectors) are covered by [ADR-0061](0061-egress-level-outbound-tools.md).
+状态：**已接受**（所有者，2026-10-11）。核心机制已经实现（分三步，见 CHANGELOG）：出境档位的权威数据、每次模型请求前的执行点与 `model.request` 记录、首次选择与"设置 ▸ 隐私"界面。信任条上的"Sent to"行与部分测试项尚未核实。
 
-## Context
+所有者要求的是由用户从中选择的方案，而不是固定策略。本 ADR 定义这些方案，以及无论用户选择哪一种都必须成立的规则。对外工具（网页搜索、远程 MCP 服务器、连接器）由 [ADR-0061](0061-egress-level-outbound-tools.md) 覆盖。
 
-Delta is local-first, but every model turn sends content to the configured model endpoint:
+## 背景
 
-- the messages;
-- the excerpts of files a tool read;
-- the tool results.
+Delta 以本地优先，但每一轮模型交互都会把内容发送到已配置的模型端点：
 
-For research and CMC work that content can be unpublished formulations, batch data or stability results. Today (checked, not assumed):
+- 消息；
+- 工具读取的文件摘录；
+- 工具结果。
 
-1. **Endpoint resolution.** `ModelAuthority::resolve_runtime_config` (`crates/delta-core/src/model_authority.rs`) resolves a model id to a protocol, a `base_url` and a key. Any configured endpoint can be used for any workspace.
-2. **No record of model requests.** The run ledger records tool calls, artifacts, validation and `source.read`, but it has no event for "content of this run was sent to endpoint X". The trust strip can say what a run read, not where it went.
-3. **Workspace state.** Workspaces are stored in `core.db` (`workspaces` table: path, last used). The workspace trust authority is `workspace_trust.json` (`control_plane.rs`). Neither carries a sensitivity level.
-4. **Approvals already gate other outbound actions** (chat messages, files, connector calls). Model requests are not covered, because they are how the agent works rather than an action it takes.
+对于研究与 CMC 工作，这些内容可能包括未公开的配方、批次数据或稳定性结果。现存情况（已核对，并非假设）：
 
-Organisations differ. Some allow a public cloud model for everything. Some allow only a company gateway. Some allow nothing to leave the machine for certain projects. A single built-in policy would be wrong for most of them, so the user chooses.
+1. **端点解析。** `ModelAuthority::resolve_runtime_config`（`crates/delta-core/src/model_authority.rs`）把模型 id 解析为协议、`base_url` 与密钥。任何已配置的端点都可以用于任何工作区。
+2. **没有模型请求的记录。** 运行 Ledger 记录工具调用、产出物、校验与 `source.read`，但没有"本次运行的内容被发送到端点 X"这类事件。信任条能说明一次运行读取了什么，却不能说明内容去了哪里。
+3. **工作区状态。** 工作区保存在 `core.db`（`workspaces` 表：路径、最近使用时间）中。工作区信任的权威数据是 `workspace_trust.json`（`control_plane.rs`）。两者都不包含敏感度等级。
+4. **审批已经约束其他对外动作**（聊天消息、文件、连接器调用）。模型请求没有被覆盖，因为它是 Agent 的工作方式，而不是它采取的动作。
 
-## Options offered to the user
+不同组织的要求各不相同。有些允许所有内容使用公有云模型；有些只允许公司网关；还有些要求某些项目的内容不得离开本机。单一的内置策略会对大多数组织都不合适，因此由用户选择。
 
-Each workspace has one **egress level**, chosen by the user in the workspace settings. The levels are:
+## 提供给用户的方案
 
-| Level | What may receive this workspace's content | Fits |
+每个工作区有一个**出境档位（egress level）**，由用户在工作区设置中选择。档位如下：
+
+| 档位 | 哪些目标可以接收该工作区的内容 | 适用场景 |
 |---|---|---|
-| **Open** | Any configured endpoint | Public material, personal use |
-| **Approved endpoints** | Only endpoints the user marked as approved for this level (for example a company AI gateway) | Organisations with a sanctioned cloud or gateway |
-| **Private only** | Only endpoints on this machine or the private network: loopback, RFC 1918 and other private ranges, or endpoints the user explicitly marked as private | Confidential R&D data with a local or self-hosted model |
-| **Ask each time** | Any configured endpoint, but before the first model turn of each run the user confirms the endpoint for that run | Mixed work where the user wants to decide case by case |
+| **开放（Open）** | 任何已配置的端点 | 公开资料，个人使用 |
+| **已批准端点（Approved endpoints）** | 仅限用户为该档位标记为已批准的端点（例如公司 AI 网关） | 有经批准的云服务或网关的组织 |
+| **仅私有（Private only）** | 仅限本机或私有网络上的端点：回环地址、RFC 1918 及其他私有地址段，或用户明确标记为私有的端点 | 使用本地或自托管模型的机密研发数据 |
+| **每次询问（Ask each time）** | 任何已配置的端点，但在每次运行的第一轮模型交互之前，用户需要为该次运行确认端点 | 混合型工作，用户希望逐案决定 |
 
-Two more choices, independent of the level:
+此外还有两项选择，独立于档位：
 
-- **Default for new workspaces.** The user picks which level new workspaces start at, in the first-run setup (see decision point 5). Delta does not choose one silently. The user can change the default later in the settings.
-- **Endpoint marks.** In the model settings the user can mark an endpoint as *approved* or *private*. Delta can classify a loopback or private-network address by itself. It does not assume that a public host name is private.
+- **新工作区的默认值。** 用户在首次运行的设置中选择新工作区起始的档位。Delta 不会静默地替用户选择。用户之后可以在设置中更改默认值。
+- **端点标记。** 在模型设置中，用户可以把端点标记为*已批准*或*私有*。Delta 能够自行判断回环地址或私有网络地址，但不会假定公共主机名是私有的。
 
-### Alternatives considered
+### 考虑过的替代方案
 
-**A. One fixed policy for everyone** (for example "confidential workspaces may only use local models").
-- Rejected: the owner asked for user choice, and one policy would block legitimate setups such as a sanctioned company gateway.
+**A. 对所有人采用一种固定策略**（例如"机密工作区只能使用本地模型"）。
+- 否决理由：所有者要求由用户选择；单一策略会阻止合法的配置，例如经批准的公司网关。
 
-**B. User-chosen levels, enforced by the Runtime (recommended).** This is the table above.
+**B. 用户选择档位，由运行时强制执行（推荐）。** 即上表。
 
-**C. Labels only, no enforcement.** The user tags a workspace, and Delta only shows a warning.
-- Rejected: a label that the Runtime does not enforce is a promise the product cannot keep. It also contradicts "people control consequences" (blueprint section 4.3).
+**C. 仅有标签，不强制执行。** 用户为工作区打标签，Delta 只显示警告。
+- 否决理由：运行时不强制执行的标签，是产品无法兑现的承诺。这也与"人掌握后果"相矛盾（蓝图第 4.3 节）。
 
-## Decision: B
+## 决定：B
 
-Whichever level the user picks, these rules hold:
+无论用户选择哪一档，以下规则都必须成立：
 
-1. **The Runtime enforces it.** Before each model request, `resolve_runtime_config` (or its caller) checks the workspace's level against the resolved endpoint.
-   - A disallowed endpoint fails the turn with a typed error that names the level and the endpoint.
-   - The Runtime never falls back silently to another endpoint.
-2. **Only the user changes it.** The level is set only by the user: in the first-run setup (decision point 5) or in the workspace settings in the desktop app.
-   - No model, Skill, worker, automation or Learning can change it.
-   - Lowering the level (toward *Open*) asks for confirmation and is recorded.
-   - Raising it takes effect at once.
-3. **Skills recommend, the user decides.** A Skill may declare a recommended minimum level. A Suite CMC Skill, for example, may recommend *Private only*.
-   - If the workspace's level is lower, Delta shows the recommendation and offers to raise it.
-   - It does not refuse to run: the user decides.
-4. **Every model request is recorded.** A new ledger event `model.request` is appended for each request. It holds:
-   - the run id and turn;
-   - the endpoint host;
-   - the model id;
-   - the workspace's level at that moment;
-   - the byte count sent;
-   - the ids and SHA-256 of the sources whose content was in the request.
+1. **运行时强制执行。** 在每次模型请求之前，`resolve_runtime_config`（或其调用方）会将工作区的档位与解析出的端点进行核对。
+   - 不被允许的端点会使该轮失败，并返回一个类型化错误，其中点明档位与端点。
+   - 运行时绝不静默回退到其他端点。
+2. **只有用户能修改。** 档位只能由用户设置：在首次运行的设置中（决定第 5 点），或在桌面端的工作区设置中。
+   - 任何模型、Skill、Worker、自动化或 Learning 都不能修改它。
+   - 降低档位（朝向"开放"）需要确认，并且会被记录。
+   - 提高档位立即生效。
+3. **Skill 建议，用户决定。** Skill 可以声明建议的最低档位。例如，Suite 的 CMC Skill 可以建议"仅私有"。
+   - 若工作区的档位低于建议值，Delta 会显示该建议，并提供提高档位的选项。
+   - 它不会因此拒绝运行：由用户决定。
+4. **每次模型请求都被记录。** 每次请求都会追加一条新的 Ledger 事件 `model.request`。它包含：
+   - 运行 id 与轮次；
+   - 端点主机；
+   - 模型 id；
+   - 该时刻工作区的档位；
+   - 发送的字节数；
+   - 请求中包含内容的来源的 id 与 SHA-256。
 
-   It never contains the content itself. The trust strip shows "Sent to <host> (N requests, M KB)" for the run that made an artifact.
-5. **First-run choice.** The first-run setup asks the user to pick the default level for new workspaces, with a one-line explanation of each level. No level is preselected.
-   - Existing installs are asked the same question on the first launch after the upgrade. The existing workspaces then take the chosen level.
-   - Until the user has chosen, no model request is sent. The Runtime fails the turn with a typed error saying the egress level has not been chosen, and the desktop shows the choice.
-   - An automation that fires before the choice is made fails with the same typed error. The error lands in the Inbox; nothing is sent.
-6. **Scope.** This ADR covers model endpoints. Other outbound paths (web search queries, remote MCP servers, connectors) already go through tools and approvals. The owner decided the level must govern them too; [ADR-0061](0061-egress-level-outbound-tools.md) defines how.
+   它从不包含内容本身。信任条对于生成某个产出物的那次运行，显示"已发送至 <host>（N 次请求，M KB）"。
+5. **首次运行的选择。** 首次运行的设置会要求用户为新工作区选择默认档位，并附一行对每个档位的说明。不预选任何档位。
+   - 现有安装在升级后首次启动时，会被问到同样的问题。现有工作区随后采用用户所选的档位。
+   - 在用户作出选择之前，不发送任何模型请求。运行时以类型化错误使该轮失败，错误信息说明尚未选择出境档位，桌面端则显示选择界面。
+   - 在做出选择之前触发的自动化，会以相同的类型化错误失败。该错误会进入收件箱；不发送任何内容。
+6. **范围。** 本 ADR 覆盖模型端点。其他的对外路径（网页搜索查询、远程 MCP 服务器、连接器）已经经过工具与审批。所有者决定，档位也必须约束它们；[ADR-0061](0061-egress-level-outbound-tools.md) 规定了具体做法。
 
-## Consequences
+## 后果
 
-- Workspace authority gains an `egress_level` per workspace and a default for new workspaces. A missing per-workspace value reads as the user's chosen default. Before the user has chosen a default, there is none, and model requests are refused (decision point 5).
-- Model settings gain per-endpoint marks (*approved*, *private*).
-- New ledger event `model.request`, defined in `runtime-public-contract.md` (what it records and what it does not claim).
-- Desktop:
-  - the first-run choice of the default level, also shown once after upgrading;
-  - a level selector in the workspace settings;
-  - the endpoint marks in the model settings;
-  - the confirmation for *Ask each time* and for lowering a level;
-  - the Skill recommendation notice;
-  - the "Sent to" line on the trust strip.
-- Tests required:
-  - a disallowed endpoint fails the turn and sends nothing;
-  - *Private only* accepts loopback and RFC 1918 addresses and rejects a public host that is not marked;
-  - a host name that resolves to a private address but is not marked is classified by its resolved address at request time, and the check is not fooled by DNS changes between check and connect;
-  - lowering a level without confirmation does not change it;
-  - nothing but the desktop settings command can change a level;
-  - `model.request` is written for every request and contains no message content;
-  - *Ask each time* asks once per run, not once per turn;
-  - a run that is resumed under ADR-0053 asks again if its level is *Ask each time*;
-  - before the first-run choice, a turn and an automation both fail with the typed error and send nothing;
-  - after an upgrade, existing workspaces take the level chosen at the first launch.
+- 工作区权威数据新增每个工作区的 `egress_level`，以及新工作区的默认值。缺少单个工作区的值时，视为用户选择的默认值。在用户选定默认值之前，并不存在默认值，模型请求会被拒绝（决定第 5 点）。
+- 模型设置新增每个端点的标记（*已批准*、*私有*）。
+- 新的 Ledger 事件 `model.request`，在 `runtime-public-contract.md` 中定义（记录什么，以及不声称什么）。
+- 桌面端：
+  - 首次运行时的默认档位选择，升级后也会显示一次；
+  - 工作区设置中的档位选择器；
+  - 模型设置中的端点标记；
+  - "每次询问"以及降低档位时的确认；
+  - Skill 建议的提示；
+  - 信任条上的"已发送至"行。
+- 所需测试：
+  - 不被允许的端点会使该轮失败，且不发送任何内容；
+  - "仅私有"接受回环地址与 RFC 1918 地址，并拒绝未标记的公共主机；
+  - 解析为私有地址但未被标记的主机名，在请求时按其解析后的地址分类，并且检查不会被检查与连接之间的 DNS 变化所欺骗；
+  - 未经确认降低档位，不会改变档位；
+  - 只有桌面端的设置命令可以修改档位；
+  - 每次请求都会写入 `model.request`，且不包含消息内容；
+  - "每次询问"在每次运行中只询问一次，而不是每轮询问一次；
+  - 按 ADR-0053 恢复的运行，若其档位为"每次询问"，会再次询问；
+  - 在首次运行选择之前，一轮交互与一个自动化都以类型化错误失败，且不发送任何内容；
+  - 升级之后，现有工作区采用首次启动时选择的档位。
 
-## Owner's answers (2026-10-11)
+## 所有者的答复（2026-10-11）
 
-1. B accepted, with the four levels: Open, Approved endpoints, Private only, Ask each time.
-2. No built-in default: the first-run setup asks the user to pick the default level (decision point 5).
-
-3. The egress level must also govern web search, remote MCP servers and connectors, in a separate ADR: [ADR-0061](0061-egress-level-outbound-tools.md).
+1. 接受 B，包含四个档位：开放、已批准端点、仅私有、每次询问。
+2. 没有内置默认值：首次运行的设置要求用户选择默认档位（决定第 5 点）。
+3. 出境档位也必须约束网页搜索、远程 MCP 服务器与连接器，并在单独的 ADR 中规定：[ADR-0061](0061-egress-level-outbound-tools.md)。

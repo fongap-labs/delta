@@ -1,35 +1,35 @@
-# ADR-0060: A controlled browser for the agent
+# ADR-0060：供智能体使用的受控浏览器
 
-Status: **Accepted** (owner, 2026-10-11, Windows first).
+状态：**已接受**（所有者，2026-10-11，先支持 Windows）。
 
-## Context
+## 背景
 
-`web_fetch` reads a page's HTML. It cannot use a site that needs a click, a form or a script to show its content, which is much of the modern web. ADR-0059 named a controlled browser, one that reads page structure instead of screen pixels, as the safer way to act on web pages and as the thing to build before any mouse-and-keyboard control (its step 3, still not decided).
+`web_fetch` 读取页面的 HTML。对于需要点击、填写表单或执行脚本才能显示内容的网站（现代网页的很大一部分），它无能为力。ADR-0059 将受控浏览器（即读取页面结构、而非屏幕像素的浏览器）命名为对网页进行操作的更安全方式，并将其列为任何鼠标与键盘控制（第三步，尚未决定）之前应当构建的能力。
 
-## Decision
+## 决定
 
-The desktop app drives a real Microsoft Edge or Google Chrome window through the Chrome DevTools Protocol. The code is in `crates/delta-computer/src/browser/`; `delta-core` and headless builds carry none of it. It adds no browser to the installer: Edge ships with Windows, and Chrome is searched for next. With neither, the tools say so.
+桌面应用通过 Chrome DevTools Protocol 驱动真实的 Microsoft Edge 或 Google Chrome 窗口。代码位于 `crates/delta-computer/src/browser/`；`delta-core` 与无界面构建不包含它。它不向安装包中添加任何浏览器：Edge 随 Windows 提供，若找不到 Edge 则继续查找 Chrome。两者都没有时，工具会明确告知。
 
-| Tool | Asks the user | Does |
+| 工具 | 是否询问用户 | 功能 |
 |---|---|---|
-| `browser_navigate` | yes | Opens an `http(s)` address and returns the page |
-| `browser_click`, `browser_type`, `browser_select`, `browser_press_key` | yes | Act on one element, or press one key |
-| `browser_snapshot`, `browser_scroll`, `browser_back`, `browser_screenshot`, `browser_close` | no | Read, move around, close |
+| `browser_navigate` | 是 | 打开一个 `http(s)` 地址，并返回页面 |
+| `browser_click`、`browser_type`、`browser_select`、`browser_press_key` | 是 | 作用于一个元素，或按下一个键 |
+| `browser_snapshot`、`browser_scroll`、`browser_back`、`browser_screenshot`、`browser_close` | 否 | 读取、移动、关闭 |
 
-Acting tools are medium risk, category `computer`, so the policy never auto-allows them; the user can grant "always for this task" through the usual approval choices. The reading tools are low risk: they show the model only what a page already shows.
+执行类工具为中风险，类别为 `computer`，因此策略从不自动放行；用户可以通过常规的审批选项授予"本任务始终允许"。读取类工具为低风险：它们只向模型展示页面本来就显示的内容。
 
-Rules:
+规则：
 
-1. **Delta's own profile.** The browser runs with its profile in `<state dir>/browser/profile`. The user's everyday cookies, history and saved passwords are not reachable. The window is visible so the user can watch, and logs in themselves; the login stays in Delta's profile.
-2. **No secrets typed by the agent.** `browser_type` refuses password fields and fields whose `autocomplete` names a password or a card (`cc-*`), and snapshots do not show their values. The agent is told to ask the user to type those in the window.
-3. **Elements are named and checked.** A snapshot numbers the visible buttons, links and fields (`e1`, `e2`, …) with their names. `click`, `type` and `select` must repeat the name; it is compared with the element actually under that number right before acting, so a page that changed cannot turn "Add to cart" into "Pay", and the approval card shows the name. A reference is validated as `e` plus digits before it can reach any script; typed text goes through the protocol, never into script source.
-4. **The same network guard as `web_fetch`.** Every request the page makes (documents, scripts, images, fetches, frames and workers) is paused and vetted by `delta_core::web::guard`: loopback, private, link-local (the cloud metadata address included), carrier-grade NAT, multicast and reserved addresses are refused, also when carried inside an IPv6 address; `file:`, `chrome:`, `ftp:` and other schemes are refused. `data:`, `blob:` and `about:` pass. A name this machine cannot resolve is allowed, because the browser may reach it through the user's proxy. Verdicts are cached for a minute.
-5. **Contained pages.** Windows the page opens by itself are closed (links that want a new window are opened in the same tab), downloads are denied, JavaScript dialogs are dismissed so they cannot freeze the page, and file upload is refused.
-6. **Pages are external content.** The page's text is data to evaluate, never instructions; the tool descriptions and the system prompt say so, and the approval card says the page content goes to the model provider.
-7. **Lifetime.** One browser for the app, one tab per task. It starts on first use, closes after ten idle minutes or when the user closes it, and ends with the app (on Windows through a job object, so it ends even if Delta crashes). A task's tab is closed with `browser_close`.
+1. **Delta 自己的配置文件。** 浏览器使用位于 `<state dir>/browser/profile` 的配置文件运行。用户日常使用的 Cookie、历史记录与已保存的密码均不可访问。窗口可见，以便用户观察，并由用户自行登录；登录状态保留在 Delta 的配置文件中。
+2. **智能体不输入密钥。** `browser_type` 拒绝密码字段，以及 `autocomplete` 指明为密码或银行卡（`cc-*`）的字段；快照不显示它们的值。智能体会被告知，应请用户在窗口中自行输入这些内容。
+3. **元素具名并经过核对。** 快照为可见的按钮、链接与字段编号（`e1`、`e2`、…），并附上其名称。`click`、`type` 与 `select` 必须重复该名称；在执行之前，会将其与编号实际对应的元素进行比对，因此页面变化后不会把"加入购物车"变成"付款"，且审批卡片会显示该名称。引用在进入任何脚本之前，都会被校验为 `e` 加数字；输入的文本通过协议传递，绝不拼入脚本源码。
+4. **与 `web_fetch` 相同的网络守卫。** 页面发出的每个请求（文档、脚本、图片、fetch、框架与 worker）都会被暂停，并由 `delta_core::web::guard` 审查：回环地址、私有地址、链路本地地址（包括云元数据地址）、CGNAT、组播与保留地址均被拒绝，包括内嵌在 IPv6 地址中的情形；`file:`、`chrome:`、`ftp:` 等协议被拒绝。`data:`、`blob:` 与 `about:` 放行。本机无法解析的名称被允许，因为浏览器可能通过用户的代理访问它。判定结果缓存一分钟。
+5. **受限的页面。** 页面自行打开的窗口会被关闭（想要打开新窗口的链接会在同一标签页中打开）；下载被拒绝；JavaScript 对话框会被关闭，以免冻结页面；文件上传被拒绝。
+6. **页面是外部内容。** 页面文本是需要评估的数据，绝不是指令；工具描述与系统提示都会明确说明这一点；审批卡片会说明页面内容会被发送给模型提供方。
+7. **生命周期。** 整个应用共用一个浏览器，每个任务使用一个标签页。首次使用时启动；空闲十分钟或用户关闭窗口后关闭；随应用结束（在 Windows 上通过作业对象实现，因此即使 Delta 崩溃，它也会结束）。任务的标签页通过 `browser_close` 关闭。
 
-## Limits and what is not verified
+## 限制与未验证事项
 
-- A page's own WebSocket connections are not seen by the request guard, and a name can change its answer between the guard's check and the browser's own lookup. Both are narrower than `web_fetch`'s pinned connection, which this design cannot do for a browser. The browser is not given anything on the user's network that a page in the user's everyday browser would not already reach, and the window shows what it does.
-- Snapshots list at most 80 elements and 5,000 characters of text; content in cross-origin frames, shadow DOM and canvases is not listed. Use `browser_screenshot` for those.
-- Tested against Chromium on Linux with a local server (form filling, label mismatches, password refusal, the guard, scrolling, back, screenshots, closing, idle close). Not run on Windows: Edge and the Windows job object were compiled for `x86_64-pc-windows-msvc` but never run there. Real sites with bot detection, login walls and pop-ups were not tried.
+- 页面自身的 WebSocket 连接不受请求守卫检查；名称在守卫检查与浏览器自身的查询之间，可能改变其解析结果。这两点都比 `web_fetch` 固定连接的做法宽松，而这种设计无法为浏览器做到同样的固定。浏览器不会获得用户网络上、用户日常浏览器中的页面无法访问的任何东西，且窗口会展示它所做的操作。
+- 快照最多列出 80 个元素与 5,000 个字符的文本；跨域框架、影子 DOM 与 canvas 中的内容不会被列出。对于这些内容，请使用 `browser_screenshot`。
+- 测试在 Linux 上以本地服务器对 Chromium 进行（表单填写、标签不匹配、密码拒绝、守卫、滚动、后退、截图、关闭、空闲关闭）。未在 Windows 上运行：Edge 与 Windows 作业对象已为 `x86_64-pc-windows-msvc` 编译，但从未在 Windows 上运行过。未尝试真实网站上的机器人检测、登录墙与弹窗。

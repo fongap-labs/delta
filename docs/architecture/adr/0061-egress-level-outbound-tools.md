@@ -1,155 +1,155 @@
-# ADR-0061: The workspace egress level also governs outbound tools
+# ADR-0061：工作区出境档位同样约束对外工具
 
-Status: **Accepted** (owner, 2026-10-11). Partly implemented: see [Implementation status](#implementation-status). Follows [ADR-0057](0057-workspace-sensitivity-model-egress.md). The owner decided that the egress level must also cover web search, remote MCP servers and connectors, in a separate ADR (2026-10-11).
+状态：**已接受**（所有者，2026-10-11）。部分实现，见[实现状态](#实现状态)。本 ADR 承接 [ADR-0057](0057-workspace-sensitivity-model-egress.md)。所有者于 2026-10-11 决定，出境档位还必须覆盖网页搜索、远程 MCP 服务器与连接器，并在单独的 ADR 中规定。
 
-## Context
+## 背景
 
-ADR-0057 gives each workspace a user-chosen egress level (Open, Approved endpoints, Private only, Ask each time) and enforces it on model requests. Model requests are not the only way content leaves the machine. Tool arguments are model-chosen text, and a search query or a connector query can carry the same confidential content as a prompt. Today (checked, not assumed):
+ADR-0057 为每个工作区提供用户选择的出境档位（开放、已批准端点、仅私有、每次询问），并在模型请求上强制执行。模型请求并不是内容离开本机的唯一途径。工具参数是由模型选择的文本，搜索查询或连接器查询可以携带与提示词相同的机密内容。现存情况（已核对，并非假设）：
 
-1. **Web tools.** `web_search` and `web_fetch` are declared `risk_level="medium"`, `requires_approval=True`, category `web`. Since ADR-0058 (baseline work capabilities) they are native Rust tools (`crates/delta-core/src/web/mod.rs`); the older Python tools in `integrations/web/` declare the same metadata. ADR-0060 adds a controlled browser that uses the same address guard.
-   - Policy maps approval-gated medium risk outside local categories to L3 (`policy.rs`, `band_level`).
-   - L3 is allowed only with an explicit approval or a standing policy grant (`restrict_grants`). So a standing policy can let web search run without asking.
-   - `web_search` goes to a fixed provider host (DuckDuckGo by default; Tavily or Brave with a key, `integrations/web/providers.py`). `web_fetch` goes to any public host the address guard accepts.
-2. **MCP servers.** There are two transports (`mcp_runtime.rs`, `mcp.rs`):
-   - **HTTP:** a remote server at a configured URL.
-   - **stdio:** a local process. Whatever network access that process makes on its own is invisible to Delta.
+1. **网页工具。** `web_search` 与 `web_fetch` 被声明为 `risk_level="medium"`、`requires_approval=True`，类别为 `web`。自 ADR-0058（基础办公能力）起，它们是原生 Rust 工具（`crates/delta-core/src/web/mod.rs`）；`integrations/web/` 中较早的 Python 工具声明了相同的元数据。ADR-0060 新增的受控浏览器使用相同的地址守卫。
+   - 策略将需要审批的中风险工具（且不属于本地类别）映射为 L3（`policy.rs`，`band_level`）。
+   - L3 只有在明确审批或常设策略授权（`restrict_grants`）下才被允许。因此，常设策略可以让网页搜索无需询问即可运行。
+   - `web_search` 发往一个固定的服务商主机（默认 DuckDuckGo；配置密钥后可用 Tavily 或 Brave，见 `integrations/web/providers.py`）。`web_fetch` 发往任何通过地址守卫检查的公共主机。
+2. **MCP 服务器。** 有两种传输方式（`mcp_runtime.rs`、`mcp.rs`）：
+   - **HTTP：** 位于已配置 URL 的远程服务器。
+   - **stdio：** 本地进程。该进程自身发出的任何网络访问，对 Delta 都不可见。
 
-   Each server's tools default to `requires_approval: true`, but the server configuration can set it to `false`, which makes them low risk (`mcp_runtime.rs`).
-3. **Connectors.** Connector tools (mail, messaging, Notion and others in `integrations/connectors/`) go to fixed SaaS hosts.
-   - Read tools can run without approval (`risk_level="low"` when approval is not required).
-   - Send tools require approval.
-   - Suite adds more connectors and an interactive browser that reaches arbitrary hosts.
-4. **Worker grants.** The Capability ABI grant has a `network` list of allowed outbound targets (`capability/abi.rs`). Whether the operating system enforces it was not verified for this ADR.
-5. **Ledger.** The ledger records tool calls with redacted arguments (`redact.rs`). It records neither the destination host nor the egress level in force.
+   每个服务器的工具默认 `requires_approval: true`，但服务器配置可以将其设为 `false`，使其成为低风险（`mcp_runtime.rs`）。
+3. **连接器。** 连接器工具（邮件、消息、Notion 及 `integrations/connectors/` 中的其他工具）发往固定的 SaaS 主机。
+   - 读取类工具在无需审批时可以直接运行（当不需要审批时为 `risk_level="low"`）。
+   - 发送类工具需要审批。
+   - Suite 会增加更多连接器，以及一个可以访问任意主机的交互式浏览器。
+4. **Worker 授权。** 能力 ABI 授权包含一个 `network` 列表，列出允许的对外目标（`capability/abi.rs`）。操作系统是否强制执行该列表，本 ADR 未予核实。
+5. **Ledger。** Ledger 记录工具调用时，参数已经过脱敏（`redact.rs`）。它既不记录目标主机，也不记录当时生效的出境档位。
 
-The result: with ADR-0057 alone, a *Private only* workspace would still send a model-chosen search query to a public search engine whenever a standing policy or a server setting allows it.
+结果是：仅有 ADR-0057 时，只要常设策略或服务器设置允许，"仅私有"工作区仍会把模型选择的搜索查询发送给公共搜索引擎。
 
-## Options
+## 方案
 
-**A. Model requests only (ADR-0057 as is).**
-- Rejected by the owner: the level would not mean what the user thinks it means.
+**A. 仅约束模型请求（即 ADR-0057 原样）。**
+- 被所有者否决：该档位的含义将与用户的理解不符。
 
-**B. One level governs every outbound path, with per-path overrides the user chooses (recommended).**
-- The level sets a default rule for each class of destination.
-- The user may override a path for a workspace in either direction. Loosening needs confirmation and is recorded.
-- Plus:
-  - one setting does what the user expects;
-  - it still allows the common CMC case of confidential data plus public literature search, as a deliberate, visible choice.
-- Minus: the per-path rules are part of the contract and must be shown clearly.
+**B. 一个档位约束所有对外路径，并允许用户为每条路径设置覆盖（推荐）。**
+- 档位为每一类目的地设定默认规则。
+- 用户可以在某个工作区中为单条路径覆盖规则，方向不限。放宽需要确认并记录。
+- 优点：
+  - 一个设置即可实现用户所期望的效果；
+  - 仍然允许 CMC 中常见的情形：机密数据加上公开文献检索，但这是经过深思熟虑、清晰可见的选择。
+- 缺点：每条路径的规则属于合同的一部分，必须清晰展示。
 
-**C. Separate independent switches per path, no level.**
-- Plus: maximal flexibility.
-- Minus: easy to misconfigure; the user has to understand every path to be safe; it contradicts ADR-0057's single choice.
+**C. 为每条路径设置独立的开关，不设档位。**
+- 优点：灵活性最大。
+- 缺点：容易误配置；用户必须理解每条路径才能保证安全；与 ADR-0057 的单一选择相矛盾。
 
-## Decision: B
+## 决定：采用 B
 
-### 1. Destination classes
+### 1. 目的地类别
 
-Every tool that can send data off the machine declares its destination class in its metadata, and the Rust policy reads it:
+每个可能将数据发送到本机之外的工具，都在其元数据中声明其目的地类别，Rust 策略读取该声明：
 
-| Class | Examples | What Delta can know |
+| 类别 | 示例 | Delta 能知道什么 |
 |---|---|---|
-| `fixed_public` | `web_search` provider, SaaS connectors, a remote HTTP MCP server on a public host | The exact host |
-| `any_public` | `web_fetch`, browser automation | Only the host of each call |
-| `private` | Loopback or private-network hosts, or hosts the user marked private under ADR-0057 | The exact host |
-| `local_process` | stdio MCP servers, local workers with a network grant | Nothing about the process's own traffic |
+| `fixed_public` | `web_search` 服务商、SaaS 连接器、位于公共主机的远程 HTTP MCP 服务器 | 确切的主机 |
+| `any_public` | `web_fetch`、浏览器自动化 | 仅知道每次调用的主机 |
+| `private` | 回环或私有网络主机，或用户依据 ADR-0057 标记为私有的主机 | 确切的主机 |
+| `local_process` | stdio MCP 服务器、拥有网络授权的本地 Worker | 关于该进程自身流量，一无所知 |
 
-A tool in category `web`, `connector` or `mcp` that does not declare a class is treated as `any_public`: it fails closed.
+属于 `web`、`connector` 或 `mcp` 类别、却未声明类别的工具，按 `any_public` 处理：失败即关闭。
 
-### 2. Default rule per level
+### 2. 每个档位的默认规则
 
-| Level | `fixed_public` | `any_public` | `private` | `local_process` |
+| 档位 | `fixed_public` | `any_public` | `private` | `local_process` |
 |---|---|---|---|---|
-| **Open** | As today (approval settings apply) | As today | As today | As today |
-| **Approved endpoints** | Allowed only for hosts the user approved | Each call needs approval, and no standing policy applies | Allowed | Allowed only if the user marked the server or worker *local-only* |
-| **Private only** | Blocked | Blocked | Allowed | Allowed only if marked *local-only* |
-| **Ask each time** | Each call needs approval, and no standing policy or "no approval" setting applies | Same | Same | Same |
+| **开放** | 与现在相同（适用审批设置） | 与现在相同 | 与现在相同 | 与现在相同 |
+| **已批准端点** | 仅允许用户已批准的主机 | 每次调用都需要审批，常设策略不适用 | 允许 | 仅当用户将服务器或 Worker 标记为*仅本地*时允许 |
+| **仅私有** | 拒绝 | 拒绝 | 允许 | 仅当标记为*仅本地*时允许 |
+| **每次询问** | 每次调用都需要审批，常设策略与"无需审批"设置均不适用 | 同左 | 同左 | 同左 |
 
-What "blocked" means:
+"拒绝"的含义：
 
-- The tool is not offered to the model in that workspace.
-- If it is called anyway, dispatch refuses it with a typed error that names the level and the destination.
-- Nothing is sent.
+- 该工具不向该工作区中的模型提供；
+- 如果仍被调用，分发会拒绝它，并返回一个类型化错误，其中点明档位与目的地；
+- 不发送任何内容。
 
-What *local-only* means: the user's statement that a local process does not reach the network. Delta records it as the user's statement and does not claim to verify it.
+"仅本地"的含义：这是用户对本地进程不访问网络的陈述。Delta 将其记录为用户的陈述，而不声称已验证。
 
-### 3. Per-path overrides
+### 3. 按路径覆盖
 
-In the workspace settings the user can override the default rule for a single path in that workspace. The paths are:
+在工作区设置中，用户可以为该工作区中的单条路径覆盖默认规则。路径包括：
 
-- web search, by provider;
-- web fetch;
-- each MCP server;
-- each connector.
+- 网页搜索，按服务商；
+- 网页抓取；
+- 每个 MCP 服务器；
+- 每个连接器。
 
-The rules for overrides:
+覆盖规则如下：
 
-- **Loosening** (for example, allowing `web_search` in a *Private only* workspace for public literature) shows what will leave the machine (model-chosen query text to the named host) and asks for confirmation.
-- **Tightening** takes effect at once.
-- Every override is recorded, and the workspace settings list all of them.
-- No model, Skill, worker, automation or Learning can set an override.
-- A Skill may recommend an override or a stricter rule. The user decides, as in ADR-0057.
+- **放宽**（例如在"仅私有"工作区中允许 `web_search` 检索公开文献）会显示将离开本机的内容（由模型选择的查询文本，发往指定主机），并要求确认。
+- **收紧**立即生效。
+- 每次覆盖都会被记录，工作区设置中列出全部覆盖。
+- 任何模型、Skill、Worker、自动化或 Learning 都不能设置覆盖。
+- Skill 可以建议覆盖或更严格的规则。由用户决定，与 ADR-0057 相同。
 
-### 4. Approvals cannot widen the level
+### 4. 审批不能放宽档位
 
-Where the level requires per-call approval, standing policy grants and per-server `requires_approval: false` do not apply in that workspace. The approval card names:
+在档位要求逐次审批的情况下，常设策略授权与每个 MCP 服务器上的 `requires_approval: false` 在该工作区中均不适用。审批卡片会列出：
 
-- the destination host;
-- the workspace's level;
-- the exact text that will be sent.
+- 目的地主机；
+- 工作区的档位；
+- 将要发送的确切文本。
 
-### 5. Recording
+### 5. 记录
 
-The ledger event of every outbound tool call gains an `egress` object. It holds:
+每个对外工具调用的 Ledger 事件都会增加一个 `egress` 对象，包含：
 
-- the destination class;
-- the host;
-- the level in force;
-- the override in force, if any;
-- the decision (allowed, approved, blocked).
+- 目的地类别；
+- 主机；
+- 当时生效的档位；
+- 当时生效的覆盖（如有）；
+- 决定（允许、已批准、拒绝）。
 
-It holds no content beyond the already redacted arguments. The trust strip's "Sent to" line (ADR-0057) includes these hosts.
+它不包含已脱敏参数之外的任何内容。信任条的"已发送至"行（ADR-0057）包含这些主机。
 
-### 6. Before the first-run choice
+### 6. 首次运行选择之前
 
-ADR-0057 point 5 applies to outbound tools too: until the user has chosen a default level, outbound tool calls are refused like model requests.
+ADR-0057 第 5 点同样适用于对外工具：在用户选定默认档位之前，对外工具调用与模型请求一样被拒绝。
 
-## Consequences
+## 后果
 
-- **Tool metadata** (Python `ToolMetadata`, MCP tool descriptors, Suite connector descriptors) gains a destination class and, where known, the host. Suite connectors and the browser declare theirs through the public contracts.
-- **Policy** (`policy.rs`) evaluates the workspace's level and overrides before risk banding, and ignores standing grants where point 4 says so.
-- **Workspace authority** stores per-path overrides beside the egress level of ADR-0057. Model settings and MCP settings gain the *local-only* mark.
-- **Desktop:** the per-path override list in the workspace settings, with confirmation for loosening; the approval card fields of point 4; the hosts on the trust strip.
-- **Tests required:**
-  - *Private only* hides and refuses `web_search`, `web_fetch`, remote HTTP MCP tools and connector tools, and sends nothing;
-  - a tool in a governed category without a destination class is treated as `any_public`;
-  - an unmarked stdio MCP server is refused in *Private only* and allowed once marked *local-only*;
-  - *Approved endpoints* allows only approved hosts, and asks per call for `web_fetch`;
-  - *Ask each time* asks per call even with a standing policy or `requires_approval: false`;
-  - a loosening override without confirmation does not take effect;
-  - only the desktop settings command can set an override;
-  - every outbound call's ledger event carries the `egress` object;
-  - before the first-run choice, outbound tool calls are refused.
+- **工具元数据**（Python 的 `ToolMetadata`、MCP 工具描述、Suite 连接器描述）增加目的地类别，并在已知时增加主机。Suite 连接器与浏览器通过公开合同声明各自的目的地。
+- **策略**（`policy.rs`）在风险分级之前评估工作区的档位与覆盖，并在第 4 点规定的情形下忽略常设授权。
+- **工作区权威数据**在 ADR-0057 的出境档位旁边保存每条路径的覆盖。模型设置与 MCP 设置增加"仅本地"标记。
+- **桌面端：** 工作区设置中的每条路径覆盖列表，放宽时需要确认；第 4 点规定的审批卡片字段；信任条上的主机。
+- **所需测试：**
+  - "仅私有"会隐藏并拒绝 `web_search`、`web_fetch`、远程 HTTP MCP 工具与连接器工具，且不发送任何内容；
+  - 属于受管类别却未声明目的地类别的工具，按 `any_public` 处理；
+  - 未标记的 stdio MCP 服务器在"仅私有"中被拒绝，标记为*仅本地*后允许；
+  - "已批准端点"只允许已批准的主机，并且对 `web_fetch` 逐次询问；
+  - "每次询问"即使存在常设策略或 `requires_approval: false`，也逐次询问；
+  - 未经确认的放宽覆盖不生效；
+  - 只有桌面端的设置命令能够设置覆盖；
+  - 每个对外调用的 Ledger 事件都带有 `egress` 对象；
+  - 在首次运行选择之前，对外工具调用被拒绝。
 
-## Owner's answers (2026-10-11)
+## 所有者的答复（2026-10-11）
 
-1. B accepted, with the destination classes and default rules above.
-2. Per-path overrides that loosen the level are allowed, with the confirmation and recording of point 3.
+1. 接受 B，并采用上述目的地类别与默认规则。
+2. 允许放宽档位的按路径覆盖，但需按第 3 点进行确认与记录。
 
-## Implementation status
+## 实现状态
 
-Step 1 (runtime decision and ledger record):
+第一步（运行时决定与 Ledger 记录）：
 
-- Every outbound tool call is decided with the workspace level before it is proposed. A refused call does not run; a call that must be asked is approved for that call only, and standing grants and automatic approval do not apply to it.
-- Tools declare `destination`. Web tools and browser automation are `any_public`; remote HTTP MCP servers are `fixed_public` with their URL, judged by where they resolve; stdio MCP servers are `local_process`. A governed category (`web`, `mcp`) without a declared destination is `any_public`.
-- `tool.proposed` carries the `egress` object (`class`, `host`, `level`, `decision`).
+- 每个对外工具调用在被提出之前，都会依据工作区档位做出决定。被拒绝的调用不会运行；需要询问的调用只对该次调用获批，常设授权与自动批准不适用于它。
+- 工具声明 `destination`。网页工具与浏览器自动化为 `any_public`；远程 HTTP MCP 服务器为 `fixed_public`，并带有其 URL，依据其解析位置判定；stdio MCP 服务器为 `local_process`。受管类别（`web`、`mcp`）中未声明目的地的工具为 `any_public`。
+- `tool.proposed` 携带 `egress` 对象（`class`、`host`、`level`、`decision`）。
 
-Deviations from the decision above, to be closed in step 2:
+与上述决定的偏差，计划在第二步中解决：
 
-- `web_search` is `any_public`, not `fixed_public`. Its engines come from a credential-store value that is not read at dispatch, so the gate cannot yet name the provider hosts. `any_public` is the stricter class: in *Approved endpoints* it asks for each call instead of allowing approved providers.
-- Local MCP servers can be marked *local-only* (`set_local_only`, with confirmation). The mark is stored in the egress authority and read by the gate. Settings ▸ Privacy lists the local (stdio) servers and sets the mark.
-- Tools that the level refuses for every call are not offered to the model (`offered_to_model`). A call refused for a particular target is still refused at dispatch.
-- Per-path rules (`set_path_rule`, point 3): a rule for one path (`web_search`, `web_fetch`, `browser`, `open_url`, or `mcp:<server>`) in one workspace, or for every workspace. It is `allow`, `ask` or `deny`, replaces the level's decision for that path, and is the only way a rule can be set (desktop settings command). A rule that lets more content go than the level does now asks for confirmation; removing it takes effect at once. The ledger's `egress` object names the path and the rule in force.
-- Connector tools are governed: a tool in category `connector` with no declared destination is `any_public` (fails closed), and its path is `connector:<name>` (`ToolMetadata.connector`), so a rule can name one connector. Settings ▸ Privacy lists a rule row for each connected connector.
+- `web_search` 为 `any_public`，而非 `fixed_public`。它的引擎来自一个凭据存储值，该值在分发时不被读取，因此门禁尚无法指出服务商主机。`any_public` 是更严格的类别：在"已批准端点"中，它会对每次调用询问，而不是放行已批准的服务商。
+- 本地 MCP 服务器可以被标记为*仅本地*（`set_local_only`，需确认）。该标记存储在出境权威中，由门禁读取。"设置 ▸ 隐私"列出本地（stdio）服务器并设置标记。
+- 对任何调用都被档位拒绝的工具，不提供给模型（`offered_to_model`）。针对特定目标被拒绝的调用，在分发时仍会被拒绝。
+- 按路径规则（第 3 点，`set_path_rule`）：针对某个工作区（或所有工作区）中的某条路径（`web_search`、`web_fetch`、`browser`、`open_url` 或 `mcp:<服务器>`）的规则，取值为 `allow`、`ask` 或 `deny`。它替换该档位对此路径的决定，是设置规则的唯一途径（桌面端设置命令）。使更多内容离开的规则需要确认；取消规则立即生效。Ledger 的 `egress` 对象记录路径与当时生效的规则。
+- 连接器工具受本规则管辖：类别为 `connector` 且未声明目的地的工具按 `any_public` 处理，其路径为 `connector:<名称>`（`ToolMetadata.connector`），因此规则可以针对单个连接器。"设置 ▸ 隐私"为每个已连接的连接器列出一行规则。
 
-Not done, and deliberately left fail-closed: Suite connectors do not declare a destination. Most of them call several hosts (productivity: Microsoft Graph, Google APIs, Gmail, Notion, Box, Dropbox), and a single `destination_url` per tool cannot describe that. A per-tool host list would have to be complete: an undeclared host would bypass *Approved endpoints*, because it would not be checked. That list needs a contract change and a check of each connector's real hosts, so it is a separate step. Until then Suite connector tools are `any_public`.
+有意保持失败即关闭、未在此实现的部分：Suite 连接器尚未声明目的地。它们大多数会调用多个主机（生产力类：Microsoft Graph、Google API、Gmail、Notion、Box、Dropbox），而每个工具的单一 `destination_url` 无法描述这种情况。逐工具的主机列表必须是完整的：未声明的主机会绕过"已批准端点"，因为它不会被检查。该列表需要合同变更，并核对每个连接器真实访问的主机，因此属于单独的步骤。在此之前，Suite 连接器工具按 `any_public` 处理。

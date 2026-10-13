@@ -1,92 +1,94 @@
-# ADR-0056: Where a multi-round study keeps its design and decisions
+# ADR-0056：多轮研究的设计与决策保存在哪里
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet.
+状态：**已接受**（所有者，2026-10-11）。
 
-## Context
+**部分实现**：`study.json` 的读取、检查与锁定字段比较（`crates/delta-core/src/study.rs`），以及 `schemas/study.schema.json`，已经实现。尚未实现的有：`study_schema` 校验规则（未接入校验流程）、`study.amend` 能力，以及按路径查询历史的只读接口（见 CHANGELOG）。
 
-Sequential experimental design is in scope from the first version (`DELTA_BLUEPRINT.md` section 2.2). A formulation or process study runs over weeks:
+## 背景
+
+序贯实验设计在第一版中即属于范围之内（`DELTA_BLUEPRINT.md` 第 2.2 节）。配方或工艺研究往往持续数周：
 
 ```text
-design → round 1 → interim analysis → next round → ... → stop → confirmation
+设计 → 第 1 轮 → 中期分析 → 下一轮 → ... → 停止 → 确认
 ```
 
-The work happens in many sessions. Each round has to answer:
+这项工作分布在许多次会话中。每一轮都必须回答：
 
-- what is known;
-- what is uncertain;
-- what to run next;
-- whether to stop.
+- 现在知道了什么；
+- 还有什么不确定；
+- 下一步该做什么；
+- 是否应当停止。
 
-The blueprint also requires that the system never changes the research objective, the allowed adjustment range or the stopping rule without explicit human control. Stability studies have the same shape: the protocol stays fixed while new time points arrive over months.
+蓝图还要求，系统在没有用户明确控制的情况下，绝不能改变研究目标、允许的调整范围或停止规则。稳定性研究也是同样的形态：协议保持不变，而新的时间点会在数月内陆续到来。
 
-What exists (checked, not assumed):
+现存情况（已核对，并非假设）：
 
-1. The work fact model is Workspace → Session → Runs, plus Sources / Citations and Artifacts / Versions / Validation. The blueprint says not to add a WorkItem abstraction until real use proves it is needed (section 9).
-2. Artifacts are registered per run with path and SHA-256 (`artifact.rs`). `ArtifactReader::list_for_run` lists one run's artifacts. There is no query for "all registrations of this path across runs".
-3. Desktop projects group sessions in the sidebar, but they are stored on the device by the UI, not by the Runtime (CHANGELOG, sidebar projects). They are not a work fact.
-4. Policy risk levels are in `policy.rs`; L4 ("irreversible or sensitive") is never auto-allowed. Skills declare a side-effect class (`skills.rs`).
+1. 工作事实模型是 Workspace → Session → Runs，外加 Sources / Citations 以及 Artifacts / Versions / Validation。蓝图要求在真实使用证明必要之前，不要增加 WorkItem 抽象（第 9 节）。
+2. 产出物按运行登记，记录路径与 SHA-256（`artifact.rs`）。`ArtifactReader::list_for_run` 列出某次运行的产出物。目前没有"查询该路径在所有运行中的全部登记"的接口。
+3. 桌面端的项目在侧边栏中对会话进行分组，但它们由界面保存在设备上，而不是由 Runtime 保存（CHANGELOG，侧边栏项目）。它们不是工作事实。
+4. 策略风险等级定义在 `policy.rs` 中；L4（"不可逆或敏感"）从不自动放行。Skill 声明其副作用类别（`skills.rs`）。
 
-## Options
+## 方案
 
-**A. The study is an artifact (recommended for now).** A `study.json` file in the workspace, with a published schema, is the study record. Every change is a new registration of that artifact by a run, so the ledger holds its history. Changes to locked fields go through a dedicated capability that requires approval.
-- Plus: no new Work object or store; consistent with the blueprint's "no new abstraction without evidence"; works across sessions because the file lives in the workspace.
-- Minus: history across runs needs a new read query; the schema is a contract to version.
+**A. 研究即一个产出物（目前推荐）。** 工作区中的 `study.json` 文件，附带已发布的 schema，即研究记录。每次变更都是某次运行对该产出物的一次新登记，因此 Ledger 保存其历史。对锁定字段的变更必须经由专门的能力，并需要审批。
+- 优点：无需新的工作对象或存储；符合蓝图"无证据不新增抽象"的原则；因为文件位于工作区中，所以能跨会话工作。
+- 缺点：跨运行的历史需要新的读取查询；schema 是需要版本化的合同。
 
-**B. A new Work object `Study` with its own ledger events.**
-- Plus: first-class lifecycle and queries.
-- Minus: a new top-level abstraction before real use has proven it; more Runtime surface.
+**B. 新的工作对象 `Study`，拥有自己的 Ledger 事件。**
+- 优点：一等的生命周期与查询。
+- 缺点：在真实使用证明之前，就引入了新的顶层抽象；增加运行时的表面积。
 
-**C. Reuse desktop projects.**
-- Minus: UI state is not a work fact (invariant: the UI derives nothing). Rejected.
+**C. 复用桌面端的项目。**
+- 缺点：界面状态不是工作事实（不变量：界面不推导任何东西）。予以否决。
 
-## Decision: A, revisit B with evidence
+## 决定：采用 A，有证据后再重新考虑 B
 
-1. **Record.** The study record is `study.json`, validated against `schemas/study.schema.json`. It holds:
-   - the objective;
-   - the responses, with their targets or acceptance criteria;
-   - the factors with their current ranges;
-   - the allowed adjustments (outer bounds, factors that may be added);
-   - the stopping rule;
-   - the analysis plan (model, significance level, confidence level);
-   - the rounds (design, data artifacts, analysis result artifacts);
-   - the decisions (who, when, what, why).
+1. **记录。** 研究记录为 `study.json`，依据 `schemas/study.schema.json` 进行校验。它包含：
+   - 研究目标；
+   - 响应（response）及其目标或验收标准；
+   - 因素及其当前范围；
+   - 允许的调整（外部边界，以及可以新增的因素）；
+   - 停止规则；
+   - 分析计划（模型、显著性水平、置信水平）；
+   - 各轮（设计、数据产出物、分析结果产出物）；
+   - 决策（谁、何时、做了什么、为什么）。
 
-   Domain fields (for example a stability protocol's storage conditions and pull points) go under an `extensions` object owned by the Suite Skill that uses them.
-2. **Locked fields.** These fields are locked once the first round starts:
-   - `objective`;
-   - `responses`, with their targets or acceptance criteria;
-   - `allowed_adjustments`: the outer bounds every factor range must stay within, and which new factors may be added;
-   - `stopping_rule`;
-   - `analysis_plan`: the planned model, significance level and confidence level.
+   领域字段（例如稳定性协议的储存条件与取样时间点）放在 `extensions` 对象之下，由使用它的 Suite Skill 所拥有。
+2. **锁定字段。** 第一轮开始之后，以下字段即被锁定：
+   - `objective`（目标）；
+   - `responses`，及其目标或验收标准；
+   - `allowed_adjustments`：每个因素的范围必须位于其内的外部边界，以及允许新增哪些因素；
+   - `stopping_rule`（停止规则）；
+   - `analysis_plan`：计划中的模型、显著性水平与置信水平。
 
-   The current factor ranges are **not** locked. Narrowing, widening or adding a factor inside `allowed_adjustments` is the normal work of a sequential design (`DELTA_BLUEPRINT.md` section 2.2). Each such change is a decision entry with a reason, and starts only from the user's decision (point 3). A change that would leave `allowed_adjustments` is an amendment.
+   当前的因素范围**不**锁定。在允许范围之内收窄、放宽或新增因素，是序贯设计的常规工作（`DELTA_BLUEPRINT.md` 第 2.2 节）。每一次此类变更都是一条带理由的决策记录，并且只有在用户的决定（第 3 点）之下才会开始。超出 `allowed_adjustments` 的变更属于修订（amendment）。
 
-   Why this set: each locked field is one that, if changed after seeing the data, lets the result be steered toward a wanted answer. That covers the goal, what counts as success, how far the design may move, when to stop, and how the data will be judged. Factor ranges inside the declared bounds do not have that effect, so locking them would only force an approval on every round.
+   之所以是这一组字段：每个锁定字段，一旦在看到数据之后被改动，都可能使结果被导向想要的答案。这包括目标、何为成功、设计可以移动的程度、何时停止，以及数据将如何被评判。声明边界之内的因素范围不会产生这种效果，因此锁定它们只会迫使每一轮都要审批。
 
-   Rules for locked fields:
-   - They can only be changed through the `study.amend` capability.
-   - `study.amend` is declared so that policy classifies it as L4, which is never auto-allowed. The approval card shows the old value, the new value and the reason.
-   - The `study_schema` validation rule rejects any other run's registration of `study.json` that changes a locked field.
-3. **Recommendations are not decisions.** The agent may append a recommendation for the next round. A round starts only when a decision entry, made by the user through an approval or a question, records it.
-4. **History.** Add a read-only query that lists all registrations of a workspace path across runs (path, run id, SHA-256, time). The desktop shows a study's history from it.
-5. **Revisit.** If real use shows that studies need their own lifecycle, sharing or queries that artifacts cannot give, propose B in a new ADR with that evidence.
+   锁定字段的规则：
+   - 只能通过 `study.amend` 能力修改；
+   - `study.amend` 的声明使策略将其归为 L4，L4 从不自动放行。审批卡片显示旧值、新值与理由；
+   - `study_schema` 校验规则会拒绝任何改变锁定字段的、来自其他运行的 `study.json` 登记。
+3. **建议不是决定。** Agent 可以为下一轮追加建议。只有当用户通过审批或提问做出决定，并由该决定记录了某一轮的启动，该轮才会开始。
+4. **历史。** 新增只读查询，列出工作区某个路径在所有运行中的全部登记（路径、运行 id、SHA-256、时间）。桌面端通过该查询显示研究的历史。
+5. **重新考虑。** 如果真实使用表明，研究需要自己的生命周期、共享或产出物无法提供的查询，则在新的 ADR 中以该证据提出 B。
 
-## Consequences
+## 后果
 
-- New schema `schemas/study.schema.json` (public contract, versioned).
-- New validation rule `study_schema`: schema check plus the locked-field comparison with the previous registration.
-- New capability `study.amend` (local write, approval required).
-- New read query for path history in the artifact reader.
-- Tests required:
-  - a locked-field change outside `study.amend` fails validation;
-  - `study.amend` without approval does not write;
-  - an approved amendment records the old value, the new value and the reason;
-  - history lists registrations across sessions in order;
-  - a recommendation alone does not start a round.
+- 新增 schema `schemas/study.schema.json`（公共合同，有版本）。
+- 新增校验规则 `study_schema`：schema 检查，以及与前一次登记进行的锁定字段比较。
+- 新增能力 `study.amend`（本地写入，需要审批）。
+- 产出物读取器新增按路径查询历史的只读接口。
+- 所需测试：
+  - 在 `study.amend` 之外改变锁定字段，应当校验失败；
+  - 没有审批的 `study.amend` 不写入任何内容；
+  - 经批准的修订会记录旧值、新值与理由；
+  - 历史按顺序列出跨会话的登记；
+  - 仅有建议，不会启动某一轮。
 
-## Owner's answers (2026-10-11)
+## 所有者的答复（2026-10-11）
 
-1. A accepted: the study is a `study.json` artifact; a `Study` Work object (B) is proposed only if real use proves it is needed.
-2. The locked set in decision point 2 is confirmed:
-   - locked: the objective, the responses with their targets, the outer adjustment bounds, the stopping rule and the analysis plan;
-   - movable: factor ranges inside those bounds, each change recorded as a user decision.
+1. 接受 A：研究是一个 `study.json` 产出物；只有当真实使用证明需要时，才提出 `Study` 工作对象（B）。
+2. 决定第 2 点中的锁定集合已确认：
+   - 锁定：目标、带目标的响应、外部调整边界、停止规则与分析计划；
+   - 可移动：边界之内的因素范围，每次变更记录为一次用户决定。

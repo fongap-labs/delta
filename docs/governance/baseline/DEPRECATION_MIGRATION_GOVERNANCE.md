@@ -1,190 +1,194 @@
-# Delta Deprecation & Migration Governance
+# Delta 弃用与迁移治理（Deprecation & Migration Governance）
 
-**Version:** v1.0
-**Status:** Governance Baseline — Final / Frozen
-**Scope:** All public APIs, contracts, schemas, SDKs, capability interfaces, and user-facing Foundation features in `fongap-labs/delta`.
+**版本：** v1.0
+**状态：** 治理基线 — 定稿 / 冻结（Final / Frozen）
+**范围：** `fongap-labs/delta` 中的所有公开 API、合同、Schema、SDK、能力接口与面向用户的 Foundation 功能。
 
----
-
-## 1. Purpose
-
-This document defines the policy for deprecating and removing public interfaces, migrating users, and evolving the Delta platform while honoring **Continuous Stability** (Architecture Governance §2.1) and **Predictable Upgrades** (§8 Rule 3).
+本文是 Delta 弃用与迁移的策略基线，规定公开接口的弃用期、移除条件、迁移支持与例外处理。
 
 ---
 
-## 2. Deprecation Principles
+## 1. 目的
 
-| Principle | Operational Meaning |
+本文定义弃用和移除公开接口、迁移用户、以及演进 Delta 平台的策略，同时兼顾**持续稳定（Continuous Stability）**（架构治理 §2.1）与**可预期的升级（Predictable Upgrades）**（§8 规则 3）。
+
+---
+
+## 2. 弃用原则
+
+| 原则 | 操作含义 |
 |-----------|---------------------|
-| **No Surprise Removals** | Minimum 2 minor versions (≈16 weeks) notice before removal. |
-| **Clear Migration Path** | Every deprecation has documented replacement + automated migration where feasible. |
-| **Parallel Support** | Old and new coexist during deprecation window. |
-| **Communication** | Multi-channel notice (release notes, docs, in-app, GitHub). |
-| **Telemetry-Informed** | Usage data guides priority (but never blocks deprecation). |
-| **Security Exceptions** | Critical vulnerabilities may shorten window (Security Governance §5). |
+| **无突然移除（No Surprise Removals）** | 移除前至少提前 2 个 minor 版本（约 16 周）通知。 |
+| **清晰的迁移路径（Clear Migration Path）** | 每项弃用都有已记录的替代方案，并在可行时提供自动迁移。 |
+| **并行支持（Parallel Support）** | 弃用期内新旧接口并存。 |
+| **沟通（Communication）** | 多渠道通知（发布说明、文档、应用内、GitHub）。 |
+| **以遥测为参考（Telemetry-Informed）** | 使用数据指导优先级，但绝不阻止弃用。 |
+| **安全例外（Security Exceptions）** | 严重漏洞可缩短窗口（安全治理 §5）。 |
 
 ---
 
-## 3. Deprecation Categories & Timelines
+## 3. 弃用类别与时间表
 
-### 3.1 Public Contract / Schema Changes
+### 3.1 公开合同 / Schema 变更
 
-| Change Type | Deprecation Window | Removal Earliest | Example |
+| 变更类型 | 弃用窗口 | 最早移除 | 示例 |
 |-------------|-------------------|------------------|---------|
-| **Required field → Optional** | 2 minors | Next MAJOR | `timestamp` required → optional |
-| **Field rename** | 2 minors | Next MAJOR | `user_id` → `actor_id` |
-| **Enum value removal** | 2 minors | Next MAJOR | `status: "deprecated"` removed |
-| **Interface removal** | 3 minors | Next MAJOR | `LegacyCapabilityRegistry` removed |
-| **Behavior change (breaking)** | 2 minors | Next MAJOR | `sync()` now returns `Result` not `void` |
+| **必填字段 → 可选** | 2 个 minor | 下一个 MAJOR | `timestamp` 由必填改为可选 |
+| **字段重命名** | 2 个 minor | 下一个 MAJOR | `user_id` → `actor_id` |
+| **枚举值移除** | 2 个 minor | 下一个 MAJOR | 移除 `status: "deprecated"` |
+| **接口移除** | 3 个 minor | 下一个 MAJOR | 移除 `LegacyCapabilityRegistry` |
+| **破坏性行为变更** | 2 个 minor | 下一个 MAJOR | `sync()` 由返回 `void` 改为返回 `Result` |
 
-### 3.2 SDK API Changes (Rust/TS/Python)
+### 3.2 SDK API 变更（Rust / TS / Python）
 
-| Change Type | Deprecation Window | Removal Earliest | Mechanism |
+| 变更类型 | 弃用窗口 | 最早移除 | 机制 |
 |-------------|-------------------|------------------|-----------|
-| **Function/Method removal** | 2 minors | Next MAJOR | `#[deprecated]` / `@deprecated` / `warnings.warn` |
-| **Parameter removal** | 2 minors | Next MAJOR | Optional with default → warn → remove |
-| **Type signature change** | 2 minors | Next MAJOR | New function; old marked deprecated |
-| **Module removal** | 3 minors | Next MAJOR | Re-export from new location → warn → remove |
-| **Error type change** | 2 minors | Next MAJOR | New error enum; old convertible |
+| **函数 / 方法移除** | 2 个 minor | 下一个 MAJOR | `#[deprecated]` / `@deprecated` / `warnings.warn` |
+| **参数移除** | 2 个 minor | 下一个 MAJOR | 可选且有默认值 → 警告 → 移除 |
+| **类型签名变更** | 2 个 minor | 下一个 MAJOR | 新增函数；旧函数标记为弃用 |
+| **模块移除** | 3 个 minor | 下一个 MAJOR | 从新位置重新导出 → 警告 → 移除 |
+| **错误类型变更** | 2 个 minor | 下一个 MAJOR | 新错误枚举；旧错误可转换 |
 
-### 3.3 Capability Interface Changes
+### 3.3 能力接口变更
 
-| Change Type | Deprecation Window | Removal Earliest | Notes |
+| 变更类型 | 弃用窗口 | 最早移除 | 说明 |
 |-------------|-------------------|------------------|-------|
-| **Capability ID rename** | 2 minors | Next MAJOR | Alias old ID → warn → remove |
-| **Permission scope change** | 2 minors | Next MAJOR | Grant validation warns on old scope |
-| **Worker/Connector protocol version** | 3 minors | Next MAJOR | Versioned protocol; old supported |
-| **Skill schema change** | 2 minors | Next MAJOR | Schema versioning; migration tool |
+| **Capability ID 重命名** | 2 个 minor | 下一个 MAJOR | 旧 ID 作为别名 → 警告 → 移除 |
+| **权限范围变更** | 2 个 minor | 下一个 MAJOR | 授权校验对旧范围发出警告 |
+| **Worker / Connector 协议版本** | 3 个 minor | 下一个 MAJOR | 带版本的协议；旧版本仍受支持 |
+| **Skill Schema 变更** | 2 个 minor | 下一个 MAJOR | Schema 版本化；提供迁移工具 |
 
-### 3.4 User-Facing Feature Changes
+### 3.4 面向用户的功能变更
 
-| Change Type | Deprecation Window | Removal Earliest | Communication |
+| 变更类型 | 弃用窗口 | 最早移除 | 沟通方式 |
 |-------------|-------------------|------------------|---------------|
-| **UI command/menu removal** | 2 minors | Next MAJOR | In-app notice + docs |
-| **Setting/preference removal** | 2 minors | Next MAJOR | Auto-migrate value; warn |
-| **Default behavior change** | 1 minor | Next MINOR | Opt-in first; then default |
-| **File format change** | 3 minors | Next MAJOR | Auto-migrate on read; write new |
+| **UI 命令 / 菜单移除** | 2 个 minor | 下一个 MAJOR | 应用内提示 + 文档 |
+| **设置 / 偏好移除** | 2 个 minor | 下一个 MAJOR | 自动迁移取值；发出警告 |
+| **默认行为变更** | 1 个 minor | 下一个 MINOR | 先作为可选（opt-in），再改为默认 |
+| **文件格式变更** | 3 个 minor | 下一个 MAJOR | 读取时自动迁移；写入新格式 |
 
 ---
 
-## 4. Deprecation Process
+## 4. 弃用流程
 
-### 4.1 Initiation
+### 4.1 发起
 
-1. **Proposal:** Maintainer opens GitHub Discussion with `deprecation-proposal` label.
-2. **Required Content:**
-   - What is being deprecated (exact symbol/feature).
-   - Reason (architecture, security, usability, maintenance).
-   - Replacement (new API, migration steps).
-   - Impact assessment (telemetry usage, extension breakage estimate).
-   - Timeline (target deprecation version, target removal version).
-3. **Review:** ARB + affected Maintainers (7 days minimum).
-4. **Decision:** ARB approves → Deprecation Issue created + tracking label.
+1. **提案：** 维护者开启带 `deprecation-proposal` 标签的 GitHub Discussion。
+2. **必备内容：**
+   - 被弃用的确切符号或功能。
+   - 原因（架构、安全、可用性、维护）。
+   - 替代方案（新 API、迁移步骤）。
+   - 影响评估（遥测使用情况、扩展受影响的估计）。
+   - 时间表（目标弃用版本、目标移除版本）。
+3. **评审：** ARB 与受影响的维护者（至少 7 天）。
+4. **决定：** ARB 批准 → 创建弃用 issue 并添加跟踪标签。
 
-### 4.2 Implementation Checklist
+### 4.2 实施清单
 
-| Step | Owner | Verification |
+| 步骤 | 负责人 | 验证方式 |
 |------|-------|--------------|
-| Add deprecation annotations (`#[deprecated]`, `@deprecated`, etc.) | Author | CI warns on usage |
-| Update documentation (mark deprecated; link replacement) | Author | Doc CI passes |
-| Add migration guide entry | Author | `MIGRATION_GUIDE.md` updated |
-| Implement replacement API (if not existing) | Author | Tests pass |
-| Add automated migration (codemod, script, CLI) | Author | Migration test passes |
-| Telemetry: track deprecated usage (opt-in) | Maintainer | Dashboard updated |
-| Release notes: deprecation announcement | Release Manager | Published |
+| 添加弃用注解（`#[deprecated]`、`@deprecated` 等） | 作者 | CI 在使用处发出警告 |
+| 更新文档（标记为弃用；链接替代方案） | 作者 | 文档 CI 通过 |
+| 添加迁移指南条目 | 作者 | `MIGRATION_GUIDE.md` 已更新（计划中，尚未创建） |
+| 实现替代 API（如尚不存在） | 作者 | 测试通过 |
+| 添加自动迁移（codemod、脚本、CLI） | 作者 | 迁移测试通过 |
+| 遥测：跟踪已弃用接口的使用（可选） | 维护者 | 仪表盘已更新 |
+| 发布说明：弃用公告 | 发布经理 | 已发布 |
 
-### 4.3 Communication Timeline
+### 4.3 沟通时间表
 
-| Milestone | Channel | Timing |
-|-----------|---------|--------|
-| **Deprecation Announced** | GitHub Release Notes, Discussions, `DEPRECATIONS.md` | At deprecation release (e.g., 1.4.0) |
-| **Reminder** | In-app banner (dev/build), Discord, Discussions | At 1 minor before removal (e.g., 1.5.0) |
-| **Final Warning** | In-app banner (all), Release Notes, Migration Guide top | At removal release (e.g., 1.6.0) |
-| **Removed** | Release Notes, Breaking Changes doc | Removal release |
+| 里程碑 | 渠道 | 时机 |
+|-----------|-----------|-----------|
+| **宣布弃用** | GitHub 发布说明、Discussions、`DEPRECATIONS.md`（计划中，尚未创建） | 弃用所在版本（如 1.4.0） |
+| **提醒** | 开发 / 构建中的应用内横幅、Discord、Discussions | 移除前 1 个 minor（如 1.5.0） |
+| **最终警告** | 全体用户的应用内横幅、发布说明、迁移指南顶部 | 移除所在版本（如 1.6.0） |
+| **已移除** | 发布说明、破坏性变更文档 | 移除版本 |
 
 ---
 
-## 5. Migration Support
+## 5. 迁移支持
 
-### 5.1 Automated Migration Tooling
+### 5.1 自动迁移工具
 
-| Target | Tool | Trigger |
+| 目标 | 工具 | 触发方式 |
 |--------|------|---------|
-| **Rust SDK** | `cargo fix` / custom `delta-migrate` CLI | `cargo update` + `--migrate` flag |
-| **TypeScript SDK** | `delta-migrate` (jscodeshift codemods) | `npx delta-migrate@latest` |
-| **Python SDK** | `delta-migrate` (libcst/ast) | `pip install delta-migrate` |
-| **Contracts/Schemas** | `delta-schema-migrate` (JSON/Protobuf transform) | CI integration |
-| **User Config/State** | In-app migration on startup | Automatic + backup |
+| **Rust SDK** | `cargo fix` / 自定义 `delta-migrate` CLI（计划中） | `cargo update` + `--migrate` 标志 |
+| **TypeScript SDK** | `delta-migrate`（jscodeshift codemod，计划中） | `npx delta-migrate@latest` |
+| **Python SDK** | `delta-migrate`（libcst / ast，计划中） | `pip install delta-migrate` |
+| **合同 / Schema** | `delta-schema-migrate`（JSON / Protobuf 转换，计划中） | CI 集成 |
+| **用户配置 / 状态** | 启动时的应用内迁移 | 自动 + 备份 |
 
-### 5.2 Migration Guarantees
+> 注：上表中的 `delta-migrate` 与 `delta-schema-migrate` 尚未在本仓库中实现。
 
-- **Zero-data-loss:** Migration never deletes user data without explicit confirmation.
-- **Rollback:** Previous version installable alongside new (side-by-side).
-- **Verification:** Migration tool validates output (schema check, round-trip test).
-- **Support:** Community/Maintainers assist with migration issues for 1 minor after removal.
+### 5.2 迁移保证
 
-### 5.3 Extension Author Support
+- **零数据丢失：** 未经用户明确确认，迁移绝不删除用户数据。
+- **回滚：** 旧版本可与新版本并行安装（side-by-side）。
+- **验证：** 迁移工具须校验输出（Schema 检查、往返测试）。
+- **支持：** 移除后 1 个 minor 版本内，社区 / 维护者协助解决迁移问题。
 
-- **Early Access:** Extension authors get pre-release SDK access (via GitHub prereleases).
-- **Compatibility CI:** Suite CI runs extension compatibility tests (Dual-Repo Design §14).
-- **Direct Channel:** `extensions@delta.example.com` for migration questions.
+### 5.3 扩展作者支持
+
+- **提前访问：** 扩展作者可通过 GitHub prerelease 获取发布前的 SDK。
+- **兼容性 CI：** Suite CI 运行扩展兼容性测试（Dual-Repo Design §14，该文档未收录于本仓库）。
+- **直接渠道：** `extensions@delta.example.com`（占位地址）用于迁移问题咨询。
 
 ---
 
-## 6. Exception Handling
+## 6. 例外处理
 
-### 6.1 Security-Driven Accelerated Deprecation
+### 6.1 安全驱动的加速弃用
 
-Per **Security Governance §5**, if a deprecated interface has **Critical/High vulnerability**:
+依据**安全治理 §5**，若已弃用的接口存在**严重（Critical）/ 高危（High）漏洞**：
 
-| Normal Window | Accelerated Window | Authorization |
+| 常规窗口 | 加速窗口 | 授权方 |
 |---------------|-------------------|---------------|
-| 2 minors | 1 patch release (or emergency) | Security Lead + ARB |
+| 2 个 minor | 1 个补丁发布（或紧急发布） | 安全负责人 + ARB |
 
-**Requirements:**
-- Migration path **must** exist (even if manual).
-- Communication **immediate** (security advisory channel).
-- No removal without replacement unless **no safe alternative exists** (then: disable + guide to workaround).
+**要求：**
+- **必须**存在迁移路径（即使是手动的）。
+- 通知**立即**发出（安全通告渠道）。
+- 除非**不存在安全的替代方案**（此时：禁用并指导替代办法），否则不得在没有替代方案的情况下移除。
 
-### 6.2 Abandoned/Unmaintained Extensions
+### 6.2 已停止维护的扩展
 
-If a deprecated interface is used by **unmaintained third-party extensions**:
+若已弃用的接口被**无人维护的第三方扩展**使用：
 
-- Delta **does not** block deprecation.
-- Delta **does** provide: migration guide, automated tooling, 2-minor window.
-- Extension users: encouraged to fork/maintain or migrate.
-
----
-
-## 7. Version-Specific Policies
-
-### 7.1 Pre-1.0 (Current: 0.x)
-
-- **No deprecation guarantees.** Breaking changes allowed in MINOR.
-- **Best effort** migration tooling.
-- **Clear communication** still required.
-
-### 7.2 Post-1.0 (v1.0+)
-
-- **Strict adherence** to windows in Section 3.
-- **MAJOR version** = cumulative breaking changes from deprecations.
-- **LTS branches** receive backported deprecation annotations (no removals).
-
-### 7.3 MAJOR Release Process
-
-1. **Deprecation Freeze:** 2 minors before MAJOR, no new deprecations.
-2. **Removal Sprint:** All scheduled removals implemented.
-3. **Migration Testing:** Full matrix (Core, SDK, Extensions, Suite).
-4. **Release Candidate:** Extended RC period (4 weeks minimum).
-5. **GA:** Migration guides finalized; support channels staffed.
+- Delta **不**阻止弃用。
+- Delta **确实**提供：迁移指南、自动化工具、2 个 minor 的窗口。
+- 扩展用户：鼓励其自行分叉维护或迁移。
 
 ---
 
-## 8. Tracking & Metrics
+## 7. 版本相关策略
 
-### 8.1 Deprecation Registry
+### 7.1 1.0 之前（当前：0.x）
 
-Maintained in `DEPRECATIONS.md` (machine-readable YAML front-matter):
+- **无弃用保证。** MINOR 版本中允许破坏性变更。
+- **尽力而为**提供迁移工具。
+- 仍然要求**清晰的沟通**。
+
+### 7.2 1.0 之后（v1.0+）
+
+- **严格遵守**第 3 节中的窗口。
+- **MAJOR 版本**=弃用所累积的破坏性变更。
+- **LTS 分支**接收回移植的弃用注解（不做移除）。
+
+### 7.3 MAJOR 发布流程
+
+1. **弃用冻结：** MAJOR 之前 2 个 minor，不再新增弃用。
+2. **移除冲刺：** 实施所有已排期的移除。
+3. **迁移测试：** 完整矩阵（Core、SDK、扩展、Suite）。
+4. **发布候选版（RC）：** 延长 RC 周期（至少 4 周）。
+5. **正式发布（GA）：** 完成迁移指南；配备支持渠道人员。
+
+---
+
+## 8. 跟踪与指标
+
+### 8.1 弃用登记表
+
+弃用登记表维护于 `DEPRECATIONS.md`（计划中，尚未创建），采用机器可读的 YAML front-matter：
 
 ```yaml
 - id: DEP-0042
@@ -198,35 +202,35 @@ Maintained in `DEPRECATIONS.md` (machine-readable YAML front-matter):
   telemetry_usage: "low"  # high | medium | low | unknown
 ```
 
-### 8.2 Success Metrics
+### 8.2 成功指标
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| **Deprecated API usage at removal** | < 5% of peak | Telemetry (opt-in) + crate download stats |
-| **Migration tool adoption** | > 80% of affected projects | Tool download / CI runs |
-| **Extension breakage reports** | 0 critical | GitHub Issues labeled `migration-failure` |
-| **User migration completion** | > 90% within 2 minors | In-app telemetry (opt-in) |
-
----
-
-## 9. Relationship to Other Governance
-
-| Document | Interaction |
-|----------|-------------|
-| **Architecture Governance** | Predictable upgrades (§2.1); Public contracts evolve slowly (§8 Rule 14) |
-| **Release Governance** | Deprecation timeline drives MINOR/MAJOR cadence |
-| **Contract Governance** | Contract changes follow same deprecation rules |
-| **Security Governance** | Accelerated deprecation for vulns |
-| **Contribution Governance** | Deprecation PRs follow standard review + ARB approval |
+| 指标 | 目标 | 度量方式 |
+|--------|--------|--------------|
+| **移除时的弃用 API 使用量** | 低于峰值的 5% | 遥测（可选）+ crate 下载统计 |
+| **迁移工具采用率** | 受影响项目的 80% 以上 | 工具下载量 / CI 运行次数 |
+| **扩展破坏报告** | 严重问题为 0 | 标记为 `migration-failure` 的 GitHub Issue |
+| **用户迁移完成率** | 2 个 minor 内超过 90% | 应用内遥测（可选） |
 
 ---
 
-## 10. Version History
+## 9. 与其他治理文件的关系
 
-| Version | Date | Author | Change |
+| 文件 | 相互作用 |
+|----------|----------|
+| **架构治理** | 可预期的升级（§2.1）；公开合同缓慢演进（§8 规则 14） |
+| **发布治理** | 弃用时间表驱动 MINOR / MAJOR 节奏 |
+| **合同治理** | 合同变更遵循相同的弃用规则 |
+| **安全治理** | 漏洞的加速弃用 |
+| **贡献治理** | 弃用相关 PR 遵循标准评审与 ARB 批准 |
+
+---
+
+## 10. 版本历史
+
+| 版本 | 日期 | 作者 | 变更 |
 |---------|------|--------|--------|
-| v1.0 | 2026-09-17 | ARB + Release Manager | Initial baseline |
+| v1.0 | 2026-09-17 | ARB + 发布经理 | 初始基线 |
 
 ---
 
-**End of Document**
+**文档结束**

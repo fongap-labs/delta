@@ -1,45 +1,33 @@
-# ADR-0001: One Delta, One Core
+# ADR-0001：唯一的 Delta，唯一的核心
 
+状态：已接受
 
-Status:
+## 背景
 
-Accepted
+多个相互独立的核心会导致：
 
+- 架构碎片化
+- 权威模型不一致
+- 维护困难
 
-## Context
+## 决定
 
+Delta 只保持：
 
-Multiple independent cores create:
+- 一个应用（One App）
+- 一个核心（One Core）
+- 一个运行时（One Runtime）
 
-- Architecture fragmentation
-- Inconsistent authority model
-- Difficult maintenance
+所有能力都扩展同一套架构。
 
+## 后果
 
-## Decision
+正面影响：
 
+- 架构稳定
+- 责任归属清晰
+- 更易扩展
 
-Delta maintains:
+负面影响：
 
-
-- One App
-- One Core
-- One Runtime
-
-
-All capabilities extend the same architecture.
-
-
-## Consequences
-
-
-Positive:
-
-- Stable architecture
-- Clear ownership
-- Easier extension
-
-
-Negative:
-
-- Core changes require discipline
+- 核心变更需要严格的纪律

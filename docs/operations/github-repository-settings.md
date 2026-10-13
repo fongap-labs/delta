@@ -10,12 +10,12 @@
 
 建议启用：
 
-* Require a pull request before merging
-* Require status checks to pass before merging
-* Require conversation resolution before merging
-* Require linear history
-* Block force pushes
-* Restrict deletions
+* 合并前必须通过 Pull Request（Require a pull request before merging）
+* 合并前必须通过状态检查（Require status checks to pass before merging）
+* 合并前必须解决所有评审对话（Require conversation resolution before merging）
+* 要求线性历史（Require linear history）
+* 禁止强制推送（Block force pushes）
+* 禁止删除（Restrict deletions）
 
 ## Required Check
 
@@ -24,6 +24,8 @@
 ```text
 ci-required
 ```
+
+`ci-required` 在本仓库中仅见于 PR 模板（`.github/pull_request_template.md`）。CI 由中央 Action Worker 调度（参见 `.github/scripts/central-ci.sh`），GitHub 中实际报告的检查名称需由所有者在仓库设置中确认。
 
 不建议把大量内部 matrix job 单独设为 Required Check。
 
@@ -136,7 +138,7 @@ permissions:
 
 确实需要写权限的 Workflow 应单独声明。
 
-例如：
+例如（示例路径）：
 
 ```text
 .github/workflows/release.yml
@@ -146,9 +148,9 @@ permissions:
 
 ## Release Workflow
 
-`release.yml` 只负责发布相关行为。
+发布类 Workflow 只负责发布相关行为。
 
-它可以在确有需要时申请：
+本仓库的 `.github/workflows/` 当前只有 PR 治理派发工作流（`dispatch-pr-governance.yml`）；发布由中央 Action Worker 调度（参见 `.github/release.manifest.json`）。若将来在本仓库新增发布 Workflow，它可以在确有需要时申请：
 
 ```yaml
 contents: write
@@ -156,11 +158,7 @@ contents: write
 
 写权限应限制在实际发布任务中。
 
-Release 规则见：
-
-```text
-docs/governance/release-policy.md
-```
+Release 规则见：[`docs/governance/RELEASE_POLICY.md`](../governance/RELEASE_POLICY.md)。
 
 ## Dependabot
 
@@ -175,11 +173,7 @@ docs/governance/release-policy.md
 
 Dependabot 自动合并应由独立 Workflow 根据明确策略执行。
 
-详细规则见：
-
-```text
-docs/governance/dependency-policy.md
-```
+详细规则见：[`docs/governance/DEPENDENCY_POLICY.md`](../governance/DEPENDENCY_POLICY.md)。
 
 ## Auto Merge
 
@@ -206,7 +200,7 @@ Require conversation resolution before merging
 
 已经失效或不再适用的 Review thread 应明确 resolve，而不是长期悬置。
 
-## Ruleset Bypass
+## Ruleset 绕过（Bypass）
 
 默认不配置宽泛 Bypass。
 

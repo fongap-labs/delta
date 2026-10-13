@@ -1,91 +1,73 @@
-# Delta Core Architecture
+# Delta Core 架构
 
+本文定义 Delta Core 的职责边界，以及修改 Core 之前必须先回答的问题。
 
-Version: 1.0
+版本：1.0
 
+## 1. 目的
 
-## 1. Purpose
+Delta Core 是 Delta 的架构中心。
 
+Core 提供控制与权威机制。
 
-Delta Core is the architectural center of Delta.
-
-
-Core provides control and authority mechanisms.
-
-Core is not a capability container.
-
+Core 不是能力容器。
 
 ---
 
-## 2. Core Responsibilities
+## 2. Core 的职责
 
+Core 负责：
 
-Core owns:
+### 运行时（Runtime）
 
+- 任务执行
+- 工作流生命周期
+- 调度控制
 
-## Runtime
+### 权威（Authority）
 
-- Task execution
-- Workflow lifecycle
-- Scheduling control
+- 权限校验
+- 执行审批
 
+### 状态（State）
 
-## Authority
+- 系统状态管理
+- 一致性控制
 
-- Permission validation
-- Execution approval
+### 信任（Trust）
 
+- 验证
+- 边界强制执行
 
-## State
+### 能力管理（Capability Management）
 
-- System state management
-- Consistency control
-
-
-## Trust
-
-- Verification
-- Boundary enforcement
-
-
-## Capability Management
-
-- Registration
-- Resolution
-- Invocation control
-
+- 注册
+- 解析
+- 调用控制
 
 ---
 
-## 3. Core Does Not Own
+## 3. Core 不负责的内容
 
+Core **不得**包含：
 
-Core MUST NOT contain:
+- 领域工作流
+- 外部服务的实现
+- 用户专属的 Skill
+- 专门的业务逻辑
 
-- Domain workflows
-- External service implementations
-- User-specific skills
-- Specialized business logic
-
-
-Those belong to capabilities.
-
+这些内容属于能力。
 
 ---
 
-## 4. Modification Rules
+## 4. 修改规则
 
+Core 的变更需要经过架构评审。
 
-Core changes require architecture review.
+修改 Core 之前，先检查：
 
+1. 这能否作为一项能力实现？
+2. 这能否作为 SDK 扩展实现？
+3. 这能否作为一份合同实现？
 
-Before modifying Core:
-
-Check:
-
-1. Can this be a capability?
-2. Can this be an SDK extension?
-3. Can this be a contract?
-
-
-Prefer extension over modification.
+优先扩展，而非修改。

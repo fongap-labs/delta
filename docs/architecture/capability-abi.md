@@ -1,5 +1,7 @@
 # Capability ABI
 
+本文是 Delta 的 Capability ABI 规范：说明 Rust 与 Worker 之间的执行边界如何划分，以及哪些事项由 Rust 决定。
+
 ## 1. 目的
 
 Capability ABI 定义 Delta Rust Capability Host 与本地 Worker、MCP、Connector 和外部 Adapter 之间的稳定执行边界。
@@ -423,6 +425,8 @@ Rust 将 Manifest 注册为：
 
 ## 17. 产品域示例
 
+以下能力名称仅为示例，用于说明命名方式，并非都已实现。
+
 ### Office
 
 ```text
@@ -483,7 +487,13 @@ MCP / Connector / External Service
 
 ## 19. 版本兼容
 
-Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（发布名 `delta-worker-sdk`）。不得在 Foundation 中维护第二套并行 Worker SDK、复制 ABI model，或让测试专门保活废弃协议实现；所有 Worker/Extension 共享同一 SDK contract tests。 One-shot Worker 使用 `run_worker`；需要复用进程或 session 的 Worker 使用 `run_persistent_worker`。不得在 Extension 内再次实现 Job/secret frame 解析、ABI 版本协商或终态 Result 序列化。
+Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（发布名 `delta-worker-sdk`）。约束如下：
+
+- 不得在 Foundation 中维护第二套并行的 Worker SDK，也不得复制 ABI model；
+- 不得让测试专门保活已废弃的协议实现；
+- 所有 Worker / Extension 共享同一套 SDK 合同测试；
+- 一次性（one-shot）Worker 使用 `run_worker`；需要复用进程或 session 的 Worker 使用 `run_persistent_worker`；
+- 不得在 Extension 内再次实现 Job / secret frame 解析、ABI 版本协商或终态 Result 序列化。
 
 Capability ABI 必须版本化，至少定义：
 
@@ -496,9 +506,9 @@ capability_version
 
 - 更新协议版本；
 - 明确兼容窗口；
-- 提供 contract tests；
-- 更新受影响 Worker；
-- 不使用静默 fallback 掩盖不兼容。
+- 提供合同测试（contract tests）；
+- 更新受影响的 Worker；
+- 不以静默回退（fallback）掩盖不兼容。
 
 ---
 

@@ -1,243 +1,249 @@
-# Delta Compliance & Export Control Governance
+# Delta 合规与出口管制治理（Compliance & Export Control Governance）
 
-**Version:** v1.0
-**Status:** Governance Baseline — Final / Frozen
-**Scope:** Legal compliance, export controls, sanctions, and regulatory obligations for public Delta Foundation distributions and project-operated services.
+**版本：** v1.0
+**状态：** 治理基线 — 定稿 / 冻结（Final / Frozen）
+**范围：** 面向公开 Delta Foundation 发行版及项目运营服务的法律合规、出口管制、制裁与监管义务。
 
----
-
-## 1. Purpose
-
-This document defines Delta's compliance framework for export controls, sanctions, regulatory requirements, and legal obligations. It ensures Delta can operate globally while maintaining **Local-First** architecture (Architecture Governance §1) and **Flexible Outside** deployment model (§2.3).
+本文是 Delta 的合规框架基线，说明出口管制、制裁筛查、区域合规、开源合规与 AI / ML 模型合规的要求，并列出相应的审计与留存义务。
 
 ---
 
-## 2. Export Control Classification
+## 1. 目的
 
-### 2.1 Product Classification (EAR / US Regulations)
+本文定义 Delta 的合规框架，涵盖出口管制、制裁、监管要求与法律义务。在保持**本地优先（Local-First）**架构（架构治理 §1）与**外部灵活部署（Flexible Outside）**模式（§2.3）的前提下，确保 Delta 能够在全球范围内运营。
 
-| Component | ECCN | Reason | License Exception |
+> 注：本文引用的“架构治理”章节未收录于本仓库，相关条款以其权威来源为准。
+
+---
+
+## 2. 出口管制分类
+
+### 2.1 产品分类（EAR / 美国法规）
+
+| 组件 | ECCN | 理由 | 许可例外 |
 |-----------|------|--------|-------------------|
-| **delta-core** (runtime, trust, state) | EAR99 | General-purpose productivity software | N/A (EAR99 = no license required for most destinations) |
-| **delta-app** (UI shells) | EAR99 | End-user application | N/A |
-| **delta-sdk** (interfaces, contracts) | EAR99 | Publicly available APIs | N/A |
-| **delta-stt** (speech recognition) | 5D002 / EAR99* | *If uses strong crypto → 5D002; else EAR99 | TSU / GOV (if 5D002) |
-| **delta-sync** (E2EE sync) | 5D002 | Cryptographic functionality | TSU (publicly available) |
-| **delta-connect** (OAuth) | EAR99 | Standard auth protocols | N/A |
-| **Suite Capabilities** | EAR99 / 5D002 | Case-by-case | TSU where applicable |
-| **Managed Services** | 5D002 / EAR99 | Hosted crypto / productivity | TSU / GOV |
+| **delta-core**（运行时、信任、状态） | EAR99 | 通用生产力软件 | 无（EAR99 在大多数目的地无需许可） |
+| **delta-app**（UI 外壳） | EAR99 | 终端用户应用 | 无 |
+| **delta-sdk**（接口、合同） | EAR99 | 公开可用的 API | 无 |
+| **delta-stt**（语音识别） | 5D002 / EAR99* | *若使用强加密 → 5D002；否则 EAR99 | TSU / GOV（若为 5D002） |
+| **delta-sync**（端到端加密同步） | 5D002 | 密码学功能 | TSU（公开可用） |
+| **delta-connect**（OAuth） | EAR99 | 标准认证协议 | 无 |
+| **Suite 能力** | EAR99 / 5D002 | 逐案判定 | 适用时使用 TSU |
+| **托管服务** | 5D002 / EAR99 | 托管密码学 / 生产力 | TSU / GOV |
 
-> **Default Assumption:** EAR99 unless cryptographic functionality triggers 5D002.
-> **Annual Review:** Classification reviewed by Legal + Security Lead.
+> **默认假设：** 除非密码学功能触发 5D002，否则按 EAR99 处理。
+> **年度审查：** 分类由法务与安全负责人每年审查。
 
-### 2.2 Cryptography Controls
+### 2.2 密码学管制
 
-| Crypto Feature | Algorithm | Key Size | Classification |
+| 加密功能 | 算法 | 密钥长度 | 分类 |
 |----------------|-----------|----------|----------------|
-| **Vault Encryption** | AES-256-GCM | 256-bit | 5D002 (mass market → TSU) |
-| **E2EE Sync** | X25519 + AES-256-GCM | 256-bit | 5D002 (mass market → TSU) |
-| **TLS 1.3** | X25519 / P-256 + AES-GCM / ChaCha20-Poly1305 | 256-bit | 5D002 (standard → TSU) |
-| **Code Signing** | Ed25519 / ECDSA P-256 | 256-bit | 5D002 (auth only → TSU) |
-| **Provenance Hashing** | SHA-256 / BLAKE3 | 256-bit | Not controlled (hash only) |
+| **Vault 加密**（计划中：当前版本未声明静态加密，见安全治理 §9.1） | AES-256-GCM | 256 位 | 5D002（大众市场 → TSU） |
+| **端到端加密同步** | X25519 + AES-256-GCM | 256 位 | 5D002（大众市场 → TSU） |
+| **TLS 1.3** | X25519 / P-256 + AES-GCM / ChaCha20-Poly1305 | 256 位 | 5D002（标准 → TSU） |
+| **代码签名**（Windows 签名启用后适用） | Ed25519 / ECDSA P-256 | 256 位 | 5D002（仅认证 → TSU） |
+| **来源证明哈希（Provenance Hashing）** | SHA-256 / BLAKE3 | 256 位 | 不受管制（仅哈希） |
 
-**TSU (Technology Software Unrestricted) Eligibility:**
-- Publicly available (Foundation source + binaries).
-- Not designed for military/intelligence end-use.
-- Meets §740.13(b) criteria → **no license required** for most countries.
+**TSU（Technology Software Unrestricted，技术软件不受限）资格：**
+- 公开可用（Foundation 源码与二进制）。
+- 不为军事或情报用途设计。
+- 符合 §740.13(b) 标准 → 大多数国家**无需许可**。
 
-### 2.3 De Minimis & Direct Product Rules
+### 2.3 最低限度（De Minimis）与直接产品规则
 
-- **De Minimis:** Delta Foundation < 10% US-origin controlled content (verified annually).
-- **Direct Product Rule:** Not applicable (EAR99/TSU items not subject to FDP rule for most destinations).
-- **Re-export:** Recipients must comply with their local laws.
+- **De Minimis：** Delta Foundation 中美国原产受管制内容 < 10%（每年核验）。
+- **直接产品规则（Direct Product Rule）：** 不适用（EAR99 / TSU 物项在大多数目的地不受直接产品规则约束）。
+- **再出口：** 接收方必须遵守其所在地的法律。
 
 ---
 
-## 3. Sanctions & Restricted Party Screening
+## 3. 制裁与受限方筛查
 
-### 3.1 Screening Policy
+### 3.1 筛查策略
 
-| Screened Entity | Screening Tool | Frequency |
+| 被筛查对象 | 筛查工具 | 频率 |
 |-----------------|----------------|-----------|
-| **Contributors (PR authors)** | GitHub metadata + manual review (high-risk) | Per PR (automated) |
-| **Dependency Authors** | `cargo-deny` + `denied-parties` crate | Weekly scheduled |
-| **Registry Publishers** | crates.io / npm / PyPI metadata | Per publish |
-| **Enterprise Customers** | Compliance DB (Dow Jones / Refinitiv) | Onboarding + quarterly |
-| **Managed Service Users** | Real-time API (compliance vendor) | Per transaction |
+| **贡献者（PR 作者）** | GitHub 元数据 + 人工审查（高风险） | 每个 PR（自动） |
+| **依赖作者** | `cargo-deny`（已接入）+ `denied-parties` crate（计划中，尚未接入） | 每周定时（计划中） |
+| **注册中心发布者** | crates.io / npm / PyPI 元数据 | 每次发布 |
+| **企业客户** | 合规数据库（Dow Jones / Refinitiv） | 入驻时 + 每季度 |
+| **托管服务用户** | 实时 API（合规供应商） | 每笔交易 |
 
-### 3.2 Restricted Lists Monitored
+### 3.2 监控的受限名单
 
-- **US:** SDN, DPL, Entity List, UVL, NS-PLC, MEU, FSE.
-- **EU:** Consolidated Financial Sanctions List.
-- **UK:** Consolidated List.
-- **UN:** Security Council Consolidated List.
-- **Other:** Canada, Australia, Japan, Switzerland lists.
+- **美国：** SDN、DPL、Entity List、UVL、NS-PLC、MEU、FSE。
+- **欧盟：** 综合金融制裁名单（Consolidated Financial Sanctions List）。
+- **英国：** 综合名单（Consolidated List）。
+- **联合国：** 安理会综合名单（Security Council Consolidated List）。
+- **其他：** 加拿大、澳大利亚、日本、瑞士名单。
 
-### 3.3 Match Handling
+### 3.3 命中处理
 
-| Match Type | Action |
-|------------|--------|
-| **Exact Match (Contributor)** | Block merge; notify Legal; contributor can appeal with license |
-| **Exact Match (Dependency)** | Block CI; find alternative; document exception if critical |
-| **Exact Match (Customer)** | Block onboarding; require OFAC/EU license |
-| **Fuzzy Match** | Manual review by Compliance Officer (24h SLA) |
+| 命中类型 | 处理 |
+|------------|------------|
+| **精确命中（贡献者）** | 阻止合并；通知法务；贡献者可凭许可申诉 |
+| **精确命中（依赖）** | 阻止 CI；寻找替代方案；若关键则记录例外 |
+| **精确命中（客户）** | 阻止入驻；须取得 OFAC / EU 许可 |
+| **模糊命中** | 由合规官人工审查（24 小时 SLA） |
 
 ---
 
-## 4. Regional Compliance
+## 4. 区域合规
 
-### 4.1 Data Residency & Localization
+### 4.1 数据驻留与本地化
 
-| Region | Requirement | Delta Implementation |
+| 地区 | 要求 | Delta 的实施方式 |
 |--------|-------------|---------------------|
-| **EU (GDPR)** | Data residency optional | Managed Services: EU region option; Foundation: local-only by default |
-| **China (PIPL/CSL)** | Data localization for "important data" | Suite: China region (partner-operated); Foundation: not offered in CN App Store |
-| **Russia (152-FZ)** | Personal data localization | Not offered; no Managed Services |
-| **India (DPDP)** | Cross-border transfer restrictions | Standard Contractual Clauses; local region if demand |
-| **Brazil (LGPD)** | Data localization for sensitive data | SCCs; no local region planned |
+| **欧盟（GDPR）** | 数据驻留为可选 | 托管服务：提供欧盟区域选项；Foundation：默认仅本地 |
+| **中国（PIPL / CSL）** | “重要数据”须本地化 | Suite：中国区域（由合作伙伴运营）；Foundation：不在中国区 App Store 提供 |
+| **俄罗斯（152-FZ）** | 个人数据本地化 | 不提供；无托管服务 |
+| **印度（DPDP）** | 跨境传输限制 | 标准合同条款（SCC）；如有需求则设立本地区域 |
+| **巴西（LGPD）** | 敏感数据本地化 | SCC；暂无规划本地区域 |
 
-### 4.2 App Store & Distribution Compliance
+### 4.2 应用商店与分发合规
 
-| Platform | Requirements | Delta Compliance |
+> 注：本仓库当前仅包含桌面端（`apps/desktop`）与 Windows Portable 发布。下表中的应用商店项目属于计划中的分发渠道，尚未实施。
+
+| 平台 | 要求 | Delta 合规措施（计划中） |
 |----------|--------------|------------------|
-| **Apple App Store** | Privacy Manifest, ATT, Export Compliance | Annual export compliance declaration; Privacy Manifest in `Info.plist` |
-| **Google Play** | Data Safety Form, Target API | Data Safety Form updated per release; Target API current |
-| **Microsoft Store** | Age Rating, Privacy Policy | Age Rating: 12+; Privacy Policy linked |
-| **GitHub Releases** | No special requirements | Standard |
-| **Package Registries** | License metadata | SPDX in `Cargo.toml` / `package.json` / `pyproject.toml` |
+| **Apple App Store** | 隐私清单、ATT、出口合规 | 每年提交出口合规声明；在 `Info.plist` 中提供隐私清单 |
+| **Google Play** | 数据安全表单、目标 API | 每次发布更新数据安全表单；保持目标 API 为最新 |
+| **Microsoft Store** | 年龄分级、隐私策略 | 年龄分级：12+；关联隐私策略 |
+| **GitHub Releases** | 无特殊要求 | 标准 |
+| **软件包注册中心** | 许可证元数据 | 在 `Cargo.toml` / `package.json` / `pyproject.toml` 中提供 SPDX |
 
-### 4.3 Government / Enterprise Certifications
+### 4.3 政府 / 企业认证
 
-| Certification | Target | Scope | Timeline |
-|---------------|--------|-------|----------|
-| **FedRAMP Low** | Managed Services (US Gov) | Sync/Connect/Relay | 2027 |
-| **StateRAMP** | Managed Services (US State) | Sync/Connect | 2027 |
-| **IRAP** (China) | Managed Services (China) | Via partner | TBD |
-| **C5** (Germany) | Managed Services (EU) | Sync/Connect | 2026 |
-| **ISO 27001** | Organization | Full | 2027 |
-| **SOC 2 Type II** | Managed Services | Sync/Connect/Relay | 2026 |
+| 认证 | 目标 | 范围 | 时间表 |
+|---------------|-------|-------|----------|
+| **FedRAMP Low** | 托管服务（美国政府） | 同步 / 连接 / 中继 | 2027 |
+| **StateRAMP** | 托管服务（美国州政府） | 同步 / 连接 | 2027 |
+| **IRAP**（中国） | 托管服务（中国） | 通过合作伙伴 | 待定 |
+| **C5**（德国） | 托管服务（欧盟） | 同步 / 连接 | 2026 |
+| **ISO 27001** | 组织 | 全面 | 2027 |
+| **SOC 2 Type II** | 托管服务 | 同步 / 连接 / 中继 | 2026 |
 
 ---
 
-## 5. Open Source Compliance
+## 5. 开源合规
 
-### 5.1 License Compliance (See Source Licensing Governance)
+### 5.1 许可证合规（见源码许可治理）
 
-- **Automated:** `cargo-deny`, `license-checker`, `pip-licenses` in CI.
-- **SBOM:** CycloneDX per release (Foundation + Suite).
-- **Attribution:** `NOTICE` file in all binaries; in-app "Licenses" screen.
+- **自动化：** CI 中已接入 `cargo-deny`（Rust 依赖许可证与公告检查）与 `scripts/check_license_policy.py`（根许可证、NOTICE、第三方声明校验）。`license-checker`、`pip-licenses` 尚未接入 CI（计划中）。
+- **SBOM：** 每次发布生成 CycloneDX 格式 SBOM（Foundation + Suite）。当前已在 Windows Portable 发布流程中配置 SBOM 产物（Suite 部分计划中）。
+- **署名：** 所有二进制中包含 `NOTICE` 文件；应用内提供“Licenses”页面（计划中）。
 
-### 5.2 Contribution Compliance
+### 5.2 贡献合规
 
-- **CLA Required:** All code contributions (Contribution Governance §3).
-- **Corporate CLA:** Required for orgs with 5+ contributors.
-- **Government Employees:** Special acknowledgment (US: `GOV` license exception).
+- **需要 CLA：** 所有代码贡献均须签署 CLA（贡献治理 §3）。CLA 自动检查机制（cla-assistant）尚未接入（计划中）。
+- **企业 CLA：** 对于拥有 5 名及以上贡献者的组织，须签署企业 CLA。
+- **政府雇员：** 须作特别声明（美国：`GOV` 许可例外）。
 
-### 5.3 Dependency Risk Management
+### 5.3 依赖风险管理
 
-| Risk | Mitigation |
+| 风险 | 缓解措施 |
 |------|------------|
-| **Malicious Dependency** | `cargo-deny` advisories; `gitleaks`; signed packages; reproducible builds |
-| **Abandoned Dependency** | `cargo-outdated` + `deps.rs` monitoring; vendor critical deps |
-| **License Change** | CI fails on new license; manual review required |
-| **Supply Chain Attack** | SLSA Level 2 target; sigstore signing; provenance attestation |
+| **恶意依赖** | `cargo-deny` 公告检查（已接入）；gitleaks（计划中，尚未接入）；签名包；可复现构建（计划中） |
+| **废弃依赖** | `cargo-outdated` 与 deps.rs 监控（计划中）；关键依赖纳入 vendor |
+| **许可证变更** | 出现新许可证时 CI 失败；须人工审查 |
+| **供应链攻击** | 目标为 SLSA Level 2（计划中）；sigstore 签名（计划中）；当前已配置 GitHub 产物来源证明（provenance attestation） |
 
 ---
 
-## 6. AI/ML Model Compliance
+## 6. AI / ML 模型合规
 
-### 6.1 Model Protocol Compatibility
+### 6.1 模型协议兼容性
 
-Delta supports **OpenAI-compatible** and **Anthropic-compatible** protocols (Arch Gov §1).
+Delta 支持 **OpenAI-compatible** 与 **Anthropic-compatible** 协议（架构治理 §1）。
 
-| Model Deployment | Compliance Consideration |
+| 模型部署方式 | 合规考量 |
 |------------------|--------------------------|
-| **Local (llama.cpp, Ollama)** | No export control (user-provided) |
-| **LAN / Self-Hosted** | User responsible for model licensing |
-| **User-Configured Remote** | User responsible for provider ToS |
-| **Managed Remote (Delta)** | Delta ensures provider compliance (if offered) |
+| **本地（llama.cpp、Ollama）** | 无出口管制（由用户自行提供） |
+| **局域网 / 自托管** | 用户自行负责模型许可 |
+| **用户配置的远程模型** | 用户自行负责供应商服务条款 |
+| **Delta 托管远程模型** | Delta 确保供应商合规（如提供） |
 
-### 6.2 Model Governance
+### 6.2 模型治理
 
-- **No Bundled Models:** Delta ships **zero** model weights.
-- **Model Registry:** Optional; only references (name, protocol, capabilities).
-- **Provenance Tracking:** Model identity in `provenance_chain` (Arch Gov §44-47).
-
----
-
-## 7. Accessibility Compliance
-
-| Standard | Target | Status |
-|----------|--------|--------|
-| **WCAG 2.1 AA** | Delta App (all platforms) | In progress (v1.2 target) |
-| **Section 508** (US Federal) | Delta App | Aligned with WCAG 2.1 AA |
-| **EN 301 549** (EU) | Delta App | Aligned with WCAG 2.1 AA |
-
-**Implementation:** Platform-native accessibility APIs; semantic UI; screen reader testing in CI.
+- **不捆绑模型：** Delta 不分发任何模型权重。
+- **模型注册表：** 可选；仅保存引用（名称、协议、能力）。
+- **来源追踪：** 模型身份记录于 `provenance_chain`（架构治理 §44–47）。
 
 ---
 
-## 8. Audit & Documentation
+## 7. 无障碍合规
 
-### 8.1 Compliance Artifacts
+| 标准 | 目标 | 状态 |
+|----------|----------|----------|
+| **WCAG 2.1 AA** | Delta App（全平台） | 进行中（目标 v1.2） |
+| **Section 508**（美国联邦） | Delta App | 与 WCAG 2.1 AA 对齐 |
+| **EN 301 549**（欧盟） | Delta App | 与 WCAG 2.1 AA 对齐 |
 
-| Artifact | Owner | Update Frequency |
+**实施方式：** 使用平台原生无障碍 API；语义化 UI；CI 中进行屏幕阅读器测试（计划中）。
+
+---
+
+## 8. 审计与文档
+
+### 8.1 合规产物
+
+| 产物 | 负责人 | 更新频率 |
 |----------|-------|------------------|
-| **Export Classification Matrix** | Legal + Security Lead | Annual |
-| **Sanctions Screening Log** | Compliance Officer | Continuous (automated) |
-| **SBOM Archive** | Release Manager | Per release |
-| **DPA / SCC Repository** | Legal | Per customer / annual |
-| **Certification Evidence** | Security Lead | Per audit cycle |
-| **Accessibility Audit Report** | Engineering Lead | Per major release |
+| **出口分类矩阵** | 法务 + 安全负责人 | 每年 |
+| **制裁筛查日志** | 合规官 | 持续（自动化） |
+| **SBOM 归档** | 发布经理 | 每次发布 |
+| **DPA / SCC 库** | 法务 | 每位客户 / 每年 |
+| **认证证据** | 安全负责人 | 每个审计周期 |
+| **无障碍审计报告** | 工程负责人 | 每个主要版本 |
 
-### 8.2 Record Retention
+### 8.2 记录留存
 
-| Record Type | Retention |
+| 记录类型 | 留存期限 |
 |-------------|-----------|
-| Export classifications | 5 years post-shipment |
-| Screening logs | 5 years |
-| SBOMs | 7 years (aligned with support window) |
-| Customer DPAs | 7 years post-contract |
-| Certification evidence | 3 years post-expiry |
+| 出口分类 | 产品发运后 5 年 |
+| 筛查日志 | 5 年 |
+| SBOM | 7 年（与支持周期一致） |
+| 客户 DPA | 合同终止后 7 年 |
+| 认证证据 | 有效期届满后 3 年 |
 
 ---
 
-## 9. Incident Response (Compliance)
+## 9. 合规事件响应
 
-### 9.1 Compliance Incident Types
+### 9.1 合规事件类型
 
-| Type | Example | Response |
+| 类型 | 示例 | 响应 |
 |------|---------|----------|
-| **Export Violation** | Shipment to embargoed country | Legal notification (voluntary self-disclosure); 5-day internal investigation |
-| **Sanctions Match** | Contributor on SDN list | Immediate block; Legal review; OFAC license if applicable |
-| **License Violation** | GPL dependency in Foundation | Immediate yank/replace; Legal assessment |
-| **Data Residency Breach** | EU data processed in US without SCC | Immediate containment; DPA assessment; Supervisory Authority notification (72h GDPR) |
+| **出口违规** | 向受禁运国家发运 | 法务通知（主动自愿披露）；内部调查 5 天 |
+| **制裁命中** | 贡献者在 SDN 名单上 | 立即阻止；法务审查；如适用则申请 OFAC 许可 |
+| **许可证违规** | Foundation 中存在 GPL 依赖 | 立即撤回或替换；法务评估 |
+| **数据驻留违规** | 欧盟数据在无 SCC 的情况下于美国处理 | 立即遏制；DPA 评估；通知监管机构（GDPR 要求 72 小时内） |
 
-### 9.2 Voluntary Self-Disclosure (VSD)
+### 9.2 主动自愿披露（VSD）
 
-- **Policy:** Proactive disclosure for export/sanctions errors.
-- **Process:** Legal prepares VSD → submits to BIS/OFAC → implements corrective actions.
-- **Documentation:** All VSDs tracked in Compliance Register.
-
----
-
-## 10. Training & Awareness
-
-| Audience | Training | Frequency |
-|----------|----------|-----------|
-| **All Engineers** | Export Controls Basics; Open Source Compliance | Annual |
-| **Maintainers/Release Managers** | Release Compliance Checklist; SBOM Generation | Per release cycle |
-| **Sales/Support** | Sanctions Screening; Data Residency | Annual |
-| **Legal/Compliance** | Regulatory Updates; Case Law | Quarterly |
+- **策略：** 对出口 / 制裁错误进行主动披露。
+- **流程：** 法务编制 VSD → 提交 BIS / OFAC → 实施纠正措施。
+- **记录：** 所有 VSD 登记于合规登记簿。
 
 ---
 
-## 11. Version History
+## 10. 培训与意识
 
-| Version | Date | Author | Change |
+| 对象 | 培训内容 | 频率 |
+|----------|----------|----------|
+| **全体工程师** | 出口管制基础；开源合规 | 每年 |
+| **维护者 / 发布经理** | 发布合规清单；SBOM 生成 | 每个发布周期 |
+| **销售 / 支持** | 制裁筛查；数据驻留 | 每年 |
+| **法务 / 合规** | 法规更新；判例 | 每季度 |
+
+---
+
+## 11. 版本历史
+
+| 版本 | 日期 | 作者 | 变更 |
 |---------|------|--------|--------|
-| v1.0 | 2026-09-17 | Legal + Security Lead + ARB | Initial baseline |
+| v1.0 | 2026-09-17 | 法务 + 安全负责人 + ARB | 初始基线 |
 
 ---
 
-**End of Document**
+**文档结束**

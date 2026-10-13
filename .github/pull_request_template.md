@@ -1,18 +1,18 @@
-﻿## Goal / Objective
+﻿## 目标 / 目的
 
-Describe the problem this change solves and the intended goal.
+说明本次变更解决的问题及预期目标。
 
-## Key Changes
+## 主要变更
 
 - 
 
-## Verification
+## 验证
 
-- [ ] Related tests or checks have been executed
-- [ ] CI / `ci-required` passed
-- [ ] No real tokens, private domains, or user data committed
-- [ ] Necessary documentation and `CHANGELOG.md` updated
+- [ ] 已执行相关测试或检查
+- [ ] CI / `ci-required` 已通过
+- [ ] 未提交真实令牌、私有域名或用户数据
+- [ ] 已更新必要的文档与 `CHANGELOG.md`
 
-## Impact
+## 影响
 
-Describe any impact on compatibility, behavior, resources, security, or operations. If there is no significant impact, briefly note "None".
+说明对兼容性、行为、资源、安全或运维的影响。若无明显影响，请简要注明"无"。

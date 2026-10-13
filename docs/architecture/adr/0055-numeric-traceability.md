@@ -1,84 +1,86 @@
-# ADR-0055: Every figure in a report traces to a computed result
+# ADR-0055：报告中的每个数字都可追溯到计算结果
 
-Status: **Accepted** (owner, 2026-10-11). Not implemented yet. Depends on [ADR-0054](0054-statistics-engine.md).
+状态：**已接受**（所有者，2026-10-11）。依赖 [ADR-0054](0054-statistics-engine.md)。
 
-## Context
+**部分实现**：步骤 1 已实现（绑定的语法解析与按格式渲染，即 `numeric_trace` 模块）。绑定清单、`numeric_trace` 校验规则与 `forbid_unbound_numbers` 尚未实现（见 CHANGELOG）。
 
-The blueprint requires that statistical outputs be traceable (`DELTA_BLUEPRINT.md` section 4.4: "统计前提和输出可追踪"). For research analysis, and for the formulation / CMC domain in particular, the most damaging failure is a plausible number in a report that no computation produced: a shelf life, a confidence limit, an f2 value, a model coefficient.
+## 背景
 
-What exists (checked, not assumed):
+蓝图要求统计输出可追溯（`DELTA_BLUEPRINT.md` 第 4.4 节："统计前提和输出可追踪"）。对于研究分析，尤其是制剂 / CMC 领域，最具破坏性的失败，是报告中出现一个看似合理、但没有任何计算产生过的数字：货架期、置信限、f2 值、模型系数。
 
-1. **Validation rules.** `crates/delta-core/src/validation.rs` evaluates criteria against a tool's artifacts:
-   - artifact count;
-   - completeness;
-   - required paths;
-   - size gates;
-   - required substrings;
-   - CSV headers;
-   - a valid-citation count.
+现存情况（已核对，并非假设）：
 
-   `required_substrings` reads the raw file bytes, so it is meaningful for text formats (Markdown, CSV) and not for DOCX, which is a ZIP container.
-2. **Where criteria come from.** `RuntimeHost::validate_tool_artifacts` (`runtime/tool_execution.rs`) validates with the criteria a tool result supplies (`validation_criteria`), or a default (`min_artifacts: 0`, `max_artifacts: 50`, `require_complete: true`). Capability host results currently pass `validation_criteria: None` (`capability/host.rs`).
-3. **Artifact registration.** Artifacts are registered per run with path, kind, size and SHA-256 (`artifact.rs`, `ArtifactRegistryWriter`). `ArtifactReader::list_for_run` lists one run's artifacts.
-4. **Nothing links a number** in a report to the computation that produced it.
+1. **校验规则。** `crates/delta-core/src/validation.rs` 针对工具的产出物评估标准：
+   - 产出物数量；
+   - 完整性；
+   - 必需路径；
+   - 大小门槛；
+   - 必需子串；
+   - CSV 表头；
+   - 有效引用的数量。
 
-Extracting every number from free text and guessing where it came from is not deterministic: rounding, units, percentages, dates and section numbers all look like figures. The check has to be built on an explicit binding, not on inference.
+   `required_substrings` 直接读取文件的原始字节，因此它对 Markdown、CSV 等文本格式有意义，而对 DOCX（一个 ZIP 容器）则没有意义。
+2. **标准的来源。** `RuntimeHost::validate_tool_artifacts`（`runtime/tool_execution.rs`）使用工具结果提供的校验标准（`validation_criteria`）进行校验，若未提供，则使用默认值（`min_artifacts: 0`、`max_artifacts: 50`、`require_complete: true`）。能力宿主的结果目前总是传入 `validation_criteria: None`（`capability/host.rs`）。
+3. **产出物登记。** 产出物按运行登记，包含路径、类型、大小与 SHA-256（`artifact.rs`，`ArtifactRegistryWriter`）。`ArtifactReader::list_for_run` 列出某次运行的产出物。
+4. **没有任何机制把报告中的数字与产生它的计算联系起来。**
 
-## Options
+从自由文本中提取所有数字并猜测其来源，是不确定的：舍入、单位、百分比、日期与章节号都会被当成数字。该检查必须建立在显式的绑定之上，而不能依赖推断。
 
-**A. Free-text matching.** Extract all numbers from the report and require each to appear in some result artifact of the run.
-- Plus: no change to how reports are written.
-- Minus: heuristic; false positives (dates, section numbers) and false negatives (rounded or reformatted values); the verdict cannot be explained precisely.
+## 方案
 
-**B. Bound figures (recommended).** Computational capabilities write a structured **result artifact**. Reports refer to its values through **bindings** that a renderer resolves. A new validation rule checks the bindings.
-- Plus: deterministic; each figure has an exact source (result artifact, SHA-256, key); rounding is explicit; the trust strip can show it.
-- Minus: reports must be produced through a renderer that understands bindings; narrative written outside it is not covered unless rule 3 below forbids unbound figures.
+**A. 自由文本匹配。** 从报告中提取所有数字，并要求每个数字都出现在该次运行的某个结果产出物中。
+- 优点：无需改变报告的编写方式。
+- 缺点：属于启发式；存在误报（日期、章节号）与漏报（经过舍入或重新格式化的数值）；判定无法被精确解释。
 
-**C. Model self-declaration.** The model lists the figures it used and where they came from.
-- Minus: the model reporting on itself is not a deterministic fact (blueprint section 4.4). Rejected.
+**B. 绑定数字（推荐）。** 计算型能力写出结构化的**结果产出物**。报告通过**绑定**引用其中的数值，由渲染器解析。新增的校验规则检查这些绑定。
+- 优点：确定性强；每个数字都有确切的来源（结果产出物、SHA-256、键）；舍入是显式的；信任条可以展示它。
+- 缺点：报告必须通过理解绑定的渲染器生成；在规则 3 禁止未绑定数字的前提下，在渲染器之外撰写的叙述不受覆盖。
 
-## Decision: B
+**C. 模型自我声明。** 由模型列出它使用的数字及其来源。
+- 缺点：模型对自己进行报告，并非确定性事实（蓝图第 4.4 节）。予以否决。
 
-1. **Result artifact.** A computational capability (for example `statistics.*` from ADR-0054) writes a JSON result artifact. It contains:
-   - `values`: named values, each with a `value`, a `unit` (optional) and a `kind` (`estimate`, `ci_lower`, `p_value`, ...);
-   - `provenance`: engine and package versions, the script SHA-256, the input SHA-256s, the method and its parameters.
+## 决定：B
 
-   It is registered like any artifact, so its SHA-256 is in the ledger.
-2. **Bindings.** A report template or draft refers to a value as `{{result:<artifact-path>#<key>|<format>}}`, for example `{{result:out/shelf_life.json#shelf_life_months|%.0f}}`. A renderer capability (Markdown first, DOCX through `document.docx.render`) resolves each binding and writes the report. It also writes a **binding manifest**, a JSON artifact registered with the report. For every binding it records:
-   - the result artifact path and its SHA-256;
-   - the key, the raw value and the format;
-   - the rendered text and its location (template section).
-3. **New validation rule `numeric_trace`.** Criteria name a report and its binding manifest. The rule passes only if all of these hold:
-   - every binding in the manifest points to a result artifact registered in the same run whose SHA-256 matches the ledger;
-   - the key exists in that artifact;
-   - formatting the raw value with the declared format gives exactly the rendered text. Formats are a fixed subset (fixed decimals `%.Nf`, significant figures, integer, percent). Rounding is **round half up** (a 5 in the first dropped digit rounds away from zero), applied to the shortest decimal form that reads back as the same double, so 2.675 renders as 2.68 at two decimals. Binary floating-point artefacts and banker's rounding are not used;
-   - the rendered text appears in the report at the recorded location. For DOCX, the rule reads the document's text from `word/document.xml`, and does not compare raw bytes.
-   - `forbid_unbound_numbers`: the report's text may not contain digits outside bindings, except for an allowlist of patterns (section numbers, dates, conditions such as "25 °C/60% RH") declared in the criteria.
-     - **On by default for every formal report.** A report is formal when the Skill's validation declares it `formal: true`; a Skill cannot switch the rule off for a formal report, only add allowlist patterns, and every allowlist pattern is shown with the verdict.
-     - Drafts and exploratory notes that are not declared formal are not checked. The trust strip says "not a formal report: figures not checked" instead of showing a pass.
-4. **Criteria supplied by Skills.** A Skill that produces a formal report declares `numeric_trace` criteria in its validation. The rule itself is generic and knows nothing about any domain. Domain rule sets (for example "the stability report must bind the shelf life and both confidence limits") live in Suite Skills.
-5. **Surface.** The artifact trust strip already shows the validation verdict and the sources read (#132, #139). For a report, it adds "N figures bound to M results". The figure-level detail (value, result file, key, SHA-256) is shown on demand.
+1. **结果产出物。** 计算型能力（例如 ADR-0054 中的 `statistics.*`）写出一个 JSON 结果产出物，其中包含：
+   - `values`：具名数值，每个都有 `value`、`unit`（可选）与 `kind`（`estimate`、`ci_lower`、`p_value` 等）；
+   - `provenance`：引擎与软件包版本、脚本 SHA-256、输入 SHA-256、方法及其参数。
 
-## Consequences
+   它与任何其他产出物一样被登记，因此其 SHA-256 记录在 Ledger 中。
+2. **绑定。** 报告模板或草稿通过 `{{result:<artifact-path>#<key>|<format>}}` 引用一个数值，例如 `{{result:out/shelf_life.json#shelf_life_months|%.0f}}`。渲染器能力（先支持 Markdown，DOCX 通过 `document.docx.render`）解析每个绑定并生成报告。它还会写出一份**绑定清单**，即与报告一同登记的 JSON 产出物。对于每个绑定，它记录：
+   - 结果产出物的路径及其 SHA-256；
+   - 键、原始值与格式；
+   - 渲染后的文本及其位置（模板章节）。
+3. **新的校验规则 `numeric_trace`。** 标准指定一份报告及其绑定清单。只有当以下条件全部成立时，该规则才通过：
+   - 清单中的每个绑定都指向同一次运行中登记的结果产出物，且其 SHA-256 与 Ledger 一致；
+   - 该键存在于该产出物中；
+   - 用声明的格式对原始值进行格式化，结果与渲染文本完全一致。格式为固定的子集（固定小数位 `%.Nf`、有效数字、整数、百分比）。舍入规则为**四舍五入（round half up）**（被舍去的第一位为 5 时，远离零方向进位），并且先取能读回同一双精度数的最短十进制形式再舍入，因此 2.675 在两位小数下渲染为 2.68。不使用二进制浮点的伪影，也不使用银行家舍入。
+   - 渲染文本出现在报告的记录位置。对于 DOCX，该规则读取 `word/document.xml` 中的文档文本，而不是比较原始字节。
+   - `forbid_unbound_numbers`：报告的文本中，绑定之外不得出现数字，但标准中声明的允许模式（章节号、日期、"25 °C/60% RH"之类的条件）除外。
+     - **对每份正式报告默认开启。** 当 Skill 的校验声明其为 `formal: true` 时，该报告即为正式报告。对于正式报告，Skill 不能关闭该规则，只能增加允许模式；每个允许模式都会随判定结果一同显示。
+     - 未声明为正式的草稿与探索性笔记不做检查。信任条显示"非正式报告：数字未经检查"，而不是显示通过。
+4. **由 Skill 提供的标准。** 生成正式报告的 Skill，在其校验中声明 `numeric_trace` 标准。该规则本身是通用的，不了解任何领域。领域规则集（例如"稳定性报告必须绑定货架期及两个置信限"）位于 Suite 的 Skill 中。
+5. **界面。** 产出物信任条已经显示校验结论与所读取的来源（#132、#139）。对于报告，它增加"N 个数字绑定到 M 个结果"。逐个数字的详情（数值、结果文件、键、SHA-256）按需显示。
 
-- `validation.rs` gains the `numeric_trace` rule with DOCX text extraction. This is Rust code in the Work authority; the parser has to be bounded (size and entry limits) like other untrusted file reads.
-- The capability host must be able to pass `validation_criteria` from a Skill or capability result. Today it always passes `None`; that is a contract change to record in `runtime-public-contract.md`.
-- Tests required:
-  - a binding to a result artifact of another run fails;
-  - an altered result artifact (SHA-256 mismatch) fails;
-  - a missing key fails;
-  - a rendered text that differs from the formatted value fails;
-  - an unbound digit in a forbidden section fails, and an allowlisted pattern passes;
-  - DOCX and Markdown reports are both checked;
-  - oversized or malformed DOCX fails closed.
-- No migration: existing artifacts and validations are unaffected.
+## 后果
 
-## Owner's answers (2026-10-11)
+- `validation.rs` 增加 `numeric_trace` 规则，并支持 DOCX 文本提取。这是 Work 权威中的 Rust 代码；解析器必须像其他不可信文件读取一样有界（限制大小与条目数）。
+- 能力宿主必须能够从 Skill 或能力结果传入 `validation_criteria`。目前它总是传入 `None`；这是一项需要记录在 `runtime-public-contract.md` 中的合同变更。
+- 所需测试：
+  - 绑定到另一次运行的结果产出物，应当失败；
+  - 结果产出物被篡改（SHA-256 不匹配），应当失败；
+  - 缺少键，应当失败；
+  - 渲染文本与格式化后的数值不一致，应当失败；
+  - 禁止区域中出现未绑定数字，应当失败；允许模式中的数字，应当通过；
+  - DOCX 与 Markdown 报告均需检查；
+  - 超大或格式错误的 DOCX，应当失败关闭。
+- 无需迁移：现有产出物与校验不受影响。
 
-1. B accepted.
-2. Forbidding unbound figures is the default rule for formal reports.
-3. Rounding is round half up (decision point 3).
+## 所有者的答复（2026-10-11）
 
-## Not verified
+1. 接受 B。
+2. 禁止未绑定的数字，是正式报告的默认规则。
+3. 舍入采用四舍五入（决定第 3 点）。
 
-- The DOCX text-location rule assumes reports are rendered from Delta templates. Arbitrary user-edited DOCX files after rendering are out of scope for this check; a later edit changes the SHA-256, and the validation then no longer applies to the edited file.
+## 未验证事项
+
+- DOCX 文本位置规则假设报告由 Delta 模板渲染生成。渲染之后由用户手工编辑的 DOCX 文件不在本检查范围内；此后的编辑会改变 SHA-256，届时校验将不再适用于被编辑的文件。

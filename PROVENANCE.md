@@ -1,35 +1,35 @@
-# Provenance & Third-Party Governance
+# 来源证明与第三方治理
 
-Delta is an independent project. It does not maintain a mandatory upstream, mirror branch, or automatic synchronization relationship with any external project.
+本文规范 Delta 的来源证明（provenance）、第三方代码采纳与许可证义务。Delta 是一个独立项目，不与任何外部项目维持强制性的上游、镜像分支或自动同步关系。
 
-This document governs source provenance, third-party code adoption, and license obligations. It does not duplicate product scope, target architecture, or Runtime design.
+本文不重复产品范围、目标架构或 Runtime 设计。
 
-## Principles
+## 原则
 
-- External projects are references, not product authorities.
-- External code, behavior, or architectural ideas must be independently evaluated before entering `main`.
-- Delta does not restore retired directories, protocols, Coding-oriented product shapes, compatibility layers, or multi-Agent structures merely to follow another project.
-- Active documentation describes the current Delta architecture. Historical details belong in Git, ADRs, changelogs, audit records, and legal notices when materially useful.
-- Third-party copyright and license obligations follow the code and assets that remain in the repository, regardless of repository history.
-- Third-party names must not be used as current Delta product, architecture, module, Runtime, or release identities.
+- 外部项目是参考，而非产品权威。
+- 外部代码、行为或架构思路在进入 `main` 之前必须经过独立评估。
+- Delta 不会仅为了跟随其他项目，而恢复已退役的目录、协议、面向 Coding 的产品形态、兼容层或多 Agent 结构。
+- 现行文档描述的是当前 Delta 架构。历史细节应保存在 Git、ADR、变更日志和审计记录中；在确有实质价值时，也可记入法律声明。
+- 第三方版权与许可证义务跟随仍保留在仓库中的代码和资产，与仓库历史无关。
+- 第三方名称不得用作 Delta 当前的产品、架构、模块、Runtime 或发布身份。
 
-## Evaluation filter
+## 评估过滤条件
 
-Any external implementation considered for Delta must answer:
+任何被考虑引入 Delta 的外部实现，必须回答以下问题：
 
-1. Does it improve a real workflow in productivity, research, or content creation?
-2. Which responsibility owns it: Experience, Runtime, Trust, Work, Capability, Automation, or Learning?
-3. Who owns the state and Authority?
-4. Can it be implemented as a Capability or Skill before expanding Runtime or Agent scope?
-5. Does it fit the Rust + TypeScript Core boundary and controlled Worker model?
-6. Does it introduce new security, licensing, or supply-chain risk?
-7. Does it have tests, validation, and a rollback path?
+1. 它能否改善日常办公、研究分析或内容创作中的真实工作流？
+2. 它由哪项职责负责：Experience、Runtime、Trust、Work、Capability、Automation 还是 Learning？
+3. 谁拥有其状态与 Authority？
+4. 能否先作为 Capability 或 Skill 实现，而不是先扩大 Runtime 或 Agent 范围？
+5. 它是否符合 Rust + TypeScript 核心边界与受控 Worker 模型？
+6. 它是否引入新的安全、许可证或供应链风险？
+7. 是否具备测试、验证与回滚路径？
 
-## External reference is not upstream identity
+## 外部参考不等于上游身份
 
-Delta may study strong ideas from external projects in Runtime, UI, Trust, Office, Research, Content, Skill, Memory, Automation, and related areas. A reference project does not become Delta's product identity or release authority.
+Delta 可以学习外部项目在 Runtime、UI、Trust、Office、Research、Content、Skill、Memory、Automation 及相关领域中的优秀思路。参考项目不会成为 Delta 的产品身份或发布 Authority。
 
-The intended adoption path is:
+采纳路径如下：
 
 ```text
 problem semantics
@@ -38,54 +38,51 @@ problem semantics
 → independent implementation or compliant adoption
 ```
 
-Delta does not inherit external branding, directory structure, or historical baggage by default.
+Delta 不默认继承外部品牌、目录结构或历史包袱。
 
-## Naming and provenance
+## 命名与来源
 
-External module names do not automatically enter Delta's naming system.
+外部模块名不会自动进入 Delta 的命名体系。
 
-Delta naming rule:
+Delta 命名规则：
 
-> **Use `delta-*` for real independent boundaries; use semantic names for internal responsibilities.**
+> **真实的独立边界使用 `delta-*`；内部职责使用语义化名称。**
 
-A branded `delta-*` name is appropriate only when there is a genuine independent executable, API, protocol, SDK, version boundary, or release boundary.
+只有存在真正的独立可执行程序、API、协议、SDK、版本边界或发布边界时，才适用带品牌的 `delta-*` 名称。
 
-External project names are permitted only where materially required for:
+仅在以下情形中，外部项目名称才可在必要范围内出现：
 
-- copyright and license attribution;
-- third-party notices;
-- historical ADRs or audit evidence;
-- vulnerability and supply-chain records;
-- reproducibility of a provenance decision.
+- 版权与许可证署名；
+- 第三方声明；
+- 历史 ADR 或审计证据；
+- 漏洞与供应链记录；
+- 来源证明决策的可复现性。
 
-They must not appear in current Runtime configuration, endpoint defaults, user-facing product identity, package naming, active architectural authority, or release naming.
+外部项目名称不得出现在当前 Runtime 配置、端点默认值、面向用户的产品身份、包命名、现行架构 Authority 或发布命名中。
 
-## License boundary
+## 许可证边界
 
-Delta-owned Foundation source is licensed under the Apache License, Version 2.0. The root `LICENSE` applies to Delta-owned work; project attribution is carried in `NOTICE`.
+Delta 自有的 Foundation 源码采用 Apache License, Version 2.0 许可。根目录的 `LICENSE` 适用于 Delta 自有作品；项目署名载于 `NOTICE`。
 
-Third-party code and assets are not relicensed by the root Apache-2.0 license. Their attribution is registered in `THIRD_PARTY_NOTICES.md`, and full upstream license texts are stored under `LICENSES/`.
+第三方代码与资产不会因根目录的 Apache-2.0 许可证而被重新授权。其署名登记在 THIRD_PARTY_NOTICES.md 中，完整的上游许可证文本存放于 `LICENSES/` 目录下。
 
-Before introducing third-party code or assets, confirm:
+引入第三方代码或资产之前，请确认：
 
-- the original license;
-- required copyright notices;
-- NOTICE or attribution obligations;
-- modification and redistribution rights;
-- compatibility with Delta's repository license;
-- additional terms for generated code, model weights, media, or other assets.
+- 原始许可证；
+- 必需的版权声明；
+- NOTICE 或署名义务；
+- 修改与再分发的权利；
+- 与 Delta 仓库许可证的兼容性；
+- 生成代码、模型权重、媒体或其他资产的附加条款。
 
-If the obligation is unclear, do not merge the material.
+如果义务不明确，不得合并相关材料。
 
-Repository recreation, history rewriting, renaming, or changing the license on Delta-owned work does not remove third-party obligations from material that remains derived from a third party.
+仓库重建、历史改写、重命名或更改 Delta 自有作品的许可证，都不会消除仍然源自第三方的材料所承担的第三方义务。
 
-## Current provenance status
+## 当前来源状态
 
-Current Delta source is governed by the repository's present license, notices, and
-third-party attribution records. Historical implementation audits and superseded
-lineage decisions remain available through Git history when needed for legal or
-security review; they are not part of the active architecture contract.
+当前 Delta 源码由仓库现有的许可证、声明与第三方署名记录治理。历史实现审计与已被取代的谱系决策，在需要用于法律或安全审查时可通过 Git 历史获取；它们不属于现行架构合同。
 
-## Ownership records
+## 归属记录
 
-Current product identity is defined by current Delta contracts and governance, not by historical project lineage. Provenance records are retained only where necessary for licensing, security, architecture decisions, or reproducibility.
+当前产品身份由当前 Delta 的合同与治理定义，而非由历史项目谱系定义。来源记录仅在许可、安全、架构决策或可复现性确有必要时保留。

@@ -1,339 +1,325 @@
-# Delta Security & Vulnerability Response Governance
+# Delta 安全与漏洞响应治理（Security & Vulnerability Response Governance）
 
-**Version:** v1.0
-**Status:** Governance Baseline — Final / Frozen
-**Scope:** All Delta repositories, distributions, managed services, and extension ecosystem.
+**版本：** v1.0
+**状态：** 治理基线 — 定稿 / 冻结（Final / Frozen）
+**范围：** 所有 Delta 仓库、发行版、托管服务与扩展生态。
 
----
-
-## 1. Purpose
-
-This document defines the security governance model, vulnerability response process, disclosure policy, and security architecture enforcement for Delta. It operationalizes the **Secure Efficiency** principle (Architecture Governance §2.2) and **Fail Closed** rules (§15).
+本文是 Delta 的安全治理基线，规定安全组织、漏洞报告与披露、严重程度分级、支持版本与补丁策略、当前安全门禁、凭据与执行边界、供应链完整性，以及应急响应（含 Kill Switch）要求。
 
 ---
 
-## 2. Security Principles
+## 1. 目的
 
-| Principle | Operational Meaning |
+本文定义安全治理模型、漏洞响应流程、披露策略与安全架构的执行方式。它将**安全高效（Secure Efficiency）**原则（架构治理 §2.2）与**失败即关闭（Fail Closed）**规则（§15）落到可操作层面。
+
+---
+
+## 2. 安全原则
+
+| 原则 | 操作含义 |
 |-----------|---------------------|
-| **Fail Closed** | Uncertainty at critical boundaries → deny/stop (Arch Gov §15) |
-| **Least Privilege** | Workers/Connectors/Skills receive minimal grants (§28, §34) |
-| **Defense in Depth** | Sandbox + Grant + Trust + Approval + Ledger (§34-36) |
-| **No Security by Obscurity** | Architecture public; security relies on design, not secrecy |
-| **Transparency** | Vulnerabilities disclosed responsibly; fixes public for Foundation |
-| **Supply Chain Integrity** | Signed artifacts, SBOM, dependency pinning, reproducible builds |
-| **Local Authority** | Secret/Trust/Vault authority never leaves device Core (§40) |
+| **失败即关闭（Fail Closed）** | 关键边界处存在不确定性 → 拒绝 / 停止（架构治理 §15） |
+| **最小权限（Least Privilege）** | Worker / Connector / Skill 仅获得最小授权（§28、§34） |
+| **纵深防御（Defense in Depth）** | 沙箱 + 授权（Grant）+ 信任（Trust）+ 审批（Approval）+ 台账（Ledger）（§34–36） |
+| **不依赖隐蔽性（No Security by Obscurity）** | 架构公开；安全依赖设计而非保密 |
+| **透明（Transparency）** | 负责任地披露漏洞；Foundation 的修复公开发布 |
+| **供应链完整性（Supply Chain Integrity）** | 签名产物、SBOM、依赖锁定、可复现构建 |
+| **本地权威（Local Authority）** | 密钥 / Trust / Vault 权威绝不离开设备上的 Core（§40） |
 
 ---
 
-## 3. Security Organization
+## 3. 安全组织
 
-### 3.1 Roles
+### 3.1 角色
 
-| Role | Responsibility | Composition |
+| 角色 | 职责 | 组成 |
 |------|----------------|-------------|
-| **Security Lead** | Owns security strategy, incident command, vendor coordination | Delta Core Team (appointed) |
-| **Security Team** | Triage, review, fix development, advisory publishing | 3+ engineers (Core + Suite) |
-| **Architecture Review Board (ARB)** | Security architecture decisions, kill-switch authorization | See Contribution Governance |
-| **External Auditors** | Periodic penetration testing, architecture review | Contracted firms |
-| **Community Reporters** | Report vulnerabilities via coordinated disclosure | Anyone |
+| **安全负责人（Security Lead）** | 负责安全策略、事件指挥、供应商协调 | Delta 核心团队（经任命） |
+| **安全团队（Security Team）** | 分诊、评审、修复开发、发布通告 | 3 名及以上工程师（Core + Suite） |
+| **架构评审委员会（ARB）** | 安全架构决策、Kill Switch 授权 | 参见贡献治理 |
+| **外部审计方（External Auditors）** | 定期渗透测试、架构评审 | 签约的专业机构 |
+| **社区报告者（Community Reporters）** | 通过协调披露渠道报告漏洞 | 任何人 |
 
-### 3.2 Security Team SLAs
+### 3.2 安全团队 SLA
 
-| Activity | SLA |
+| 活动 | SLA |
 |----------|-----|
-| Initial triage (acknowledge report) | ≤ 24 hours |
-| Severity classification | ≤ 48 hours |
-| Fix development (Critical) | ≤ 7 days |
-| Fix development (High) | ≤ 14 days |
-| Fix development (Medium/Low) | ≤ 30 days / next release |
-| Coordinated disclosure publication | Fix release + 7 days |
+| 初步分诊（确认收到报告） | ≤ 24 小时 |
+| 严重程度分级 | ≤ 48 小时 |
+| 修复开发（严重） | ≤ 7 天 |
+| 修复开发（高危） | ≤ 14 天 |
+| 修复开发（中危 / 低危） | ≤ 30 天 / 下一个发布版本 |
+| 协调披露发布 | 修复发布后 7 天 |
 
 ---
 
-## 4. Vulnerability Reporting & Disclosure
+## 4. 漏洞报告与披露
 
-### 4.1 Reporting Channels
+### 4.1 报告渠道
 
-| Channel | Use Case | Response |
+| 渠道 | 用途 | 响应 |
 |---------|----------|----------|
-| `security@delta.example.com` | All vulnerabilities | Security Team (encrypted) |
-| GitHub Security Advisories (Private) | Foundation repo vulnerabilities | Security Team |
-| Internal ticketing | Suite/Managed service vulnerabilities | Security Team + Suite leads |
-| Public Issues | **Never** for vulnerabilities | Closed + redirect |
+| `security@delta.example.com`（占位地址） | 所有漏洞 | 安全团队（加密通信） |
+| GitHub Security Advisories（私密） | Foundation 仓库漏洞 | 安全团队 |
+| 内部工单系统 | Suite / 托管服务漏洞 | 安全团队 + Suite 负责人 |
+| 公开 Issue | **绝不**用于漏洞报告 | 关闭 + 引导至私密渠道 |
 
-### 4.2 Disclosure Policy
+### 4.2 披露策略
 
-**Coordinated Disclosure (Default):**
-1. Reporter submits via private channel.
-2. Security Team acknowledges, classifies, develops fix.
-3. Fix released to **all supported versions** (see Release Governance).
-4. Public advisory published **7 days after fix release** (grace period for users to update).
-5. CVE requested for all non-trivial vulnerabilities.
+**协调披露（默认）：**
+1. 报告者通过私密渠道提交。
+2. 安全团队确认、分级并开发修复。
+3. 修复发布到**所有受支持版本**（参见发布治理）。
+4. 修复发布 **7 天后**发布公开通告（给用户留出升级的宽限期）。
+5. 对所有非琐碎的漏洞申请 CVE。
 
-**Exceptions:**
-- **Active Exploitation:** Immediate public advisory + emergency release (bypass grace period).
-- **Suite/Managed Only:** Advisory limited to affected customers; Foundation unaffected.
-- **Researcher Request:** Extended timeline (max 90 days) if fix complex; requires Security Lead approval.
+**例外：**
+- **正在被利用：** 立即公开通告 + 紧急发布（跳过宽限期）。
+- **仅影响 Suite / 托管服务：** 通告仅限受影响客户；Foundation 不受影响。
+- **研究者请求：** 若修复复杂，可延长时限（最长 90 天）；需安全负责人批准。
 
-### 4.3 No Retaliation
+### 4.3 不予追责
 
-Delta will **not** pursue legal action against researchers who:
-- Report via authorized channels.
-- Allow reasonable time for fix.
-- Do not access/exfiltrate user data.
-- Do not degrade service for others.
+Delta **不会**对以下研究者提起法律诉讼：
+- 通过授权渠道报告；
+- 给予合理的修复时间；
+- 未访问 / 外泄用户数据；
+- 未降低他人的服务质量。
 
 ---
 
-## 5. Severity Classification
+## 5. 严重程度分级
 
-Adapted from **CVSS 4.0** with Delta-specific context:
+参照 **CVSS 4.0**，并结合 Delta 的具体情况调整：
 
-| Severity | CVSS Range | Delta Criteria | Response |
+| 严重程度 | CVSS 范围 | Delta 判定标准 | 响应 |
 |----------|------------|----------------|----------|
-| **Critical** | 9.0-10.0 | Remote code execution via untrusted input; Trust boundary bypass; Secret exfiltration; SideEffect forgery | Emergency release; kill-switch if in Suite |
-| **High** | 7.0-8.9 | Local privilege escalation; Sandbox escape; Approval bypass; Provenance forgery | Patch release within 7 days |
-| **Medium** | 4.0-6.9 | Information leak (non-secret); DoS via resource exhaustion; Non-critical trust misclassification | Next minor release |
-| **Low** | 0.1-3.9 | UI spoofing (non-security); Minor log leak; Non-exploitable edge case | Next release or backlog |
+| **严重（Critical）** | 9.0–10.0 | 来自不可信输入的远程代码执行；信任边界绕过；密钥外泄；SideEffect 伪造 | 紧急发布；若涉及 Suite 则启用 kill switch |
+| **高危（High）** | 7.0–8.9 | 本地权限提升；沙箱逃逸；审批绕过；来源证明伪造 | 7 天内发布补丁版本 |
+| **中危（Medium）** | 4.0–6.9 | 非密钥的信息泄露；资源耗尽导致的拒绝服务；非关键的信任误分类 | 下一个 minor 版本 |
+| **低危（Low）** | 0.1–3.9 | 非安全性的 UI 欺骗；轻微日志泄露；不可利用的边界情况 | 下一个版本或待办 |
 
 ---
 
-## 6. Supported Versions & Patch Policy
+## 6. 支持版本与补丁策略
 
-### 6.1 Support Window
+### 6.1 支持窗口
 
-| Version Type | Support Duration | Patches |
+| 版本类型 | 支持时长 | 补丁范围 |
 |--------------|------------------|---------|
-| **Latest Stable (N)** | Until N+2 released | All severities |
-| **Previous Stable (N-1)** | 6 months after N released | Critical + High only |
-| **Older (N-2+)** | End-of-life | None (upgrade required) |
-| **LTS (if designated)** | 24 months | Critical + High |
+| **最新稳定版（N）** | 直至 N+2 发布 | 所有严重程度 |
+| **上一稳定版（N-1）** | N 发布后 6 个月 | 仅严重与高危 |
+| **更早版本（N-2 及以前）** | 停止支持 | 无（须升级） |
+| **LTS（如指定）** | 24 个月 | 严重与高危 |
 
-### 6.2 Patch Release Cadence
+### 6.2 补丁发布节奏
 
-- **Critical:** Emergency patch within 24-72h of fix ready.
-- **High:** Batched into weekly patch release (e.g., `1.4.1`, `1.4.2`).
-- **Medium/Low:** Batched into next minor release (`1.5.0`).
+- **严重：** 修复就绪后 24–72 小时内发布紧急补丁。
+- **高危：** 合并进每周补丁发布（如 `1.4.1`、`1.4.2`）。
+- **中危 / 低危：** 合并进下一个 minor 版本（如 `1.5.0`）。
 
-### 6.3 Suite/Managed Patch Alignment
+### 6.3 Suite / 托管服务的补丁对齐
 
-- Foundation patches **always** released first.
-- Suite patches released **same day** or **next business day**.
-- Managed service patches deployed **before** client releases (backend-first).
-
----
-
-## 7. Security Architecture Enforcement
-
-### 7.1 Current Foundation gates
-
-Current automated controls include:
-
-- CodeQL analysis.
-- Python, npm, and Rust dependency advisory checks.
-- License-policy validation.
-- Architecture-boundary, repository-boundary, naming, and contract checks.
-- Rust formatting, compilation, Clippy, and tests.
-- Python static checks and tests.
-- Desktop TypeScript/unit/E2E checks.
-- Release SBOM generation and GitHub artifact provenance attestation.
-
-The repository does **not** claim a merge-blocking gitleaks/trufflehog gate,
-cosign release signing, or reproducible-build verification unless those controls
-are present in the active workflows.
-
-### 7.2 Current Suite gates
-
-Suite CI validates repository boundaries, naming, Python compilation, the pinned
-Foundation contract, worker/connector manifests, static checks, and tests. Suite
-must not construct a second Foundation authority or import Foundation internals.
-
-### 7.3 Supply-chain baseline
-
-- Rust and JavaScript dependency graphs use committed lock files where those
-  ecosystems support them.
-- Foundation Python development uses the committed `uv.lock`.
-- Release workflows publish SBOM/provenance evidence where configured.
-- Dependency and release controls described here are statements of current
-  automation, not future certification claims.
+- Foundation 补丁**始终优先**发布。
+- Suite 补丁在**同一天**或**下一个工作日**发布。
+- 托管服务补丁**先于**客户端发布（后端优先）。
 
 ---
 
-## 8. Trusted Native Kill Switch Operations
+## 7. 安全架构执行
 
-Per Architecture Governance §36, the Kill Switch is a **critical security control**.
+### 7.1 当前 Foundation 门禁
 
-### 8.1 Kill Switch Triggers
+当前已自动化的控制包括：
 
-| Trigger | Authority | Action |
-|---------|-----------|--------|
-| CVE in Trusted Native worker | Security Lead | Immediate revocation |
-| Policy violation (e.g., scope creep) | ARB | Immediate revocation |
-| Supply chain compromise (upstream) | Security Lead | Immediate revocation |
-| Audit finding (external) | Security Lead + ARB | Scheduled revocation |
+- CodeQL 分析（配置见 `.github/security-scan.json`）。
+- Python、npm、Rust 依赖的公告检查（`pip-audit`、`npm audit`、`cargo deny` 的 advisories 检查）。
+- 许可证策略校验（`cargo deny` 的 licenses 检查，以及 `scripts/check_license_policy.py`）。
+- 架构边界、命名与退役路径（retired-path）检查（`scripts/check_architecture_boundary.py`、`scripts/check_naming.py`、`scripts/check_retired_paths.py`）。仓库边界检查（`scripts/check_repository_boundary.py`）目前通过 pre-commit 运行，尚未接入中央 CI。
+- 合同测试与 Rust 格式化、编译、Clippy 与测试。
+- Python 静态检查（Ruff、Pyright）与测试。
+- 桌面端 TypeScript 检查、单元测试与 E2E 测试。
+- 发布 SBOM 生成（CycloneDX，见 `.github/release.manifest.json`）与 GitHub 产物来源证明（provenance attestation）。
 
-### 8.2 Kill Switch Procedure
+本仓库**不声称**具备可阻止合并的 gitleaks / trufflehog 门禁、cosign 发布签名或可复现构建验证，除非这些控制已存在于启用的工作流中。
+
+### 7.2 当前 Suite 门禁
+
+Suite CI 校验仓库边界、命名、Python 编译、锁定的 Foundation 合同、Worker / Connector 清单、静态检查与测试。Suite 不得构建第二套 Foundation 权威，也不得导入 Foundation 内部实现。
+
+### 7.3 供应链基线
+
+- Rust 与 JavaScript 依赖图在生态支持时使用已提交的锁定文件。
+- Foundation 的 Python 开发使用已提交的 `uv.lock`。
+- 发布工作流在配置处发布 SBOM / 来源证明证据。
+- 本节所述的依赖与发布控制，是对当前自动化的说明，而非对未来认证的承诺。
+
+---
+
+## 8. 可信原生 Kill Switch 运行
+
+依据架构治理 §36，Kill Switch 是**关键安全控制**。
+
+> 注：Kill Switch 机制当前尚未在本仓库中实现（计划中）。以下为目标流程。
+
+### 8.1 Kill Switch 触发条件
+
+| 触发条件 | 权限方 | 动作 |
+|---------|-----------|-----------|
+| 可信原生 Worker 中出现 CVE | 安全负责人 | 立即撤销 |
+| 策略违规（如范围蔓延） | ARB | 立即撤销 |
+| 上游供应链被攻破 | 安全负责人 | 立即撤销 |
+| 外部审计发现 | 安全负责人 + ARB | 计划内撤销 |
+
+### 8.2 Kill Switch 流程
 
 ```text
-1. Security Lead authorizes → records in Security Ledger
-2. Revoke Execution Grant for target capability_id (all epochs)
-3. Disable Dispatch eligibility in Capability Registry
-4. Emit Security Ledger Event: KILL_SWITCH_ACTIVATED
-5. Notify affected users via in-app alert + email (if managed)
-6. Publish advisory (if public impact)
-7. Fallback: Capability marked Unavailable → graceful degradation
+1. 安全负责人授权 → 记录于安全台账（Security Ledger）
+2. 撤销目标 capability_id 的执行授权（所有 epoch）
+3. 在能力注册表中禁用分发资格
+4. 发出安全台账事件：KILL_SWITCH_ACTIVATED
+5. 通过应用内提醒 +（若为托管用户）邮件通知受影响用户
+6. 若对外有影响，则发布通告
+7. 回退：将能力标记为不可用 → 优雅降级
 ```
 
-### 8.3 Kill Switch Requirements (from Arch Gov §36)
+### 8.3 Kill Switch 要求（来自架构治理 §36）
 
-- Stop issuing new Grants **immediately** (no release wait).
-- Terminate active execution **when required** (SideEffect uncertainty → `Uncertain` state).
-- Record Ledger Security Event.
-- Does **not** auto-destroy Vault credentials (OAuth tokens, API keys).
-- Fallback to Sandbox / Capability Unavailable.
-
----
-
-## 9. Secret & Credential Security
-
-### 9.1 Current storage model
-
-Device-local credentials are stored in Delta-owned private authority files with
-user-restricted filesystem permissions. The current 0.1.0 implementation does
-not claim application-level encryption at rest.
-
-MCP configuration and connector/model credentials remain under Rust-owned
-authority. Capability workers receive only secret keys granted to the current
-job, and resolved secret values are delivered in memory rather than persisted in
-worker manifests.
-
-### 9.2 Handling rules
-
-- Secrets must not be written to logs, telemetry, artifacts, manifests, or SBOMs.
-- Workers receive only grant-scoped secret values.
-- Product IPC must not expose stored secret values to the UI.
-- Repository and CI configuration must not contain production credentials.
-- Any future encrypted vault or cross-device secret sync requires a separate,
-  implemented threat model and contract before this document may claim it.
+- **立即**停止签发新的授权（无需等待发布）。
+- **在需要时**终止正在执行的任务（副作用存在不确定性 → `Uncertain` 状态）。
+- 记录台账安全事件。
+- **不自动销毁** Vault 凭据（OAuth 令牌、API 密钥）。
+- 回退到沙箱 / 能力不可用状态。
 
 ---
 
-## 10. Execution Boundary Security
+## 9. 密钥与凭据安全
 
-### 10.1 Current enforcement
+### 9.1 当前存储模型
 
-The Rust Capability Host constructs a typed job boundary from the registered
-capability grants and the active workspace. It validates grant timing before
-dispatch and supplies only granted secrets and workspace roots.
+设备本地凭据存放于 Delta 自有的私有权威文件中，文件系统权限仅限用户访问。当前 0.1.0 实现**未声明**应用层的静态加密。
 
-Worker implementations must enforce the grant dimensions they consume. In
-particular, filesystem operations must remain within granted roots and network
-operations must reject disallowed local/private targets where the capability
-permits external URLs.
+MCP 配置以及连接器 / 模型凭据仍由 Rust 管理的权威持有。能力 Worker 仅接收当前任务被授予的密钥，解析后的密钥值以内存方式交付，不会持久化到 Worker 清单中。
 
-Process workers are supervised for timeout and cancellation. An explicit
-`exec` grant is required by capabilities that intentionally launch commands.
+### 9.2 处理规则
 
-### 10.2 Scope of the guarantee
-
-Delta 0.1.0 does not claim that every worker runs inside a universal
-OS-level/WASM sandbox. The security boundary is the combination of Rust grant
-validation, supervised worker execution, and capability-specific enforcement.
-A worker that bypasses its declared filesystem, network, secret, or process
-boundary is a security defect.
+- 密钥不得写入日志、遥测、产物、清单或 SBOM。
+- Worker 仅接收经授权范围限定的密钥值。
+- 产品 IPC 不得向 UI 暴露已存储的密钥值。
+- 仓库与 CI 配置不得包含生产凭据。
+- 任何未来的加密 Vault 或跨设备密钥同步，在本文件可声称之前，须先有已实现的威胁模型与合同。
 
 ---
 
-## 11. Provenance & Supply Chain Integrity
+## 10. 执行边界安全
 
-### 11.1 Provenance Requirements (Arch Gov §44-47)
+### 10.1 当前执行方式
 
-- All external content: `origin`, `source_refs`, `provenance_chain`, `external_influence`.
-- Provenance propagates through Connector → Worker → Skill → Model → Runtime.
-- Compaction allowed but **security meaning must survive** (source identity, trust class, external influence).
+Rust Capability Host 根据注册的能力授权与当前工作区，构造类型化的任务边界。分发前校验授权的时效，且仅提供被授予的密钥与工作区根目录。
 
-### 11.2 Artifact Integrity
+Worker 实现必须执行其所消费的授权维度。特别是：文件系统操作必须限定在被授予的根目录之内；在能力允许访问外部 URL 的情况下，网络操作必须拒绝不允许的本地 / 私有目标。
 
-- All Artifacts: content-addressed (SHA-256 min), signed by producer.
-- Core validates Artifact identity, provenance, signature on ingestion.
-- Tampered Artifact → `Uncertain` → reconciliation required.
+Process Worker 受到超时与取消的监督。凡有意启动命令的能力，都需要明确的 `exec` 授权。
 
----
+### 10.2 保证范围
 
-## 12. Managed Service Security
-
-### 12.1 Threat Model
-
-Managed services (Connect, Sync, Relay) are **untrusted** from device perspective:
-- Relay never sees plaintext (Arch Gov §41).
-- Managed Sync never holds decryption keys.
-- Device enrollment + Secret sync = separate authorizations.
-
-### 12.2 Managed Service Compromise Response
-
-1. Detect via anomaly monitoring / audit logs.
-2. Revoke affected device certificates / relay tokens.
-3. Force re-enrollment for affected users.
-4. Audit Secret sync logs for exfiltration.
-5. Publish advisory to enterprise customers.
+Delta 0.1.0 不声称每个 Worker 都运行在通用的 OS 级 / WASM 沙箱之内。安全边界是以下三者的组合：Rust 授权校验、受监督的 Worker 执行，以及能力特定的执行约束。Worker 若绕过其声明的文件系统、网络、密钥或进程边界，即构成安全缺陷。
 
 ---
 
-## 13. Security Testing & Auditing
+## 11. 来源证明与供应链完整性
 
-| Activity | Frequency | Scope |
-|----------|-----------|-------|
-| **SAST/DAST** | Every PR (CI) | Foundation + Suite |
-| **Dependency Scan** | Every PR + Weekly scheduled | All repos |
-| **Penetration Test** | Annual (external) | Full stack: App, Core, Managed |
-| **Architecture Review** | Per ADR + Annual | Trust boundaries, authority model |
-| **Fuzzing** | Continuous (OSS-Fuzz target) | Parsers, protocol handlers |
-| **Red Team Exercise** | Biennial | End-to-end: device → managed → device |
+### 11.1 来源证明要求（架构治理 §44–47）
+
+- 所有外部内容须包含：`origin`、`source_refs`、`provenance_chain`、`external_influence`。
+- 来源证明在 Connector → Worker → Skill → Model → Runtime 之间传递。
+- 允许压缩，但**安全含义必须保留**（来源身份、信任等级、外部影响）。
+
+### 11.2 产物完整性
+
+- 所有 Artifact 均按内容寻址（至少 SHA-256），并由生产者签名。
+- Core 在接收时校验 Artifact 的身份、来源证明与签名。
+- 被篡改的 Artifact → `Uncertain` → 须进行对账（reconciliation）。
 
 ---
 
-## 14. Incident Response Plan
+## 12. 托管服务安全
 
-### 14.1 Phases
+> 注：托管服务（Connect、Sync、Relay）的部署目前尚未在本仓库中实现（计划中）。以下为威胁模型与目标要求。
 
-| Phase | Activities | Owner |
+### 12.1 威胁模型
+
+从设备的视角看，托管服务（Connect、Sync、Relay）属于**不可信**方：
+- Relay 永远看不到明文（架构治理 §41）。
+- 托管同步永不持有解密密钥。
+- 设备注册与密钥同步是两项独立的授权。
+
+### 12.2 托管服务失陷响应
+
+1. 通过异常监控 / 审计日志发现。
+2. 吊销受影响的设备证书 / Relay 令牌。
+3. 强制受影响用户重新注册。
+4. 审计密钥同步日志，排查外泄。
+5. 向企业客户发布通告。
+
+---
+
+## 13. 安全测试与审计
+
+> 注：下表为计划安排。截至本版本，已接入的仅有 CodeQL（SAST）与依赖扫描；DAST、模糊测试（OSS-Fuzz）、渗透测试与红队演练尚未实施。
+
+| 活动 | 频率 | 范围 |
+|----------|-----------|----------|
+| **SAST / DAST** | 每个 PR（CI） | Foundation + Suite |
+| **依赖扫描** | 每个 PR + 每周定时 | 所有仓库 |
+| **渗透测试** | 每年（外部） | 完整链路：App、Core、托管服务 |
+| **架构评审** | 每个 ADR + 每年 | 信任边界、权威模型 |
+| **模糊测试** | 持续（OSS-Fuzz 目标） | 解析器、协议处理器 |
+| **红队演练** | 每两年 | 端到端：设备 → 托管服务 → 设备 |
+
+---
+
+## 14. 应急响应计划
+
+### 14.1 阶段
+
+| 阶段 | 活动 | 负责人 |
 |-------|------------|-------|
-| **Detect** | Monitoring alerts, user reports, audit logs | Security Team |
-| **Triage** | Classify severity, assign lead, communicate internally | Security Lead |
-| **Contain** | Kill switch, revoke credentials, isolate affected systems | Security Team + ARB |
-| **Eradicate** | Develop fix, test, sign, stage | Security Team + Maintainers |
-| **Recover** | Coordinated release, user notification, verification | Release Manager + Security |
-| **Postmortem** | Root cause, timeline, action items, publish (blameless) | Security Lead |
+| **发现** | 监控告警、用户报告、审计日志 | 安全团队 |
+| **分诊** | 判定严重程度、指派负责人、内部沟通 | 安全负责人 |
+| **遏制** | Kill Switch、吊销凭据、隔离受影响系统 | 安全团队 + ARB |
+| **根除** | 开发修复、测试、签名、暂存 | 安全团队 + 维护者 |
+| **恢复** | 协调发布、用户通知、验证 | 发布经理 + 安全团队 |
+| **事后复盘** | 根本原因、时间线、行动项、公开发布（无指责式） | 安全负责人 |
 
-### 14.2 Communication Plan
+### 14.2 沟通计划
 
-| Audience | Channel | Timing |
+| 受众 | 渠道 | 时机 |
 |----------|---------|--------|
-| Internal (Core Team) | Secure channel (Signal/Slack) | Immediate |
-| Enterprise Customers | Email + In-app + Portal | Within 4h (Critical) |
-| Public (Foundation users) | GitHub Advisory + Blog + In-app | Fix release + 7 days |
-| Researchers | Direct email | Throughout process |
+| 内部（核心团队） | 安全渠道（Signal / Slack） | 立即 |
+| 企业客户 | 邮件 + 应用内 + 门户 | 严重事件 4 小时内 |
+| 公众（Foundation 用户） | GitHub Advisory + 博客 + 应用内 | 修复发布 + 7 天 |
+| 研究者 | 直接邮件 | 全程 |
 
 ---
 
-## 15. Compliance & Certifications
+## 15. 合规与认证
 
-| Standard | Status | Scope |
+| 标准 | 状态 | 范围 |
 |----------|--------|-------|
-| **SOC 2 Type II** | Target 2026 | Managed services |
-| **ISO 27001** | Target 2027 | Full organization |
-| **Common Criteria (EAL2+)** | Evaluation target | Core Trust/Runtime |
-| **FIPS 140-3** | Evaluation target | Vault cryptography |
+| **SOC 2 Type II** | 目标 2026 | 托管服务 |
+| **ISO 27001** | 目标 2027 | 整个组织 |
+| **Common Criteria（EAL2+）** | 评估目标 | Core Trust / Runtime |
+| **FIPS 140-3** | 评估目标 | Vault 密码学 |
 
 ---
 
-## 16. Version History
+## 16. 版本历史
 
-| Version | Date | Author | Change |
+| 版本 | 日期 | 作者 | 变更 |
 |---------|------|--------|--------|
-| v1.0 | 2026-09-17 | Security Lead + ARB | Initial baseline |
+| v1.0 | 2026-09-17 | 安全负责人 + ARB | 初始基线 |
 
 ---
 
-**End of Document**
+**文档结束**
