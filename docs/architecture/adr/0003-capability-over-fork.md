@@ -1,34 +1,25 @@
-# ADR-0003: Capability over Fork
+# ADR-0003：以能力代替分叉
 
+状态：已接受
 
-Status:
+## 背景
 
-Accepted
+为每项功能分叉一套架构，会造成：
 
+- 运行时重复
+- 状态重复
+- 长期维护成本
 
-## Context
+## 决定
 
+新功能应实现为：
 
-Forking architecture for each feature creates:
+能力（Capability）
 
-- Duplicate runtime
-- Duplicate state
-- Long-term maintenance cost
+而不是：
 
+架构分叉（Architecture fork）
 
-## Decision
+## 后果
 
-
-New functionality should be implemented as:
-
-Capability
-
-instead of:
-
-Architecture fork
-
-
-## Consequences
-
-
-The ecosystem grows through extensions while Core remains stable.
+生态通过扩展成长，同时 Core 保持稳定。

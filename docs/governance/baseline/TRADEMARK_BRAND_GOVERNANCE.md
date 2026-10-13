@@ -1,58 +1,48 @@
-# Delta Trademark and Brand Governance
+# Delta 商标与品牌治理（Trademark & Brand Governance）
 
-**Version:** v1.1  
-**Status:** Governance Baseline  
-**Scope:** Public use of the Delta project name, logos and official Foundation branding.
+**版本：** v1.1
+**状态：** 治理基线
+**范围：** 公开使用 Delta 项目名称、标识与官方 Foundation 品牌的规则。
 
-## 1. Purpose
+本文是 Delta 商标与品牌使用的基线，说明项目名称、产品命名、标识与视觉识别、扩展命名、仓库与包元数据，以及执行方式。
 
-The Apache-2.0 license grants copyright permissions for Foundation source. It
-does not grant trademark rights in the Delta name or official project logos.
+## 1. 目的
 
-## 2. Project name
+Apache-2.0 许可证授予 Foundation 源码的版权许可，但**不授予** Delta 名称或官方项目标识的商标权利。
 
-Third parties may make accurate descriptive references such as:
+## 2. 项目名称
 
-- "compatible with Delta";
-- "extension for Delta";
-- "built using Delta public contracts";
-- "fork of Delta".
+第三方可以作出准确的描述性引用，例如：
 
-Do not imply endorsement, official status, sponsorship or ownership by Fongap
-Labs without permission.
+- “与 Delta 兼容”（"compatible with Delta"）；
+- “Delta 的扩展”（"extension for Delta"）；
+- “使用 Delta 公开合同构建”（"built using Delta public contracts"）；
+- “Delta 的分支”（"fork of Delta"）。
 
-## 3. Product naming
+未经许可，不得暗示获得 Fongap Labs 的背书、官方地位、赞助或所有权。
 
-A third-party distribution should use its own product name when modification or
-repackaging could reasonably confuse users about who maintains or supports it.
+## 3. 产品命名
 
-The unmodified upstream project may be referred to as Delta.
+当修改或再包装可能使用户对其维护或支持方产生合理的混淆时，第三方发行版应使用其自有的产品名称。
 
-## 4. Logos and visual identity
+未经修改的上游项目可以称为 Delta。
 
-Official logos may be used for truthful identification of the upstream project
-and links to it. Modified products should not use official logos in a way that
-suggests they are an official release.
+## 4. 标识与视觉识别
 
-## 5. Extension naming
+官方标识可用于如实标明上游项目，以及链接至该项目。经修改的产品不得以暗示其为官方发行版的方式使用官方标识。
 
-Extension authors should use names that identify their own publisher or
-function. Names must not falsely imply that an extension is maintained,
-reviewed or supported by the Delta project.
+## 5. 扩展命名
 
-## 6. Repository and package metadata
+扩展作者应使用能够识别其自身发布者或功能的名称。名称不得虚假暗示该扩展由 Delta 项目维护、审查或支持。
 
-Public package metadata should identify the actual author, repository and
-license. Compatibility declarations are technical statements and must not be
-used as endorsement claims.
+## 6. 仓库与包元数据
 
-## 7. Security
+公开的包元数据应标明实际的作者、仓库与许可证。兼容性声明属于技术性陈述，不得用作背书声明。
 
-Security forks and incident-response builds may identify the upstream version
-they derive from, but must clearly disclose material modifications.
+## 7. 安全
 
-## 8. Enforcement
+安全分支与应急响应构建可以标明其所衍生的上游版本，但必须清楚披露实质性的修改。
 
-Trademark or impersonation disputes are handled separately from open-source
-license compliance. The project may request correction of misleading branding
-without restricting rights granted by the Foundation source license.
+## 8. 执行
+
+商标或冒充纠纷，与开源许可合规分开处理。项目可以要求更正具有误导性的品牌使用，但不得借此限制 Foundation 源码许可所授予的权利。

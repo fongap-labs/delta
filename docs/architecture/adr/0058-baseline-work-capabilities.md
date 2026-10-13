@@ -1,53 +1,53 @@
-# ADR-0058: Baseline work capabilities live in Foundation
+# ADR-0058：基础办公能力归属 Foundation
 
-Status: **Accepted** (owner, 2026-10-11). Implementation follows in steps; each step is listed in the CHANGELOG when it lands.
+状态：**已接受**（所有者，2026-10-11）。实现分步进行；每一步落地时都记入 CHANGELOG。
 
-## Context
+## 背景
 
-The blueprint names three kinds of work: daily office, research and content. ADR-0002 and `REPOSITORY_BOUNDARY.md` say Foundation must run and do "baseline work" with no extension installed, and that specialist capabilities are optional extensions.
+蓝图列出三类工作：日常办公、研究与内容创作。ADR-0002 与 `REPOSITORY_BOUNDARY.md` 规定，Foundation 必须能够在未安装任何扩展的情况下运行并完成"基础工作"，而专业能力则是可选的扩展。
 
-What Foundation does today (checked in `CapabilityHost::product_defaults`, `crates/delta-core/src/capability/host.rs`, and its test `product_registry_owns_stable_model_tool_schemas`): the model gets five tools, `ask_user`, `propose_plan`, `read_file`, `request_directory` and `write_file`. It cannot read a PDF, Word or Excel file, fetch a web page, search the web or create an Office file. The Python versions of these tools exist under `integrations/` but the desktop app does not ship Python and the Rust runtime does not call them, so they are not available in the product.
+Foundation 当前的实际情况（在 `CapabilityHost::product_defaults`，即 `crates/delta-core/src/capability/host.rs`，及其测试 `product_registry_owns_stable_model_tool_schemas` 中核对）：模型获得五个工具：`ask_user`、`propose_plan`、`read_file`、`request_directory` 与 `write_file`。它无法读取 PDF、Word 或 Excel 文件，无法抓取网页，无法搜索网络，也无法创建 Office 文件。`integrations/` 下有这些工具的 Python 版本，但桌面应用不随附 Python，Rust 运行时也不调用它们，因此它们在产品中不可用。
 
-So a user who installs Foundation alone cannot do the first thing the blueprint promises: read a document, research a question, produce a deliverable. That conflicts with "Foundation is a complete, independently runnable product".
+因此，只安装 Foundation 的用户无法完成蓝图承诺的第一件事：读取文档、研究问题、产出交付物。这与"Foundation 是一个完整、可独立运行的产品"相冲突。
 
-## Options
+## 方案
 
-**A. Treat reading and writing common work files and reading the web as baseline capabilities, implemented natively in Foundation (chosen).**
-- Plus: works after install, no interpreter, one Trust path, nothing to install or keep in step.
-- Minus: Foundation gains parser/writer dependencies and network code that must be reviewed; the blueprint's "no heavy Office suite" limit must be kept by scope, not by location.
+**A. 将读写常见办公文件以及读取网页，作为基础能力，在 Foundation 中以原生方式实现（已选定）。**
+- 优点：安装后即可使用；无需解释器；只有一条 Trust 路径；无需安装或保持同步任何东西。
+- 缺点：Foundation 需要引入解析器 / 写入器依赖与网络代码，它们都必须经过审查；蓝图中"不做重型 Office 套件"的限制必须通过范围来保证，而不是通过所在位置来保证。
 
-**B. Keep them as extensions, shipped as Python workers.**
-- Plus: matches the earlier reading of ADR-0002 literally.
-- Minus: the product has no Python, so the baseline stays empty until a user installs a runtime and an extension.
+**B. 作为扩展保留，以 Python Worker 形式发布。**
+- 优点：与对 ADR-0002 的早期字面理解一致。
+- 缺点：产品中没有 Python，因此在用户安装运行时和扩展之前，基础能力为空。
 
-## Decision: A, with a narrow definition of "baseline"
+## 决定：采用 A，并严格限定"基础"的含义
 
-Foundation provides these as native capabilities under the Capability Host, with the same grants, approvals, ledger and artifact rules as `read_file` and `write_file`:
+Foundation 以原生能力的形式，在能力宿主下提供以下工具，其授权、审批、Ledger 与产出物规则，与 `read_file` 和 `write_file` 相同：
 
-| Tool | What it does | Risk and approval |
+| 工具 | 功能 | 风险与审批 |
 |---|---|---|
-| `read_document` | Text and structure out of PDF, DOCX, XLSX and PPTX files in the workspace | low, no approval (reads like `read_file`; counts as a source read) |
-| `web_fetch` | One page, as readable text | medium, approval (egress; the URL is model-chosen) |
-| `web_search` | Titles, URLs and snippets for a query | medium, approval (egress; the query is model-chosen) |
-| `create_document` | A new DOCX, XLSX or PPTX from structured content, checked by reading it back | medium, approval, staged as an artifact like `write_file` |
+| `read_document` | 从工作区的 PDF、DOCX、XLSX 与 PPTX 文件中提取文本与结构 | 低风险，无需审批（与 `read_file` 一样读取；计为一次来源读取） |
+| `web_fetch` | 抓取一个页面，输出为可读文本 | 中风险，需要审批（对外流量；URL 由模型选择） |
+| `web_search` | 针对一个查询，返回标题、URL 与摘要 | 中风险，需要审批（对外流量；查询由模型选择） |
+| `create_document` | 根据结构化内容创建一个新的 DOCX、XLSX 或 PPTX，并回读检查 | 中风险，需要审批；与 `write_file` 一样作为产出物暂存 |
 
-Rules that keep this inside the blueprint:
+使这些能力保持在蓝图范围之内的规则：
 
-1. **Scope.** Reading, and creating files from structured content. Not editing in place, layout design, macros, or an Office-compatible editor (blueprint 2.1: "not a full Office suite").
-2. **Network.** `web_fetch` and `web_search` refuse loopback, private, link-local (including the cloud metadata address), CGNAT, multicast and reserved addresses, including IPv4 carried inside IPv6, on every redirect hop, and connect only to the address that passed the check (so a name that changes its answer cannot redirect the connection). They cap the body at 5 MB after decompression and the read at 30 seconds, and return external text as data, never as instructions. This is the policy of the Python `integrations/web/guard.py`, ported, not loosened.
-3. **Validation.** `create_document` reads the file back with the same parser as `read_document` and fails if the structure it was asked for is not there. A document is never reported as created on the model's say-so (blueprint 4.4).
-4. **Dependencies.** Pure Rust only, each covered by the repository's cargo-deny policy, each serving the Work and Capability modules: a ZIP/XML reader (`zip`, `quick-xml`) and a PDF text reader (`lopdf`); the DOCX, XLSX and PPTX writers build the packages directly on `zip`, with no further dependency. `pdf-extract` and older `lopdf` releases were rejected because they pull in `ttf-parser`, which the advisory database lists as unmaintained and `deny.toml` does not allow. No system libraries, no interpreter.
-5. **Extensions remain.** Specialist capabilities (statistics and experiment design, image and video, connectors) stay optional extensions. An extension may replace a baseline tool by registering a tool under another name; Foundation names no extension.
+1. **范围。** 读取，以及根据结构化内容创建文件。不包括原地编辑、版式设计、宏，或与 Office 兼容的编辑器（蓝图 2.1："不是完整的 Office 套件"）。
+2. **网络。** `web_fetch` 与 `web_search` 拒绝回环地址、私有地址、链路本地地址（包括云元数据地址）、CGNAT、组播与保留地址，包括内嵌在 IPv6 中的 IPv4 地址，并且在每一跳重定向时都进行检查。它们只连接到通过检查的那个地址，因此一个会改变解析结果的名称无法把连接重定向。它们将响应体限制为解压后 5 MB，读取超时为 30 秒，并把外部文本作为数据返回，绝不作为指令。这是 Python `integrations/web/guard.py` 中策略的移植，而非放宽。
+3. **校验。** `create_document` 使用与 `read_document` 相同的解析器回读文件，如果所要求的结构不存在，则失败。绝不因为模型的一句话就报告文档已创建（蓝图 4.4）。
+4. **依赖。** 只允许纯 Rust 实现，每项依赖都须受仓库的 cargo-deny 策略覆盖，并且各自服务于 Work 与 Capability 模块：ZIP/XML 读取器（`zip`、`quick-xml`）与 PDF 文本读取器（`lopdf`）；DOCX、XLSX 与 PPTX 写入器直接基于 `zip` 构建包，不再引入其他依赖。`pdf-extract` 与较旧版本的 `lopdf` 被否决，因为它们会引入 `ttf-parser`，而该库在安全公告数据库中被列为无人维护，且 `deny.toml` 不允许。不依赖系统库，也不依赖解释器。
+5. **扩展依然存在。** 专业能力（统计与实验设计、图像与视频、连接器）仍是可选扩展。扩展可以通过注册另一个名称的工具来替代某个基础工具；Foundation 不点名任何扩展。
 
-## Consequences
+## 后果
 
-- `REPOSITORY_BOUNDARY.md` needs no change: "generic baseline capabilities" now has a stated meaning in this ADR.
-- The Python `integrations/tools` and `integrations/web` code is the behavioural reference for the ports. It is removed only when nothing calls it, as `DEPENDENCY_POLICY.md` requires.
-- New tools need no new approval path: `web_fetch` and `web_search` are already classified as egress in `policy.rs`.
-- Search is a user-ordered list of engines: Google, Bing and DuckDuckGo built in without a key, Brave and Tavily with one, and engines the user adds (a URL with `%s`). The list and every key are one credential-store value granted only to the search tool.
+- `REPOSITORY_BOUNDARY.md` 无需修改："通用基础能力"在本 ADR 中有了确定的含义。
+- Python 的 `integrations/tools` 与 `integrations/web` 代码是移植的行为参照。只有在无人调用它们时，才按 `DEPENDENCY_POLICY.md` 的要求将其移除。
+- 新工具不需要新的审批路径：`web_fetch` 与 `web_search` 已在 `policy.rs` 中被归类为对外流量（egress）。
+- 搜索使用用户排序的引擎列表：Google、Bing 与 DuckDuckGo 内置，无需密钥；Brave 与 Tavily 需要密钥；用户还可以添加引擎（一个带 `%s` 的 URL）。该列表以及每个密钥，都是同一个凭据存储值，且只授予搜索工具。
 
-## Not verified
+## 未验证事项
 
-The generated DOCX, XLSX and PPTX files were opened with python-docx, openpyxl and python-pptx and rendered with LibreOffice, not with Microsoft Office. PDF text comes out one text run per line.
+生成的 DOCX、XLSX 与 PPTX 文件是用 python-docx、openpyxl 与 python-pptx 打开的，并用 LibreOffice 渲染，未使用 Microsoft Office 打开。PDF 文本的输出为每行一个文本段。
 
-Page and search-result parsing was written against the markup seen at the time and will need upkeep as providers change it; the search parsers are tested against saved samples, not against the live sites.
+网页与搜索结果的解析是依据撰写时所见的标记编写的，随着服务商修改页面，需要持续维护；搜索解析器是针对保存的样本测试的，并未针对线上真实站点测试。

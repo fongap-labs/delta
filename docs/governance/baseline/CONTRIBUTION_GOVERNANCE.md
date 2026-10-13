@@ -1,311 +1,320 @@
-# Delta Contribution & CLA Governance
+# Delta 贡献与 CLA 治理（Contribution & CLA Governance）
 
-**Version:** v1.0
-**Status:** Governance Baseline — Final / Frozen
-**Scope:** All contributions to the public `fongap-labs/delta` Foundation repository.
+**版本：** v1.0
+**状态：** 治理基线 — 定稿 / 冻结（Final / Frozen）
+**范围：** 所有面向公开 `fongap-labs/delta` Foundation 仓库的贡献。
 
----
-
-## 1. Purpose
-
-This document defines the contribution lifecycle, reviewer responsibilities, merge criteria, and Contributor License Agreement (CLA) requirements for the Delta Foundation repository.
-
-> Referenced by **Delta Dual-Repo Design v1.0 Section 21** and **Delta Source & Licensing Governance v1.0 Section 5**.
+本文是 Delta Foundation 仓库的贡献基线，说明贡献生命周期、评审职责、合并标准，以及贡献者许可协议（CLA）要求。
 
 ---
 
-## 2. Contribution Principles
+## 1. 目的
 
-| Principle | Description |
+本文定义 Delta Foundation 仓库的贡献生命周期、评审者职责、合并标准，以及贡献者许可协议（Contributor License Agreement，CLA）要求。
+
+> 本文被 **Delta Dual-Repo Design v1.0 第 21 节** 与 **Delta 源码与许可治理 v1.0 第 5 节** 引用（上述两份文档未收录于本仓库）。
+
+---
+
+## 2. 贡献原则
+
+| 原则 | 说明 |
 |-----------|-------------|
-| **Open to All** | Anyone may contribute; no invitation required. |
-| **Merit-Based** | Decisions based on technical merit, not affiliation. |
-| **Architecture-First** | All changes must respect frozen architecture boundaries (Architecture Governance v1.0). |
-| **Contract-Stable** | Public contracts (SDK, schemas) evolve slowly; breaking changes require formal review. |
-| **Security-Conscious** | Every change evaluated for trust boundary impact. |
-| **Documented** | Architecture-relevant changes require ADR or design doc. |
+| **向所有人开放（Open to All）** | 任何人均可贡献；无需邀请。 |
+| **基于功绩（Merit-Based）** | 决策基于技术价值，而非所属机构。 |
+| **架构优先（Architecture-First）** | 所有变更必须尊重已冻结的架构边界（架构治理 v1.0）。 |
+| **合同稳定（Contract-Stable）** | 公开合同（SDK、Schema）缓慢演进；破坏性变更须经正式评审。 |
+| **安全意识（Security-Conscious）** | 每项变更均须评估其对信任边界的影响。 |
+| **有文档（Documented）** | 与架构相关的变更须有 ADR 或设计文档。 |
 
 ---
 
-## 3. Contribution Types & Requirements
+## 3. 贡献类型与要求
 
-### 3.1 Contribution Categories
+### 3.1 贡献类别
 
-| Category | Examples | Review Bar | CLA Required |
+| 类别 | 示例 | 评审标准 | 是否需要 CLA |
 |----------|----------|------------|--------------|
-| **Trivial** | Typos, formatting, comment fixes, doc links | Single maintainer approval | No (but GitHub ToS covers) |
-| **Code Fix** | Bug fixes, test additions, refactoring within module | 1+ maintainer; CI pass | Yes |
-| **Feature** | New capability, worker, connector, skill | 2+ maintainers; ADR if architectural | Yes |
-| **Architecture** | Core module changes, contract changes, new top-level component | Architecture Review Board; ADR mandatory | Yes |
-| **Security** | Vulnerability fixes, trust boundary changes | Security team + 1 maintainer; expedited | Yes |
-| **Dependency** | Adding/upgrading third-party crates/packages | License check + 1 maintainer | Yes |
+| **琐碎改动** | 错别字、格式、注释修正、文档链接 | 单个维护者批准 | 否（GitHub 服务条款已涵盖） |
+| **代码修复** | 缺陷修复、测试补充、模块内重构 | 至少 1 名维护者；CI 通过 | 是 |
+| **功能** | 新能力、Worker、连接器、Skill | 至少 2 名维护者；涉及架构时需 ADR | 是 |
+| **架构** | 核心模块变更、合同变更、新增顶层组件 | 架构评审委员会（ARB）；必须有 ADR | 是 |
+| **安全** | 漏洞修复、信任边界变更 | 安全团队 + 1 名维护者；加急处理 | 是 |
+| **依赖** | 新增或升级第三方 crate / 包 | 许可证检查 + 1 名维护者 | 是 |
 
-### 3.2 CLA Enforcement Matrix
+### 3.2 CLA 执行矩阵
 
-| Contributor Type | CLA Mechanism | Enforcement |
+| 贡献者类型 | CLA 机制 | 执行方式 |
 |------------------|---------------|-------------|
-| Individual (first-time) | Auto-prompt via `cla-assistant` on PR | Merge blocked until signed |
-| Individual (repeat) | CLA recorded in GitHub org | Auto-verified |
-| Corporate Employee | Corporate CLA signed by authorized officer | Verified via email domain + CLA database |
-| Bot/Automation | Exempt (no IP contribution) | Labeled `bot`; no CLA check |
+| 个人（首次） | 通过 `cla-assistant` 在 PR 上自动提示（计划中，当前仓库尚未接入） | 签署前阻止合并 |
+| 个人（重复贡献） | CLA 记录于 GitHub 组织 | 自动验证 |
+| 企业员工 | 由授权负责人签署企业 CLA | 通过邮箱域名与 CLA 数据库验证 |
+| 机器人 / 自动化 | 豁免（无知识产权贡献） | 标记 `bot`；不做 CLA 检查 |
 
-> **No CLA = No Merge.** Exceptions only for trivial non-code changes (typo/docs) where GitHub ToS §D.6 applies.
+> **无 CLA 则不得合并。** 仅对琐碎的非代码改动（错别字 / 文档）例外，适用 GitHub 服务条款 §D.6。
 
 ---
 
-## 4. Contribution Lifecycle
+## 4. 贡献生命周期
 
-### 4.1 Standard Flow
+### 4.1 标准流程
 
 ```text
-Issue/Discussion
+Issue / Discussion
       ↓
-Design Doc / ADR (if architectural)
+设计文档 / ADR（涉及架构时）
       ↓
-Fork → Branch → Commits (signed-off)
+Fork → 分支 → 提交（带 sign-off）
       ↓
-Pull Request → CI (lint, test, contract, arch-guard, license)
+Pull Request → CI（lint、测试、合同、架构守卫、许可证）
       ↓
-Review (maintainers + arch review if needed)
+评审（维护者 + 必要时架构评审）
       ↓
-Approval → Squash Merge to main
+批准 → Squash Merge 至 main
       ↓
-Release Train (see Release Governance)
+发布列车（参见发布治理）
 ```
 
-### 4.2 Branch & Commit Conventions
+### 4.2 分支与提交约定
 
-- **Branch naming:** `type/scope-short-desc` (e.g., `feat/connector-gmail`, `fix/core-trust-timeout`, `arch/adr-004-capability-registry`)
-- **Commit messages:** Conventional Commits (e.g., `feat(core): add execution grant validation`)
-- **Signed commits:** `git commit -s` (Developer Certificate of Origin) **in addition to CLA** — DCO provides provenance; CLA provides license grant.
+- **分支命名：** `type/scope-short-desc`（例如 `feat/connector-gmail`、`fix/core-trust-timeout`、`arch/adr-004-capability-registry`）。
+- **提交信息：** Conventional Commits（例如 `feat(core): add execution grant validation`）。
+- **签名提交：** 使用 `git commit -s`（开发者原产地证书，Developer Certificate of Origin，DCO），**同时**签署 CLA —— DCO 提供来源证明（provenance），CLA 提供许可授予。
+  > 注：当前仓库的 `CONTRIBUTING.md` 尚未说明 DCO sign-off 要求（计划中）。
 
-### 4.3 Pull Request Requirements
+### 4.3 Pull Request 要求
 
-| Check | Required For | Tool |
+| 检查项 | 适用范围 | 工具 |
 |-------|--------------|------|
-| CI Pass (lint, unit, contract, arch-guard) | All PRs | GitHub Actions |
-| CLA Signed | All code PRs | `cla-assistant` |
-| Architecture Review | Architectural PRs | Architecture Review Board |
-| Security Review | Security-relevant PRs | Security Team |
-| License Check | New dependencies | `cargo-deny` / `license-checker` |
-| Changelog Entry | User-visible changes | Manual (PR template) |
-| Documentation Updated | Public API/contract changes | Manual (PR template) |
+| CI 通过（lint、单元、合同、架构守卫） | 所有 PR | GitHub Actions |
+| CLA 已签署 | 所有代码 PR | `cla-assistant`（计划中） |
+| 架构评审 | 架构相关 PR | 架构评审委员会 |
+| 安全评审 | 安全相关 PR | 安全团队 |
+| 许可证检查 | 新依赖 | `cargo-deny` / `license-checker`（后者计划中） |
+| 变更日志条目 | 用户可见的变更 | 人工（PR 模板） |
+| 文档已更新 | 公开 API / 合同变更 | 人工（PR 模板） |
 
 ---
 
-## 5. Reviewer & Maintainer Model
+## 5. 评审者与维护者模型
 
-### 5.1 Roles
+### 5.1 角色
 
-| Role | Scope | Appointment |
+| 角色 | 范围 | 任命方式 |
 |------|-------|-------------|
-| **Code Owner** | Specific crate/module (per `CODEOWNERS`) | Architecture Review Board |
-| **Maintainer** | Cross-module review authority; merge rights | Architecture Review Board |
-| **Architecture Review Board (ARB)** | Architectural changes, contract changes, top-level components | Delta Core Team (founding members) |
-| **Security Team** | Security-relevant changes, vulnerability handling | Delta Core Team + external auditors |
-| **Release Manager** | Release branching, tagging, artifact signing | Rotating among Maintainers |
+| **代码负责人（Code Owner）** | 特定 crate / 模块（依据 `CODEOWNERS`） | 架构评审委员会 |
+| **维护者（Maintainer）** | 跨模块评审权限；合并权限 | 架构评审委员会 |
+| **架构评审委员会（ARB）** | 架构变更、合同变更、顶层组件 | Delta 核心团队（创始成员） |
+| **安全团队（Security Team）** | 安全相关变更、漏洞处理 | Delta 核心团队 + 外部审计方 |
+| **发布经理（Release Manager）** | 发布分支、打 Tag、产物签名 | 在维护者之间轮值 |
 
-### 5.2 Review SLAs
+### 5.2 评审 SLA
 
-| PR Type | Initial Response | Review Completion |
+| PR 类型 | 首次响应 | 评审完成 |
 |---------|------------------|-------------------|
-| Trivial | 1 business day | 3 business days |
-| Code Fix / Dependency | 2 business days | 5 business days |
-| Feature | 3 business days | 10 business days |
-| Architecture | 5 business days | 20 business days (may require ADR iteration) |
-| Security (Critical) | 4 hours | 24 hours |
+| 琐碎改动 | 1 个工作日 | 3 个工作日 |
+| 代码修复 / 依赖 | 2 个工作日 | 5 个工作日 |
+| 功能 | 3 个工作日 | 10 个工作日 |
+| 架构 | 5 个工作日 | 20 个工作日（可能需要多轮 ADR 修改） |
+| 安全（严重） | 4 小时 | 24 小时 |
 
-> SLAs are targets, not guarantees. Community contributors are not bound by SLAs.
+> SLA 为目标值，而非保证。社区贡献者不受 SLA 约束。
 
-### 5.3 Maintainer Onboarding / Offboarding
+### 5.3 维护者入职 / 离职
 
-- **Onboarding:** Nomination by 2+ Maintainers → ARB approval → `CODEOWNERS` update → onboarding checklist.
-- **Offboarding:** Voluntary resignation or 6 months inactivity → ARB acknowledgment → `CODEOWNERS` removal.
-- **Emergency Removal:** Security/conduct violation → ARB unanimous decision → immediate.
+- **入职：** 2 名及以上维护者提名 → ARB 批准 → 更新 `CODEOWNERS` → 入职清单。
+- **离职：** 主动辞职或 6 个月不活跃 → ARB 确认 → 从 `CODEOWNERS` 移除。
+- **紧急移除：** 安全或行为违规 → ARB 一致决定 → 立即生效。
 
 ---
 
-## 6. Architecture Change Process
+## 6. 架构变更流程
 
-### 6.1 What Requires Architecture Review
+### 6.1 哪些变更需要架构评审
 
-Any change affecting:
-- Top-level component list (Architecture Governance §3)
-- Core internal security domains (§12)
-- Authority model (§13)
-- Public contracts (Contract Governance)
-- Capability model (Capability Model)
-- Runtime/Orchestrator structure (§16)
-- Trust/Sandbox boundaries (§34-36)
+以下任一内容的变更均需架构评审：
 
-### 6.2 Architecture Decision Record (ADR) Process
+- 顶层组件列表（架构治理 §3）
+- Core 内部安全域（§12）
+- 权威模型（§13）
+- 公开合同（合同治理）
+- 能力模型（能力模型）
+- Runtime / Orchestrator 结构（§16）
+- 信任 / 沙箱边界（§34–36）
 
-1. **Propose:** Open GitHub Discussion with `adr-proposal` label.
-2. **Draft:** Author writes ADR in `docs/adr/NNNN-title.md` (next number).
-3. **Review:** ARB + Maintainers comment; 14-day minimum discussion.
-4. **Decision:** ARB records decision (Accepted / Rejected / Deferred) in ADR header.
-5. **Implement:** Accepted ADRs tracked as implementation issues.
-6. **Archive:** Superseded ADRs marked `Superseded by ADR-NNNN`.
+### 6.2 架构决策记录（ADR）流程
 
-### 6.3 ADR Template
+1. **提出：** 开启带 `adr-proposal` 标签的 GitHub Discussion。
+2. **起草：** 作者在 `docs/architecture/adr/NNNN-title.md` 中撰写 ADR（使用下一个编号）。
+   > 注：本仓库的 ADR 目录为 `docs/architecture/adr/`，索引见其中的 `README.md`。
+3. **评审：** ARB 与维护者评论；讨论期至少 14 天。
+4. **决定：** ARB 在 ADR 头部记录决定（接受 / 拒绝 / 推迟）。
+5. **实施：** 已接受的 ADR 作为实施 issue 跟踪。
+6. **归档：** 被取代的 ADR 标记为 `Superseded by ADR-NNNN`。
+
+### 6.3 ADR 模板
 
 ```markdown
-# ADR-NNNN: <Title>
+# ADR-NNNN：<标题>
 
-**Status:** Proposed / Accepted / Rejected / Superseded
-**Date:** YYYY-MM-DD
-**Authors:** @github-handles
-**Reviewers:** @github-handles
+**状态：** Proposed / Accepted / Rejected / Superseded
+**日期：** YYYY-MM-DD
+**作者：** @github-handles
+**评审者：** @github-handles
 
-## Context
-<Why this decision is needed; link to issues>
+## 背景
+<为何需要此决策；链接相关 issue>
 
-## Decision
-<What we will do>
+## 决定
+<我们将如何做>
 
-## Consequences
-### Positive
+## 后果
+### 正面
 - ...
-### Negative
+### 负面
 - ...
-### Risks
+### 风险
 - ...
 
-## Alternatives Considered
-- <Alternative 1>: <Why rejected>
-- <Alternative 2>: <Why rejected>
+## 考虑过的替代方案
+- <替代方案 1>：<拒绝理由>
+- <替代方案 2>：<拒绝理由>
 
-## References
-- Architecture Governance §X.Y
-- Related ADRs: NNNN, MMMM
+## 参考
+- 架构治理 §X.Y
+- 相关 ADR：NNNN, MMMM
 ```
 
 ---
 
-## 7. Security Contribution Process
+## 7. 安全贡献流程
 
-### 7.1 Vulnerability Reporting
+### 7.1 漏洞报告
 
-- **Public Issues:** Non-security bugs only.
-- **Security Issues:** Email `security@delta.example.com` (or GitHub Security Advisories).
-- **No Public Disclosure** until fix released + 7-day grace period.
+- **公开 Issue：** 仅用于非安全缺陷。
+- **安全问题：** 发送邮件至 `security@delta.example.com`（占位地址），或使用 GitHub Security Advisories。
+- **在修复发布且经过 7 天宽限期之前，不得公开披露。**
 
-### 7.2 Security Fix Workflow
+### 7.2 安全修复流程
 
 ```text
-Security Report
+安全报告
       ↓
-Security Team Triage (≤ 24h)
+安全团队分诊（≤ 24 小时）
       ↓
-Private Fork / Branch (maintainers only)
+私有 Fork / 分支（仅维护者可见）
       ↓
-Fix + Regression Tests
+修复 + 回归测试
       ↓
-Security Review (Security Team)
+安全评审（安全团队）
       ↓
-Coordinated Release (patch version)
+协调发布（补丁版本）
       ↓
-Public Advisory (GitHub Security Advisory + CVE)
+公开通告（GitHub Security Advisory + CVE）
 ```
 
-### 7.3 Security Reviewer Requirements
+### 7.3 安全评审者要求
 
-- Security Team members must complete secure code review training.
-- All Core/Trust/Runtime changes require Security Team sign-off.
-- Security fixes in optional extensions must not delay Foundation fixes.
-
----
-
-## 8. Community Conduct
-
-### 8.1 Code of Conduct
-
-Delta adopts the **Contributor Covenant v2.1** (https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
-
-### 8.2 Enforcement
-
-| Channel | Scope |
-|---------|-------|
-| GitHub Discussions / Issues / PRs | Public community |
-| Delta Discord / Matrix | Real-time chat |
-| Private reports | `conduct@delta.example.com` |
-
-**Enforcement Body:** Community Moderation Team (3+ Maintainers, rotated quarterly).
-**Appeals:** Architecture Review Board.
+- 安全团队成员须完成安全代码评审培训。
+- 所有 Core / Trust / Runtime 变更均须获得安全团队签字确认。
+- 可选扩展中的安全修复不得延误 Foundation 的修复。
 
 ---
 
-## 9. Recognition & Attribution
+## 8. 社区行为
 
-### 9.1 Contributor Recognition
+### 8.1 行为准则
 
-- **CONTRIBUTORS.md:** Auto-generated from git history (all merged PR authors).
-- **Release Notes:** Notable contributors highlighted per release.
-- **Hall of Fame:** Annual recognition for sustained contribution.
+Delta 采用 **Contributor Covenant v2.1**（https://www.contributor-covenant.org/version/2/1/code_of_conduct/）。
+> 注：本仓库尚未收录行为准则文件（计划中）。
 
-### 9.2 Attribution in Artifacts
+### 8.2 执行
 
-- Binary `About` dialog includes "Contributors" link to `CONTRIBUTORS.md`.
-- No individual names in binary metadata (privacy).
+| 渠道 | 范围 |
+|---------|---------|
+| GitHub Discussions / Issues / PR | 公开社区 |
+| Delta Discord / Matrix | 实时聊天 |
+| 私下举报 | `conduct@delta.example.com`（占位地址） |
 
----
-
-## 10. Corporate Contribution Policy
-
-### 10.1 Corporate CLA
-
-Organizations employing 5+ contributors **must** sign a Corporate CLA covering all current/future employees.
-
-### 10.2 Employee Contributions
-
-- Employees of CLA-signed orgs: Covered by Corporate CLA.
-- Employees of non-CLA-signed orgs: Individual CLA required.
-- Work-time contributions: Employer must confirm IP ownership via Corporate CLA.
-
-### 10.3 Competitive Contributions
-
-Contributions from direct competitors (as defined by ARB) are **welcome** but:
-- Must not introduce Suite-parity features that undermine commercial differentiation.
-- Architecture review may reject features that blur Foundation/Suite boundary.
-- This is a **governance boundary**, not a license restriction (Apache-2.0 permits all use).
+**执行机构：** 社区版主团队（至少 3 名维护者，每季度轮换）。
+**申诉：** 架构评审委员会。
 
 ---
 
-## 11. AI-Assisted Contributions
+## 9. 认可与署名
 
-### 11.1 Policy
+### 9.1 贡献者认可
 
-AI-generated code is **permitted** if:
-- Human author reviews, tests, and understands the code.
-- Human author signs the commit (`-s`) and CLA.
-- No copyrighted/non-permissive code is inadvertently included.
+- **CONTRIBUTORS.md：** 由 git 历史自动生成（所有已合并 PR 的作者）。
+  > 注：`CONTRIBUTORS.md` 尚未创建（计划中）。
+- **发布说明：** 每个版本重点列出值得关注的贡献者。
+- **名人堂：** 对长期持续贡献的年度表彰。
 
-### 11.2 Prohibited
+### 9.2 产物中的署名
 
-- Submitting AI-generated code without review.
-- Using AI to bypass architecture review (e.g., "AI wrote this ADR").
-- Training data contamination (copied GPL code from AI suggestions).
+- 二进制的“关于”对话框包含指向 `CONTRIBUTORS.md` 的“Contributors”链接（计划中）。
+- 二进制元数据中不包含个人姓名（出于隐私考虑）。
 
 ---
 
-## 12. Enforcement & Escalation
+## 10. 企业贡献策略
 
-| Issue | First Step | Escalation |
+### 10.1 企业 CLA
+
+拥有 5 名及以上贡献者的组织**必须**签署企业 CLA，覆盖其所有现有及未来员工。
+
+### 10.2 员工贡献
+
+- 已签署企业 CLA 的组织的员工：由企业 CLA 覆盖。
+- 未签署企业 CLA 的组织的员工：须签署个人 CLA。
+- 工作时间内的贡献：雇主须通过企业 CLA 确认知识产权归属。
+
+### 10.3 竞争性贡献
+
+直接竞争者（由 ARB 界定）的贡献**受欢迎**，但：
+
+- 不得引入会削弱商业差异化的 Suite 对等功能；
+- 架构评审可以拒绝模糊 Foundation / Suite 边界的功能；
+- 这是**治理边界**，而非许可证限制（Apache-2.0 允许一切使用）。
+
+---
+
+## 11. AI 辅助贡献
+
+### 11.1 策略
+
+若满足以下条件，允许提交 AI 生成的代码：
+
+- 人类作者已审阅、测试并理解该代码；
+- 人类作者已对提交签名（`-s`）并签署 CLA；
+- 未无意中包含受版权保护或非许可的代码。
+
+### 11.2 禁止事项
+
+- 未经审阅即提交 AI 生成的代码。
+- 利用 AI 绕过架构评审（例如“AI 写的这份 ADR”）。
+- 训练数据污染（从 AI 建议中复制 GPL 代码）。
+
+---
+
+## 12. 执行与升级
+
+| 问题 | 第一步 | 升级 |
 |-------|------------|------------|
-| CLA not signed | Bot comment + 14-day timeout | PR closed; reopen after CLA |
-| Architecture violation | Maintainer comment + `arch-violation` label | ARB review; revert if merged |
-| Conduct violation | Moderator warning | Temporary ban → Permanent ban |
-| License violation | Legal notice | DMCA / injunction |
-| Security bypass | Immediate revert | Security Team audit |
+| 未签署 CLA | 机器人评论 + 14 天超时 | 关闭 PR；签署 CLA 后可重新开启 |
+| 违反架构约束 | 维护者评论 + `arch-violation` 标签 | ARB 评审；若已合并则回退 |
+| 违反行为准则 | 版主警告 | 临时封禁 → 永久封禁 |
+| 许可证违规 | 法务通知 | DMCA / 禁令 |
+| 绕过安全检查 | 立即回退 | 安全团队审计 |
 
 ---
 
-## 13. Version History
+## 13. 版本历史
 
-| Version | Date | Author | Change |
+| 版本 | 日期 | 作者 | 变更 |
 |---------|------|--------|--------|
-| v1.0 | 2026-09-17 | Architecture Review Board | Initial baseline |
+| v1.0 | 2026-09-17 | 架构评审委员会 | 初始基线 |
 
 ---
 
-**End of Document**
+**文档结束**

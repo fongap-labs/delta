@@ -1,315 +1,321 @@
-# Delta Telemetry & Privacy Governance
+# Delta 遥测与隐私治理（Telemetry & Privacy Governance）
 
-**Version:** v1.0
-**Status:** Governance Baseline — Final / Frozen
-**Scope:** Telemetry, diagnostics, crash reporting, and user-data processing implemented by public Delta Foundation.
+**版本：** v1.0
+**状态：** 治理基线 — 定稿 / 冻结（Final / Frozen）
+**范围：** 公开 Delta Foundation 实现的遥测、诊断、崩溃报告与用户数据处理。
 
----
+本文是 Delta 遥测与隐私的基线，说明隐私原则、数据类别、采集策略、用户控制、数据处理与留存，以及合规与审计要求。
 
-## 1. Purpose
-
-This document defines the privacy principles, data categories, collection policies, user controls, and compliance requirements for Delta telemetry. It operationalizes **Metadata-First Telemetry** (Architecture Governance §53), **Content Diagnostics** (§54), and **Local-First** product positioning (§1).
+> **实施状态：** 当前版本的桌面端设置页已移除遥测 / 隐私卡片（见 `apps/desktop/src/components/SettingsView.tsx`），仅保留 `setCloudTelemetry` API 以备将来使用。本文所述的采集策略、用户控制、API 与公开产物均为**计划中的目标策略**。在相应控制重新上线之前，不得据此宣称已经提供了这些控制或已进行了相应采集。
 
 ---
 
-## 2. Privacy Principles
+## 1. 目的
 
-| Principle | Operational Meaning |
+本文定义 Delta 遥测的隐私原则、数据类别、采集策略、用户控制与合规要求。它将**元数据优先遥测（Metadata-First Telemetry）**（架构治理 §53）、**内容诊断（Content Diagnostics）**（§54）与**本地优先（Local-First）**产品定位（§1）落到可操作层面。
+
+---
+
+## 2. 隐私原则
+
+| 原则 | 操作含义 |
 |-----------|---------------------|
-| **Local-First** | Telemetry processed locally by default; upload requires explicit consent. |
-| **Metadata-First** | Default telemetry = metadata only (counts, durations, status); no content. |
-| **Purpose Limitation** | Data collected only for: product improvement, security, reliability, performance. |
-| **Data Minimization** | Minimum fields necessary; no unique identifiers unless user-consented. |
-| **User Control** | Granular opt-in/opt-out; real-time toggle; data deletion on request. |
-| **Transparency** | Public schema; in-app viewer; annual transparency report. |
-| **No Surveillance** | Telemetry never used for: advertising, profiling, behavioral tracking, employee monitoring. |
+| **本地优先（Local-First）** | 遥测默认在本地处理；上传须经用户明确同意。 |
+| **元数据优先（Metadata-First）** | 默认遥测仅包含元数据（计数、耗时、状态）；不含内容。 |
+| **目的限定（Purpose Limitation）** | 数据仅用于：产品改进、安全、可靠性、性能。 |
+| **数据最小化（Data Minimization）** | 仅采集必要字段；除非用户同意，不采集唯一标识符。 |
+| **用户控制（User Control）** | 细粒度的同意 / 撤回；实时开关；依请求删除数据。 |
+| **透明（Transparency）** | 公开 Schema；应用内查看器；年度透明度报告。 |
+| **不做监控（No Surveillance）** | 遥测绝不用于广告、画像、行为追踪或员工监控。 |
 
 ---
 
-## 3. Data Categories
+## 3. 数据类别
 
-### 3.1 Category Definitions
+### 3.1 类别定义
 
-| Category | Description | Examples | Default Collection |
+| 类别 | 说明 | 示例 | 默认采集 |
 |----------|-------------|----------|-------------------|
-| **Required** | Essential for operation; cannot be disabled | App start (version check), License validation (Suite), Security revocation check | Always (no PII) |
-| **Standard Telemetry** | Metadata about usage, performance, reliability | Duration, token count, byte count, latency, status, error codes, queue depth, resource usage | **Opt-out** (enabled by default) |
-| **Enhanced Telemetry** | Detailed metadata for product improvement | Feature usage funnels, capability adoption, UI interaction paths | **Opt-in** |
-| **Content Diagnostics** | Content-bearing data for debugging | Full prompt, model tokens, STT transcript, email body, artifact content | **Explicit Opt-in + Scope + Lifetime** (§54 Arch Gov) |
-| **Crash Reports** | Automated crash dumps | Stack traces, register state, memory map (no heap content) | **Opt-in** |
+| **必需（Required）** | 运行所必需；不可关闭 | 应用启动（版本检查）、许可证校验（Suite）、安全吊销检查 | 始终采集（不含个人身份信息） |
+| **标准遥测（Standard Telemetry）** | 关于使用、性能、可靠性的元数据 | 耗时、token 数、字节数、延迟、状态、错误码、队列深度、资源占用 | **选择退出（Opt-out）**（默认开启） |
+| **增强遥测（Enhanced Telemetry）** | 为产品改进而采集的详细元数据 | 功能使用漏斗、能力采用情况、UI 交互路径 | **选择加入（Opt-in）** |
+| **内容诊断（Content Diagnostics）** | 为调试而采集的含内容数据 | 完整提示词、模型 token、STT 转录、邮件正文、产物内容 | **明确选择加入 + 范围 + 时效**（架构治理 §54） |
+| **崩溃报告（Crash Reports）** | 自动生成的崩溃转储 | 调用栈、寄存器状态、内存映射（不含堆内容） | **选择加入（Opt-in）** |
 
-### 3.2 Explicitly Excluded (Never Collected)
+### 3.2 明确排除（绝不采集）
 
-| Data Type | Reason |
-|-----------|--------|
-| **Secrets / Credentials** | Vault authority local (Arch Gov §40) |
-| **Encryption Keys** | E2EE keys never leave device (§41) |
-| **User Content (default)** | Provenance: "Data by default, not Instruction" (§44) |
-| **PII (names, emails, IPs)** | Unless in Content Diagnostics with explicit consent |
-| **Model Output Content** | Unless Content Diagnostics opted in |
-| **STT Transcript Content** | Unless Content Diagnostics opted in |
+| 数据类型 | 原因 |
+|-----------|-----------|
+| **密钥 / 凭据** | Vault 权威保留在本地（架构治理 §40） |
+| **加密密钥** | 端到端加密密钥绝不离开设备（§41） |
+| **用户内容（默认）** | 来源原则：“默认为数据，而非指令”（§44） |
+| **个人身份信息（姓名、邮箱、IP）** | 除非在经明确同意的内容诊断中 |
+| **模型输出内容** | 除非用户选择加入内容诊断 |
+| **STT 转录内容** | 除非用户选择加入内容诊断 |
 
 ---
 
-## 4. Collection Policies
+## 4. 采集策略
 
-### 4.1 Standard Telemetry (Opt-Out)
+### 4.1 标准遥测（选择退出）
 
-**Collected By Default (user can disable in Settings → Privacy):**
+**默认采集（用户可在“设置 → 隐私”中关闭）：**
 
-| Event | Fields | Retention |
+| 事件 | 字段 | 留存期限 |
 |-------|--------|-----------|
-| `app.start` | `version`, `platform`, `arch`, `locale`, `startup_duration_ms` | 13 months |
-| `run.completed` | `run_type`, `capability_ids[]`, `duration_ms`, `token_count`, `status`, `error_code?` | 13 months |
-| `capability.invoked` | `capability_id`, `duration_ms`, `status`, `error_code?` | 13 months |
-| `sync.completed` | `duration_ms`, `bytes_synced`, `status`, `error_code?` | 13 months |
-| `extension.installed` | `extension_id`, `version`, `source` | 13 months |
-| `error.occurred` | `component`, `error_code`, `severity`, `recoverable` | 13 months |
+| `app.start` | `version`、`platform`、`arch`、`locale`、`startup_duration_ms` | 13 个月 |
+| `run.completed` | `run_type`、`capability_ids[]`、`duration_ms`、`token_count`、`status`、`error_code?` | 13 个月 |
+| `capability.invoked` | `capability_id`、`duration_ms`、`status`、`error_code?` | 13 个月 |
+| `sync.completed` | `duration_ms`、`bytes_synced`、`status`、`error_code?` | 13 个月 |
+| `extension.installed` | `extension_id`、`version`、`source` | 13 个月 |
+| `error.occurred` | `component`、`error_code`、`severity`、`recoverable` | 13 个月 |
 
-**Anonymization:**
-- No device ID, user ID, IP address.
-- `session_id` = random UUID per app session (rotated).
-- `installation_id` = random UUID per device (persistent, resettable).
+**匿名化：**
+- 不含设备 ID、用户 ID、IP 地址。
+- `session_id` 为每个应用会话随机生成的 UUID（定期轮换）。
+- `installation_id` 为每台设备随机生成的 UUID（持久化，可重置）。
 
-### 4.2 Enhanced Telemetry (Opt-In)
+### 4.2 增强遥测（选择加入）
 
-**Requires explicit toggle in Settings → Privacy → "Share detailed usage data":**
+**需要在“设置 → 隐私 → 分享详细使用数据”中明确开启：**
 
-| Event | Additional Fields |
+| 事件 | 附加字段 |
 |-------|-------------------|
-| `ui.interaction` | `screen`, `action`, `element_id`, `duration_ms` |
-| `capability.detail` | `parameters_schema_hash`, `result_size_bytes`, `retry_count` |
-| `model.request` | `model_family`, `request_tokens`, `response_tokens`, `latency_ms` |
-| `search.query` | `query_length`, `result_count`, `source_type` |
+| `ui.interaction` | `screen`、`action`、`element_id`、`duration_ms` |
+| `capability.detail` | `parameters_schema_hash`、`result_size_bytes`、`retry_count` |
+| `model.request` | `model_family`、`request_tokens`、`response_tokens`、`latency_ms` |
+| `search.query` | `query_length`、`result_count`、`source_type` |
 
-### 4.3 Content Diagnostics (Explicit Opt-In + Scope + Lifetime)
+### 4.3 内容诊断（明确选择加入 + 范围 + 时效）
 
-**Per Architecture Governance §54:**
+**依据架构治理 §54：**
 
-| Requirement | Implementation |
+| 要求 | 实施方式 |
 |-------------|----------------|
-| **Explicit User Authorization** | Modal dialog: "Share content for debugging?" with scope selector |
-| **Explicit Scope** | Checkboxes: [ ] Prompts [ ] Model Output [ ] STT [ ] Email [ ] Artifacts |
-| **Explicit Lifetime** | Dropdown: [ 24h ] [ 7 days ] [ 30 days ] [ Until I disable ] |
-| **Necessary Redaction** | Auto-redact: secrets, keys, PII patterns (configurable) |
-| **Immediate Disable** | "Stop Sharing" button in banner + Settings |
-| **Ledger Record** | `ConsentEvent` in Authority Ledger (Arch Gov §54) |
+| **明确的用户授权** | 弹窗：“是否分享内容用于调试？”并提供范围选择器 |
+| **明确的范围** | 复选框：[ ] 提示词 [ ] 模型输出 [ ] STT [ ] 邮件 [ ] 产物 |
+| **明确的时效** | 下拉框：[ 24 小时 ] [ 7 天 ] [ 30 天 ] [ 直至我关闭 ] |
+| **必要的脱敏** | 自动脱敏：密钥、凭据、个人信息模式（可配置） |
+| **即时关闭** | 横幅与设置中的“停止分享”按钮 |
+| **台账记录** | 权威台账中的 `ConsentEvent`（架构治理 §54） |
 
-**Data Handling:**
-- Encrypted at rest (device) + in transit (TLS 1.3).
-- Access: Delta Security Team only (approved ticket).
-- Auto-delete at lifetime expiry.
-- Never used for training (unless separate Research Consent).
+**数据处理：**
+- 设备端静态加密 + 传输中 TLS 1.3。
+- 访问权限：仅 Delta 安全团队（须经审批的工单）。
+- 时效到期后自动删除。
+- 绝不用于训练（除非另有单独的研究同意）。
 
-### 4.4 Crash Reports (Opt-In)
+### 4.4 崩溃报告（选择加入）
 
-| Field | Included |
+| 字段 | 是否包含 |
 |-------|----------|
-| Stack trace (all threads) | ✅ |
-| Register state | ✅ |
-| Memory map (no heap) | ✅ |
-| App version, OS, architecture | ✅ |
-| **Heap / local variables** | ❌ |
-| **User content in memory** | ❌ |
+| 调用栈（所有线程） | ✅ |
+| 寄存器状态 | ✅ |
+| 内存映射（不含堆） | ✅ |
+| 应用版本、操作系统、架构 | ✅ |
+| **堆 / 局部变量** | ❌ |
+| **内存中的用户内容** | ❌ |
 
-**Upload:** User prompted per crash ("Send crash report?"); can set "Always send" / "Never send".
+**上传：** 每次崩溃时提示用户（“是否发送崩溃报告？”）；可设置为“始终发送” / “从不发送”。
 
 ---
 
-## 5. User Controls
+## 5. 用户控制
 
-### 5.1 Settings UI (Privacy Panel)
+### 5.1 设置界面（隐私面板）
 
 ```
-┌─ Privacy & Telemetry ────────────────────────────────────┐
-│ ☐ Standard Telemetry (metadata only)          [ON] ▼    │
-│   └─ Learn what's collected →                                │
+┌─ 隐私与遥测 ─────────────────────────────────────────────┐
+│ ☐ 标准遥测（仅元数据）                        [ON] ▼     │
+│   └─ 了解会采集什么 →                                    │
 │                                                            │
-│ ☐ Enhanced Telemetry (detailed usage)           [OFF] ▼   │
-│   └─ Learn what's collected →                                │
+│ ☐ 增强遥测（详细使用数据）                    [OFF] ▼    │
+│   └─ 了解会采集什么 →                                    │
 │                                                            │
-│ Content Diagnostics Debug Mode                     [OFF] ▼ │
-│   Scope:  ☐ Prompts  ☐ Model Output  ☐ STT  ☐ Email       │
-│   Lifetime: [ 7 days ▼ ]                                   │
-│   Redaction: [ Auto (secrets, PII) ]  [ Custom Rules ]     │
-│   [ Stop Sharing Now ]                                     │
+│ 内容诊断调试模式                              [OFF] ▼    │
+│   范围：  ☐ 提示词  ☐ 模型输出  ☐ STT  ☐ 邮件           │
+│   时效：  [ 7 天 ▼ ]                                     │
+│   脱敏：  [ 自动（密钥、个人信息） ]  [ 自定义规则 ]     │
+│   [ 立即停止分享 ]                                       │
 │                                                            │
-│ ☐ Crash Reports                                           [ON] ▼ │
+│ ☐ 崩溃报告                                    [ON] ▼     │
 │                                                            │
-│ [ View Collected Data ]  [ Delete All Data ]  [ Export ]   │
+│ [ 查看已采集数据 ]  [ 删除全部数据 ]  [ 导出 ]            │
 │                                                            │
-│ Transparency Report (annual) →                            │
+│ 透明度报告（年度）→                                      │
 └────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 Programmatic Controls
+### 5.2 编程控制
 
-| API | Description |
+| API | 说明 |
 |-----|-------------|
-| `Telemetry.setStandardEnabled(bool)` | App/Extension control (user override wins) |
-| `Telemetry.setEnhancedEnabled(bool)` | Requires user opt-in |
-| `Telemetry.startContentDiagnostics(scope, lifetime)` | Returns `DiagnosticsSession` token |
-| `Telemetry.stopContentDiagnostics(token)` | Immediate stop + queue flush |
-| `Telemetry.exportUserData()` | GDPR/CCPA export (JSON) |
-| `Telemetry.deleteUserData()` | Full purge (except Required) |
+| `Telemetry.setStandardEnabled(bool)` | 应用 / 扩展可控制（用户的设置优先） |
+| `Telemetry.setEnhancedEnabled(bool)` | 需要用户明确选择加入 |
+| `Telemetry.startContentDiagnostics(scope, lifetime)` | 返回 `DiagnosticsSession` 令牌 |
+| `Telemetry.stopContentDiagnostics(token)` | 立即停止并清空队列 |
+| `Telemetry.exportUserData()` | GDPR / CCPA 导出（JSON） |
+| `Telemetry.deleteUserData()` | 完全清除（“必需”类别除外） |
 
-### 5.3 Enterprise Controls (Suite/Managed)
+> 注：以上 API 在本仓库中尚未实现（计划中）。
 
-- **Organization Policy:** Admin can enforce telemetry settings via Managed Config.
-- **Data Residency:** Enterprise chooses telemetry endpoint region (EU, US, APAC).
-- **Audit Log:** All telemetry config changes logged to Authority Ledger.
+### 5.3 企业控制（Suite / 托管服务）
+
+- **组织策略：** 管理员可通过托管配置强制执行遥测设置。
+- **数据驻留：** 企业可选择遥测端点区域（欧盟、美国、亚太）。
+- **审计日志：** 所有遥测配置变更均记录于权威台账。
 
 ---
 
-## 6. Data Processing & Storage
+## 6. 数据处理与存储
 
-### 6.1 Pipeline Architecture
+### 6.1 流水线架构
 
 ```text
-Device (Local Processing)
+设备（本地处理）
       ↓
-Batch + Encrypt (AES-256-GCM, per-session key)
+批量 + 加密（AES-256-GCM，每会话密钥）
       ↓
-HTTPS → Telemetry Ingestion (Delta-operated)
+HTTPS → 遥测摄取（由 Delta 运营）
       ↓
-Decrypt → Validate Schema → Anonymize (strip residual PII)
+解密 → 校验 Schema → 匿名化（清除残留个人信息）
       ↓
-Aggregate (no raw events stored > 30 days)
+聚合（原始事件存储不超过 30 天）
       ↓
-Analytics Warehouse (access-controlled)
+分析数据仓库（受访问控制）
 ```
 
-### 6.2 Retention Schedule
+### 6.2 留存时间表
 
-| Data Type | Raw Retention | Aggregated Retention |
+| 数据类型 | 原始数据留存 | 聚合数据留存 |
 |-----------|---------------|---------------------|
-| Standard Telemetry | 30 days | 13 months |
-| Enhanced Telemetry | 30 days | 13 months |
-| Content Diagnostics | Per user lifetime (max 30 days) | Never aggregated |
-| Crash Reports | 90 days | 13 months (aggregated) |
-| Consent Ledger | Indefinite (Authority Ledger) | — |
+| 标准遥测 | 30 天 | 13 个月 |
+| 增强遥测 | 30 天 | 13 个月 |
+| 内容诊断 | 按用户设定的时效（最长 30 天） | 从不聚合 |
+| 崩溃报告 | 90 天 | 13 个月（聚合后） |
+| 同意台账 | 无限期（权威台账） | — |
 
-### 6.3 Access Control
+### 6.3 访问控制
 
-| Role | Access |
-|------|--------|
-| **Telemetry Engineering** | Aggregated dashboards only |
-| **Security Team** | Crash reports + Content Diagnostics (ticketed) |
-| **Product Management** | Aggregated dashboards only |
-| **Support** | User's own data (with user consent) |
-| **Legal/Compliance** | Audit logs only |
+| 角色 | 访问权限 |
+|------|----------|
+| **遥测工程** | 仅限聚合仪表盘 |
+| **安全团队** | 崩溃报告 + 内容诊断（须工单审批） |
+| **产品管理** | 仅限聚合仪表盘 |
+| **支持** | 用户自身的数据（经用户同意） |
+| **法务 / 合规** | 仅限审计日志 |
 
 ---
 
-## 7. Compliance
+## 7. 合规
 
-### 7.1 Regulations Addressed
+### 7.1 涉及的法规
 
-| Regulation | Applicability | Delta Approach |
+| 法规 | 适用范围 | Delta 的做法 |
 |------------|---------------|----------------|
-| **GDPR** (EU) | Global (users in EU) | Lawful basis: Legitimate Interest (Standard) / Consent (Enhanced/Content); DPO appointed; Art. 28 processors |
-| **CCPA/CPRA** (California) | Users in CA | Opt-out = "Do Not Sell" honored; deletion API; no sale |
-| **LGPD** (Brazil) | Users in BR | Similar to GDPR |
-| **PIPL** (China) | Users in CN | Local data residency option (Suite); consent management |
-| **ePrivacy** (EU) | Cookies/Trackers | No cookies; local storage only for telemetry config |
+| **GDPR**（欧盟） | 全球（欧盟用户） | 法律依据：标准遥测为合法利益（Legitimate Interest）；增强 / 内容为同意（Consent）；任命数据保护官（DPO）；第 28 条处理者 |
+| **CCPA / CPRA**（加州） | 加州用户 | 尊重选择退出（“不出售”）；提供删除 API；不出售数据 |
+| **LGPD**（巴西） | 巴西用户 | 与 GDPR 相似 |
+| **PIPL**（中国） | 中国用户 | 本地数据驻留选项（Suite）；同意管理 |
+| **ePrivacy**（欧盟） | Cookie / 追踪器 | 不使用 Cookie；仅将遥测配置存于本地存储 |
 
-### 7.2 Data Processing Agreement (DPA)
+### 7.2 数据处理协议（DPA）
 
-- **Standard Telemetry:** Legitimate Interest assessment documented; no DPA required for users.
-- **Enterprise Customers:** DPA included in Commercial Agreement (Suite/Managed).
-- **Subprocessors:** Published list (ingestion hosting, analytics warehouse); 30-day notice for changes.
+- **标准遥测：** 已记录合法利益评估；用户无需签订 DPA。
+- **企业客户：** DPA 包含在商业协议中（Suite / 托管服务）。
+- **分包处理方：** 公布列表（摄取托管、分析数据仓库）；变更须提前 30 天通知。
 
-### 7.3 Data Subject Rights
+### 7.3 数据主体权利
 
-| Right | Implementation |
+| 权利 | 实施方式 |
 |-------|----------------|
-| **Access** | `Telemetry.exportUserData()` → JSON download |
-| **Rectification** | N/A (telemetry immutable); can supplement via Support |
-| **Erasure** | `Telemetry.deleteUserData()` + backend purge (30 days) |
-| **Restriction** | Toggle off Standard/Enhanced; Content Diagnostics auto-expires |
-| **Portability** | Export includes schema; machine-readable |
-| **Objection** | Opt-out toggles = objection honored immediately |
+| **访问权** | `Telemetry.exportUserData()` → JSON 下载 |
+| **更正权** | 不适用（遥测数据不可变）；可通过支持渠道补充信息 |
+| **删除权** | `Telemetry.deleteUserData()` + 后端清除（30 天） |
+| **限制处理权** | 关闭标准 / 增强遥测；内容诊断自动到期 |
+| **可携带权** | 导出包含 Schema；机器可读 |
+| **反对权** | 选择退出开关 = 立即执行反对 |
 
 ---
 
-## 8. Transparency & Accountability
+## 8. 透明与问责
 
-### 8.1 Public Artifacts
+### 8.1 公开产物
 
-| Artifact | Location | Update Frequency |
+| 产物 | 位置 | 更新频率 |
 |----------|----------|------------------|
-| **Telemetry Schema** | `docs/telemetry/schema.json` | Per release |
-| **Data Dictionary** | `docs/telemetry/data-dictionary.md` | Per release |
-| **Transparency Report** | `https://delta.example.com/transparency` | Annual |
-| **DPIA Summary** | `docs/privacy/dpia-summary.md` | Per major change |
+| **遥测 Schema** | `docs/telemetry/schema.json`（计划中，尚未创建） | 每个发布版本 |
+| **数据字典** | `docs/telemetry/data-dictionary.md`（计划中，尚未创建） | 每个发布版本 |
+| **透明度报告** | `https://delta.example.com/transparency`（计划中，占位地址） | 每年 |
+| **DPIA 摘要** | `docs/privacy/dpia-summary.md`（计划中，尚未创建） | 每次重大变更 |
 
-### 8.2 Transparency Report Contents
+### 8.2 透明度报告内容
 
-- Total events ingested (by category).
-- Government requests (count, type, compliance rate).
-- Security incidents involving telemetry data.
-- Policy changes.
-- Retention compliance audit results.
+- 按类别统计的遥测事件摄取总数。
+- 政府请求（数量、类型、合规率）。
+- 涉及遥测数据的安全事件。
+- 策略变更。
+- 留存合规审计结果。
 
 ---
 
-## 9. Managed Services Telemetry
+## 9. 托管服务遥测
 
-### 9.1 Managed Connect / Sync / Relay
+### 9.1 托管 Connect / Sync / Relay
 
-| Component | Telemetry | User Visibility |
+| 组件 | 遥测 | 用户可见性 |
 |-----------|-----------|-----------------|
-| **Relay** | Connection count, bandwidth, latency, error rates | Admin dashboard (Enterprise) |
-| **Managed Sync** | Sync duration, bytes, conflict count, device count | Admin dashboard |
-| **Managed Connect** | OAuth flow success/failure, token refresh rate | Admin dashboard |
+| **Relay** | 连接数、带宽、延迟、错误率 | 管理员仪表盘（企业） |
+| **托管 Sync** | 同步耗时、字节数、冲突数、设备数 | 管理员仪表盘 |
+| **托管 Connect** | OAuth 流程成功 / 失败、令牌刷新率 | 管理员仪表盘 |
 
-**Principles:**
-- **No content** ever logged by Managed Services.
-- **E2EE preserved:** Relay never sees plaintext (Arch Gov §41).
-- **Admin-only access:** End users' telemetry not visible to org admins.
+**原则：**
+- 托管服务**绝不记录任何内容**。
+- **端到端加密保持不变：** Relay 永远看不到明文（架构治理 §41）。
+- **仅管理员可访问：** 终端用户的遥测对组织管理员不可见。
 
 ---
 
-## 10. Third-Party Integrations
+## 10. 第三方集成
 
-| Integration | Data Shared | User Control |
+| 集成 | 共享的数据 | 用户控制 |
 |-------------|-------------|--------------|
-| **Error Tracking (Sentry)** | Crash reports (opt-in) | Disable in Privacy settings |
-| **Analytics (Custom)** | Standard/Enhanced aggregates | Opt-out = no send |
-| **Update Checks** | Version, platform | Required (security) |
+| **错误追踪（Sentry）** | 崩溃报告（选择加入） | 在隐私设置中关闭 |
+| **分析（自研）** | 标准 / 增强的汇总数据 | 选择退出 = 不发送 |
+| **更新检查** | 版本、平台 | 必需（出于安全） |
 
-**No third-party analytics by default.** All integrations opt-in or enterprise-configured.
+**默认不使用第三方分析。** 所有集成均须选择加入或由企业配置。
 
 ---
 
-## 11. Audit & Enforcement
+## 11. 审计与执行
 
-### 11.1 Internal Audits
+### 11.1 内部审计
 
-| Audit | Frequency | Owner |
+| 审计 | 频率 | 负责人 |
 |-------|-----------|-------|
-| **Schema Compliance** | Per release (CI) | Telemetry Engineering |
-| **PII Scan** | Weekly (automated) | Security Team |
-| **Retention Compliance** | Quarterly | Privacy Officer |
-| **Consent Validity** | Monthly (sample) | Privacy Officer |
+| **Schema 合规** | 每个发布版本（CI） | 遥测工程 |
+| **个人信息扫描** | 每周（自动） | 安全团队 |
+| **留存合规** | 每季度 | 隐私官 |
+| **同意有效性** | 每月（抽样） | 隐私官 |
 
-### 11.2 Violation Response
+### 11.2 违规响应
 
-| Violation | Response |
+| 违规情形 | 响应 |
 |-----------|----------|
-| Accidental PII in Standard | Immediate purge; incident report; user notification if identifiable |
-| Content Diagnostics beyond scope | Immediate stop; purge; user notification |
-| Retention exceeded | Purge; process fix; transparency report note |
-| Unauthorized access | Security incident response (Security Governance) |
+| 标准遥测中意外包含个人信息 | 立即清除；事件报告；若可识别身份则通知用户 |
+| 内容诊断超出授权范围 | 立即停止；清除；通知用户 |
+| 超出留存期限 | 清除；改进流程；在透明度报告中注明 |
+| 未经授权的访问 | 按安全治理进行安全事件响应 |
 
 ---
 
-## 12. Version History
+## 12. 版本历史
 
-| Version | Date | Author | Change |
+| 版本 | 日期 | 作者 | 变更 |
 |---------|------|--------|--------|
-| v1.0 | 2026-09-17 | Privacy Officer + ARB | Initial baseline |
+| v1.0 | 2026-09-17 | 隐私官 + ARB | 初始基线 |
 
 ---
 
-**End of Document**
+**文档结束**

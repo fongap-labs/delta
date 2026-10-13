@@ -1,58 +1,52 @@
-# Delta Release and Compatibility Governance
+# Delta 发布与兼容性治理（Release & Compatibility Governance）
 
-**Version:** v1.1  
-**Status:** Governance Baseline  
-**Scope:** Delta Foundation, public SDK/contracts and optional extensions.
+**版本：** v1.1
+**状态：** 治理基线
+**范围：** Delta Foundation、公开 SDK / 合同，以及可选扩展。
 
-## 1. Version authorities
+本文是 Delta 发布与兼容性的基线，规定各组件的版本权威、公开合同兼容性、发布检查、扩展发布、清单与 ABI 版本，以及发布规则。
 
-Foundation, SDK/contracts and extensions may have independent semantic versions.
-They are not required to release together.
+## 1. 版本权威
 
-A Foundation patch that does not break public contracts must not force every
-extension to publish a new version.
+Foundation、SDK / 合同与扩展可以各自拥有独立的语义化版本（SemVer）。它们不要求同步发布。
 
-## 2. Public contract compatibility
+Foundation 的补丁版本若不破坏公开合同，则不得强制每个扩展都发布新版本。
 
-Extensions declare the Foundation/public-contract range they support. Production
-CI resolves a pinned released version or immutable commit/ref inside that range.
+## 2. 公开合同兼容性
 
-Do not make production compatibility depend on an unpinned `main` branch.
+扩展声明其支持的 Foundation / 公开合同范围。生产环境 CI 应在该范围内解析出固定的已发布版本或不可变的 commit / 引用。
 
-Breaking changes to public extension contracts require a major compatibility
-boundary or an explicit migration path.
+不得让生产环境兼容性依赖于未固定版本的 `main` 分支。
 
-## 3. Foundation release
+公开扩展合同的破坏性变更，需要一个主版本级的兼容性边界，或一条明确的迁移路径。
 
-Foundation release checks cover:
+## 3. Foundation 发布
 
-- format/lint/static analysis;
-- Rust and application tests;
-- public contract tests;
-- architecture and license policy;
-- Foundation build/package smoke tests.
+Foundation 发布检查涵盖：
 
-Foundation release CI never requires private repositories, private package
-registries or optional-extension credentials.
+- 格式化 / lint / 静态分析；
+- Rust 与应用测试；
+- 公开合同测试；
+- 架构与许可证策略；
+- Foundation 构建 / 打包冒烟测试。
 
-## 4. Extension release
+Foundation 发布 CI 绝不要求私有仓库、私有包注册中心或可选扩展的凭据。
 
-An extension release verifies:
+## 4. 扩展发布
 
-- its declared Foundation compatibility;
-- public-contract and manifest conformance;
-- extension-local unit/integration tests;
-- packaging and provenance rules appropriate to that extension.
+扩展发布需验证：
 
-Latest-main testing may be run separately as an early warning and must not
-silently change the production compatibility target.
+- 其声明的 Foundation 兼容性；
+- 公开合同与清单的一致性；
+- 扩展自身的单元 / 集成测试；
+- 适用于该扩展的打包与来源证明规则。
 
-## 5. Manifest and ABI versions
+最新 main 分支的测试可以单独运行，作为早期预警，但不得悄然改变生产环境的兼容性目标。
 
-Wire protocols and manifests carry explicit versions. Unsupported versions fail
-closed at the extension boundary without preventing Foundation from starting.
+## 5. 清单与 ABI 版本
 
-## 6. Release rule
+线协议（wire protocol）与清单须携带明确的版本号。不受支持的版本在扩展边界处以失败即关闭（fail closed）的方式拒绝，且不得阻止 Foundation 启动。
 
-The compatibility contract is public and versioned; implementation repositories
-and release cadences remain independent.
+## 6. 发布规则
+
+公开且带版本的兼容性合同，是唯一的兼容性依据；实现仓库与发布节奏保持相互独立。

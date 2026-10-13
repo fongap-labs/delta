@@ -176,4 +176,4 @@ macOS：当前 `tauri.conf.json` 与 CI 都没有 `signingIdentity` 或公证（
 7. ZIP 在签名完成后生成
 8. SHA-256 基于最终 ZIP 生成
 
-签名逻辑应集中在 Release workflow 中维护，避免开发机和 CI 使用不同的正式发行流程。
+签名逻辑应集中维护在 `packaging/portable/sign-windows.ps1` 中，由 `build-portable.ps1` 与 `.github/scripts/release-build.ps1` 统一调用，避免开发机和 CI 使用不同的正式发行流程。

@@ -1,39 +1,39 @@
-# ADR-0059: Computer capabilities, in steps
+# ADR-0059：电脑能力，分步实现
 
-Status: **Accepted for steps 1 and 2** (owner, 2026-10-11, Windows first). Step 3 is **not accepted**: it needs its own decision.
+状态：**第一、二步已接受**（所有者，2026-10-11，先支持 Windows）。**第三步未接受**：它需要单独的决定。
 
-## Context
+## 背景
 
-Some office work happens in programs that offer no file or API to read: an error dialog, a legacy desktop app, a window the user is looking at. Other agents solve this with "computer use": the model sees the screen and then moves the mouse and types. That is the most powerful and the most dangerous thing an agent can do: it acts as the user, in any program, including banking, mail and chat, and what is on the screen goes to the model provider.
+有些办公工作发生在没有任何文件或 API 可以读取的程序中：一个错误对话框、一个老旧的桌面程序，或用户正在看的一个窗口。其他 Agent 通过"电脑操作（computer use）"来解决这个问题：模型看到屏幕，然后移动鼠标并输入。这是 Agent 能做的最强大、也最危险的事情：它以用户的身份在任何程序中行动，包括银行、邮件与聊天工具；而屏幕上的内容会被发送给模型提供方。
 
-The blueprint puts human control of consequences first (4.3) and requires every capability to run under Trust, Policy and Approval (section 10). The runtime today gives the model five tools plus the document and web tools of ADR-0058; it cannot look at the screen, and a tool result cannot carry a picture.
+蓝图把人对后果的控制放在首位（4.3），并要求每项能力都在 Trust、Policy 与审批之下运行（第 10 节）。目前运行时除了 ADR-0058 的文档与网页工具之外，只提供五个工具；它无法查看屏幕，工具结果也无法携带图片。
 
-## Decision
+## 决定
 
-Computer capabilities arrive in three steps. Only the first two are decided here.
+电脑能力分三步到达。本文只决定前两步。
 
-**Step 1 and 2 (built):** read-mostly capabilities, each asking the user every time (medium risk, category `computer`, so the policy never auto-allows them):
+**第一、二步（已实现）：** 以读取为主的能力，每次都询问用户（中风险，类别为 `computer`，因此策略从不自动放行）：
 
-| Tool | Does |
+| 工具 | 作用 |
 |---|---|
-| `screenshot` | One picture of the main display or all displays, shrunk to at most 1568 px on the long side, kept in `.delta/screens/<run>/` as a record of what the agent saw (deleted after 7 days), and attached to the model's next message |
-| `clipboard_read` / `clipboard_write` | Text only, up to 100,000 characters |
-| `open_file` | Opens a workspace file in the user's own program, only documents, text and common images (the list of the artifact "Open" button); anything else can only be revealed in the file manager |
-| `open_url` | Opens an `http(s)` address in the user's browser; no credentials, no other schemes |
+| `screenshot` | 对主显示器或所有显示器拍摄一张图片，缩小到长边最多 1568 px，保存在 `.delta/screens/<run>/` 中，作为智能体所见之物的记录（7 天后删除），并附加到模型的下一条消息中 |
+| `clipboard_read` / `clipboard_write` | 仅限文本，最多 100,000 个字符 |
+| `open_file` | 在用户自己的程序中打开工作区文件，仅限文档、文本与常见图片（即产出物"打开"按钮的列表）；其他文件只能在文件管理器中显示 |
+| `open_url` | 在用户的浏览器中打开 `http(s)` 地址；不带凭据，不支持其他协议 |
 
-Rules:
+规则：
 
-1. **Where the code lives.** Platform code is in its own crate, `delta-computer`, registered by the desktop app; `delta-core` and headless builds carry none of it and need no display library. Windows is implemented (GDI capture). Other systems answer "not supported yet" for screenshots; clipboard and open use cross-platform libraries.
-2. **Pictures reach the model through the transcript, not through the tool result.** A tool lists its pictures as `images: [{path}]` under `.delta/screens/`; the runtime reads them back at request time, sends only the newest two, and puts them in one user message after the last tool result (OpenAI-style APIs require tool results to stay together; Anthropic and Responses message shapes are converted the same way). A path outside `.delta/screens/`, or one that does not exist, is ignored.
-3. **Disclosure.** The approval card says what the call does and that what it sees goes to the model provider.
-4. **Vision.** The model must read images. The runtime does not know which models do; a model that cannot will make the provider refuse the request, and the error is shown.
+1. **代码位置。** 平台相关代码位于独立的 crate `delta-computer` 中，由桌面应用注册；`delta-core` 与无界面构建不包含它，也不需要显示库。Windows 已实现（GDI 截屏）。其他系统对截图回答"尚不支持"；剪贴板与打开操作使用跨平台库。
+2. **图片通过对话记录送达模型，而不是通过工具结果。** 工具将其图片列为 `images: [{path}]`，位于 `.delta/screens/` 之下；运行时在发送请求时读回它们，只发送最新的两张，并把它们放在最后一个工具结果之后的同一条用户消息中（OpenAI 风格的 API 要求工具结果保持连续；Anthropic 与 Responses 的消息格式也以同样的方式转换）。位于 `.delta/screens/` 之外的路径，或不存在的路径，都会被忽略。
+3. **披露。** 审批卡片说明该调用做什么，以及它所看到的内容会被发送给模型提供方。
+4. **视觉能力。** 模型必须能够读取图片。运行时并不知道哪些模型具备此能力；不具备的模型会使提供方拒绝请求，错误会显示出来。
 
-## Step 3 (not decided): acting on the screen
+## 第三步（未决定）：在屏幕上操作
 
-Mouse and keyboard control stays out until the owner accepts a consent design. The minimum that design must contain: a master switch in Settings that is off by default; a persistent on-screen "Delta is controlling this computer" indicator and an Esc kill switch; an allow-list of programs, with a first-use approval per program and banking, password managers and system settings refused; every step's screenshot kept; per-action approval at first and relaxation only by explicit, revocable grants; Windows UI Automation (named controls) preferred over pixel coordinates; and a verification that works on Windows, which this change could only compile for.
+在所有者接受同意机制设计之前，鼠标与键盘控制不予引入。该设计至少必须包含：默认关闭的设置总开关；持续显示的屏幕提示"Delta 正在控制这台电脑"，以及 Esc 紧急停止；程序允许列表，每个程序首次使用时需要审批，银行、密码管理器与系统设置一律拒绝；保留每一步的截图；默认每个动作都需要审批，只有通过明确的、可撤销的授权才能放宽；优先使用 Windows UI Automation（具名控件）而非像素坐标；并且有可在 Windows 上验证的方法（本次变更只能在 Windows 上编译，无法运行）。
 
-For web pages, a controlled browser that reads the page structure (the Python `integrations/connectors/browser_automation.py` is the reference) is safer and more reliable than clicking pixels, and should come before step 3.
+对于网页，读取页面结构的受控浏览器（参考 Python 的 `integrations/connectors/browser_automation.py`）比点击像素更安全、更可靠，应当先于第三步实现。
 
-## Not verified
+## 未验证事项
 
-The Windows screen capture was compiled for `x86_64-pc-windows-msvc` and its pure parts (shrinking, PNG encoding, path and address checks, the tool plumbing through a fake screen) are tested; it was never run on Windows. Capture of protected content (the lock screen, a UAC prompt, some full-screen games and DRM video) returns an error or a black picture.
+Windows 屏幕截取已为 `x86_64-pc-windows-msvc` 编译，其中纯逻辑部分（缩小、PNG 编码、路径与地址检查、通过假屏幕测试的工具接线）已有测试；但从未在 Windows 上实际运行。受保护内容（锁屏、UAC 提示、某些全屏游戏及 DRM 视频）的截取会返回错误或黑屏。

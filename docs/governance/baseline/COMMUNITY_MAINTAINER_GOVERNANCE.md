@@ -1,230 +1,234 @@
-# Delta Community & Maintainer Governance
+# Delta 社区与维护者治理（Community & Maintainer Governance）
 
-**Version:** v1.0
-**Status:** Governance Baseline — Final / Frozen
-**Scope:** Governance of the Delta open-source community, maintainer roles, decision-making processes, and conflict resolution for `fongap-labs/delta`.
+**版本：** v1.0
+**状态：** 治理基线 — 定稿 / 冻结（Final / Frozen）
+**范围：** `fongap-labs/delta` 开源社区的治理、维护者角色、决策流程与冲突解决。
 
----
-
-## 1. Purpose
-
-This document establishes the governance model for the Delta open-source project, defining roles, responsibilities, decision-making authority, and processes for community participation and leadership.
-
-> Complements **Contribution Governance** (operational PR/review process) with **strategic/people governance**.
+本文是 Delta 社区与维护者治理的基线，说明角色划分、决策流程与冲突解决方式。
 
 ---
 
-## 2. Governance Principles
+## 1. 目的
 
-| Principle | Description |
+本文件为 Delta 开源项目确立治理模型，定义角色、职责、决策权限，以及社区参与和领导力的流程。
+
+> 本文与**贡献治理**（Contribution Governance，负责日常 Pull Request（PR）/ 评审流程）互补，侧重**战略与人员治理**。
+
+---
+
+## 2. 治理原则
+
+| 原则 | 说明 |
 |-----------|-------------|
-| **Meritocracy with Guardrails** | Influence earned through contribution; bounded by Architecture Governance. |
-| **Transparent Decisions** | Public rationale for architectural/strategic decisions. |
-| **Inclusive but Decisive** | Broad input; clear ownership for final decisions. |
-| **Architecture Supremacy** | Frozen Architecture Governance (v1.0) cannot be overridden by community vote. |
-| **Commercial/Community Boundary** | Suite direction set by Fongap Labs; Foundation direction collaborative. |
+| **有护栏的精英制（Meritocracy with Guardrails）** | 影响力来自贡献，并受架构治理约束。 |
+| **决策透明（Transparent Decisions）** | 架构与战略决策须公开说明理由。 |
+| **包容但果断（Inclusive but Decisive）** | 广泛征求意见，最终决策权责清晰。 |
+| **架构至上（Architecture Supremacy）** | 已冻结的架构治理（v1.0）不得被社区投票推翻。 |
+| **商业与社区边界（Commercial/Community Boundary）** | Suite 方向由 Fongap Labs 决定；Foundation 方向协作共建。 |
 
 ---
 
-## 3. Roles & Responsibilities
+## 3. 角色与职责
 
-### 3.1 Role Definitions
+### 3.1 角色定义
 
-| Role | Scope | Selection | Term |
+| 角色 | 范围 | 产生方式 | 任期 |
 |------|-------|-----------|------|
-| **Project Lead** | Overall project health; final tie-breaker; represents Delta to external orgs | Appointed by Fongap Labs (founder) | Indefinite |
-| **Architecture Review Board (ARB)** | Architecture Governance enforcement; ADR decisions; security architecture | Project Lead + 2-4 Maintainers (invited) | Indefinite |
-| **Maintainer** | Merge rights; code review; module ownership (CODEOWNERS); release management | ARB nomination + consensus | 2 years, renewable |
-| **Security Lead** | Vulnerability response; security architecture; kill-switch authority | Project Lead appointment | Indefinite |
-| **Release Manager** | Release execution; artifact signing; rollout coordination | Rotating among Maintainers | 2 releases (~4 months) |
-| **Community Moderator** | Code of Conduct enforcement; forum/discord moderation | ARB appointment | 1 year, renewable |
-| **Contributor** | Anyone with merged PR | Automatic (merged PR) | Ongoing |
+| **项目负责人（Project Lead）** | 项目整体健康；最终裁决人；代表 Delta 对接外部组织 | 由 Fongap Labs（创始方）任命 | 不定期 |
+| **架构评审委员会（Architecture Review Board，ARB）** | 执行架构治理；ADR 决策；安全架构 | 项目负责人 + 2–4 名受邀维护者 | 不定期 |
+| **维护者（Maintainer）** | 合并权限；代码评审；模块归属（CODEOWNERS）；发布管理 | ARB 提名 + 共识 | 2 年，可续任 |
+| **安全负责人（Security Lead）** | 漏洞响应；安全架构；Kill Switch 授权 | 由项目负责人任命 | 不定期 |
+| **发布经理（Release Manager）** | 执行发布；产物签名；推出协调 | 在维护者之间轮值 | 2 个 Release（约 4 个月） |
+| **社区版主（Community Moderator）** | 执行行为准则（Code of Conduct）；论坛 / Discord 管理 | ARB 任命 | 1 年，可续任 |
+| **贡献者（Contributor）** | 任何有已合并 PR 的人 | 自动（已合并 PR 即成为贡献者） | 持续 |
 
-### 3.2 Role Boundaries
+### 3.2 角色边界
 
-| Decision | Authority | Input Required |
+| 决策 | 权限方 | 必要输入 |
 |----------|-----------|----------------|
-| **Architecture Governance changes** | ARB (unanimous) | Community discussion (14 days) |
-| **New top-level component** | ARB | ADR + implementation plan |
-| **Public contract breaking change** | ARB | Deprecation period (2 minors) |
-| **Maintainer appointment/removal** | ARB | Maintainer consensus |
-| **Security patch release** | Security Lead + Release Manager | ARB notification |
-| **Code of Conduct enforcement** | Community Moderators | Appeal to ARB |
-| **Trademark license approval** | Project Lead | Legal review |
-| **Suite strategy/direction** | Fongap Labs (commercial) | N/A (private) |
+| **架构治理变更** | ARB（一致同意） | 社区讨论（14 天） |
+| **新增顶层组件** | ARB | ADR + 实施计划 |
+| **公开合同破坏性变更** | ARB | 弃用期（2 个 minor 版本） |
+| **维护者任命 / 移除** | ARB | 维护者共识 |
+| **安全补丁发布** | 安全负责人 + 发布经理 | 通知 ARB |
+| **行为准则执行** | 社区版主 | 可向 ARB 申诉 |
+| **商标许可批准** | 项目负责人 | 法务审查 |
+| **Suite 战略 / 方向** | Fongap Labs（商业） | 不适用（非公开） |
 
 ---
 
-## 4. Decision-Making Processes
+## 4. 决策流程
 
-### 4.1 Decision Types
+### 4.1 决策类型
 
-| Type | Examples | Process |
+| 类型 | 示例 | 流程 |
 |------|----------|---------|
-| **Type 1: Architecture** | New component, contract change, authority model | ADR → ARB unanimous → Implementation |
-| **Type 2: Strategic** | Release cadence, support window, LTS policy | Proposal → Maintainer consensus → ARB ratify |
-| **Type 3: Operational** | CI config, dependency updates, bug triage | Maintainer discretion |
-| **Type 4: Community** | CoC enforcement, event sponsorship, swag | Moderator team → ARB if contested |
+| **类型 1：架构** | 新组件、合同变更、权威模型 | ADR → ARB 一致同意 → 实施 |
+| **类型 2：战略** | 发布节奏、支持窗口、LTS 策略 | 提案 → 维护者共识 → ARB 批准 |
+| **类型 3：运营** | CI 配置、依赖更新、缺陷分流 | 由维护者自行裁量 |
+| **类型 4：社区** | 行为准则执行、活动赞助、周边 | 版主团队 → 有争议时交 ARB |
 
-### 4.2 Consensus Model
+### 4.2 共识模型
 
-**Modified Consensus (for Type 1 & 2):**
-1. Proposal published (GitHub Discussion + `governance` label).
-2. **14-day discussion period** minimum.
-3. **Consensus = No sustained objection from Maintainers.**
-   - Objection must be: specific, architecture-referenced, actionable.
-   - "I don't like it" ≠ objection.
-4. If objection sustained → ARB mediates → ARB decides (unanimous required for Type 1).
-5. Decision recorded in Governance Log (`GOVERNANCE_LOG.md`).
+**修正共识制（适用于类型 1 与类型 2）：**
 
-### 4.3 Emergency Decisions
+1. 发布提案（GitHub Discussion + `governance` 标签）。
+2. **最少 14 天讨论期**。
+3. **共识 = 维护者中无持续异议。**
+   - 异议必须：具体、引用架构条款、可执行。
+   - “我不喜欢” ≠ 异议。
+4. 若异议持续，由 ARB 调解并裁决（类型 1 须一致同意）。
+5. 决策记录于治理日志（`GOVERNANCE_LOG.md`，计划中，仓库尚未创建）。
 
-| Trigger | Process | Post-Action |
+### 4.3 紧急决策
+
+| 触发情形 | 流程 | 事后动作 |
 |---------|---------|-------------|
-| Critical vulnerability | Security Lead authorizes → patch → release | ARB review within 48h |
-| Trademark infringement | Project Lead authorizes → legal action | ARB notification |
-| Infrastructure outage | Release Manager + Maintainer on-call | Postmortem within 5 days |
+| 严重漏洞 | 安全负责人授权 → 修补 → 发布 | ARB 在 48 小时内复核 |
+| 商标侵权 | 项目负责人授权 → 法律行动 | 通知 ARB |
+| 基础设施故障 | 发布经理 + 值班维护者 | 5 天内完成复盘（postmortem） |
 
 ---
 
-## 5. Maintainer Lifecycle
+## 5. 维护者生命周期
 
-### 5.1 Becoming a Maintainer
+### 5.1 成为维护者
 
-**Criteria (all required):**
-- ≥ 10 merged PRs (non-trivial) across ≥ 2 modules.
-- ≥ 6 months consistent activity.
-- Demonstrated architecture understanding (ADR participation or review).
-- Signed CLA + good CoC standing.
-- Nominated by 2+ current Maintainers.
+**条件（须全部满足）：**
+- 至少 10 个已合并的 PR（非琐碎），覆盖至少 2 个模块。
+- 至少持续活跃 6 个月。
+- 展示出对架构的理解（参与 ADR 或评审）。
+- 已签署 CLA 且行为准则记录良好。
+- 由至少 2 名现任维护者提名。
 
-**Process:**
-1. Nomination issue (`governance` label) with evidence.
-2. 14-day community comment period.
-3. ARB vote (unanimous).
-4. Onboarding: `CODEOWNERS` update, merge rights, signing keys, mentor assigned (3 months).
+**流程：**
+1. 附证据的提名 issue（`governance` 标签）。
+2. 14 天社区评论期。
+3. ARB 投票（一致同意）。
+4. 入职：更新 `CODEOWNERS`、授予合并权限、签名密钥、指定导师（3 个月）。
 
-### 5.2 Maintainer Expectations
+### 5.2 维护者职责
 
-| Expectation | Minimum |
-|-------------|---------|
-| **Review load** | 2 PRs/week (average) |
-| **Architecture participation** | Attend ARB meetings (bi-weekly) or async review |
-| **Release rotation** | Serve as Release Manager once per 2-year term |
-| **Security awareness** | Complete annual secure code review training |
-| **Community health** | Mentor 1+ new contributor per year |
+| 职责 | 最低要求 |
+|-------------|-------------|
+| **评审工作量** | 平均每周 2 个 PR |
+| **参与架构工作** | 参加 ARB 会议（每两周一次）或异步评审 |
+| **发布轮值** | 每个 2 年任期内担任一次发布经理 |
+| **安全意识** | 每年完成安全代码评审培训 |
+| **社区健康** | 每年指导至少 1 名新贡献者 |
 
-### 5.3 Maintainer Emeritus / Removal
+### 5.3 荣誉维护者 / 移除
 
-| Scenario | Process |
-|----------|---------|
-| **Voluntary step-down** | Notify ARB → Emeritus status (honorary, no merge rights) |
-| **Inactivity (6 months)** | ARB notice → 30-day grace → Emeritus if no response |
-| **CoC violation** | Moderator investigation → ARB vote (supermajority 2/3) → Removal |
-| **Architecture violation** | ARB investigation → ARB vote (unanimous) → Removal |
+| 情形 | 流程 |
+|----------|----------|
+| **主动卸任** | 通知 ARB → 转为荣誉维护者（仅荣誉，无合并权限） |
+| **不活跃（6 个月）** | ARB 通知 → 30 天宽限期 → 无回应则转为荣誉维护者 |
+| **违反行为准则** | 版主调查 → ARB 投票（三分之二多数）→ 移除 |
+| **违反架构约束** | ARB 调查 → ARB 投票（一致同意）→ 移除 |
 
-> **Removal is rare.** Focus on coaching first. Emeritus retain community recognition.
-
----
-
-## 6. Community Participation
-
-### 6.1 Channels
-
-| Channel | Purpose | Governance |
-|---------|---------|------------|
-| **GitHub Discussions** | Design proposals, Q&A, announcements | ARB monitors; `governance` label for decisions |
-| **GitHub Issues** | Bug reports, feature requests | Triage by Maintainers |
-| **Discord / Matrix** | Real-time chat, support, social | Moderators enforce CoC |
-| **Mailing List** (`community@delta.example.com`) | Formal announcements, security advisories | Read-only for most; ARB posts |
-| **Bi-weekly Community Call** | Sync, demos, Q&A | Open; notes published |
-
-### 6.2 Contributor Recognition
-
-| Tier | Criteria | Recognition |
-|------|----------|-------------|
-| **Contributor** | 1+ merged PR | `CONTRIBUTORS.md`; release notes mention |
-| **Active Contributor** | 5+ PRs/year; helps review | Discord role; swag eligibility |
-| **Core Contributor** | 10+ PRs/year; module expertise | Maintainer nomination fast-track; direct ARB access |
-| **Hall of Fame** | Sustained impact (years) | Annual blog post; permanent credits |
+> **移除属于罕见情形。** 优先辅导。荣誉维护者保留社区认可。
 
 ---
 
-## 7. Conflict Resolution
+## 6. 社区参与
 
-### 7.1 Technical Disputes
+### 6.1 渠道
 
-1. **Discuss in PR/Issue** → reference Architecture Governance.
-2. **Escalate to ARB** if unresolved in 5 business days.
-3. **ARB Decision** → recorded in ADR or Governance Log.
-4. **Appeal** → Project Lead (final).
+| 渠道 | 用途 | 治理方式 |
+|---------|------------|------------|
+| **GitHub Discussions** | 设计提案、问答、公告 | ARB 监督；决策使用 `governance` 标签 |
+| **GitHub Issues** | 缺陷报告、功能请求 | 由维护者分流 |
+| **Discord / Matrix** | 实时聊天、支持、社交 | 版主执行行为准则 |
+| **邮件列表**（`community@delta.example.com`，占位地址） | 正式公告、安全通告 | 多数人只读；由 ARB 发布 |
+| **双周社区例会** | 同步进展、演示、问答 | 公开；发布会议纪要 |
 
-### 7.2 Governance Disputes
+### 6.2 贡献者认可
 
-1. **Mediation** by neutral Maintainer.
-2. **ARB Hearing** (both parties present).
-3. **ARB Decision** (unanimous) → binding.
-4. **Final Appeal** → Project Lead.
+| 等级 | 条件 | 认可方式 |
+|------|----------|----------|
+| **贡献者** | 至少 1 个已合并 PR | 列入 `CONTRIBUTORS.md`（计划中，仓库尚未创建）；发布说明中提及 |
+| **活跃贡献者** | 每年 5 个以上 PR；协助评审 | Discord 角色；周边兑换资格 |
+| **核心贡献者** | 每年 10 个以上 PR；具备模块专长 | 快速通道获得维护者提名；可直接接触 ARB |
+| **名人堂** | 长期持续的影响力（数年） | 年度博客文章；永久署名 |
 
-### 7.3 Commercial vs. Community Tension
+---
 
-| Situation | Resolution |
+## 7. 冲突解决
+
+### 7.1 技术争议
+
+1. **在 PR / Issue 中讨论** → 引用架构治理。
+2. 若 5 个工作日内未解决，**升级至 ARB**。
+3. **ARB 裁决** → 记录于 ADR 或治理日志。
+4. **申诉** → 项目负责人（终局裁决）。
+
+### 7.2 治理争议
+
+1. 由中立的维护者**调解**。
+2. **ARB 听证**（双方均须到场）。
+3. **ARB 裁决**（一致同意）→ 具有约束力。
+4. **终局申诉** → 项目负责人。
+
+### 7.3 商业与社区的张力
+
+| 情形 | 处理方式 |
 |-----------|------------|
-| Community wants Suite feature in Foundation | ARB evaluates: if architectural boundary violated → stays in Suite |
-| Suite change breaks Foundation compatibility | ARB blocks Suite release until compatible |
-| Contributor builds Suite-parity feature in Foundation | ARB evaluates: if blurs commercial boundary → redirect to Suite or reject |
+| 社区希望将 Suite 功能纳入 Foundation | ARB 评估：若违反架构边界 → 留在 Suite |
+| Suite 变更破坏 Foundation 兼容性 | ARB 阻止 Suite 发布，直至恢复兼容 |
+| 贡献者在 Foundation 中构建与 Suite 同等的功能 | ARB 评估：若模糊了商业边界 → 引导至 Suite 或拒绝 |
 
-> **Architecture Governance is the tie-breaker.** Commercial differentiation is a valid architectural concern.
+> **架构治理是最终裁决依据。** 商业差异化是合理的架构关注点。
 
 ---
 
-## 8. Funding & Sustainability
+## 8. 资金与可持续性
 
-### 8.1 Project Funding Sources
+### 8.1 项目资金来源
 
-| Source | Use | Governance |
+| 来源 | 用途 | 治理方式 |
 |--------|-----|------------|
-| **Fongap Labs Commercial Revenue** | Core team salaries, infrastructure, security audits | Fongap Labs controls; transparency report annually |
-| **GitHub Sponsors / Open Collective** | Community events, bounties, swag | Community Moderators allocate; ARB oversight |
-| **Enterprise Support Contracts** | Dedicated engineering, SLA | Fongap Labs sales; no community governance |
+| **Fongap Labs 商业收入** | 核心团队薪资、基础设施、安全审计 | 由 Fongap Labs 控制；每年发布透明度报告 |
+| **GitHub Sponsors / Open Collective** | 社区活动、赏金、周边 | 由社区版主分配；ARB 监督 |
+| **企业支持合同** | 专属工程、SLA | 由 Fongap Labs 销售负责；不受社区治理 |
 
-### 8.2 Financial Transparency
+### 8.2 财务透明
 
-- **Annual Transparency Report:** Revenue sources, expense categories, reserve status.
-- **No individual salaries disclosed.**
-- **Community funds** tracked in Open Collective (public ledger).
+- **年度透明度报告：** 收入来源、支出类别、储备状况。
+- **不披露个人薪资。**
+- **社区资金**记录于 Open Collective（公开账本）。
 
 ---
 
-## 9. Governance Evolution
+## 9. 治理演进
 
-### 9.1 Amending This Document
+### 9.1 修订本文件
 
-- **Type 1 (Architecture-linked):** ARB unanimous + 30-day community notice.
-- **Type 2 (Process):** Maintainer consensus + ARB ratify.
-- **Type 3 (Administrative):** Project Lead + 1 Maintainer.
+- **类型 1（与架构相关）：** ARB 一致同意 + 30 天社区公告。
+- **类型 2（流程）：** 维护者共识 + ARB 批准。
+- **类型 3（行政性）：** 项目负责人 + 1 名维护者。
 
-### 9.2 Governance Log
+### 9.2 治理日志
 
-All decisions recorded in `GOVERNANCE_LOG.md`:
+所有决策记录于 `GOVERNANCE_LOG.md`（计划中，仓库尚未创建），格式如下：
+
 ```markdown
-## YYYY-MM-DD: Decision Title
-**Type:** 1/2/3/4
-**Proposal:** #discussion-number
-**Decision:** Accepted / Rejected / Modified
-**Rationale:** <link to Architecture Governance section>
-**Votes:** Maintainer1 ✅, Maintainer2 ✅, Maintainer3 ❌ (objection: ...)
-**ARB:** Lead ✅, Member1 ✅, Member2 ✅
+## YYYY-MM-DD：决策标题
+**类型：** 1/2/3/4
+**提案：** #discussion-number
+**决定：** 接受 / 拒绝 / 修改
+**理由：** <链接至架构治理相应章节>
+**投票：** Maintainer1 ✅, Maintainer2 ✅, Maintainer3 ❌（异议：...）
+**ARB：** Lead ✅, Member1 ✅, Member2 ✅
 ```
 
 ---
 
-## 10. Version History
+## 10. 版本历史
 
-| Version | Date | Author | Change |
+| 版本 | 日期 | 作者 | 变更 |
 |---------|------|--------|--------|
-| v1.0 | 2026-09-17 | Project Lead + ARB | Initial baseline |
+| v1.0 | 2026-09-17 | 项目负责人 + ARB | 初始基线 |
 
 ---
 
-**End of Document**
+**文档结束**

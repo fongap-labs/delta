@@ -260,7 +260,7 @@ Delta 不以软件开发作为产品方向，不建设：
 
 已有 Coding 专用产品面后续按真实依赖逐步缩小、隔离或移除。
 
-### 3.2 保留 Scripting
+### 3.2 保留脚本能力（Scripting）
 
 为完成三类工作，Delta 可以编写、执行、检查和修正：
 
@@ -304,13 +304,13 @@ Provider 聚合、多 Key、权重、fallback、额度和复杂路由继续外�
 
 ### 4.1 本地优先
 
-核心运行时、工作状态、密钥、审批、Sources、Artifacts、Memory、Skills 和 Learning state 默认保存在本地或用户明确控制的位置。
+核心运行时、工作状态、密钥、审批、来源（Sources）、成果物（Artifacts）、记忆（Memory）、Skill 与 Learning 状态，默认保存在本地或用户明确控制的位置。
 
 网络是能力，不是本地工作系统的前置依赖。
 
 ### 4.2 成果优先
 
-对话只是交互方式。真实目标是 Deliverable。
+对话只是交互方式。真实目标是交付物（Deliverable）。
 
 典型成果包括：
 
@@ -345,7 +345,7 @@ Provider 聚合、多 Key、权重、fallback、额度和复杂路由继续外�
 
 长任务可以暂停、等待、取消、重启和继续。
 
-恢复不能重放已经提交的高后果副作用，也不能把 uncertain 动作当作成功。
+恢复不能重放已经提交的高后果副作用，也不能把状态不确定（uncertain）的动作当作成功。
 
 ### 4.6 可复盘
 
@@ -357,7 +357,7 @@ Delta 应能够回答：
 - 调用了哪些模型、工具和脚本；
 - 哪些动作需要审批；
 - 哪些数据和试验产生了结论；
-- 哪一步失败或被 Steering；
+- 哪一步失败或被用户实时调整（Steer）；
 - 最终交付什么；
 - 如何验证。
 
@@ -380,13 +380,13 @@ Delta 不再使用旧的 Workspace / Orchestration / Learning / Source / Context
 
 | 模块 | 长期职责 | 主要语言 |
 | --- | --- | --- |
-| **Experience** | UI、进度、Steering、Approval、预览、编辑、设置 | TypeScript |
-| **Runtime** | Session / Run / Turn、Agent loop、Context、Model、Tool dispatch、Resume | Rust |
-| **Trust** | Policy、Risk、Approval、Ledger、Idempotency、Secrets、Sandbox | Rust |
-| **Work** | Workspace、Source、Citation、Artifact、Version、Validation、Provenance | Rust |
-| **Capability** | Tool / Skill / Worker / Office / Research / Media / MCP / Connector capability | Rust Host + Workers |
-| **Automation** | Scheduler、Wake、Inbox、Notifications、Background / inbound trigger | Rust authority |
-| **Learning** | Memory、Preference、Experience、Failure Memory、Skill Evaluation / Promotion | Rust authority |
+| **Experience**（体验层） | UI、进度、实时调整（Steer）、审批、预览、编辑、设置 | TypeScript |
+| **Runtime**（运行时） | 会话 / 运行 / 轮次（Session / Run / Turn）、Agent 循环、上下文、模型调用、工具分发（Tool dispatch）、恢复 | Rust |
+| **Trust**（信任） | 策略（Policy）、风险、审批、账本（Ledger）、幂等、密钥、沙箱 | Rust |
+| **Work**（工作） | 工作区、来源、引用、成果物、版本、验证、来源证明（Provenance） | Rust |
+| **Capability**（能力） | 工具、Skill、Worker，以及办公、研究、媒体、MCP、连接器等能力 | Rust Host + Workers |
+| **Automation**（自动化） | 调度器、唤醒、收件箱、通知、后台任务与入站触发 | Rust 权威 |
+| **Learning**（学习） | 记忆、偏好、经验、失败记忆、Skill 评估与晋级 | Rust 权威 |
 
 这仍然是七个模块，但数字不是设计目标。以后如果真实职责证明需要合并或拆分，可以通过 ADR 调整。
 
@@ -406,10 +406,10 @@ Capability 是执行能力。
 
 可能来自：
 
-- Rust Native Tool；
+- Rust 原生工具（Native Tool）；
 - Python / PowerShell / Shell Worker；
 - MCP；
-- Connector；
+- 连接器（Connector）；
 - 外部图片 / 视频 / Office / Research 服务。
 
 Capability 必须服从统一 Run、Trust、Workspace Boundary、Artifact 和 Validation。
@@ -509,9 +509,9 @@ Skill 的自动晋级必须有证据、Evaluation 和明确治理；高后果领
 Rust + TypeScript
 ```
 
-TypeScript = Experience。
+TypeScript = Experience（体验层）。
 
-Rust = Runtime + Trust + Work + Automation + Learning authority + Capability Host。
+Rust = Runtime、Trust、Work、Automation 与 Learning 的权威，以及 Capability Host（能力宿主）。
 
 ### 8.2 Python / R / PowerShell / Shell
 
@@ -521,15 +521,15 @@ R 只作为统计计算引擎，由 Rust 原生能力直接调用；正式成果
 
 Worker 必须满足：
 
-- scoped input；
-- scoped output / staging；
-- timeout / cancel；
-- process supervision；
-- least privilege；
-- network grant；
-- structured result；
+- 限定范围的输入（scoped input）；
+- 限定范围的输出与暂存区（scoped output / staging）；
+- 超时与取消（timeout / cancel）；
+- 进程监管（process supervision）；
+- 最小权限（least privilege）；
+- 网络授权（network grant）；
+- 结构化结果（structured result）；
 - 无核心数据库写权限；
-- 无 Session / Run / Approval authority。
+- 无 Session / Run / Approval 的权威。
 
 ### 8.3 模块化单体
 
