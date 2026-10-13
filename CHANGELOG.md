@@ -209,4 +209,5 @@ Initial Delta release.
 - Versioned Rust and Python worker contracts at the 0.1.0 baseline.
 - Repository governance and authority cleanup aligned to the initial 0.1.0 release surface.
  
+ #   t r i g g e r  
  
