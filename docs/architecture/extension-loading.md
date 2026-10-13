@@ -60,7 +60,7 @@ Foundation 仓库中并不存在 entry-point 加载代码（见 `docs/architectu
 
 本次为落实决定所做的最小修改：
 
-- `contracts/README.md` 规则 3 改为引用清单目录，并说明 entry point 不是激活机制；
+- `contracts/CONTRACT_RULES.md` 稳定性规则 3 改为引用清单目录，并说明 entry point 不是激活机制；
 - `scripts/check_architecture_boundary.py`：把 `entry-point-consistency` 规则（要求组名为 `delta.extensions`）替换为 `entry-point-discovery`（禁止 entry-point 注册）；当前仓库没有任何匹配，检查通过；
 - `docs/architecture/repository-layout.md` 中的过时说明改为指向本文。
 

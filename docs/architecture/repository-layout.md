@@ -84,7 +84,7 @@ delta-artifact
 | 目录 | 当前职责 |
 | --- | --- |
 | `apps/` | 用户可运行的应用（当前为 `apps/desktop/`） |
-| `contracts/` | 版本化的跨进程 / 跨仓库合同定义（当前仅含 `README.md`；JSON Schema 位于 `schemas/`） |
+| `contracts/` | 版本化的跨进程 / 跨仓库合同定义（`README.md` 为中文说明，`CONTRACT_RULES.md` 为英文机器读取规则；JSON Schema 位于 `schemas/`） |
 | `core/` | 少量 Python 辅助代码（`roots.py`、`pdf_support.py`），不再承载 Runtime |
 | `crates/` | Rust workspace crates（`delta-core`、`delta-computer`、`delta-stt`、`delta-sdk` 等） |
 | `delta_extension_api/` | 面向已安装扩展的稳定 Python 扩展 API |
