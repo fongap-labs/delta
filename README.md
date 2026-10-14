@@ -6,18 +6,22 @@
 
 本地优先的个人 AI 工作助手，专注于日常办公、研究分析与内容创作。
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-286F78?style=flat-square&labelColor=1D3F45)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.12-3E7F86?style=flat-square&labelColor=1D3F45)](.python-version)
-[![Node.js](https://img.shields.io/badge/Node.js-22-4E7C6F?style=flat-square&labelColor=1D3F45)](.nvmrc)
-[![Rust](https://img.shields.io/badge/Rust-stable-8C6D3F?style=flat-square&labelColor=1D3F45)](rust-toolchain.toml)
-[![Tauri](https://img.shields.io/badge/Tauri-2-2D5C6B?style=flat-square&labelColor=1D3F45)](apps/desktop)
-[![Status](https://img.shields.io/badge/Status-pre--release-7A5C2E?style=flat-square&labelColor=1D3F45)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/License-Apache%202.0-286F78?style=flat-square&labelColor=1D3F45)](LICENSE) [![Python](https://img.shields.io/badge/Python-3.12-3E7F86?style=flat-square&labelColor=1D3F45)](.python-version) [![Node.js](https://img.shields.io/badge/Node.js-22-4E7C6F?style=flat-square&labelColor=1D3F45)](.nvmrc) [![Rust](https://img.shields.io/badge/Rust-stable-8C6D3F?style=flat-square&labelColor=1D3F45)](rust-toolchain.toml) [![Tauri](https://img.shields.io/badge/Tauri-2-2D5C6B?style=flat-square&labelColor=1D3F45)](apps/desktop) [![Status](https://img.shields.io/badge/Status-pre--release-7A5C2E?style=flat-square&labelColor=1D3F45)](CHANGELOG.md) [![Release](https://img.shields.io/github/v/release/fongap-labs/delta?label=Latest&display_name=tag&sort=semver&style=flat-square&labelColor=1D3F45)](https://github.com/fongap-labs/delta/releases/latest)
 
 [快速开始](#快速开始) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
 
 </div>
 
 > 新手请从 **这是什么** 读到 **快速开始**。维护者可直接跳到 [维护者参考](#维护者参考)。
+
+## 新手使用路径
+
+| 阶段 | 目标 | 必读文档/步骤 | 预计时间 |
+| --- | --- | --- | --- |
+| 准备 | 安装依赖并下载便携包 | 快速开始 第1-2步 | 10 min |
+| 首运行 | 选择出站级别并配置第一个端点 | 快速开始 第3步 + 配置指南 | 15 min |
+| 基础使用 | 完成第一次本地任务（如周报生成） | 本节「你的第一个任务」 | 20 min |
+| 进阶 | 探索更多能力和工作流 | [进阶使用指南](docs/ADVANCED_USAGE.md) | 30+ min |
 
 ## 这是什么
 
@@ -33,6 +37,20 @@ Delta 是一个运行在你电脑上的 AI 助手（Agent，能自主规划并�
 | 研究分析 | 设计试验、统计分析、撰写研究报告 |
 | 内容创作 | 写作与编辑、图文素材、多平台发布准备 |
 
+## 你的第一个任务
+
+按照以下步骤完成你的第一个 Delta 任务：
+
+1. **首次启动**：完成安装后运行 `npm run tauri dev`（或使用便携包），Delta 会提示选择出站级别
+2. **选择级别**：建议首次使用选择「仅私有（Private only）」以确保所有数据只在本地处理
+3. **配置端点**：选择「仅私有」后，点击「设置」→「端点管理」→「添加端点」，添加一个本地模型端点（如 Ollama 或 LM Studio）
+4. **添加密钥**：在端点配置中填写对应的 API Key 或留空（如果使用完全本地的模型）
+5. **开始任务**：返回主界面，在输入框中输入：`把这周的会议记录整理成周报，并列出待办事项`（请将会议记录放在 `~/Documents/meetings/` 文件夹中）
+6. **确认操作**：Delta 会解析任务并列出需要执行的步骤，在涉及文件读取或保存时会请求你的确认
+7. **获取结果**：确认后 Delta 会生成周报和待办清单，保存在你指定的输出目录
+
+> 💡 **提示**：首次使用建议选择「仅私有」级别，这样可以完全在本地测试 Delta 的能力，无需配置任何外部 API Key。
+
 ## 一个例子
 
 假设你对 Delta 说："把这周的会议记录整理成周报，并列出待办事项"，并指定记录所在的文件夹。
@@ -40,19 +58,39 @@ Delta 是一个运行在你电脑上的 AI 助手（Agent，能自主规划并�
 ```mermaid
 flowchart LR
     A["你：说明任务<br/>并指定资料文件夹"] --> B["Delta：读取资料<br/>起草周报"]
-    B --> C["你：确认需要批准的动作"]
-    C --> D["交付物：周报与待办清单"]
+    B --> C["你：确认需要批准的动作（文件读取）"]
+    C --> D["Delta：处理内容<br/>生成草稿"]
+    D --> E["你：确认需要批准的动作（文件保存）"]
+    E --> F["Delta：完成交付物"]
+    F --> G["你：接收周报与待办清单"]
     classDef brand fill:#286F78,stroke:#1D3F45,color:#FBF9F9
     classDef soft fill:#E7F0F1,stroke:#286F78,color:#1D3F45
-    class D brand
-    class A,B,C soft
+    class G brand
+    class A,B,C,D,E,F soft
 ```
 
 如果某个动作需要确认（比如把周报发到外部），Delta 会先问你。
 
 ## 快速开始
 
-### 1. 安装前置工具
+Delta 提供两种使用方式：**便携包直接运行**（无需安装开发工具链）和 **从源码构建**（需安装依赖）。Windows 用户推荐使用便携包。
+
+### 路径 A: 使用便携包（推荐，无需安装开发工具链）
+
+便携包已内置 Rust 运行时、Python 扩展模块（经 PyO3 编译）与前端资源，**无需预装 Python、Node.js、Rust、uv**。仅需系统满足：
+
+- **WebView2 运行时**：Windows 10 1809+ / Windows 11 自带；若缺失，首启会提示安装（几 MB）
+- **Visual C++ Redistributable**：绝大多数 Windows 已装；缺失时会报 `VCRUNTIME140.dll` 错误，需安装 [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+
+1. **下载便携包**：访问 [Delta 发布页面](https://github.com/fongap-labs/delta/releases/latest) 下载最新的 `delta-windows-x64-portable.zip`
+2. **解压运行**：解压zip文件，双击 `delta.exe` 启动应用
+3. **首次配置**：启动后按照提示选择出站级别并配置端点（见下方「首次配置端点」）
+
+> 💡 若双击 `delta.exe` 无反应或报错，请先运行 Windows Update 安装最新 WebView2，或按上述链接补装 VC++ Redistributable。
+
+### 路径 B: 从源码构建（需要安装所有依赖）
+
+#### 1. 安装前置工具
 
 | 工具 | 版本 | 安装方式 |
 | --- | --- | --- |
@@ -68,7 +106,7 @@ flowchart LR
 > - 首次启动必须选择出站级别；选择之前不会向任何模型发送请求。
 > - 首次编译 Rust 需要几分钟。
 
-### 2. 获取代码并启动
+#### 2. 获取代码并启动
 
 在终端中依次运行（每行一步）：
 
@@ -94,11 +132,21 @@ npm run tauri dev              # 启动桌面应用（首次编译 Rust 需要�
 
 端点可以是云端服务，使用时的费用由所选服务商计费；选择『仅私有』时只使用本机或内网端点。
 
+> 🔑 **首次配置端点**：选择「开放」或「已批准端点」后，您需要：
+> 1. 在 Delta 设置中打开「端点管理」
+> 2. 点击「添加端点」选择服务类型（OpenAI、Anthropic、Ollama 等）
+> 3. 填入服务 URL 和对应的 API Key
+> 4. 保存并设为默认端点
+> 5. 重启 Delta 使配置生效
+
 ### 常见问题
 
 - **`uv sync` 报版本错误**：运行 `uv --version`，必须显示 `0.12.3`。
 - **第一次编译很慢**：Rust 首次编译需要几分钟，属正常现象。
-- **平台**：目前已支持 Windows x64，发布产物为便携版 zip（构建目标 `x86_64-pc-windows-msvc`）。其他系统的开发支持未在本文确认，请以维护者说明为准。
+- **平台支持**：目前已支持 Windows x64（**构建目标 `x86_64-pc-windows-msvc`**），发布产物为便携版 zip。其他系统的开发支持未在本文确认，请以维护者说明为准。**注意：所有示例和说明均基于 Windows 环境编写**。
+- **找不到端点配置入口**：在 Delta 主界面左下角有齿轮图标（设置），点击进入后左侧导航栏可见「端点管理」。
+- **第一句话怎么发**：Delta 主界面底部有一个大的输入框，直接输入您的任务描述即可，例如：「帮我总结这个 PDF 的主要观点」。
+- **如何添加端点密钥**：在「端点管理」中选择已添加的端点，点击「编辑」可看到 API Key 配置字段。
 
 ## 进阶：Delta 如何工作
 
@@ -117,6 +165,8 @@ flowchart TB
 
 - **运行时（Runtime）**：Delta 的核心。它对工作状态、审批和验证拥有**权威（Authority）**，即某件事只由一个模块负责。
 - **能力（Capability）**：Delta 能调用的功能，如读取 PDF、网页搜索、统计计算。它的来源可以是原生工具、受控 Worker（独立的执行进程）、MCP（外部工具协议）或 Connector（外部服务连接器）。
+- **自动化（Automation）**：Delta 能根据预定义规则自动执行任务序列，例如：读取邮箱→生成摘要→发送到 Slack。
+- **学习（Learning）**：Delta 通过记录您的确认行为逐步改进其决策，例如：您总是拒绝发送包含敏感信息的内容，Delta 会学习到此类内容需要更严格的审批。
 - **Skill（技能）**：可复用的工作方法，定义步骤和验证方式，但不能改写安全规则。
 - **扩展**：可选扩展只依赖公开合同；Delta 核心不依赖任何具体扩展，反向依赖是禁止的。
 
@@ -126,6 +176,7 @@ flowchart TB
 | --- | --- |
 | `apps/` | 桌面应用（`apps/desktop`） |
 | `crates/` | Rust 代码，包括运行时 |
+| `core/` | Python 核心包（`pdf_support.py`、`roots.py` 等文档处理工具） |
 | `integrations/`、`packages/` | 能力、连接器与共享包 |
 | `contracts/`、`schemas/`、`delta_extension_api/` | 合同、JSON Schema 与扩展接口 |
 | `packaging/`、`resources/`、`scripts/` | 打包、品牌资源与维护脚本 |
@@ -194,3 +245,8 @@ flowchart LR
 ## 许可与商标
 
 Delta 的 Foundation 源码采用 [Apache License 2.0](LICENSE)。第三方组件保留各自的许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。未修改的上游可以称为 Delta；修改后再发行须使用自有名称，详见 [商标与品牌治理](docs/governance/baseline/TRADEMARK_BRAND_GOVERNANCE.md)。
+
+> 🔧 **依赖版本统一**：为了确保构建可重现性，所有依赖版本均已锁定：
+> - Python: 3.12（匹配 `.python-version` 和 README 要求）
+> - uv: 0.12.3（精确版本，匹配安装指令）
+> 如需修改依赖版本，请同时更新 `README.md`、`.python-version`、`.nvmrc`、`rust-toolchain.toml` 和 `pyproject.toml` 以保持一致。
