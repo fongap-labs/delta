@@ -65,3 +65,32 @@ describe("Markdown artifact links", () => {
     window.removeEventListener(OPEN_ARTIFACT_EVENT, listener);
   });
 });
+
+// Fenced code blocks carry a copy affordance (ChatGPT/Claude/WorkBuddy parity): the raw
+// text must reach the clipboard unchanged, and inline code must not grow a button.
+describe("Markdown code copy", () => {
+  it("copies a fenced block's exact source", async () => {
+    const written: string[] = [];
+    const writeText = vi.fn((text: string) => {
+      written.push(text);
+      return Promise.resolve();
+    });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+
+    render(<Markdown text={"```js\nconst a = 1;\nconsole.log(a);\n```"} />);
+    const button = screen.getByTestId("md-code-copy");
+    expect(button.textContent).toContain("Copy");
+    fireEvent.click(button);
+    // Verbatim source — react-markdown keeps the block's trailing newline, and a copy
+    // that silently rewrites the user's code would be worse than no copy at all.
+    expect(written).toEqual(["const a = 1;\nconsole.log(a);\n"]);
+    // Confirms in place instead of leaving a dead button.
+    await vi.waitFor(() => expect(screen.getByTestId("md-code-copy").textContent).toContain("Copied"));
+  });
+
+  it("leaves inline code alone", () => {
+    const { container } = render(<Markdown text="call `run_shell` first" />);
+    expect(screen.queryByTestId("md-code-copy")).toBeNull();
+    expect(container.querySelectorAll(".md-code").length).toBe(0);
+  });
+});

@@ -80,6 +80,12 @@ impl ProductSettings {
                 .and_then(Value::as_str)
                 .unwrap_or("")),
         );
+        // Network egress (ADR-0057): which proxy, if any, every outbound door uses. The
+        // `system` mode reports what the OS currently says without persisting it.
+        output.insert(
+            "proxy".to_string(),
+            crate::net::proxy::ProxySettings::snapshot(prefs),
+        );
         output
     }
 
@@ -154,6 +160,19 @@ impl ProductSettings {
             prefs.insert("compaction_model".to_string(), json!(value));
         }
         Ok(())
+    }
+
+    /// Apply a network-proxy patch and return what is now configured.
+    ///
+    /// Deliberately its own door rather than a branch inside `set_pdf_settings`: proxy
+    /// configuration is the one setting a user changes while debugging why their network
+    /// is broken, and it needs its own validation errors rather than sharing a generic
+    /// "invalid patch" path.
+    pub(crate) fn set_proxy_settings(
+        prefs: &mut Map<String, Value>,
+        patch: &Value,
+    ) -> Result<crate::net::proxy::ProxySettings, String> {
+        crate::net::proxy::ProxySettings::write_prefs(prefs, patch)
     }
 }
 

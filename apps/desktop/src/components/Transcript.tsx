@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, Attachment, Item } from "../types";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
@@ -49,6 +49,14 @@ function BubbleMeta({
   const { t } = useI18n();
   const [isCopied, setCopied] = useState(false);
   const when = typeof ts === "number" ? new Date(ts * 1000) : null;
+  // The time is INFORMATION, not chrome: it stays legible at rest (owner-hit 2026-10-14,
+  // "conversation messages show no time"). Only the copy/edit actions wait for hover.
+  // Pre-stamp history carries no `ts`, so its strip falls back to the hover-only behaviour
+  // instead of showing an empty row at full contrast.
+  const strip =
+    when ?
+      "opacity-70 " + (actions ? "group-hover:opacity-100 group-focus-within:opacity-100 " : "")
+    : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 ";
   const copy = () => {
     // "Copied" only after the write actually lands — WebKit can reject outside a
     // trusted gesture, and claiming success on a silent no-op would gaslight the user.
@@ -64,7 +72,8 @@ function BubbleMeta({
     <div className="relative h-0 select-none">
       <div
         className={
-          "absolute top-1 flex items-center gap-1.5 text-[10.5px] leading-none text-faint whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity " +
+          "absolute top-1 flex items-center gap-1.5 text-[10.5px] leading-none text-faint whitespace-nowrap transition-opacity " +
+          strip +
           (align === "right" ? "right-0" : "left-0")
         }
       >
@@ -75,7 +84,7 @@ function BubbleMeta({
         )}
         {actions}
         <button
-          className="flex items-center cursor-pointer hover:text-muted"
+          className="flex items-center cursor-pointer hover:text-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
           data-testid="bubble-copy"
           title={t("transcript.copyMessage", undefined, "Copy message")}
           onClick={copy}
@@ -249,7 +258,8 @@ function CollapsibleNotice({
   );
 }
 
-/** One quiet line for the collapsed disclosure: the first non-empty line, flattened and clipped. */
+/** One quiet line for the collapsed disclosure: the first non-empty line, flattened and clipped.
+ *  Kept for the expanded body's preview and for callers that want a plain-language summary. */
 export function thinkingSummary(text: string, max = 80): string {
   const first = text.split(/\r?\n/).map((l) => l.replace(/^[#>*\-\s]+/, "").replace(/\s+/g, " ").trim()).find(Boolean) ?? "";
   return first.length > max ? first.slice(0, max - 1).trimEnd() + "…" : first;
@@ -258,23 +268,27 @@ export function thinkingSummary(text: string, max = 80): string {
 export function ThinkingBlock({ text, isLive }: { text: string; isLive?: boolean }) {
   const { t } = useI18n();
   const [isOpen, setOpen] = useState(false);
-  const summary = !isOpen && !isLive ? thinkingSummary(text) : "";
+  const bodyId = `thinking-body-${useId()}`;
+  // A collapsed disclosure announces that something is hidden; it must not preview what is
+  // hidden. Rendering the first line of the reasoning next to the label told the reader the
+  // block was open while it was shut — and leaked half a sentence that broke mid-clause.
   return (
     <div className="thinking">
       <button
         className="thinking-head"
         onClick={() => setOpen((v) => !v)}
         data-testid="thinking-toggle"
+        aria-expanded={isOpen}
+        aria-controls={bodyId}
       >
         <Icon name="chevronDown" size={12} className={"thinking-caret" + (isOpen ? " open" : "")} />
         <span>
           {isLive ? t("transcript.thinkingLive", undefined, "Thinking") : t("transcript.thoughtProcess", undefined, "Thought process")}
           {isLive && <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>}
         </span>
-        {summary && <span className="thinking-sum">{summary}</span>}
       </button>
       {isOpen && (
-        <div className="thinking-body" data-testid="thinking-body">
+        <div className="thinking-body" id={bodyId} data-testid="thinking-body">
           {text}
         </div>
       )}
@@ -549,6 +563,11 @@ interface Props {
   onRestoreVersion?: (backup: string, target: string) => Promise<string | null>;
   // Regenerate the last reply: revert to before the last user message and send it again.
   onRegenerate?: (index: number, attachments?: Attachment[]) => void;
+  // Carry a message OUT of this conversation into the one the user is actually working in
+  // (ChatGPT's "continue in the main thread"). A side discussion is where a plan gets
+  // refined; the work still happens in the task conversation. The receiver decides how to
+  // present the carried text (quoted, editable) — the transcript only hands it over.
+  onSendToMain?: (text: string) => void;
 }
 
 // The transcript index whose notice gets the Retry button: the tail error notice, looking
@@ -576,7 +595,7 @@ export function interruptedAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, onRetry, onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate }: Props) {
+export function Transcript({ items, running, streamingText, onRetry, onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -639,9 +658,60 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
   // A block holding one retriable warn notice (a failed provider attempt).
   const isErrNotice = (b: (typeof blocks)[number]): b is { item: Extract<Item, { kind: "notice" }>; i: number } =>
     "item" in b && b.item.kind === "notice" && b.item.tone === "warn" && !!b.item.retriable;
+  // Day dividers (ChatGPT/Claude parity). A per-message clock time alone cannot tell a
+  // reader whether a reply came this morning or three days ago, so the day is announced
+  // once when it changes and left implicit inside the run.
+  //
+  // The day of an exchange is the day of the USER message that opened it — never the day
+  // its answer happens to land on. A long turn that runs past midnight is still one
+  // exchange, and splitting it with a divider would tell the reader two different stories
+  // about one answer. Everything between two user messages therefore inherits the first
+  // one's day.
+  //
+  // Days are compared as CALENDAR STRINGS, not as epoch-day integers: local midnight in a
+  // non-UTC zone is not a multiple of 86.4M ms, so flooring loses the zone's offset and the
+  // round trip lands on the previous date (UTC+8 showed "Oct 12" for Oct 13).
+  const dayKey = (ts: number): string => {
+    const d = new Date(ts * 1000);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+  // Item variants that never carry a clock (tool rows, notices, connector cards) are
+  // read through `unknown` — asking for a `ts` on a type that has no such field is a
+  // weak-type error, not a bug.
+  const itemDay = (item: unknown): string | null => {
+    const ts = (item as { ts?: unknown } | null | undefined)?.ts;
+    return typeof ts === "number" ? dayKey(ts) : null;
+  };
+  const blockDays = ((): (string | null)[] => {
+    let openedBy: string | null = null;
+    return blocks.map((b) => {
+      if ("turn" in b) return openedBy ?? itemDay(b.turn[0]);
+      if (b.item.kind === "user") {
+        const own = itemDay(b.item);
+        if (own !== null) openedBy = own;
+        return own;
+      }
+      return openedBy ?? itemDay(b.item);
+    });
+  })();
+  const dayLabel = (key: string): string => {
+    const [y, m, d] = key.split("-").map(Number);
+    const day = new Date(y, m, d);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const gap = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+    if (gap <= 0) return t("transcript.dayToday", undefined, "Today");
+    if (gap === 1) return t("transcript.dayYesterday", undefined, "Yesterday");
+    return day.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  };
+  let lastDay: string | null = null;
   return (
     <div className="transcript">
       {blocks.map((block, bi) => {
+        const day = blockDays[bi];
+        const showDivider = day !== null && day !== lastDay;
+        if (day !== null) lastDay = day;
+        const node = (() => {
         if ("turn" in block)
           return (
             <TurnGroup
@@ -717,17 +787,33 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
                   ts={item.ts}
                   align="left"
                   actions={
-                    canRegenerate && item === items[lastAnswerPos] ? (
-                      <button
-                        className="flex items-center cursor-pointer hover:text-muted"
-                        data-testid="bubble-regenerate"
-                        title={t("transcript.regenerate", undefined, "Regenerate")}
-                        aria-label={t("transcript.regenerate", undefined, "Regenerate")}
-                        onClick={() => onRegenerate!(lastUser!.index!, lastUser!.attachments)}
-                      >
-                        <Icon name="refresh" size={11} />
-                      </button>
-                    ) : undefined
+                    <>
+                      {/* Carry the conclusion out of this side discussion into the task
+                          conversation. Placed first: it is the action that starts real work,
+                          while regenerate/copy are refinements of this reply. */}
+                      {onSendToMain && (
+                        <button
+                          className="flex items-center cursor-pointer hover:text-muted"
+                          data-testid="bubble-send-to-main"
+                          title={t("transcript.sendToMain", undefined, "Bring to current task")}
+                          aria-label={t("transcript.sendToMain", undefined, "Bring to current task")}
+                          onClick={() => onSendToMain(item.text)}
+                        >
+                          <Icon name="sparkle" size={11} />
+                        </button>
+                      )}
+                      {canRegenerate && item === items[lastAnswerPos] ? (
+                        <button
+                          className="flex items-center cursor-pointer hover:text-muted"
+                          data-testid="bubble-regenerate"
+                          title={t("transcript.regenerate", undefined, "Regenerate")}
+                          aria-label={t("transcript.regenerate", undefined, "Regenerate")}
+                          onClick={() => onRegenerate!(lastUser!.index!, lastUser!.attachments)}
+                        >
+                          <Icon name="refresh" size={11} />
+                        </button>
+                      ) : null}
+                    </>
                   }
                 />
               </div>
@@ -851,6 +937,16 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
           default:
             return null;
         }
+        })();
+        if (!showDivider || !node) return node;
+        return (
+          <div key={bi} className="day-divider-wrap">
+            <div className="day-divider" data-testid="day-divider">
+              <span>{dayLabel(day!)}</span>
+            </div>
+            {node}
+          </div>
+        );
       })}
       {!running && (deliveredFiles.length > 0 || (onSaveAsSkill && stepsInLastRequest >= SKILL_MIN_STEPS)) && (
         <DeliveryCard

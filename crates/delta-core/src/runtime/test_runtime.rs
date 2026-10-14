@@ -169,6 +169,22 @@ fn test_is_retryable() {
     assert!(is_retryable_error("timeout waiting for response"));
     assert!(!is_retryable_error("HTTP 400: bad request"));
     assert!(!is_retryable_error("invalid api key"));
+
+    // A gateway that wraps a rejected request in a 502 used to look like a transient upstream
+    // fault here, so the runtime resent the identical body four times. The endpoint's own verdict
+    // and its failure families now outrank the status code.
+    let gateway_client = format!(
+        "HTTP 502: {{\"error\":{{\"message\":\"All attempted nodes failed for model \\\"Max\\\".\",\"details\":{{\"failure_kinds\":{{\"client\":3}}}}}}}} {}",
+        crate::provider::NO_RETRY_TAG
+    );
+    assert!(!is_retryable_error(&gateway_client));
+    assert!(!is_retryable_error(
+        "HTTP 502: {\"error\":{\"details\":{\"failure_kinds\":{\"client\":3}}}}"
+    ));
+    // …but a genuine transient 502 is untouched.
+    assert!(is_retryable_error(
+        "HTTP 502: {\"error\":{\"details\":{\"failure_kinds\":{\"server\":2,\"network\":1}}}}"
+    ));
 }
 
 #[test]

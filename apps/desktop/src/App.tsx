@@ -21,6 +21,7 @@ import {
   revertSession,
   restoreFileVersion,
   getResumable,
+  getRuntimeState,
   setReasoningEffort,
   runAutomation,
   setSessionFlags,
@@ -211,10 +212,10 @@ export function App() {
   const [scheduledOpenId, setScheduledOpenId] = useState<string | null>(null);
   // Which Settings section the full-page Settings surface opens on (§ Settings-as-page).
   const [settingsTab, setSettingsTab] = useState<
-    "appearance" | "models" | "skills" | "voice" | "memory"
+    "appearance" | "models" | "privacy" | "skills" | "voice" | "memory"
   >("appearance");
   const openSettings = (
-    tab: "appearance" | "models" | "skills" | "voice" | "memory" = "appearance",
+    tab: "appearance" | "models" | "privacy" | "skills" | "voice" | "memory" = "appearance",
   ) => {
     setSettingsTab(tab);
     setSurface("settings");
@@ -509,6 +510,23 @@ export function App() {
     return () => clearInterval(t);
   }, [refreshSessions]);
 
+  // Self-heal the foreground liveness: a turn that finished while its events were
+  // in flight (or one resumed from a cold start) leaves `isRunning` lying. Ask the
+  // runtime — it is the authority — instead of trusting the last frame we saw.
+  useEffect(() => {
+    if (!isRunning) return;
+    const t = setInterval(() => {
+      const id = foregroundSessionIdRef.current;
+      if (!id) return;
+      getRuntimeState(id)
+        .then(({ active }) => {
+          if (foregroundSessionIdRef.current === id && !active) setRunning(false);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(t);
+  }, [isRunning]);
+
   // Reconnect when the workspace or task changes.
   useEffect(() => {
     if (isBooting) return; // wait until boot/resume settles the session before connecting
@@ -799,6 +817,16 @@ export function App() {
       onOpen: () => {
         if (foregroundSessionIdRef.current !== sessionId) return;
         setConnected(true);
+        // A turn outlives the socket that started it: switching conversations only
+        // detaches the foreground view, the runtime keeps running. Re-attaching to a
+        // session that is mid-turn must therefore render it as running — the
+        // `turn_start` that would normally set this was emitted while we were away.
+        void getRuntimeState(sessionId)
+          .then(({ active }) => {
+            if (foregroundSessionIdRef.current !== sessionId) return;
+            if (active) setRunning(true);
+          })
+          .catch(() => {});
         // Auto-send the task prompt once a "Run now" session connects.
         const p = pendingPromptRef.current;
         if (p) {
@@ -930,6 +958,33 @@ export function App() {
   // the 4s poll restores anything genuinely still pending.
   const dropSessionInbox = (kind: string) =>
     setSessionInbox((cur) => cur.filter((it) => it.kind !== kind));
+  // ChatGPT's "continue in the main thread": a side conversation is where a plan gets
+  // refined, but the work still belongs to the task conversation. Carry the conclusion
+  // over as an EDITABLE PREFILL — never an automatic send. What was discussed is context
+  // for the next turn, not a command, and silently firing a turn on the user's behalf
+  // would take the decision out of their hands.
+  const sendToMain = (text: string) => {
+    const quoted = text
+      .split(/\r?\n/)
+      .map((line) => (line.trim() ? "> " + line : ">"))
+      .join("\n")
+      .slice(0, 4000);
+    prefillComposer(quoted + "\n\n", undefined);
+  };
+  // The sidebar row version of the same gesture: carry the CONCLUSION of a side
+  // conversation — its last assistant answer — into the task conversation. Read from the
+  // persisted thread rather than the live transcript, because that conversation is not
+  // open; a row with no answer yet carries nothing and says nothing rather than
+  // prefilling an empty quote.
+  const carryToTask = (id: string) => {
+    void getSessionMessages(id)
+      .then((messages) => {
+        const last = [...messages].reverse().find((m) => m.role === "assistant" && m.content);
+        const text = typeof last?.content === "string" ? last.content.trim() : "";
+        if (text) sendToMain(text);
+      })
+      .catch(() => {});
+  };
   const approve = (decision: ApprovalDecision) => {
     setItems((p) => resolveLastApproval(p, decision));
     dropSessionInbox("approval");
@@ -1123,6 +1178,14 @@ export function App() {
     setTodo([]);
     setStreaming("");
     setRunning(false);
+    // A turn keeps running while the user is elsewhere. Ask the runtime up front so the
+    // composer shows Stop and the stream keeps following the instant the view lands —
+    // `onOpen` confirms it a moment later, and the 5s poll corrects either answer.
+    getRuntimeState(id)
+      .then(({ active }) => {
+        if (foregroundSessionIdRef.current === id && active) setRunning(true);
+      })
+      .catch(() => {});
     if (ws && ws !== workspace) {
       setWorkspace(ws); // switch project to the session's folder
       setBranch(null);
@@ -1374,6 +1437,7 @@ export function App() {
         onArchiveSession={toggleArchived}
         onTogglePin={togglePinned}
         onSetReasoningEffort={setSessionReasoning}
+        onCarryToTask={carryToTask}
         onManage={() => openSettings("appearance")}
         onOpenScheduled={() => setSurface("scheduled")}
         onOpenAutomation={(id) => {
@@ -1542,6 +1606,7 @@ export function App() {
                     onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
                     onEditMessage={(index) => void editMessage(index)}
                     onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
+                    onSendToMain={sendToMain}
                     // §33 ref #3: sub-threshold streamed text renders INSIDE the live turn
                     // group (header when collapsed, quiet line when expanded) — never as a
                     // floating paragraph.

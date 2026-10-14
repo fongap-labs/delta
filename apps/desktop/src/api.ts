@@ -51,6 +51,7 @@ import {
   directRetry,
   directResume,
   directResumable,
+  directRuntimeState,
   directRun,
   directSessionDelete,
   directSessionMessages,
@@ -66,6 +67,7 @@ import {
   updateSessionFlags,
   updateSessionReasoning,
   updateCompaction,
+  updateProxySettings,
   updateContextBar,
   updateModelDefault,
   directSetLanguage,
@@ -803,6 +805,14 @@ export async function getResumable(sessionId: string): Promise<boolean> {
   return (await directResumable(sessionId)).resumable;
 }
 
+/** Lifecycle state of a session's runtime. `active` is true while its turn is still
+ *  alive — a turn survives switching conversations (only the foreground socket is
+ *  torn down), so this is how a session re-opened mid-turn learns it must render as
+ *  running instead of idle. */
+export async function getRuntimeState(sessionId: string): Promise<{ state: string; active: boolean }> {
+  return directRuntimeState(sessionId);
+}
+
 export interface BrowserState {
   open: boolean;
   url: string;
@@ -863,6 +873,9 @@ export interface ModelSettings {
   compaction_threshold_pct?: number; // default 0.8, 0.10–0.95
   compaction_cap_tokens?: number; // default 250000
   compaction_model?: string;
+  // Network proxy: how outbound requests leave the machine (model calls, web search,
+  // page fetches). Optional so the GUI is robust to an older backend.
+  proxy?: ProxySettings;
 }
 
 export interface PdfSettings {
@@ -891,6 +904,35 @@ export async function setCompactionSettings(
   patch: Partial<CompactionSettings>,
 ): Promise<{ ok: boolean; error?: string }> {
   return updateCompaction(patch) as Promise<{ ok: boolean; error?: string }>;
+}
+
+// -- Network proxy (which route an outbound request takes) -------------------------------
+/** `direct` never proxies, `system` follows the OS for one call, `manual` uses the
+ *  addresses below. `system` is the default: it is what the browser and the voice
+ *  transcriber already do, so it cannot remove support from a door that had it. */
+export type ProxyMode = "direct" | "system" | "manual";
+export const PROXY_MODES: ProxyMode[] = ["direct", "system", "manual"];
+
+/** As the UI shows it. `system_detected` is a read-only echo of what the OS currently
+ *  says; it is never persisted, so a transient corporate or VPN proxy never sticks. */
+export interface ProxySettings {
+  mode: ProxyMode;
+  http: string;
+  https: string;
+  no_proxy: string;
+  system_detected?: string | null;
+}
+
+/** Persist a network-proxy patch. Returns the snapshot now in force, so the UI can
+ *  show the effective route without a second round trip. */
+export async function setProxySettings(
+  patch: Partial<ProxySettings>,
+): Promise<{ ok: boolean; error?: string; proxy?: ProxySettings }> {
+  return updateProxySettings(patch) as Promise<{
+    ok: boolean;
+    error?: string;
+    proxy?: ProxySettings;
+  }>;
 }
 
 /** Local page/size probe for a PDF data URL — the composer's attach-time threshold check. */

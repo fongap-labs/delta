@@ -52,7 +52,7 @@ const HEALTH = {
 const SETTINGS = {
   provider: "openai",
   model: "anthropic:claude-opus-4-8",
-  models: ["anthropic:claude-opus-4-8", "gpt-5.5", "gpt-4o", "gpt-4o-mini", "o3-mini"],
+  models: ["anthropic:claude-opus-4-8", "gpt-5.5", "gpt-5.6-sol", "anthropic:claude-sonnet-4-6", "gpt-5.6-terra"],
   has_key: true,
   model_ready: true,
   source: "store",
@@ -525,6 +525,7 @@ function fakeAgentSources(): Record<string, string> {
       return { ok: true, cancelled: true };
     }`,
     runtime_messages: `(args) => ({ messages: $state.sessionMessages[args.sessionId] || [] })`,
+    runtime_state: `(args) => ({ ok: true, state: $state.epicTimers[args.sessionId] ? "running" : "idle", active: !!$state.epicTimers[args.sessionId] })`,
     runtime_steer: `(args) => ({ ok: true, accepted: true })`,
     runtime_retry: `(args) => { const sessionId = args.sessionId; const messages = ($state.sessionMessages[sessionId] = $state.sessionMessages[sessionId] || []); const send = (type, payload) => { const body = payload || {}; if (type === "assistant_message") messages.push({ role: "assistant", content: String(body.text || ""), ts: Date.now() / 1000 }); const sequence = ($state.runtimeSequences[sessionId] = ($state.runtimeSequences[sessionId] || 1) + 1); emit("delta-runtime-event", { type, version: 1, sessionId, sequence, payload: body }); }; send("turn_start", { input: "" }); send("assistant_message", { text: "Recovered after retry." }); send("turn_done"); return { ok: true, accepted: true, runId: "run-retry" }; }`,
     runtime_resume: `(args) => ({ ok: true, accepted: true, runId: "run-resume" })`,

@@ -24,6 +24,7 @@ use crate::model_catalog::{
     suggested_models, ProviderDescriptor, ANTHROPIC_PROTOCOL, DEFAULT_ANTHROPIC_URL,
     DEFAULT_OPENAI_URL, MODEL_MATRIX, OPENAI_PROTOCOL, PROVIDERS,
 };
+use crate::net::proxy::ProxySettings;
 use crate::product_settings::ProductSettings;
 use crate::RuntimeConfig;
 
@@ -43,6 +44,22 @@ struct ModelAuthorityFile {
     prefs: Map<String, Value>,
     #[serde(default)]
     secrets: Map<String, Value>,
+}
+
+/// The persisted product preferences under `state_dir`, read without going through
+/// an authority handle.
+///
+/// For read-only consumers that hold no `ModelAuthority` — the runtime resolving the
+/// network proxy before a request, for instance. `None` means "nothing usable on disk"
+/// (missing file, unreadable, or not the expected shape), which every caller reads as
+/// its own default rather than as an error: a proxy preference is an optional
+/// convenience, and its absence must never stop a request being attempted.
+pub(crate) fn prefs_at(state_dir: &std::path::Path) -> Option<Map<String, Value>> {
+    let path = state_dir.join("model-authority.json");
+    let text = fs::read_to_string(path).ok()?;
+    serde_json::from_str::<ModelAuthorityFile>(&text)
+        .ok()
+        .map(|file| file.prefs)
 }
 
 #[derive(Clone)]
@@ -250,7 +267,7 @@ impl ModelAuthority {
                 "title": "OpenAI-compatible",
                 "needs_key": false,
                 "fields": openai_fields("", false),
-                "recommended_model": "gpt-4o",
+                "recommended_model": "",
                 "env_key": Value::Null,
                 "blurb": "OpenAI-compatible Chat Completions or Responses API",
             },
@@ -296,10 +313,12 @@ impl ModelAuthority {
                     } else {
                         DEFAULT_OPENAI_URL.to_string()
                     },
+                    // An unknown user-defined provider gets no suggested model: see the note on
+                    // the descriptor builder below.
                     recommended_model: if protocol == ANTHROPIC_PROTOCOL {
                         "claude-fable-5".to_string()
                     } else {
-                        "gpt-4o".to_string()
+                        String::new()
                     },
                     env_key: String::new(),
                     blurb: "User-defined provider".to_string(),
@@ -524,6 +543,35 @@ impl ModelAuthority {
         Ok(json!({"ok": true}))
     }
 
+    /// Apply a network-proxy patch. Returns the settings snapshot so the UI can show
+    /// what is now in force (including the freshly detected system proxy) without a
+    /// second round trip.
+    pub fn set_proxy_settings(&self, patch: &Value) -> Result<Value, String> {
+        let mut file = self.read_authority()?;
+        ProductSettings::set_proxy_settings(&mut file.prefs, patch)?;
+        self.write_authority(&file)?;
+        Ok(json!({"ok": true, "proxy": ProxySettings::snapshot(&file.prefs)}))
+    }
+
+    /// The proxy policy that applies to a URL, resolved from persisted preferences.
+    pub fn proxy_for(&self, url: &str) -> Option<String> {
+        let file = self.read_authority().ok()?;
+        ProxySettings::from_prefs(&file.prefs).proxy_for(url)
+    }
+
+    /// How one outbound URL should leave the machine — the mode's promise, not just the
+    /// address: `system` means "probe at call time", `direct` means never proxied, and
+    /// `manual` carries the exact address with no fallback. Hosts outside this crate
+    /// (the voice-model downloader) consume this so every exit follows one setting.
+    pub fn proxy_route(&self, url: &str) -> crate::net::proxy::ProxyRoute {
+        match self.read_authority() {
+            Ok(file) => ProxySettings::from_prefs(&file.prefs).route_for(url),
+            // Unreadable preferences fall back to today's behaviour (the system probe),
+            // never to a refusal: a broken settings file must not stop a download.
+            Err(_) => crate::net::proxy::ProxyRoute::System,
+        }
+    }
+
     pub fn verify_provider(&self, name: &str, fields: &Value) -> Result<Value, String> {
         let file = self.read_authority()?;
         Ok(
@@ -730,10 +778,15 @@ impl ModelAuthority {
             } else {
                 DEFAULT_OPENAI_URL.to_string()
             },
+            // A user-defined provider is a gateway we know nothing about: it may serve one
+            // model or a hundred, under names only its operator knows. Pre-filling a model id
+            // here invites a request for a model that does not exist, and a gateway answers
+            // that with a client-side rejection — which is indistinguishable, from the client,
+            // from a broken provider. An empty recommendation makes the form ask.
             recommended_model: if protocol == ANTHROPIC_PROTOCOL {
                 "claude-fable-5".to_string()
             } else {
-                "gpt-4o".to_string()
+                String::new()
             },
             env_key: String::new(),
             blurb: "User-defined provider".to_string(),

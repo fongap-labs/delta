@@ -25,10 +25,75 @@ pub struct ProviderRequest {
     pub base_url: String,
     #[serde(default)]
     pub timeout_secs: Option<f64>,
+    /// Re-send without the optional parameters a provider refused. Set by the runtime after the
+    /// first attempt comes back as a protocol rejection, and consumed by the body builders.
+    #[serde(skip)]
+    pub reduced: bool,
     /// When the egress check relied on the endpoint's addresses (ADR-0057), the connection must
     /// use exactly those addresses instead of resolving the name again. Empty means resolve as usual.
     #[serde(skip)]
     pub pinned_addrs: Vec<std::net::SocketAddr>,
+    /// Which proxy this request goes through, resolved once per turn from the persisted
+    /// network settings. `None` means direct. Set by the runtime; the provider layer never
+    /// reads preferences itself, so a test can pin the behaviour.
+    #[serde(skip)]
+    pub proxy: Option<ureq::Proxy>,
+}
+
+/// Optional request parameters, per protocol, that a provider may lawfully refuse.
+///
+/// These are the fields a compatible gateway or a self-hosted endpoint most often rejects with a
+/// 400 — which `fongap-labs/ai-gateway` classifies as a *request-local* failure and stops
+/// routing on. `model`, `messages` and `tools` are never stripped: without them the turn cannot
+/// run at all.
+///
+/// `reasoning_effort` deserves a note. It is an OpenAI field; the Anthropic Messages API has no
+/// such parameter (it uses `thinking: {type, budget_tokens}`), yet the runtime merges
+/// `model_settings` into every protocol's body verbatim. On an Anthropic-compatible route it is
+/// guaranteed to be an unknown field, which is exactly the kind of request that makes every
+/// dispatched node fail as `client`.
+fn optional_request_params(protocol: &str) -> &'static [&'static str] {
+    match protocol {
+        "anthropic" => &[
+            "reasoning_effort",
+            "temperature",
+            "top_p",
+            "top_k",
+            "parallel_tool_calls",
+            "presence_penalty",
+            "frequency_penalty",
+            "store",
+            "include",
+            "reasoning",
+        ],
+        "openai_responses" => &[
+            "reasoning_effort",
+            "temperature",
+            "top_p",
+            "parallel_tool_calls",
+            "presence_penalty",
+            "frequency_penalty",
+            "max_output_tokens",
+            "service_tier",
+            "store",
+            "include",
+            "reasoning",
+            "stream_options",
+        ],
+        // openai_chat and any unknown-but-openai-shaped protocol.
+        _ => &[
+            "reasoning_effort",
+            "temperature",
+            "top_p",
+            "parallel_tool_calls",
+            "presence_penalty",
+            "frequency_penalty",
+            "max_tokens",
+            "logit_bias",
+            "stop",
+            "stream_options",
+        ],
+    }
 }
 
 /// Makes the connection use the addresses the egress check classified.
@@ -41,13 +106,54 @@ impl ureq::Resolver for Pinned {
     }
 }
 
+/// Join a configured `base_url` with the protocol's endpoint, without duplicating a version
+/// segment or the endpoint itself.
+///
+/// A provider base URL arrives in four shapes, and every one of them is in the wild:
+///
+/// | base_url | result |
+/// |---|---|
+/// | `https://host` | `https://host/v1/<endpoint>` |
+/// | `https://host/v1` | `https://host/v1/<endpoint>` |
+/// | `https://host/v1/messages` | unchanged — already a full endpoint |
+/// | `https://host/api/v2` | `https://host/api/v2/<endpoint>` — version kept as given |
+///
+/// The previous implementation only recognised a literal `/v1` suffix, so a base URL that
+/// already named the endpoint (`…/v1/messages`) was spliced into `…/v1/messages/v1/messages`.
+/// It was also bypassed entirely by the Chat Completions path, which concatenated
+/// `<base>/chat/completions` and therefore never gained the `/v1` a bare host needs — the
+/// same field meant different things depending on protocol, which is what the UI help text
+/// could not explain. Both paths now share this one function.
 fn versioned_endpoint(base_url: &str, endpoint: &str) -> String {
     let base = base_url.trim_end_matches('/');
-    if base.ends_with("/v1") {
-        format!("{base}/{endpoint}")
+    // Stripping the endpoint can leave a trailing slash (`…/v1/messages` → `…/v1/`), which must
+    // go before the version check or the last segment reads as empty.
+    let stripped = match base.strip_suffix(endpoint) {
+        Some(rest) => {
+            let rest = rest.trim_end_matches('/');
+            // The base already names the endpoint itself: `…/v1/messages`. Keep it whole.
+            if has_version_segment(rest) {
+                return base.to_string();
+            }
+            rest
+        }
+        None => base,
+    };
+    if has_version_segment(stripped) {
+        format!("{stripped}/{endpoint}")
     } else {
-        format!("{base}/v1/{endpoint}")
+        format!("{stripped}/v1/{endpoint}")
     }
+}
+
+/// True when the last path segment is an API version: `/v1`, `/v2`, `/v1beta`, `/api/v3`.
+fn has_version_segment(path: &str) -> bool {
+    path.rsplit('/').next().is_some_and(|segment| {
+        let segment = segment.to_ascii_lowercase();
+        segment.len() >= 2
+            && segment.starts_with('v')
+            && segment[1..].chars().all(|c| c.is_ascii_digit())
+    })
 }
 
 #[derive(Default)]
@@ -70,22 +176,33 @@ fn timeout_duration(timeout_secs: Option<f64>) -> Duration {
 }
 
 /// Agent for one-shot (non-streaming) calls: `timeout` is a deadline for the whole exchange.
-fn agent(timeout_secs: Option<f64>) -> ureq::Agent {
-    ureq::AgentBuilder::new()
-        .user_agent(USER_AGENT)
-        .timeout(timeout_duration(timeout_secs))
-        .build()
+fn agent(timeout_secs: Option<f64>, proxy: Option<&ureq::Proxy>) -> ureq::Agent {
+    let mut builder = ureq::AgentBuilder::new().user_agent(USER_AGENT);
+    if let Some(proxy) = proxy {
+        // A model call may carry an API key, so where it exits matters as much as for
+        // web traffic: an unproxied call from a network that requires a proxy fails,
+        // and the failure looks like "the model is down", not "the route is wrong".
+        builder = builder.proxy(proxy.clone());
+    }
+    builder.timeout(timeout_duration(timeout_secs)).build()
 }
 
 /// Agent for streamed replies. A long answer legitimately outlives any fixed total deadline,
 /// so only a connect limit and an idle limit (no byte for `timeout_secs`) apply: a stream
 /// that keeps producing is never cut off, a stalled one still fails and can be retried.
-fn stream_agent(timeout_secs: Option<f64>, pinned_addrs: &[std::net::SocketAddr]) -> ureq::Agent {
+fn stream_agent(
+    timeout_secs: Option<f64>,
+    pinned_addrs: &[std::net::SocketAddr],
+    proxy: Option<&ureq::Proxy>,
+) -> ureq::Agent {
     let idle = timeout_duration(timeout_secs);
-    let builder = ureq::AgentBuilder::new()
+    let mut builder = ureq::AgentBuilder::new()
         .user_agent(USER_AGENT)
         .timeout_connect(idle.min(CONNECT_TIMEOUT))
         .timeout_read(idle);
+    if let Some(proxy) = proxy {
+        builder = builder.proxy(proxy.clone());
+    }
     if pinned_addrs.is_empty() {
         builder.build()
     } else {
@@ -93,13 +210,37 @@ fn stream_agent(timeout_secs: Option<f64>, pinned_addrs: &[std::net::SocketAddr]
     }
 }
 
-/// Convert a ureq error into a message string that includes the HTTP response body.
-/// The Python providers match on error-body markers (e.g. "reasoning_effort",
-/// "'max_tokens' is not supported") to drive param-fix retry, so the body must be
-/// carried in the error string.
+/// Machine-readable tags appended to a provider error so the retry decision can be made on
+/// protocol signals rather than on the status code alone. See [`is_retryable_error`].
+pub const NO_RETRY_TAG: &str = "[x-should-retry:false]";
+const FAILURE_KINDS_TAG: &str = "[x-gateway-failure-kinds:";
+
+/// Convert a ureq error into a message string that carries the gateway's retry instruction.
+///
+/// Two things must survive the conversion:
+///
+/// 1. **The body**, so the protocol-marker matcher (e.g. `'reasoning_effort' is not supported`)
+///    still works across an HTTP boundary.
+/// 2. **The headers the gateway sends to say whether retrying is worthwhile.** The status code
+///    is not enough: `fongap-labs/ai-gateway` returns 502 for an upstream that rejected the
+///    request (`failure_kinds: {client}` — see its `reliability/classify.ts`, where a 400 is
+///    classified request-local and non-retryable) and pairs that 502 with the header
+///    `x-should-retry: false`. Retrying a request the gateway has already declared terminal is
+///    pure waste: it re-sends a body that was refused, and hammers a gateway that said no.
+///
+/// Both signals are appended as bracketed tags so the message stays human-readable while
+/// remaining parseable by [`is_retryable_error`].
 fn http_error(e: ureq::Error) -> String {
     match e {
         ureq::Error::Status(code, response) => {
+            let no_retry = response
+                .header("x-should-retry")
+                .is_some_and(|value| value.eq_ignore_ascii_case("false"));
+            let kinds = response
+                .header("x-gateway-failure-kinds")
+                .unwrap_or_default()
+                .trim()
+                .to_owned();
             let body = response.into_string().unwrap_or_default();
             let truncated: &str = if body.len() > 800 {
                 let mut end = 800;
@@ -110,11 +251,44 @@ fn http_error(e: ureq::Error) -> String {
             } else {
                 &body
             };
-            format!("HTTP {code}: {truncated}")
+            let mut message = format!("HTTP {code}: {truncated}");
+            if no_retry {
+                message.push(' ');
+                message.push_str(NO_RETRY_TAG);
+            }
+            if !kinds.is_empty() {
+                message.push(' ');
+                message.push_str(FAILURE_KINDS_TAG);
+                message.push_str(&kinds);
+                message.push(']');
+            }
+            message
         }
         ureq::Error::Transport(t) => format!("transport error: {t}"),
     }
 }
+
+/// A gateway failure family that retrying cannot fix.
+///
+/// `fongap-labs/ai-gateway` enumerates its failure kinds in `reliability/classify.ts`. The
+/// retryable ones (`rate_limit`, `server`, `network`, `*_timeout`, `stream_interrupted`) are
+/// the only families whose exhaustion the gateway itself reports as retryable; `client`,
+/// `auth`, `model_missing` and `endpoint_not_found` all mean "this request cannot succeed as
+/// sent", and retrying the identical body is futile.
+///
+/// The interpretation lives in [`crate::retry::is_retryable_error_message`], next to the rest of
+/// the retry policy; this list is the vocabulary it reads.
+pub const NON_RETRYABLE_KINDS: &[&str] = &[
+    "client",
+    "auth",
+    "model_missing",
+    "endpoint_not_found",
+    "client_abort",
+    "invalid_base_url",
+    "unknown",
+    "upstream_200_non_json_body",
+    "upstream_200_no_meaningful_output",
+];
 
 /// Send the request and map ureq errors (with body) to String.
 fn send_json(req_builder: ureq::Request, body: Value) -> Result<ureq::Response, String> {
@@ -193,6 +367,31 @@ fn cancelled() -> Value {
     json!({"cancelled": true})
 }
 
+/// Merge `model_settings` into a request body.
+///
+/// Settings ride the same body for every protocol, so a key that means something to one protocol
+/// is an unknown field to another. When the request is re-sent reduced, the optional parameters
+/// this protocol allows a provider to refuse are dropped instead of resent.
+fn merge_settings(body: &mut Value, req: &ProviderRequest) {
+    let Some(obj) = req.settings.as_ref().and_then(Value::as_object) else {
+        return;
+    };
+    let Some(body_obj) = body.as_object_mut() else {
+        return;
+    };
+    let optional: &[&str] = if req.reduced {
+        optional_request_params(&req.protocol)
+    } else {
+        &[]
+    };
+    for (key, value) in obj {
+        if req.reduced && optional.contains(&key.as_str()) {
+            continue;
+        }
+        body_obj.insert(key.clone(), value.clone());
+    }
+}
+
 fn build_openai_chat(req: &ProviderRequest, should_stream: bool) -> Value {
     let stream = should_stream;
     let mut body = json!({
@@ -201,20 +400,16 @@ fn build_openai_chat(req: &ProviderRequest, should_stream: bool) -> Value {
     });
     if stream {
         body["stream"] = json!(true);
-        body["stream_options"] = json!({"include_usage": true});
+        // `stream_options` is an OpenAI extension that many gateways and Ollama-compatible
+        // endpoints reject outright. It only carries a usage sum, so a reduced request drops it.
+        if !req.reduced {
+            body["stream_options"] = json!({"include_usage": true});
+        }
     }
     if let Some(tools) = &req.tools {
         body["tools"] = tools.clone();
     }
-    if let Some(settings) = &req.settings {
-        if let Some(obj) = settings.as_object() {
-            if let Some(body_obj) = body.as_object_mut() {
-                for (k, v) in obj {
-                    body_obj.insert(k.clone(), v.clone());
-                }
-            }
-        }
-    }
+    merge_settings(&mut body, req);
     body
 }
 
@@ -238,10 +433,10 @@ fn usage_from_json(u: &Value) -> Value {
 }
 
 pub fn complete_openai_chat(req: &ProviderRequest) -> Result<Value, String> {
-    let url = format!("{}/chat/completions", req.base_url.trim_end_matches('/'));
+    let url = versioned_endpoint(&req.base_url, "chat/completions");
     let body = build_openai_chat(req, false);
     let resp = send_json(
-        agent(req.timeout_secs)
+        agent(req.timeout_secs, req.proxy.as_ref())
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
@@ -313,10 +508,10 @@ pub fn stream_openai_chat(
     stream_id: &str,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<Value, String> {
-    let url = format!("{}/chat/completions", req.base_url.trim_end_matches('/'));
+    let url = versioned_endpoint(&req.base_url, "chat/completions");
     let body = build_openai_chat(req, true);
     let Some(resp) = send_cancellable(
-        stream_agent(req.timeout_secs, &req.pinned_addrs)
+        stream_agent(req.timeout_secs, &req.pinned_addrs, req.proxy.as_ref())
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
@@ -537,15 +732,7 @@ fn build_anthropic_body(req: &ProviderRequest, should_stream: bool) -> Value {
     if stream {
         body["stream"] = json!(true);
     }
-    if let Some(settings) = &req.settings {
-        if let Some(obj) = settings.as_object() {
-            if let Some(body_obj) = body.as_object_mut() {
-                for (k, v) in obj {
-                    body_obj.insert(k.clone(), v.clone());
-                }
-            }
-        }
-    }
+    merge_settings(&mut body, req);
     if let Some(tools) = &req.tools {
         body["tools"] = Value::Array(
             tools
@@ -596,7 +783,7 @@ fn map_stop_reason(reason: &str) -> &str {
 pub fn complete_anthropic(req: &ProviderRequest) -> Result<Value, String> {
     let url = versioned_endpoint(&req.base_url, "messages");
     let body = build_anthropic_body(req, false);
-    let mut request = agent(req.timeout_secs).post(&url);
+    let mut request = agent(req.timeout_secs, req.proxy.as_ref()).post(&url);
     for (k, v) in anthropic_headers(req) {
         request = request.set(k, &v);
     }
@@ -680,7 +867,7 @@ pub fn stream_anthropic(
 ) -> Result<Value, String> {
     let url = versioned_endpoint(&req.base_url, "messages");
     let body = build_anthropic_body(req, true);
-    let mut request = stream_agent(req.timeout_secs, &req.pinned_addrs).post(&url);
+    let mut request = stream_agent(req.timeout_secs, &req.pinned_addrs, req.proxy.as_ref()).post(&url);
     for (k, v) in anthropic_headers(req) {
         request = request.set(k, &v);
     }
@@ -866,14 +1053,23 @@ fn build_openai_responses(req: &ProviderRequest, should_stream: bool) -> Value {
                 .collect(),
         );
     }
-    if let Some(settings) = &req.settings {
-        if let Some(obj) = settings.as_object() {
-            if let Some(body_obj) = body.as_object_mut() {
-                for (k, v) in obj {
-                    body_obj.insert(k.clone(), v.clone());
-                }
-            }
-        }
+    merge_settings(&mut body, req);
+    if let Some(tools) = &req.tools {
+        body["tools"] = Value::Array(
+            tools
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|tool| tool.get("function"))
+                .map(|function| json!({
+                    "type": "function",
+                    "name": function.get("name").cloned().unwrap_or(Value::Null),
+                    "description": function.get("description").cloned().unwrap_or(Value::Null),
+                    "parameters": function.get("parameters").cloned().unwrap_or_else(|| json!({"type": "object"})),
+                    "strict": false,
+                }))
+                .collect(),
+        );
     }
     body
 }
@@ -882,7 +1078,7 @@ pub fn complete_openai_responses(req: &ProviderRequest) -> Result<Value, String>
     let url = versioned_endpoint(&req.base_url, "responses");
     let body = build_openai_responses(req, false);
     let resp = send_json(
-        agent(req.timeout_secs)
+        agent(req.timeout_secs, req.proxy.as_ref())
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
@@ -1006,7 +1202,7 @@ pub fn stream_openai_responses(
     let url = versioned_endpoint(&req.base_url, "responses");
     let body = build_openai_responses(req, true);
     let Some(resp) = send_cancellable(
-        stream_agent(req.timeout_secs, &req.pinned_addrs)
+        stream_agent(req.timeout_secs, &req.pinned_addrs, req.proxy.as_ref())
             .post(&url)
             .set("Authorization", &format!("Bearer {}", req.api_key))
             .set("Content-Type", "application/json"),
@@ -1143,14 +1339,40 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn versioned_endpoint_never_duplicates_v1() {
+    fn versioned_endpoint_never_duplicates_a_version_segment() {
+        // A bare host gains the version the protocol expects.
+        assert_eq!(
+            versioned_endpoint("https://api.example.test", "responses"),
+            "https://api.example.test/v1/responses"
+        );
         assert_eq!(
             versioned_endpoint("https://api.example.test/v1", "responses"),
             "https://api.example.test/v1/responses"
         );
+        // A base URL that already names the endpoint is left whole, not spliced again. This is
+        // the case that produced `…/v1/messages/v1/messages`.
         assert_eq!(
-            versioned_endpoint("https://api.example.test", "messages"),
+            versioned_endpoint("https://gw.example.test/v1/messages", "messages"),
+            "https://gw.example.test/v1/messages"
+        );
+        assert_eq!(
+            versioned_endpoint("https://gw.example.test/v1/chat/completions", "chat/completions"),
+            "https://gw.example.test/v1/chat/completions"
+        );
+        // A different version segment is kept as given, not rewritten to /v1.
+        assert_eq!(
+            versioned_endpoint("https://gw.example.test/api/v2", "messages"),
+            "https://gw.example.test/api/v2/messages"
+        );
+        // Trailing slashes never matter.
+        assert_eq!(
+            versioned_endpoint("https://api.example.test/v1/", "messages"),
             "https://api.example.test/v1/messages"
+        );
+        // Chat Completions resolves through the same function the other protocols use.
+        assert_eq!(
+            versioned_endpoint("https://gw.example.test", "chat/completions"),
+            "https://gw.example.test/v1/chat/completions"
         );
     }
 

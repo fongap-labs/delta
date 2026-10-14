@@ -151,6 +151,25 @@ export async function directCancel(
   }
 }
 
+/** Lifecycle state of a session's runtime. `active` is true while a turn is running,
+ *  waiting on an approval, or cancelling — i.e. the turn is still alive even though
+ *  no foreground socket is attached to it (the user switched conversations). */
+export async function directRuntimeState(
+  sessionId: string,
+): Promise<{ ok: boolean; state: string; active: boolean; error?: string }> {
+  try {
+    const out = (await invoke("runtime_state", { sessionId })) as Record<string, unknown> | null;
+    return {
+      ok: out?.ok !== false,
+      state: typeof out?.state === "string" ? out.state : "idle",
+      active: out?.active === true,
+      error: typeof out?.error === "string" ? out.error : undefined,
+    };
+  } catch (e) {
+    return { ok: false, state: "idle", active: false, error: String(e) };
+  }
+}
+
 export async function directMessages(
   sessionId: string,
 ): Promise<unknown[]> {
@@ -261,6 +280,10 @@ export const updatePdfSettings = (patch: Record<string, unknown>) =>
   invokeAuthority("update_pdf_settings", { patch });
 export const updateCompaction = (patch: Record<string, unknown>) =>
   invokeAuthority("update_compaction", { patch });
+// Network proxy (which route an outbound request takes). Read comes from the settings
+// snapshot, which already reports what `system` mode resolves to.
+export const updateProxySettings = (patch: Record<string, unknown>) =>
+  invokeAuthority("update_proxy_settings", { patch });
 export const directGetProviders = () => invokeAuthority("providers_list");
 export const directGetProtocols = () => invokeAuthority("provider_protocols");
 export const directSetProvider = (

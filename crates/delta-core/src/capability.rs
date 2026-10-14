@@ -163,6 +163,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(|_| {}),
             secrets: BTreeMap::new(),
+            proxy: None,
         }
     }
 
@@ -941,6 +942,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(true)),
             progress: Arc::new(|_| {}),
             secrets: BTreeMap::new(),
+            proxy: None,
         };
         let result = host.execute(
             &ToolCall {
@@ -1058,6 +1060,7 @@ mod tests {
                 ("DB_URL".to_string(), "postgres://...".to_string()),
                 ("UNGRANTED".to_string(), "should-not-appear".to_string()),
             ]),
+            proxy: None,
         };
         let result = host.execute(
             &ToolCall {
@@ -1110,6 +1113,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(|_| {}),
             secrets: BTreeMap::from([("API_KEY".to_string(), "sk-xxx".to_string())]),
+            proxy: None,
         };
         let result = host.execute(
             &ToolCall {

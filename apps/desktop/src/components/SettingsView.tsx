@@ -11,12 +11,15 @@ import {
   setContextBar,
   setOnboarded,
   setPdfSettings,
+  setProxySettings,
   setScratchBase,
   setSessionsPeek,
   setWorkspaceTrusted,
   type CompactionSettings,
   type ModelSettings,
   type PdfSettings,
+  type ProxyMode,
+  type ProxySettings,
   type WorkspaceCommandTrust,
 } from "../api";
 import {
@@ -155,6 +158,7 @@ export function SettingsView({
             <section>
               <PanelHead title={t("settings.privacy.title")} sub={t("settings.privacy.sub")} />
               <PrivacySection />
+              <NetworkProxyCard />
             </section>
           ) : tab === "skills" ? (
             <SkillsTab onCreateSkill={onCreateSkill} />
@@ -1083,6 +1087,168 @@ function ContextBarCard() {
           <span className="block text-[12px] text-muted">{t("settings.composer.showBarHelp")}</span>
         </span>
       </label>
+    </div>
+  );
+}
+
+// Which route outbound requests take. One setting for every door, because a network
+// that needs a proxy needs it for the model call AND the web search that ran with it:
+// half a turn proxied is the bug this replaces.
+function NetworkProxyCard() {
+  const { t } = useI18n();
+  const [settings, setSettings] = useState<ProxySettings | null>(null);
+  const [draft, setDraft] = useState<ProxySettings | null>(null);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [hasFailed, setFailed] = useState(false);
+
+  const load = () => {
+    setFailed(false);
+    getSettingsStrict()
+      .then((s) => {
+        const proxy: ProxySettings = {
+          mode: s.proxy?.mode ?? "system",
+          http: s.proxy?.http ?? "",
+          https: s.proxy?.https ?? "",
+          no_proxy: s.proxy?.no_proxy ?? "",
+          system_detected: s.proxy?.system_detected ?? null,
+        };
+        setSettings(proxy);
+        setDraft(proxy);
+      })
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
+
+  if (hasFailed && !settings) {
+    return <LoadError what={t("state.what.settings", undefined, "these settings")} onRetry={load} />;
+  }
+  if (!draft) return null;
+
+  const patch = (next: Partial<ProxySettings>) => {
+    setDraft({ ...draft, ...next });
+    setSaved(false);
+  };
+
+  // The mode change is saved immediately (it is the whole decision); the addresses
+  // wait for Save so a half-typed host:port is never persisted.
+  const chooseMode = async (mode: ProxyMode) => {
+    patch({ mode });
+    await persist({ mode });
+  };
+
+  const persist = async (fields: Partial<ProxySettings>) => {
+    setError("");
+    const out = await setProxySettings(fields).catch(() => null);
+    if (!out || out.ok === false) {
+      setError(t("settings.proxy.error"));
+      return;
+    }
+    if (out.proxy) {
+      setSettings(out.proxy);
+      setDraft({ ...draft, ...out.proxy, ...fields });
+    }
+    setSaved(true);
+  };
+
+  const isManual = draft.mode === "manual";
+  const detected = draft.system_detected;
+  return (
+    <div className={CARD + " p-4 mb-4"} data-testid="proxy-card">
+      <div className={FIELD_LABEL}>{t("settings.proxy.title")}</div>
+      <div className={FIELD_HELP}>{t("settings.proxy.help")}</div>
+      <div role="radiogroup" className="flex flex-col gap-2 mt-3">
+        {(["direct", "system", "manual"] as ProxyMode[]).map((mode) => (
+          <label
+            key={mode}
+            data-testid={`proxy-mode-${mode}`}
+            className={
+              "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 cursor-pointer " +
+              (draft.mode === mode
+                ? "border-primary bg-bg"
+                : "border-line hover:border-line-strong")
+            }
+          >
+            <input
+              type="radio"
+              name="proxy-mode"
+              className="mt-1"
+              checked={draft.mode === mode}
+              onChange={() => chooseMode(mode)}
+            />
+            <span>
+              <span className="block text-[13px] font-medium text-ink">
+                {t(`settings.proxy.${mode}`)}
+              </span>
+              <span className="block text-[12px] text-muted mt-0.5">
+                {t(`settings.proxy.${mode}Help`)}
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {draft.mode === "system" && (
+        <div className={FIELD_HELP} data-testid="proxy-detected">
+          {detected
+            ? t("settings.proxy.detected", { value: detected })
+            : t("settings.proxy.detectedNone")}
+        </div>
+      )}
+
+      {isManual && (
+        <div className="flex flex-col gap-3 mt-4">
+          <label className="block">
+            <span className={FIELD_LABEL}>{t("settings.proxy.httpLabel")}</span>
+            <input
+              className={INPUT + " mt-1.5 w-full"}
+              data-testid="proxy-http"
+              value={draft.http}
+              placeholder={t("settings.proxy.httpPlaceholder")}
+              onChange={(e) => patch({ http: e.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className={FIELD_LABEL}>{t("settings.proxy.httpsLabel")}</span>
+            <input
+              className={INPUT + " mt-1.5 w-full"}
+              data-testid="proxy-https"
+              value={draft.https}
+              placeholder={t("settings.proxy.httpsPlaceholder")}
+              onChange={(e) => patch({ https: e.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className={FIELD_LABEL}>{t("settings.proxy.noProxyLabel")}</span>
+            <input
+              className={INPUT + " mt-1.5 w-full"}
+              data-testid="proxy-no-proxy"
+              value={draft.no_proxy}
+              onChange={(e) => patch({ no_proxy: e.target.value })}
+            />
+            <span className={FIELD_HELP}>{t("settings.proxy.noProxyHelp")}</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <button className={BTN_ACCENT} data-testid="proxy-save" onClick={() => persist(draft)}>
+              {t("settings.proxy.save")}
+            </button>
+            {saved && (
+              <span className="text-[12px] text-muted">{t("settings.proxy.saved")}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!isManual && (
+        <div className={FIELD_HELP} data-testid="proxy-applies-next">
+          {t("settings.proxy.appliesNext")}
+        </div>
+      )}
+      {error && (
+        <div className="text-[12px] text-danger mt-2" data-testid="proxy-error">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

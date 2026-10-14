@@ -123,6 +123,10 @@ interface Props {
   onArchiveSession: (id: string, archived: boolean) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
   onSetReasoningEffort: (id: string, effort: string) => void;
+  // Carry a whole side conversation's conclusion into the task conversation the user is
+  // working in (ChatGPT's "continue in the main thread"). Takes the session id; the
+  // receiver reads its latest answer and prefills the composer.
+  onCarryToTask?: (id: string) => void;
   onManage: () => void;
   onOpenScheduled: () => void;
   onOpenAutomation: (id: string) => void;
@@ -285,6 +289,14 @@ export function Sidebar(props: Props) {
                       closeRowMenu();
                       props.onArchiveSession(session.session_id, !session.archived);
                     }} />
+                    {props.onCarryToTask && !active && (
+                      /* Only for a conversation that is NOT already open: carrying the
+                         current one into itself is a no-op the user would only see as noise. */
+                      <RowAction label={t("nav.carryToTask", undefined, "Bring to current task")} icon="sparkle" testid="row-menu-carry" onClick={() => {
+                        closeRowMenu();
+                        props.onCarryToTask!(session.session_id);
+                      }} />
+                    )}
                     <div className="h-px bg-line my-1 mx-2" />
                     <div className="px-2.5 pt-1.5 pb-1 text-[10.5px] uppercase tracking-wide text-faint">
                       {t("nav.moveToProject", undefined, "Project")}

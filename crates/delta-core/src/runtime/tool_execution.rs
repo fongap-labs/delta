@@ -635,6 +635,8 @@ impl RuntimeHost {
             cancel: self.cancel.clone(),
             progress,
             secrets: BTreeMap::new(),
+            // Same route as the model request that asked for this tool.
+            proxy: self.turn_proxy.clone(),
         };
         let mut result = self.tool_executor.execute(call, &context);
 

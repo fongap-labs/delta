@@ -215,6 +215,11 @@ pub fn runtime_cancel(state: State<'_, RuntimeRegistry>, session_id: String) -> 
 }
 
 #[tauri::command]
+pub fn runtime_state(state: State<'_, RuntimeRegistry>, session_id: String) -> Value {
+    state.runtime_state(&session_id)
+}
+
+#[tauri::command]
 pub fn runtime_approval(
     state: State<'_, RuntimeRegistry>,
     session_id: String,
@@ -377,6 +382,18 @@ pub fn update_compaction(state: State<'_, RuntimeRegistry>, patch: Value) -> Val
             .unwrap()
             .set_compaction_settings(&patch),
     )
+}
+
+/// Which proxy the outbound doors use. The snapshot already reports what `system`
+/// mode currently resolves to, so a read costs the caller no second round trip.
+#[tauri::command]
+pub fn update_proxy_settings(state: State<'_, RuntimeRegistry>, patch: Value) -> Value {
+    state
+        .models()
+        .lock()
+        .unwrap()
+        .set_proxy_settings(&patch)
+        .unwrap_or_else(|error| json!({"ok": false, "error": error}))
 }
 
 #[tauri::command]
