@@ -89,11 +89,9 @@ mod tests {
         }
         // The environment block must be declared authoritative, or the model treats local facts
         // (today's date, the time zone) as questions about the outside world.
-        assert!(
-            DELTA_AGENT
-                .system_prompt
-                .contains("The environment block below the signature is authoritative")
-        );
+        assert!(DELTA_AGENT
+            .system_prompt
+            .contains("The environment block below the signature is authoritative"));
         assert!(DELTA_AGENT.capabilities.contains(&"mcp"));
         assert_eq!(DELTA_AGENT.workspace_policy, WorkspacePolicy::TaskWorkspace);
     }

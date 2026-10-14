@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the macOS and Linux system proxy lookups in delta-stt called `std::process::Command::new` via an unqualified `Command` that resolved to the local dictation `enum Command` instead, so the crate failed to compile on those platforms; the `download_asset` call to `download_url` was also missing the `route` argument the method now requires.
+
 - feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual); the SenseVoice speech model download resumes with HTTP Range requests and reads system proxy settings on macOS and Linux; a failed web search reports the error instead of opening a browser; and Settings > Privacy gains a network proxy card with direct, system and manual modes.
 
 - feat [breaking, migration]: the release version is only the version entered when the release is started. The release build writes it into the version fields of its checkout (`scripts/stamp_release_version.py`) and verifies the portable metadata against it. The version-consistency check, the required dated CHANGELOG release section and `version_source` in the release manifest are removed.
