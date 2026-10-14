@@ -592,8 +592,8 @@ mod tests {
 
     #[test]
     fn lineage_snippet_is_redacted_and_clamped_on_char_boundaries() {
-        let secret = SourceRef::new("notes/a.md", "key sk-ant-api03-abcdefghijklmnopqrstuvwxyz");
-        assert!(!secret.matched_snippet.contains("sk-ant-"));
+        let secret = SourceRef::new("notes/a.md", "Authorization: Bearer test-token-value");
+        assert!(!secret.matched_snippet.contains("test-token-value"));
 
         // Multi-byte text: the cut lands after exactly LINEAGE_SNIPPET_MAX_CHARS characters.
         let long = "字".repeat(LINEAGE_SNIPPET_MAX_CHARS + 50);
