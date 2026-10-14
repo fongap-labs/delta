@@ -12,6 +12,7 @@ export type EventType =
   | "plan_proposed"
   | "tool_started"
   | "tool_finished"
+  | "artifact_updated"
   | "iteration_end"
   | "turn_end"
   | "error"

@@ -144,6 +144,11 @@ pub enum RuntimeEvent {
         result: Value,
         error: Option<String>,
     },
+    /// An artifact was registered or changed status. `artifact` is the registered payload.
+    ArtifactUpdated {
+        tool_call_id: String,
+        artifact: Value,
+    },
     PermissionRequired {
         tool_call_id: String,
         name: String,
@@ -260,6 +265,13 @@ impl RuntimeEvent {
             } => (
                 "tool_proposed",
                 json!({"tool_call_id": tool_call_id, "name": name, "arguments": arguments, "risk_level": risk_level}),
+            ),
+            Self::ArtifactUpdated {
+                tool_call_id,
+                artifact,
+            } => (
+                "artifact_updated",
+                json!({"tool_call_id": tool_call_id, "artifact": artifact}),
             ),
             Self::ToolStarted { tool_call_id, name } => (
                 "tool_started",

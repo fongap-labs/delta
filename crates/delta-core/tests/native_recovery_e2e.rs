@@ -2,8 +2,8 @@ use std::fs;
 
 use delta_core::control_plane;
 use delta_core::{
-    ArtifactInput, ArtifactReader, ArtifactRegistryWriter, AutomationStore, InboxStore,
-    LedgerReader, LedgerWriter,
+    ArtifactInput, ArtifactReader, ArtifactRegistryWriter, ArtifactStatus, AutomationStore,
+    InboxStore, LedgerReader, LedgerWriter,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -67,6 +67,8 @@ fn native_restart_recovers_session_run_artifact_inbox_automation_and_ledger() {
                     sha256: sha256.clone(),
                     incomplete: false,
                     registered_at: 2.0,
+                    status: ArtifactStatus::PendingReview,
+                    lineage: Vec::new(),
                 },
                 2.0,
                 workspace.to_string_lossy().as_ref(),

@@ -64,6 +64,8 @@ import { Onboarding } from "./components/Onboarding";
 import { UPDATER_FEED_PUBLISHED, UpdateBanner } from "./components/UpdateBanner";
 import { ScheduledView } from "./components/ScheduledView";
 import { RightRail } from "./components/RightRail";
+import { TraceLogsPanel } from "./components/TraceLogsPanel";
+import { parseArtifactUpdate, upsertArtifactTrace, type ArtifactTrace } from "./artifactTrace";
 import { IntegrationsView } from "./components/IntegrationsView";
 import { SettingsView } from "./components/SettingsView";
 import { AuditView } from "./components/AuditView";
@@ -294,6 +296,8 @@ export function App() {
   // Count of files this Delta conversation has produced — surfaces an "Artifacts (N)" button in
   // the topbar when the side panel is hidden, so produced files are never buried.
   const [artifactCount, setArtifactCount] = useState(0);
+  // Artifact traces per session, filled by `artifact_updated` frames for the Trace Logs panel.
+  const [artifactTraces, setArtifactTraces] = useState<Record<string, ArtifactTrace[]>>({});
   // §32 deep link into the rail's Access section (the former Session-settings drawer): bumping
   // the key expands the section and scrolls it into view. Callers also un-hide the rail.
   const [accessKey, setAccessKey] = useState(0);
@@ -690,6 +694,16 @@ export function App() {
             },
           ]);
           break;
+        case "artifact_updated": {
+          const trace = parseArtifactUpdate(d);
+          if (trace) {
+            setArtifactTraces((prev) => ({
+              ...prev,
+              [sessionId]: upsertArtifactTrace(prev[sessionId] ?? [], trace),
+            }));
+          }
+          break;
+        }
         case "tool_finished":
           setStepInfo(null);
           setItems((p) =>
@@ -1657,6 +1671,8 @@ export function App() {
                 </button>
               </div>
             )}
+
+            <TraceLogsPanel traces={artifactTraces[sessionId] ?? []} />
 
             <Composer
               mode={mode}

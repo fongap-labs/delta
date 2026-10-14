@@ -10,7 +10,7 @@ use std::path::{Component, Path};
 use sha2::{Digest, Sha256};
 
 use crate::approval::ApprovalRecordInput;
-use crate::artifact::{ArtifactInput, ArtifactRegistryWriter};
+use crate::artifact::{ArtifactInput, ArtifactRegistryWriter, ArtifactStatus};
 use crate::source_citation::{SourceCitationWriter, SourceReadInput, SourceRegisterInput};
 use crate::tool_lifecycle::{self, PlanAction, ToolLifecyclePlanInput};
 use crate::validation::ValidationWriter;
@@ -175,7 +175,11 @@ impl RuntimeHost {
         }
     }
 
-    fn formalize_artifacts(&self, staged: &[StagedArtifact]) -> Result<Vec<Value>, String> {
+    fn formalize_artifacts(
+        &self,
+        tool_call_id: &str,
+        staged: &[StagedArtifact],
+    ) -> Result<Vec<Value>, String> {
         if staged.is_empty() {
             return Ok(Vec::new());
         }
@@ -276,6 +280,13 @@ impl RuntimeHost {
                 sha256: sha256.clone(),
                 incomplete: candidate.incomplete,
                 registered_at: now_ts(),
+                // Incomplete output is still being drafted. Finished output waits for review.
+                status: if candidate.incomplete {
+                    ArtifactStatus::Drafting
+                } else {
+                    ArtifactStatus::PendingReview
+                },
+                lineage: Vec::new(),
             };
             ArtifactRegistryWriter::new(&authorities.ledger.lock().unwrap())
                 .register(&artifact, now_ts(), workspace_text)
@@ -284,6 +295,10 @@ impl RuntimeHost {
             if let Some(previous) = previous_version {
                 payload["previous_version"] = Value::String(previous);
             }
+            self.emit_event(RuntimeEvent::ArtifactUpdated {
+                tool_call_id: tool_call_id.to_string(),
+                artifact: payload.clone(),
+            });
             formalized.push(payload);
         }
         Ok(formalized)
@@ -709,7 +724,7 @@ impl RuntimeHost {
             return result;
         }
 
-        let artifacts = match self.formalize_artifacts(&result.staged_artifacts) {
+        let artifacts = match self.formalize_artifacts(&call.id, &result.staged_artifacts) {
             Ok(artifacts) => artifacts,
             Err(error) => {
                 let primary = format!(

@@ -61,7 +61,8 @@ pub use approval::{
 };
 pub use artifact::{
     ArtifactInput, ArtifactMismatch, ArtifactReader, ArtifactRecord, ArtifactRegistrationResult,
-    ArtifactRegistryWriter,
+    ArtifactRegistryWriter, ArtifactStatus, ArtifactTransitionError, SourceRef,
+    LINEAGE_SNIPPET_MAX_CHARS,
 };
 pub use automation::AutomationStore;
 pub use capability::{
