@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: the MCP client speaks the 2026-07-28 protocol first and keeps initialize as a legacy fallback for servers that do not speak it.
+
 - feat: artifacts carry a status (`drafting`, `pending_review` or `finalized`) and source lineage (the input file path and the matched snippet, redacted and capped at 200 characters). The runtime reports each registration in an `artifact_updated` frame on the existing session stream, and the desktop app shows a Trace Logs panel for finalized artifacts. Records written before this change load with an unknown status and no lineage.
 
 - fix: the macOS and Linux system proxy lookups in delta-stt called `std::process::Command::new` via an unqualified `Command` that resolved to the local dictation `enum Command` instead, so the crate failed to compile on those platforms; the `download_asset` call to `download_url` was also missing the `route` argument the method now requires.

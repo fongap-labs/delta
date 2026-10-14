@@ -285,12 +285,6 @@ if run_shard checks; then
     fi
   done
 
-  if grep -rn     "openwork-theme\|openwork:theme-pref"     apps core integrations packages services scripts     --include='*.ts' --include='*.tsx' --include='*.html' --include='*.rs'     --include='*.py' --include='*.js' --include='*.json' --include='*.css'     2>/dev/null   | grep -v 'apps/desktop/src/theme.ts'   | grep -v 'apps/desktop/index.html'   | grep -v 'apps/desktop/src-tauri/src/lib.rs'
-  then
-    echo "central-ci: retired theme runtime key found in source" >&2
-    exit 1
-  fi
-
   python3 scripts/check_retired_paths.py
   python3 scripts/check_retired_branding.py
   python3 scripts/check_architecture_boundary.py

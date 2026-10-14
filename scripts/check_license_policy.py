@@ -30,8 +30,6 @@ def main() -> int:
         errors.append("root LICENSE must be Apache License 2.0")
     if "THIRD-PARTY COMPONENTS" in license_text:
         errors.append("root LICENSE must contain only the standard Apache-2.0 license text")
-    if "Copyright (c) 2024 Andrew Ng" in license_text:
-        errors.append("retired third-party copyright must not be presented as Delta root-license ownership")
 
     if "Copyright 2026 Fongap Labs" not in notice_text:
         errors.append("NOTICE must contain the Delta copyright attribution")

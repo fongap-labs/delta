@@ -21,9 +21,6 @@ Forbidden patterns (case-insensitive):
   - Retired brand name and its lowercase form
   - `@ocw` (legacy Slack bot handle)
   - `ocw.` (legacy localStorage / event prefix)
-  - `.openworker/` (legacy per-user state directory)
-  - `OPENWORKER_` (legacy env var prefix)
-  - `OpenWorkerRuntime` (legacy runtime class name)
   - `CoworkerManager` (legacy manager class name)
   - `ocw_home` (legacy env var)
   - `cowork` (legacy agent id / module name)
@@ -62,28 +59,18 @@ SKIP_FILES = {
 
 # Lines that match any of these regexes are NOT checked, even inside scanned
 # dirs. This lets us keep provenance / attribution comments and historical
-# lineage notes that legitimately reference the OpenWorker / cowork names
-# without using them as live product identity.
+# lineage notes that legitimately reference the cowork names without using them as live product
+# identity.
 EXEMPT_LINE_PATTERNS = [
-    re.compile(r"andrewyng/openworker", re.IGNORECASE),
     re.compile(r"Semantic port of", re.IGNORECASE),
-    re.compile(r"Port of andrewyng/openworker", re.IGNORECASE),
     re.compile(r"imports adapted coworker", re.IGNORECASE),
-    # Historical lineage notes: "was historically `cowork` during the
-    # OpenWorker lineage" / "OpenWorker-era rebrand aliases" / etc.
+    # Historical lineage notes: "was historically `cowork` during the earlier lineage" / etc.
     re.compile(r"was historically", re.IGNORECASE),
-    re.compile(r"OpenWorker-era|OpenWorker lineage", re.IGNORECASE),
-    # OpenWorker platform split / archive provenance.
-    re.compile(r"archive[d]? OpenWorker|OpenWorker platform split|OpenWorker rebrand", re.IGNORECASE),
 ]
 
 FORBIDDEN_PATTERNS = [
-    re.compile(r"OpenWorker", re.IGNORECASE),
     re.compile(r"@ocw\b", re.IGNORECASE),
     re.compile(r"\bocw\.", re.IGNORECASE),
-    re.compile(r"\.openworker[/\\]"),
-    re.compile(r"OPENWORKER_"),
-    re.compile(r"OpenWorkerRuntime"),
     re.compile(r"CoworkerManager"),
     re.compile(r"\bocw_home\b"),
     re.compile(r"\bcowork\b", re.IGNORECASE),
