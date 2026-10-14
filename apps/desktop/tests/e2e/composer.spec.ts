@@ -117,3 +117,26 @@ test("composer: PDF over the page threshold is rejected with a notice", async ({
   });
   await expect(page.locator(".attach-chip")).toContainText("small.pdf");
 });
+
+// Word, Excel and PowerPoint files attach as chips (they are saved into the workspace when sent),
+// while an archive is still refused with the same notice as before.
+test("composer: an Office file attaches as a chip; an archive is still refused", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Draft the launch note").first().click();
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "report.docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: Buffer.from("PK\u0003\u0004office-bytes"),
+  });
+  await expect(page.locator(".attach-chip")).toContainText("report.docx");
+  await expect(page.getByRole("button", { name: "Send" })).toHaveClass(/bg-primary/);
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "archive.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("PK\u0003\u0004zip-bytes"),
+  });
+  await expect(page.getByTestId("attach-notice")).toContainText("archive.zip: Unsupported format");
+  await expect(page.locator(".attach-chip")).toHaveCount(1);
+});

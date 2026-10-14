@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Attachment, SessionUsage } from "../types";
 import {
+  OFFICE_FILE_ACCEPT,
   TEXT_FILE_ACCEPT,
   isPdfFile,
   mergeAttachments,
@@ -698,6 +699,7 @@ export function Composer(props: Props) {
                 <div className="absolute z-40 bottom-full mb-1 left-0 min-w-[180px] rounded-xl border border-line bg-panel shadow-2xl py-1.5">
                   {attachItem("image", t("composer.attachPhoto", undefined, "Photo or image"), () => pickFiles("image/*"))}
                   {attachItem("file", t("composer.attachPdf", undefined, "PDF"), () => pickFiles("application/pdf,.pdf"))}
+                  {attachItem("file", t("composer.attachOffice", undefined, "Word, Excel or PowerPoint"), () => pickFiles(OFFICE_FILE_ACCEPT))}
                   {attachItem(
                     "fileCode",
                     t("composer.attachTextCode", undefined, "Text and code"),

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_IMAGE_FILE_BYTES,
+  MAX_OFFICE_FILE_BYTES,
+  OFFICE_FILE_ACCEPT,
   TEXT_FILE_ACCEPT,
   attachmentFileKind,
   mergeAttachments,
@@ -10,6 +12,44 @@ import {
 import type { Attachment } from "./types";
 
 afterEach(() => vi.unstubAllGlobals());
+
+const OOXML = {
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+
+describe("Office attachments", () => {
+  it("accepts Word, Excel and PowerPoint files by extension or OOXML type", () => {
+    for (const [ext, type] of Object.entries(OOXML)) {
+      expect(attachmentFileKind(new File(["x"], `report.${ext}`))).toBe("office");
+      expect(attachmentFileKind(new File(["x"], "report.bin", { type }))).toBe("office");
+      expect(OFFICE_FILE_ACCEPT).toContain(`.${ext}`);
+    }
+    expect(attachmentFileKind(new File(["x"], "legacy.doc"))).toBeNull();
+    expect(attachmentFileKind(new File(["x"], "legacy.xls"))).toBeNull();
+    expect(attachmentFileKind(new File(["x"], "archive.zip"))).toBeNull();
+  });
+
+  it("reads an Office file as a data URL with the OOXML MIME type, even when the browser reports none", async () => {
+    const result = await readFile(new File(["PK-bytes"], "report.docx", { type: "" }));
+    expect(result).toMatchObject({ ok: true, attachment: { kind: "office", name: "report.docx", mime: OOXML.docx } });
+    if (result.ok) {
+      expect(result.attachment.data_url?.startsWith(`data:${OOXML.docx};base64,`)).toBe(true);
+    }
+  });
+
+  it("rejects an Office file over the 10 MB limit with the explicit code", async () => {
+    await expect(
+      readFile(new File([new Uint8Array(MAX_OFFICE_FILE_BYTES + 1)], "big.xlsx", { type: OOXML.xlsx })),
+    ).resolves.toMatchObject({ ok: false, code: "file_too_large", name: "big.xlsx", maxBytes: MAX_OFFICE_FILE_BYTES });
+  });
+
+  it("rejects an Office attachment whose data URL is not an OOXML payload", () => {
+    const bad: Attachment = { kind: "office", name: "x.docx", data_url: "data:application/octet-stream;base64,AAAA" };
+    expect(validateAttachmentSet([bad])).toMatchObject({ ok: false, code: "invalid_payload" });
+  });
+});
 
 describe("attachment policy", () => {
   it("keeps picker extensions and validation in one source", () => {

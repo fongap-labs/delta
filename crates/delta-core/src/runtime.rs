@@ -23,12 +23,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::time::Duration;
 
+use base64::Engine as _;
 use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::approval::{ApprovalController, ApprovalDecision, ApprovalWriter};
 use crate::capability::CapabilityProgress;
 use crate::checkpoint::{CheckpointReader, CheckpointRegisterInput, CheckpointWriter};
+use crate::durability::atomic_write_private;
 use crate::idemlog::{IdempotencyWriter, SideEffectEntry};
 use crate::inbox::InboxStore;
 use crate::policy::{self, Decision, PolicyEvaluateInput, RiskLevel, RootEntry, ToolMetadata};
@@ -794,6 +796,101 @@ fn split_data_url(value: &str) -> Option<(&str, &str)> {
         .map(|media_type| (media_type, data))
 }
 
+/// Largest Office file accepted as an attachment, in decoded bytes. The composer enforces the same.
+pub const MAX_OFFICE_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
+/// Longest data URL accepted for an Office attachment: the base64 of the limit, plus the prefix.
+const MAX_OFFICE_DATA_URL_CHARS: usize = 14_000_000;
+const OFFICE_EXTENSIONS: [&str; 3] = ["docx", "xlsx", "pptx"];
+
+/// File name of an Office attachment, checked before it becomes part of a path. Separators,
+/// control characters, leading dots and any extension other than the three Office types are refused.
+fn safe_office_name(name: &str) -> Result<String, String> {
+    let extension = name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase())
+        .unwrap_or_default();
+    let plain = !name.is_empty()
+        && name.len() <= 200
+        && !name.starts_with('.')
+        && name
+            .chars()
+            .all(|c| !c.is_control() && !matches!(c, '/' | '\\' | ':'));
+    if plain && OFFICE_EXTENSIONS.contains(&extension.as_str()) {
+        Ok(name.to_string())
+    } else {
+        Err(format!(
+            "{name} is not an allowed Word, Excel or PowerPoint file name"
+        ))
+    }
+}
+
+/// Save each Office attachment under `<workspace>/.delta/attachments/<run>/` and keep only its saved
+/// path. Other attachments pass through unchanged. The result never holds Office bytes, so the
+/// transcript, the events and the provider payload carry a path and not the file.
+fn save_office_attachments(
+    workspace: Option<&str>,
+    run_id: &str,
+    attachments: &[Value],
+) -> Result<Vec<Value>, String> {
+    let mut saved = Vec::with_capacity(attachments.len());
+    for (index, attachment) in attachments.iter().enumerate() {
+        if attachment.get("kind").and_then(Value::as_str) != Some("office") {
+            saved.push(attachment.clone());
+            continue;
+        }
+        let name = attachment
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let file_name = safe_office_name(name)?;
+        let workspace = workspace
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                "Word, Excel and PowerPoint attachments need a workspace; choose a workspace and attach the file again"
+                    .to_string()
+            })?;
+        let data_url = attachment
+            .get("data_url")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if data_url.len() > MAX_OFFICE_DATA_URL_CHARS {
+            return Err(format!("{name} is larger than 10 MB"));
+        }
+        let (_, payload) =
+            split_data_url(data_url).ok_or_else(|| format!("{name} is not a valid Office file"))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .map_err(|_| format!("{name} is not a valid Office file"))?;
+        if bytes.len() > MAX_OFFICE_ATTACHMENT_BYTES {
+            return Err(format!("{name} is larger than 10 MB"));
+        }
+        // The index keeps two attachments with the same name in one run from overwriting each other.
+        let relative = format!(".delta/attachments/{run_id}/{index}-{file_name}");
+        let target = Path::new(workspace).join(&relative);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("could not save {name}: {error}"))?;
+        }
+        atomic_write_private(&target, &bytes)
+            .map_err(|error| format!("could not save {name}: {error}"))?;
+        saved.push(json!({"kind": "office", "name": name, "saved_path": relative}));
+    }
+    Ok(saved)
+}
+
+/// Text that tells the model where a saved Office file is. The bytes are never sent.
+fn office_note(attachment: &Value) -> String {
+    let name = attachment
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("attachment");
+    let saved_path = attachment
+        .get("saved_path")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    format!("[Attached Office file: {name}, saved at {saved_path}; read it with read_document]")
+}
+
 /// Convert the canonical transcript attachment shape at the provider boundary.
 /// The transcript remains provider-neutral and therefore survives model changes.
 fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> Value {
@@ -815,9 +912,12 @@ fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> V
                 if let Some(value) = attachment.get("text").and_then(Value::as_str) {
                     blocks.push(json!({"type": "text", "text": format!("<file name=\"{name}\">\n{value}\n</file>")}));
                 }
+            } else if kind == "office" {
+                blocks.push(json!({"type": "text", "text": office_note(attachment)}));
             } else if let Some((media_type, data)) = attachment
                 .get("data_url")
                 .and_then(Value::as_str)
+                .filter(|_| matches!(kind, "image" | "pdf"))
                 .and_then(split_data_url)
             {
                 let block_type = if kind == "pdf" { "document" } else { "image" };
@@ -847,7 +947,13 @@ fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> V
                 if let Some(value) = attachment.get("text").and_then(Value::as_str) {
                     parts.push(json!({"type": "input_text", "text": format!("<file name=\"{name}\">\n{value}\n</file>")}));
                 }
-            } else if let Some(data_url) = attachment.get("data_url").and_then(Value::as_str) {
+            } else if kind == "office" {
+                parts.push(json!({"type": "input_text", "text": office_note(attachment)}));
+            } else if let Some(data_url) = attachment
+                .get("data_url")
+                .and_then(Value::as_str)
+                .filter(|_| matches!(kind, "image" | "pdf"))
+            {
                 if kind == "pdf" {
                     parts.push(
                         json!({"type": "input_file", "filename": name, "file_data": data_url}),
@@ -881,6 +987,8 @@ fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> V
             if let Some(data_url) = attachment.get("data_url").and_then(Value::as_str) {
                 parts.push(json!({"type": "image_url", "image_url": {"url": data_url}}));
             }
+        } else if kind == "office" {
+            parts.push(json!({"type": "text", "text": office_note(attachment)}));
         } else {
             parts.push(json!({"type": "text", "text": format!("[Attached PDF: {name}; select an OpenAI Responses or Anthropic model for native PDF input]")}));
         }
@@ -1510,6 +1618,9 @@ impl RuntimeHost {
         source: Option<Value>,
     ) -> Result<Value, String> {
         self.clear_event_error();
+        let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
+        let attachments =
+            save_office_attachments(self.config.workspace.as_deref(), &run_id, attachments)?;
         self.emit_event(RuntimeEvent::TurnStart {
             input: Value::String(user_input.to_string()),
             attachments: attachments.to_vec(),
@@ -1601,3 +1712,148 @@ impl RuntimeHost {
 #[cfg(test)]
 #[path = "runtime/test_runtime.rs"]
 mod tests;
+
+#[cfg(test)]
+mod office_attachment_tests {
+    use super::*;
+
+    const DOCX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    fn office_attachment(name: &str, bytes: &[u8]) -> Value {
+        let payload = base64::engine::general_purpose::STANDARD.encode(bytes);
+        json!({"kind": "office", "name": name, "mime": DOCX, "data_url": format!("data:{DOCX};base64,{payload}")})
+    }
+
+    #[test]
+    fn office_names_must_be_plain_and_have_an_office_extension() {
+        assert_eq!(safe_office_name("report.docx").unwrap(), "report.docx");
+        assert_eq!(safe_office_name("Budget.XLSX").unwrap(), "Budget.XLSX");
+        for bad in [
+            "../x.docx",
+            "a/b.docx",
+            "a\\b.docx",
+            ".hidden.docx",
+            "archive.zip",
+            "noext",
+            "c:evil.docx",
+            "",
+        ] {
+            assert!(safe_office_name(bad).is_err(), "{bad} must be refused");
+        }
+        let long = format!("{}.docx", "a".repeat(200));
+        assert!(safe_office_name(&long).is_err());
+    }
+
+    #[test]
+    fn office_files_are_saved_in_the_workspace_and_only_the_path_is_kept() {
+        let workspace = tempfile::tempdir().unwrap();
+        let bytes = b"PK\x03\x04 office bytes";
+        let saved = save_office_attachments(
+            workspace.path().to_str(),
+            "run-1",
+            &[office_attachment("report.docx", bytes)],
+        )
+        .unwrap();
+
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0]["kind"], "office");
+        assert_eq!(
+            saved[0]["saved_path"],
+            ".delta/attachments/run-1/0-report.docx"
+        );
+        assert!(
+            saved[0].get("data_url").is_none(),
+            "the bytes must not stay in the transcript"
+        );
+        let on_disk = std::fs::read(
+            workspace
+                .path()
+                .join(".delta/attachments/run-1/0-report.docx"),
+        )
+        .unwrap();
+        assert_eq!(on_disk, bytes);
+    }
+
+    #[test]
+    fn office_files_need_a_workspace() {
+        let error =
+            save_office_attachments(None, "run-1", &[office_attachment("report.docx", b"x")])
+                .unwrap_err();
+        assert!(error.contains("need a workspace"));
+        let blank = save_office_attachments(
+            Some("  "),
+            "run-1",
+            &[office_attachment("report.docx", b"x")],
+        )
+        .unwrap_err();
+        assert!(blank.contains("need a workspace"));
+    }
+
+    #[test]
+    fn an_office_file_over_the_limit_is_refused_before_it_is_written() {
+        let workspace = tempfile::tempdir().unwrap();
+        let oversized = vec![0u8; MAX_OFFICE_ATTACHMENT_BYTES + 1];
+        let error = save_office_attachments(
+            workspace.path().to_str(),
+            "run-1",
+            &[office_attachment("big.pptx", &oversized)],
+        )
+        .unwrap_err();
+        assert!(error.contains("larger than 10 MB"));
+        assert!(!workspace.path().join(".delta").exists());
+    }
+
+    #[test]
+    fn other_attachments_pass_through_unchanged() {
+        let text = json!({"kind": "text", "name": "notes.md", "text": "hi"});
+        let saved = save_office_attachments(None, "run-1", std::slice::from_ref(&text)).unwrap();
+        assert_eq!(saved, vec![text]);
+    }
+
+    #[test]
+    fn the_model_gets_a_note_for_an_office_file_and_never_a_binary_block() {
+        let saved = json!({"kind": "office", "name": "report.docx", "saved_path": ".delta/attachments/run-1/0-report.docx"});
+        let note = office_note(&saved);
+        assert!(note.contains(".delta/attachments/run-1/0-report.docx"));
+        assert!(note.contains("read_document"));
+
+        for protocol in ["anthropic", "openai_responses", "openai"] {
+            let content =
+                provider_user_content(protocol, "summarize", std::slice::from_ref(&saved));
+            let rendered = content.to_string();
+            assert!(
+                rendered.contains("read_document"),
+                "{protocol} must carry the note"
+            );
+            assert!(
+                !rendered.contains("base64"),
+                "{protocol} must not carry file bytes"
+            );
+            assert!(
+                !rendered.contains("\"image\""),
+                "{protocol} must not send an image block"
+            );
+            assert!(
+                !rendered.contains("\"document\""),
+                "{protocol} must not send a document block"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_kind_with_bytes_is_not_sent_as_an_image() {
+        let unknown = json!({"kind": "archive", "name": "x.zip", "data_url": "data:application/zip;base64,UEsD"});
+        for protocol in ["anthropic", "openai_responses", "openai"] {
+            let rendered =
+                provider_user_content(protocol, "", std::slice::from_ref(&unknown)).to_string();
+            assert!(
+                !rendered.contains("UEsD"),
+                "{protocol} must not forward the bytes"
+            );
+            assert!(
+                !rendered.contains("\"image\""),
+                "{protocol} must not treat it as an image"
+            );
+        }
+    }
+}
