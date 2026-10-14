@@ -124,7 +124,10 @@ fn detect_system_proxy() -> Option<String> {
 /// download is HTTPS) and falls back to the HTTP one; `*Enable : 0` means off.
 #[cfg(target_os = "macos")]
 fn macos_system_proxy() -> Option<String> {
-    let output = Command::new("scutil").arg("--proxy").output().ok()?;
+    let output = std::process::Command::new("scutil")
+        .arg("--proxy")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -165,7 +168,7 @@ fn macos_system_proxy() -> Option<String> {
 #[cfg(all(unix, not(target_os = "macos")))]
 fn linux_gnome_proxy() -> Option<String> {
     let get = |schema: &str, key: &str| -> Option<String> {
-        let output = Command::new("gsettings")
+        let output = std::process::Command::new("gsettings")
             .args(["get", schema, key])
             .output()
             .ok()?;
@@ -593,7 +596,7 @@ impl Dictation {
         let partial = target.with_extension("part");
         let mut last_error = String::new();
         for url in asset.urls {
-            match self.download_url(url, &partial, asset, base, on_progress) {
+            match self.download_url(url, &partial, asset, base, route, on_progress) {
                 Ok(()) => {
                     if target.exists() {
                         fs::remove_file(target)

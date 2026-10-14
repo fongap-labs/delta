@@ -107,10 +107,7 @@ impl ProxySettings {
                 settings.no_proxy.clear();
             }
         }
-        for (key, field) in [
-            ("http", &mut settings.http),
-            ("https", &mut settings.https),
-        ] {
+        for (key, field) in [("http", &mut settings.http), ("https", &mut settings.https)] {
             if let Some(value) = patch.get(key).and_then(Value::as_str) {
                 *field = normalize_proxy_url(value);
             }
@@ -118,7 +115,11 @@ impl ProxySettings {
         // The bypass list is HOSTS, not URLs: prefixing "http://" here would turn
         // "localhost" into "http://localhost" and stop it from ever matching a host.
         if let Some(value) = patch.get("no_proxy").and_then(Value::as_str) {
-            settings.no_proxy = value.split(',').map(str::trim).collect::<Vec<_>>().join(",");
+            settings.no_proxy = value
+                .split(',')
+                .map(str::trim)
+                .collect::<Vec<_>>()
+                .join(",");
         }
         // A manual config with no usable address is a configuration error, not a silent
         // fallback to direct: the user asked for a proxy and would otherwise wonder why
@@ -199,7 +200,11 @@ impl ProxySettings {
             .filter(|entry| !entry.is_empty())
             .any(|entry| {
                 // An entry may carry a port (`host:port`); the host is what matches.
-                let entry = entry.split(':').next().unwrap_or(entry).to_ascii_lowercase();
+                let entry = entry
+                    .split(':')
+                    .next()
+                    .unwrap_or(entry)
+                    .to_ascii_lowercase();
                 // Leading `.` (`.internal`) and `*.` (`*.corp.test`) are both spellings
                 // of "this domain and below"; strip to the bare domain before matching.
                 let entry = entry.strip_prefix("*.").unwrap_or(&entry);
@@ -241,7 +246,8 @@ pub fn host_of(url: &str) -> Option<String> {
     let host = match host.strip_prefix('[') {
         Some(rest) => rest.split(']').next().unwrap_or(rest),
         None => host.split(':').next().unwrap_or(host),
-    };    if host.is_empty() {
+    };
+    if host.is_empty() {
         return None;
     }
     Some(host.to_ascii_lowercase())
@@ -351,14 +357,26 @@ mod tests {
 
     #[test]
     fn unset_preferences_mean_system_mode_not_direct() {
-        assert_eq!(ProxySettings::from_prefs(&Map::new()).mode, ProxyMode::System);
+        assert_eq!(
+            ProxySettings::from_prefs(&Map::new()).mode,
+            ProxyMode::System
+        );
     }
 
     #[test]
     fn a_bare_host_port_gets_a_scheme() {
-        assert_eq!(normalize_proxy_url("127.0.0.1:7890"), "http://127.0.0.1:7890");
-        assert_eq!(normalize_proxy_url("  http://proxy:3128  "), "http://proxy:3128");
-        assert_eq!(normalize_proxy_url("socks5://proxy:1080"), "socks5://proxy:1080");
+        assert_eq!(
+            normalize_proxy_url("127.0.0.1:7890"),
+            "http://127.0.0.1:7890"
+        );
+        assert_eq!(
+            normalize_proxy_url("  http://proxy:3128  "),
+            "http://proxy:3128"
+        );
+        assert_eq!(
+            normalize_proxy_url("socks5://proxy:1080"),
+            "socks5://proxy:1080"
+        );
         assert_eq!(normalize_proxy_url("   "), "");
     }
 
@@ -381,7 +399,10 @@ mod tests {
 
     #[test]
     fn no_proxy_matches_exact_hosts_and_label_boundaries_only() {
-        let settings = manual("http://proxy:3128", "localhost, .internal , *.corp.test:8080");
+        let settings = manual(
+            "http://proxy:3128",
+            "localhost, .internal , *.corp.test:8080",
+        );
         assert!(settings.bypasses("localhost"));
         assert!(settings.bypasses("db.internal"));
         assert!(settings.bypasses("a.b.internal"));
@@ -404,8 +425,9 @@ mod tests {
     #[test]
     fn manual_mode_without_an_address_is_refused_rather_than_silently_direct() {
         let mut prefs = Map::new();
-        let error = ProxySettings::write_prefs(&mut prefs, &json!({"mode": "manual", "http": "  "}))
-            .unwrap_err();
+        let error =
+            ProxySettings::write_prefs(&mut prefs, &json!({"mode": "manual", "http": "  "}))
+                .unwrap_err();
         assert!(error.contains("at least an HTTP or HTTPS proxy address"));
         // The refused patch left no half-written state behind.
         assert!(prefs.get("proxy_mode").is_none());
@@ -432,7 +454,10 @@ mod tests {
             host_of("https://user:pw@Example.com:8443/x").as_deref(),
             Some("example.com")
         );
-        assert_eq!(host_of("http://127.0.0.1:8080").as_deref(), Some("127.0.0.1"));
+        assert_eq!(
+            host_of("http://127.0.0.1:8080").as_deref(),
+            Some("127.0.0.1")
+        );
         assert_eq!(host_of("not a url"), None);
         // Brackets are the URL's disambiguator, not part of the host: `[::1]:8443`
         // normalises to `::1`, which is what a NO_PROXY entry is written as.
@@ -468,14 +493,12 @@ mod tests {
     fn route_for_maps_settings_correctly() {
         // direct mode -> always Direct
         let mut prefs = Map::new();
-        ProxySettings::write_prefs(&mut prefs, &json!({"mode": "direct"}))
-            .unwrap();
+        ProxySettings::write_prefs(&mut prefs, &json!({"mode": "direct"})).unwrap();
         let s = ProxySettings::from_prefs(&prefs);
         assert_eq!(s.route_for("https://example.com"), ProxyRoute::Direct);
         // system mode -> always System (probe)
         let mut prefs = Map::new();
-        ProxySettings::write_prefs(&mut prefs, &json!({"mode": "system"}))
-            .unwrap();
+        ProxySettings::write_prefs(&mut prefs, &json!({"mode": "system"})).unwrap();
         let s = ProxySettings::from_prefs(&prefs);
         assert_eq!(s.route_for("http://anywhere.test"), ProxyRoute::System);
         // manual mode with set address -> Manual(url)
