@@ -79,7 +79,8 @@ describe("composer attachment entry points", () => {
     renderComposer();
     fireEvent.click(screen.getByLabelText("Attach files"));
     expect(screen.getByText("Text and code")).toBeTruthy();
-    expect(screen.getByText(/Office files, archives/)).toBeTruthy();
+    expect(screen.getByText("Word, Excel or PowerPoint")).toBeTruthy();
+    expect(screen.getByText(/Archives and other binary files are not supported/)).toBeTruthy();
   });
 
   it("picker, drop, and paste show the same unsupported-format rejection", async () => {

@@ -8,9 +8,18 @@ export const MAX_ATTACHMENT_PAYLOAD_BYTES = 15_000_000;
 export const MAX_IMAGE_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_PDF_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_TEXT_FILE_BYTES = 200_000;
+export const MAX_OFFICE_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_IMAGE_DATA_URL_CHARS = 12_000_000;
 export const MAX_PDF_DATA_URL_CHARS = 15_000_000;
+export const MAX_OFFICE_DATA_URL_CHARS = 14_000_000;
 export const MAX_TEXT_CHARS = 200_000;
+
+// Word, Excel and PowerPoint files. The backend saves them into the workspace and the model reads
+// them with `read_document`; the bytes never go to the model directly.
+export const OFFICE_FILE_EXTENSIONS = ["docx", "xlsx", "pptx"] as const;
+const OFFICE_RE = new RegExp(`\\.(${OFFICE_FILE_EXTENSIONS.join("|")})$`, "i");
+export const OFFICE_FILE_ACCEPT = OFFICE_FILE_EXTENSIONS.map((ext) => `.${ext}`).join(",");
+const OFFICE_MIME_PREFIX = "application/vnd.openxmlformats-officedocument.";
 
 export const TEXT_FILE_EXTENSIONS = [
   "txt", "md", "markdown", "csv", "tsv", "json", "yaml", "yml", "log", "ini",
@@ -41,11 +50,21 @@ export type ReadFileResult = { ok: true; attachment: Attachment } | AttachmentRe
 export const isPdfFile = (file: File) =>
   file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 
+export const isOfficeFile = (file: File) =>
+  file.type.startsWith(OFFICE_MIME_PREFIX) || OFFICE_RE.test(file.name);
+
 export const attachmentFileKind = (file: File): Attachment["kind"] | null => {
   if (file.type.startsWith("image/")) return "image";
   if (isPdfFile(file)) return "pdf";
+  if (isOfficeFile(file)) return "office";
   if (file.type.startsWith("text/") || TEXT_RE.test(file.name)) return "text";
   return null;
+};
+
+/** MIME type from the extension, so a browser that reports no type still passes validation. */
+export const officeMimeFor = (name: string): string => {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return `${OFFICE_MIME_PREFIX}${ext === "docx" ? "wordprocessingml.document" : ext === "xlsx" ? "spreadsheetml.sheet" : "presentationml.presentation"}`;
 };
 
 const getMaxBytes = (kind: Attachment["kind"]): number =>
@@ -53,7 +72,9 @@ const getMaxBytes = (kind: Attachment["kind"]): number =>
     ? MAX_IMAGE_FILE_BYTES
     : kind === "pdf"
       ? MAX_PDF_FILE_BYTES
-      : MAX_TEXT_FILE_BYTES;
+      : kind === "office"
+        ? MAX_OFFICE_FILE_BYTES
+        : MAX_TEXT_FILE_BYTES;
 
 /** Read one file according to the same policy used by picker, drag/drop, and paste. */
 export function readFile(file: File): Promise<ReadFileResult> {
@@ -75,10 +96,12 @@ export function readFile(file: File): Promise<ReadFileResult> {
           ? { kind, name, mime: file.type, data_url: result }
           : kind === "pdf"
             ? { kind, name, mime: "application/pdf", data_url: result }
-            : { kind, name, mime: file.type, text: result };
+            : kind === "office"
+              ? { kind, name, mime: officeMimeFor(name), data_url: result.replace(/^data:[^,]*,/, `data:${officeMimeFor(name)};base64,`) }
+              : { kind, name, mime: file.type, text: result };
       resolve(validateAttachment(attachment) ? { ok: false, code: "invalid_payload", name } : { ok: true, attachment });
     };
-    if (kind === "image" || kind === "pdf") reader.readAsDataURL(file);
+    if (kind === "image" || kind === "pdf" || kind === "office") reader.readAsDataURL(file);
     else reader.readAsText(file);
   });
 }
@@ -123,6 +146,13 @@ function validateAttachment(attachment: Attachment): AttachmentRejectCode | null
     const data = attachment.data_url || "";
     const prefix = "data:application/pdf;base64,";
     return data.startsWith(prefix) && data.length > prefix.length && data.length <= MAX_PDF_DATA_URL_CHARS
+      ? null
+      : "invalid_payload";
+  }
+  if (attachment.kind === "office") {
+    const data = attachment.data_url || "";
+    const marker = data.indexOf(";base64,");
+    return data.startsWith(`data:${OFFICE_MIME_PREFIX}`) && marker >= 0 && marker + 8 < data.length && data.length <= MAX_OFFICE_DATA_URL_CHARS
       ? null
       : "invalid_payload";
   }

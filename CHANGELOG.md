@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: Word, Excel and PowerPoint files (.docx, .xlsx, .pptx) can be attached in chat. They are saved into the workspace under `.delta/attachments/` when the message is sent, and the model reads them with `read_document`. The limit is 10 MB per file, and a workspace must be set. Archives and other binary files are still not supported.
+
 - feat: the MCP client speaks the 2026-07-28 protocol first and keeps initialize as a legacy fallback for servers that do not speak it.
 
 - feat: artifacts carry a status (`drafting`, `pending_review` or `finalized`) and source lineage (the input file path and the matched snippet, redacted and capped at 200 characters). The runtime reports each registration in an `artifact_updated` frame on the existing session stream, and the desktop app shows a Trace Logs panel for finalized artifacts. Records written before this change load with an unknown status and no lineage.

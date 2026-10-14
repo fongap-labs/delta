@@ -63,12 +63,13 @@ export interface SessionUsage {
   context: number;
 }
 
-// Attachments (images, PDFs, text files) sent with a user message.
+// Attachments (images, PDFs, Office files, text files) sent with a user message. Office files
+// travel as data_url until the backend saves them into the workspace.
 export interface Attachment {
-  kind: "image" | "text" | "pdf";
+  kind: "image" | "text" | "pdf" | "office";
   name: string;
   mime?: string;
-  data_url?: string; // images + PDFs
+  data_url?: string; // images, PDFs and Office files
   text?: string; // text files
 }
 
