@@ -78,6 +78,10 @@
 - feat: Settings > Privacy has a network proxy card with direct, system and manual modes.
 
 - fix: the Automations, Skills, MCP servers and Connectors lists no longer present a failed read as an empty list ("No skills yet", no servers, an empty connector catalogue, the automation quickstart as if none existed). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow; a later failed refresh keeps the list already on screen. The four read functions throw when the runtime reports an error instead of returning an empty result.
+- feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual), so a turn no longer leaves the machine by two different routes.
+- feat: the SenseVoice speech model resumes an interrupted download with HTTP Range requests, and system proxy settings are read on macOS (scutil) and Linux (gsettings).
+- feat: a failed web search reports the error instead of opening a browser.
+- feat: Settings > Privacy has a network proxy card with direct, system and manual modes.
 
 - feat: resuming an interrupted run now keeps the run's own `run_id` and appends `run.resumed` to it, as the runtime contract always said, instead of starting a new run (ADR-0053, accepted). The runtime picks the run: the one in the session's latest checkpoint whose last lifecycle state is `interrupted`; if there is none, or the last run finished or is waiting on an approval or question, the request is rejected and nothing is written. Artifacts, validation, side-effect state and `source.read` records written after the resume now sit under the same run as the part before it. Retry is unchanged. The desktop does not offer a Resume action yet.
 
