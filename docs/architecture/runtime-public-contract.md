@@ -75,6 +75,17 @@ source.*
 user.steer.*
 ```
 
+### Artifact 状态与血缘
+
+`artifact.registered` 负载新增两个字段，旧记录没有这两个字段：
+
+- `status`：`drafting`（未完成）、`pending_review`（已完成、待审阅）或 `finalized`（已定稿交付）。允许的迁移只有 `drafting → pending_review`、`pending_review → finalized` 和 `pending_review → drafting`；`finalized` 是终态。
+- `lineage`：来源列表，每项为 `{file_path, matched_snippet}`。`matched_snippet` 在写入前经 `redact` 脱敏，并截断至 200 个字符。缺省为空列表。
+
+旧记录没有 `status` 字段。读取方必须把它视为"未知"，不得推断为某个状态。
+
+运行时通过已有的会话事件流发送 `artifact_updated` 帧，负载为 `{tool_call_id, artifact}`，其中 `artifact` 即上述注册负载。该帧不另开通道。
+
 人工控制事件必须可复盘。
 
 ### SideEffect

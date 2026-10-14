@@ -346,6 +346,7 @@ const RUNTIME_SESSION_EVENT_TYPES = new Set<string>([
   "plan_proposed",
   "tool_started",
   "tool_finished",
+  "artifact_updated",
   "iteration_end",
   "turn_end",
   "error",

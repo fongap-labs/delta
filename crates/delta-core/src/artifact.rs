@@ -26,11 +26,111 @@
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::{LedgerWriter, ShadowReadError};
+use crate::{redact, LedgerWriter, ShadowReadError};
+
+/// Longest lineage snippet kept in the ledger, counted in characters.
+pub const LINEAGE_SNIPPET_MAX_CHARS: usize = 200;
+
+/// Lifecycle of a deliverable.
+///
+/// `Drafting` covers incomplete output, `PendingReview` covers finished output the user has not yet
+/// accepted, and `Finalized` is the accepted, delivered state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactStatus {
+    Drafting,
+    PendingReview,
+    Finalized,
+}
+
+impl ArtifactStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Drafting => "drafting",
+            Self::PendingReview => "pending_review",
+            Self::Finalized => "finalized",
+        }
+    }
+
+    /// Whether an artifact may move from `self` to `next`.
+    ///
+    /// Review can send work back to drafting. `Finalized` is terminal, and drafting cannot skip
+    /// review.
+    pub fn can_transition_to(self, next: ArtifactStatus) -> bool {
+        matches!(
+            (self, next),
+            (Self::Drafting, Self::PendingReview)
+                | (Self::PendingReview, Self::Finalized)
+                | (Self::PendingReview, Self::Drafting)
+        )
+    }
+
+    /// Move to `next`, or return the rejected pair when the transition is not allowed.
+    pub fn transition(
+        self,
+        next: ArtifactStatus,
+    ) -> Result<ArtifactStatus, ArtifactTransitionError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(ArtifactTransitionError {
+                from: self,
+                to: next,
+            })
+        }
+    }
+}
+
+/// A rejected status change, reported with both ends of the attempted move.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactTransitionError {
+    pub from: ArtifactStatus,
+    pub to: ArtifactStatus,
+}
+
+/// One source the artifact was derived from: the input file and the text matched in it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceRef {
+    pub file_path: String,
+    #[serde(default)]
+    pub matched_snippet: String,
+}
+
+impl SourceRef {
+    /// Build a lineage entry whose snippet is safe to persist.
+    ///
+    /// The snippet is redacted before it is cut, so a secret cannot survive by straddling the
+    /// length limit. The cut is on a character boundary, so it cannot split a multi-byte character.
+    pub fn new(file_path: impl Into<String>, matched_snippet: &str) -> Self {
+        let redacted = redact::redact_free_text(matched_snippet);
+        Self {
+            file_path: file_path.into(),
+            matched_snippet: redacted.chars().take(LINEAGE_SNIPPET_MAX_CHARS).collect(),
+        }
+    }
+}
+
+/// Read a lineage list from a ledger payload. A missing field, or an entry that does not parse,
+/// yields no entry, so historical records written before lineage existed still load.
+fn lineage_from_payload(value: Option<&Value>) -> Vec<SourceRef> {
+    value
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| serde_json::from_value::<SourceRef>(item.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 /// One artifact as recorded in the ledger's `artifact.registered` payload.
+///
+/// `status` is `None` for records written before statuses existed. Consumers must treat that as
+/// "unknown", not as a particular state.
 #[derive(Debug, Clone)]
 pub struct ArtifactRecord {
     pub path: String,
@@ -39,6 +139,8 @@ pub struct ArtifactRecord {
     pub sha256: String,
     pub run_id: String,
     pub incomplete: bool,
+    pub status: Option<ArtifactStatus>,
+    pub lineage: Vec<SourceRef>,
 }
 
 /// A discrepancy between the recorded sha256 and the on-disk file content.
@@ -107,6 +209,10 @@ impl ArtifactReader {
                 .get("incomplete")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
+            let status = v
+                .get("status")
+                .and_then(|value| serde_json::from_value::<ArtifactStatus>(value.clone()).ok());
+            let lineage = lineage_from_payload(v.get("lineage"));
             out.push(ArtifactRecord {
                 path,
                 kind,
@@ -114,6 +220,8 @@ impl ArtifactReader {
                 sha256,
                 run_id: run_id.to_string(),
                 incomplete,
+                status,
+                lineage,
             });
         }
         Ok(out)
@@ -172,11 +280,14 @@ pub struct ArtifactInput {
     pub sha256: String,
     pub incomplete: bool,
     pub registered_at: f64,
+    pub status: ArtifactStatus,
+    pub lineage: Vec<SourceRef>,
 }
 
 impl ArtifactInput {
     /// Build the full payload for the `artifact.registered` event.
-    /// Matches `Artifact.to_dict()` field-by-field.
+    /// Matches `Artifact.to_dict()` field-by-field, plus the `status` and `lineage` fields that
+    /// older readers ignore.
     pub fn registered_payload(&self) -> Value {
         json!({
             "path": self.path,
@@ -188,6 +299,8 @@ impl ArtifactInput {
             "sha256": self.sha256,
             "incomplete": self.incomplete,
             "registered_at": self.registered_at,
+            "status": self.status.as_str(),
+            "lineage": self.lineage,
         })
     }
 
@@ -425,6 +538,8 @@ mod tests {
             sha256: "abc123".to_string(),
             incomplete: false,
             registered_at: 1_700_000_001.0,
+            status: ArtifactStatus::PendingReview,
+            lineage: Vec::new(),
         }
     }
 
@@ -441,6 +556,93 @@ mod tests {
         assert_eq!(p["sha256"], "abc123");
         assert_eq!(p["incomplete"], false);
         assert_eq!(p["registered_at"], 1_700_000_001.0);
+        assert_eq!(p["status"], "pending_review");
+        assert_eq!(p["lineage"], json!([]));
+    }
+
+    #[test]
+    fn status_moves_forward_through_review_only() {
+        use ArtifactStatus::*;
+        assert_eq!(Drafting.transition(PendingReview), Ok(PendingReview));
+        assert_eq!(PendingReview.transition(Finalized), Ok(Finalized));
+        assert_eq!(PendingReview.transition(Drafting), Ok(Drafting));
+        // Drafting cannot skip review, and Finalized is terminal.
+        assert_eq!(
+            Drafting.transition(Finalized),
+            Err(ArtifactTransitionError {
+                from: Drafting,
+                to: Finalized
+            })
+        );
+        assert!(!Finalized.can_transition_to(PendingReview));
+        assert!(!Finalized.can_transition_to(Drafting));
+        assert!(!Drafting.can_transition_to(Drafting));
+    }
+
+    #[test]
+    fn status_serializes_as_snake_case() {
+        assert_eq!(
+            serde_json::to_value(ArtifactStatus::PendingReview).unwrap(),
+            json!("pending_review")
+        );
+        let parsed: ArtifactStatus = serde_json::from_value(json!("finalized")).unwrap();
+        assert_eq!(parsed, ArtifactStatus::Finalized);
+        assert!(serde_json::from_value::<ArtifactStatus>(json!("Finalized")).is_err());
+    }
+
+    #[test]
+    fn lineage_snippet_is_redacted_and_clamped_on_char_boundaries() {
+        let secret = SourceRef::new("notes/a.md", "Authorization: Bearer test-token-value");
+        assert!(!secret.matched_snippet.contains("test-token-value"));
+
+        // Multi-byte text: the cut lands after exactly LINEAGE_SNIPPET_MAX_CHARS characters.
+        let long = "字".repeat(LINEAGE_SNIPPET_MAX_CHARS + 50);
+        let clamped = SourceRef::new("notes/b.md", &long);
+        assert_eq!(
+            clamped.matched_snippet.chars().count(),
+            LINEAGE_SNIPPET_MAX_CHARS
+        );
+    }
+
+    #[test]
+    fn legacy_record_without_status_or_lineage_still_loads() {
+        let conn = new_test_ledger();
+        insert_event(
+            &conn,
+            "run_legacy",
+            1,
+            "artifact.registered",
+            r#"{"path":"out/old.md","kind":"markdown","size":5,"sha256":"aa","incomplete":false}"#,
+        );
+        let records = ArtifactReader::open_in_memory_for_test(conn)
+            .list_for_run("run_legacy")
+            .unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].status, None);
+        assert!(records[0].lineage.is_empty());
+    }
+
+    #[test]
+    fn malformed_lineage_entries_are_skipped_not_fatal() {
+        let conn = new_test_ledger();
+        insert_event(
+            &conn,
+            "run_mixed",
+            1,
+            "artifact.registered",
+            r#"{"path":"out/new.md","kind":"markdown","size":5,"sha256":"bb","incomplete":false,"status":"finalized","lineage":[{"file_path":"in/src.md","matched_snippet":"quoted"},{"matched_snippet":"no path"}]}"#,
+        );
+        let records = ArtifactReader::open_in_memory_for_test(conn)
+            .list_for_run("run_mixed")
+            .unwrap();
+        assert_eq!(records[0].status, Some(ArtifactStatus::Finalized));
+        assert_eq!(
+            records[0].lineage,
+            vec![SourceRef {
+                file_path: "in/src.md".to_string(),
+                matched_snippet: "quoted".to_string(),
+            }]
+        );
     }
 
     #[test]
