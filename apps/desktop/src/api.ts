@@ -1,6 +1,6 @@
 import type { GroupedQuestion, QuestionOption, SessionInfo, WsEvent } from "./types";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
-import { canOpenWithDefaultApp } from "./artifactOpen";
+import { canOpenExternally } from "./artifactOpen";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   RuntimeContractError,
@@ -51,6 +51,7 @@ import {
   directRetry,
   directResume,
   directResumable,
+  directRuntimeState,
   directRun,
   directSessionDelete,
   directSessionMessages,
@@ -58,14 +59,15 @@ import {
   directSessionRename,
   deleteSessionRoot,
   directSessionRevert,
-  directRestoreFileVersion,
-  directWebSearchSettings,
-  directSetWebSearchSettings,
-  directTestWebSearchEngine,
+  directRestoreVersion,
+  directReadSearch,
+  directWriteSearch,
+  directProbeEngine,
   directSessionRoots,
   updateSessionFlags,
   updateSessionReasoning,
   updateCompaction,
+  updateProxySettings,
   updateContextBar,
   updateModelDefault,
   directSetLanguage,
@@ -86,7 +88,7 @@ import {
   directUpdateAutomation,
   finalizeAutomationRun as finalizeAutomationRuntime,
   directListAudit,
-  directListRunSources,
+  directListSources,
   directListMcp,
   directPutMcp,
   directPatchMcp,
@@ -404,7 +406,7 @@ export async function restoreFileVersion(
   backup: string,
   target: string,
 ): Promise<{ ok: boolean; error?: string; path?: string }> {
-  return await directRestoreFileVersion(sessionId, backup, target);
+  return await directRestoreVersion(sessionId, backup, target);
 }
 
 /** One search engine in the user's list. The key itself is never sent to the interface. */
@@ -436,21 +438,21 @@ export interface SearchEngineEdit {
   auth_header?: string;
 }
 
-export async function getWebSearchEngines(): Promise<SearchEngine[]> {
-  const out = (await directWebSearchSettings()) as { ok?: boolean; engines?: SearchEngine[]; error?: string };
+export async function readSearchEngines(): Promise<SearchEngine[]> {
+  const out = (await directReadSearch()) as { ok?: boolean; engines?: SearchEngine[]; error?: string };
   if (out?.ok === false || !Array.isArray(out?.engines)) throw new Error(out?.error || "could not read the search settings");
   return out.engines;
 }
 
-export async function saveWebSearchEngines(
+export async function saveSearchEngines(
   engines: SearchEngineEdit[],
 ): Promise<{ ok: boolean; error?: string; engines?: SearchEngine[] }> {
-  return (await directSetWebSearchSettings(engines)) as { ok: boolean; error?: string; engines?: SearchEngine[] };
+  return (await directWriteSearch(engines)) as { ok: boolean; error?: string; engines?: SearchEngine[] };
 }
 
 /** Ask one saved engine a real question; `first` is the title of its first result. */
-export async function testWebSearchEngine(id: string): Promise<{ ok: boolean; count?: number; first?: string; error?: string }> {
-  return (await directTestWebSearchEngine(id)) as { ok: boolean; count?: number; first?: string; error?: string };
+export async function probeSearchEngine(id: string): Promise<{ ok: boolean; count?: number; first?: string; error?: string }> {
+  return (await directProbeEngine(id)) as { ok: boolean; count?: number; first?: string; error?: string };
 }
 
 export async function setReasoningEffort(
@@ -536,7 +538,7 @@ export async function revealArtifact(
     return { ok: false, error: resolved.error || "Artifact is unavailable" };
   }
   try {
-    if (mode === "open" && canOpenWithDefaultApp(resolved.path)) {
+    if (mode === "open" && canOpenExternally(resolved.path)) {
       await openPath(resolved.path);
       return { ok: true };
     }
@@ -794,13 +796,21 @@ export interface RunSource {
 }
 
 export async function getRunSources(runId: string): Promise<RunSource[]> {
-  const out = throwOnError(await directListRunSources(runId));
+  const out = throwOnError(await directListSources(runId));
   return out.sources ?? [];
 }
 
 /** Whether the runtime can resume an interrupted run for this session (it decides, the UI asks). */
 export async function getResumable(sessionId: string): Promise<boolean> {
   return (await directResumable(sessionId)).resumable;
+}
+
+/** Lifecycle state of a session's runtime. `active` is true while its turn is still
+ *  alive — a turn survives switching conversations (only the foreground socket is
+ *  torn down), so this is how a session re-opened mid-turn learns it must render as
+ *  running instead of idle. */
+export async function getRuntimeState(sessionId: string): Promise<{ state: string; active: boolean }> {
+  return directRuntimeState(sessionId);
 }
 
 export interface BrowserState {
@@ -863,6 +873,9 @@ export interface ModelSettings {
   compaction_threshold_pct?: number; // default 0.8, 0.10–0.95
   compaction_cap_tokens?: number; // default 250000
   compaction_model?: string;
+  // Network proxy: how outbound requests leave the machine (model calls, web search,
+  // page fetches). Optional so the GUI is robust to an older backend.
+  proxy?: ProxySettings;
 }
 
 export interface PdfSettings {
@@ -891,6 +904,35 @@ export async function setCompactionSettings(
   patch: Partial<CompactionSettings>,
 ): Promise<{ ok: boolean; error?: string }> {
   return updateCompaction(patch) as Promise<{ ok: boolean; error?: string }>;
+}
+
+// -- Network proxy (which route an outbound request takes) -------------------------------
+/** `direct` never proxies, `system` follows the OS for one call, `manual` uses the
+ *  addresses below. `system` is the default: it is what the browser and the voice
+ *  transcriber already do, so it cannot remove support from a door that had it. */
+export type ProxyMode = "direct" | "system" | "manual";
+export const PROXY_MODES: ProxyMode[] = ["direct", "system", "manual"];
+
+/** As the UI shows it. `system_detected` is a read-only echo of what the OS currently
+ *  says; it is never persisted, so a transient corporate or VPN proxy never sticks. */
+export interface ProxySettings {
+  mode: ProxyMode;
+  http: string;
+  https: string;
+  no_proxy: string;
+  system_detected?: string | null;
+}
+
+/** Persist a network-proxy patch. Returns the snapshot now in force, so the UI can
+ *  show the effective route without a second round trip. */
+export async function setProxySettings(
+  patch: Partial<ProxySettings>,
+): Promise<{ ok: boolean; error?: string; proxy?: ProxySettings }> {
+  return updateProxySettings(patch) as Promise<{
+    ok: boolean;
+    error?: string;
+    proxy?: ProxySettings;
+  }>;
 }
 
 /** Local page/size probe for a PDF data URL — the composer's attach-time threshold check. */

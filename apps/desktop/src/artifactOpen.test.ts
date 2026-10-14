@@ -13,10 +13,10 @@ vi.mock("./runtimeTransport", () => ({
 }));
 vi.mock("pdfjs-dist/build/pdf.worker.min.mjs?url", () => ({ default: "pdf.worker.js" }));
 
-import { canOpenWithDefaultApp, OPENABLE_EXTENSIONS } from "./artifactOpen";
+import { canOpenExternally, OPENABLE_EXTENSIONS } from "./artifactOpen";
 import { revealArtifact } from "./api";
 
-describe("canOpenWithDefaultApp", () => {
+describe("canOpenExternally", () => {
   it.each([
     "C:\\work\\report.pdf",
     "/home/u/notes.TXT",
@@ -31,7 +31,7 @@ describe("canOpenWithDefaultApp", () => {
     "p.gif",
     "p.webp",
   ])("allows %s", (path) => {
-    expect(canOpenWithDefaultApp(path)).toBe(true);
+    expect(canOpenExternally(path)).toBe(true);
   });
 
   it.each([
@@ -63,7 +63,7 @@ describe("canOpenWithDefaultApp", () => {
     "file.pdf ",
     "",
   ])("refuses %j", (path) => {
-    expect(canOpenWithDefaultApp(path)).toBe(false);
+    expect(canOpenExternally(path)).toBe(false);
   });
 
   it("keeps the allow list small and lower case", () => {

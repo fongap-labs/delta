@@ -24,11 +24,16 @@ pub const DEFAULT_MAX_CHARS: usize = 20_000;
 pub const HARD_MAX_CHARS: usize = 100_000;
 const USER_AGENT: &str = concat!("Delta/", env!("CARGO_PKG_VERSION"), " (+desktop)");
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Limits {
     pub max_bytes: usize,
     pub deadline: Duration,
     pub policy: AddressPolicy,
+    /// Which proxy, if any, an outgoing request may use. `None` means direct. Carried on
+    /// the request rather than read from a global so a caller that has its own policy
+    /// (the agent's own egress decisions, for instance) is never overridden by ambient
+    /// configuration, and so tests can pin the behaviour.
+    pub proxy: Option<ureq::Proxy>,
 }
 
 impl Limits {
@@ -36,7 +41,15 @@ impl Limits {
         max_bytes: MAX_BODY_BYTES,
         deadline: READ_DEADLINE,
         policy: AddressPolicy::STRICT,
+        proxy: None,
     };
+
+    /// The limits with a proxy policy applied. Used at the boundary where a request is
+    /// handed to the web door: the proxy is resolved once per turn, not per hop.
+    pub fn with_proxy(mut self, proxy: Option<ureq::Proxy>) -> Self {
+        self.proxy = proxy;
+        self
+    }
 }
 
 /// What came back, before any interpretation.
@@ -119,13 +132,19 @@ pub fn request_raw(
             return Err("cancelled".to_owned());
         }
         let target = vet(&current, limits.policy)?;
-        let agent = ureq::AgentBuilder::new()
+        let mut builder = ureq::AgentBuilder::new()
             .user_agent(USER_AGENT)
             .redirects(0)
             .timeout_connect(Duration::from_secs(10))
             .timeout_read(Duration::from_secs(20))
-            .resolver(Pinned(target.addrs.clone()))
-            .build();
+            .resolver(Pinned(target.addrs.clone()));
+        // The web door now follows the same proxy policy as every other exit. Leaving it
+        // out is what produced "the browser can reach it but web_fetch cannot" — and that
+        // asymmetry is what pushed the model towards the browser for plain searches.
+        if let Some(proxy) = &limits.proxy {
+            builder = builder.proxy(proxy.clone());
+        }
+        let agent = builder.build();
         let mut call = match &request.json_body {
             Some(_) => agent.post(target.url.as_str()),
             None => agent.get(target.url.as_str()),
@@ -213,7 +232,7 @@ fn read_capped(
     }
 }
 
-fn charset_from_content_type(content_type: &str) -> Option<String> {
+fn charset_from_header(content_type: &str) -> Option<String> {
     let lower = content_type.to_ascii_lowercase();
     let (_, rest) = lower.split_once("charset=")?;
     let label: String = rest
@@ -226,14 +245,14 @@ fn charset_from_content_type(content_type: &str) -> Option<String> {
 
 fn charset_from_html(head: &[u8]) -> Option<String> {
     let text = String::from_utf8_lossy(head).to_ascii_lowercase();
-    charset_from_content_type(&text)
+    charset_from_header(&text)
 }
 
 /// Decode a page body: the declared charset (header, then `<meta>`), UTF-8 otherwise. Pages in
 /// GBK or Big5 are common for Chinese sites, so this is not optional.
 pub fn decode_body(bytes: &[u8], content_type: &str) -> String {
     let is_html = content_type.to_ascii_lowercase().contains("html");
-    let label = charset_from_content_type(content_type).or_else(|| {
+    let label = charset_from_header(content_type).or_else(|| {
         is_html
             .then(|| charset_from_html(&bytes[..bytes.len().min(2048)]))
             .flatten()
@@ -360,6 +379,7 @@ mod tests {
         policy: AddressPolicy {
             allow_loopback: true,
         },
+        proxy: None,
     };
     fn never() -> bool {
         false

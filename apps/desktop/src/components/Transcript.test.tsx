@@ -10,6 +10,87 @@ afterEach(cleanup);
 const renderTranscript = (ui: React.ReactElement) =>
   render(<I18nProvider locale="en-US">{ui}</I18nProvider>);
 
+// Message times (owner-hit 2026-10-14: "conversation messages show no time"). The clock
+// used to live in the hover-only meta strip, so nothing was readable at rest and the
+// reply a reader was looking at appeared to carry no time at all.
+describe("Transcript message times", () => {
+  it("renders a bubble's time without needing hover", () => {
+    const ts = Math.floor(Date.now() / 1000) - 3600;
+    renderTranscript(<Transcript items={[{ kind: "user", text: "ping", ts }]} onApprove={vi.fn()} />);
+    const stamp = screen.getByTestId("bubble-ts");
+    expect(stamp).toBeTruthy();
+    expect(stamp.textContent).toMatch(/\d{1,2}:\d{2}/);
+    // The strip is legible at rest — no group-hover class is what reveals it.
+    const strip = stamp.parentElement!;
+    expect(strip.className).not.toContain("group-hover:opacity-100");
+    expect(strip.className).toContain("opacity-70");
+    // The full timestamp stays one hover away on the title tooltip.
+    expect(stamp.getAttribute("title")).toBeTruthy();
+  });
+
+  it("announces the day once and keeps it implicit inside the run", () => {
+    const day = 86_400;
+    const now = Math.floor(Date.now() / 1000);
+    const items: Item[] = [
+      { kind: "user", text: "first", ts: now - day },
+      { kind: "assistant", text: "answer one", ts: now - day + 60 },
+      { kind: "user", text: "second", ts: now },
+      { kind: "assistant", text: "answer two", ts: now + 60 },
+    ];
+    renderTranscript(<Transcript items={items} onApprove={vi.fn()} />);
+    const dividers = screen.getAllByTestId("day-divider");
+    expect(dividers.length).toBe(2);
+    expect(dividers[0].textContent).toBe("Yesterday");
+    expect(dividers[1].textContent).toBe("Today");
+  });
+
+  it("keeps a turn that runs past midnight under ONE divider", () => {
+    const day = 86_400;
+    const now = Math.floor(Date.now() / 1000);
+    // The turn opens yesterday and its answer lands today — still one exchange.
+    const items: Item[] = [
+      { kind: "user", text: "work", ts: now - day },
+      { kind: "assistant", text: "Checking.", ts: now - day + 30 },
+      { kind: "tool", id: "t1", name: "read_file", args: { path: "a.md" }, status: "ok" },
+      { kind: "assistant", text: "Done.", ts: now },
+    ];
+    renderTranscript(<Transcript items={items} onApprove={vi.fn()} />);
+    expect(screen.getAllByTestId("day-divider").length).toBe(1);
+    expect(screen.getAllByTestId("day-divider")[0].textContent).toBe("Yesterday");
+    expect(screen.getByText("1 step")).toBeTruthy();
+  });
+});
+
+// "Discuss it in a side conversation, then bring the conclusion into the task thread"
+// (ChatGPT's continue-in-the-main-thread). The transcript hands the text over; it never
+// sends a turn on the user's behalf.
+describe("Transcript carry-to-task", () => {
+  it("offers the action on an assistant answer and hands over its text", () => {
+    const onSendToMain = vi.fn();
+    renderTranscript(
+      <Transcript
+        items={[
+          { kind: "user", text: "summarize the options" },
+          { kind: "assistant", text: "Option B is the safest." },
+        ]}
+        onApprove={vi.fn()}
+        onSendToMain={onSendToMain}
+      />,
+    );
+    const button = screen.getByTestId("bubble-send-to-main");
+    expect(button.getAttribute("title")).toBe("Bring to current task");
+    fireEvent.click(button);
+    expect(onSendToMain).toHaveBeenCalledWith("Option B is the safest.");
+  });
+
+  it("offers nothing when the host did not ask for it", () => {
+    renderTranscript(
+      <Transcript items={[{ kind: "assistant", text: "Answer." }]} onApprove={vi.fn()} />,
+    );
+    expect(screen.queryByTestId("bubble-send-to-main")).toBeNull();
+  });
+});
+
 // §33 TurnGroup: the user-message → final-answer span is ONE disclosure; interior assistant
 // text is narration INSIDE it, the trailing assistant text is the answer OUTSIDE it; steps
 // are humanized one-liners; approvals fold into their tool's row as a chip.

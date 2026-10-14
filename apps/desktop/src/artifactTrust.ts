@@ -55,7 +55,7 @@ function parseChecks(validation: Record<string, unknown>): TrustCheck[] {
 }
 
 /** The latest tool result in the thread that registered `path`, or null when none did. */
-export function artifactTrustFromMessages(messages: RawMessage[], path: string): ArtifactTrust | null {
+export function trustFromMessages(messages: RawMessage[], path: string): ArtifactTrust | null {
   const wanted = normalizePath(path);
   const toolNames = new Map<string, string>();
   for (const message of messages) {

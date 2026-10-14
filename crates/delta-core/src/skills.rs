@@ -812,6 +812,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(|_| {}),
             secrets: Default::default(),
+            proxy: None,
         };
         let call = |name: &str, instructions: &str| ToolCall {
             id: "c".to_string(),

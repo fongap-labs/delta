@@ -64,7 +64,9 @@ pub fn fetch_registration() -> CapabilityRegistration {
             };
             let max_chars = job.arguments.get("max_chars").and_then(Value::as_i64);
             let cancelled = || control.is_cancelled();
-            match fetch_page(url, max_chars, Limits::PRODUCT, &cancelled) {
+            // Same route as the model request that asked for this page (None = direct).
+            let limits = Limits::PRODUCT.with_proxy(job.proxy.clone());
+            match fetch_page(url, max_chars, limits, &cancelled) {
                 Ok(page) => CapabilityResult::completed(
                     &job.job_id,
                     json!({
@@ -133,7 +135,9 @@ pub fn search_registration() -> CapabilityRegistration {
                     ));
                 }
             }
-            match search(query, max_results, &engines, Limits::PRODUCT, &cancelled) {
+            // Same route as the model request that asked for this search (None = direct).
+            let limits = Limits::PRODUCT.with_proxy(job.proxy.clone());
+            match search(query, max_results, &engines, limits, &cancelled) {
                 Ok(found) => {
                     let notes: Vec<String> =
                         [unmatched, found.note].into_iter().flatten().collect();

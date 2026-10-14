@@ -11,7 +11,7 @@ import {
   type ArtifactInfo,
   type RunSource,
 } from "../api";
-import { artifactTrustFromMessages, type ArtifactTrust } from "../artifactTrust";
+import { trustFromMessages, type ArtifactTrust } from "../artifactTrust";
 import { useEscapeDismiss } from "../useEscapeDismiss";
 import type { TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
@@ -331,7 +331,7 @@ function ArtifactViewer({
     getSessionMessages(sessionId)
       .then((messages) => {
         if (!isCurrent) return;
-        const found = artifactTrustFromMessages(messages, artifact.path);
+        const found = trustFromMessages(messages, artifact.path);
         setTrust(found);
         if (found?.runId) {
           getRunSources(found.runId)

@@ -20,7 +20,7 @@ export const OPENABLE_EXTENSIONS: ReadonlySet<string> = new Set([
 ]);
 
 /** True when `path` ends in an extension that is safe to open with the default application. */
-export function canOpenWithDefaultApp(path: string): boolean {
+export function canOpenExternally(path: string): boolean {
   const name = path.replace(/\\/g, "/").split("/").pop() ?? "";
   const dot = name.lastIndexOf(".");
   // No extension, a dot-file such as `.bashrc`, or a trailing dot (Windows would drop it).

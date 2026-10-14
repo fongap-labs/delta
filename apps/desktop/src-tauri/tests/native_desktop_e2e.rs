@@ -68,6 +68,7 @@ fn run_smoke_capability(workspace: &Path) -> String {
             cancel: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(|_| {}),
             secrets: std::collections::BTreeMap::new(),
+            proxy: None,
         },
     );
     assert_eq!(

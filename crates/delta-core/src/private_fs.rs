@@ -60,12 +60,12 @@ pub fn sddl_grants_only(sddl: &str, user_sid: &str) -> bool {
 
 /// Restrict `path` to the current user and report whether the restriction is verified in place.
 /// Never fails the caller: a `false` result means "applied best effort, could not confirm".
-pub fn restrict_to_current_user(path: &Path, is_directory: bool) -> bool {
+pub fn restrict_owner_only(path: &Path, is_directory: bool) -> bool {
     imp::restrict(path, is_directory)
 }
 
 /// Verify, without changing anything, that `path` is restricted to the current user.
-pub fn is_restricted_to_current_user(path: &Path) -> bool {
+pub fn is_owner_only(path: &Path) -> bool {
     imp::is_restricted(path)
 }
 
@@ -73,21 +73,21 @@ pub fn is_restricted_to_current_user(path: &Path) -> bool {
 /// on Windows also the containing directory so files SQLite creates later inherit the same
 /// restriction (closing the window between a sidecar being created and the next hardening pass).
 /// Unix copies the database file's mode to the sidecars it creates, so hardening the main file
-/// covers them. Best effort like [`restrict_to_current_user`]: `false` means "applied, could not
+/// covers them. Best effort like [`restrict_owner_only`]: `false` means "applied, could not
 /// confirm" (for example on a file system without ACLs), never an error.
 pub fn harden_sqlite_files(path: &Path) -> bool {
-    let mut verified = restrict_to_current_user(path, false);
+    let mut verified = restrict_owner_only(path, false);
     for suffix in ["-wal", "-shm"] {
         let mut name = path.as_os_str().to_os_string();
         name.push(suffix);
         let sidecar = PathBuf::from(name);
         if sidecar.exists() {
-            verified &= restrict_to_current_user(&sidecar, false);
+            verified &= restrict_owner_only(&sidecar, false);
         }
     }
     #[cfg(windows)]
     if let Some(dir) = path.parent() {
-        verified &= restrict_to_current_user(dir, true);
+        verified &= restrict_owner_only(dir, true);
     }
     if !verified {
         eprintln!(
@@ -308,13 +308,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("secret.json");
         std::fs::write(&file, b"{}").unwrap();
-        assert!(restrict_to_current_user(&file, false));
-        assert!(is_restricted_to_current_user(&file));
+        assert!(restrict_owner_only(&file, false));
+        assert!(is_owner_only(&file));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
-            assert!(!is_restricted_to_current_user(&file));
+            assert!(!is_owner_only(&file));
         }
     }
 
@@ -325,10 +325,8 @@ mod tests {
         std::fs::write(&db, b"").unwrap();
         std::fs::write(dir.path().join("run_events.db-wal"), b"").unwrap();
         assert!(harden_sqlite_files(&db));
-        assert!(is_restricted_to_current_user(&db));
-        assert!(is_restricted_to_current_user(
-            &dir.path().join("run_events.db-wal")
-        ));
+        assert!(is_owner_only(&db));
+        assert!(is_owner_only(&dir.path().join("run_events.db-wal")));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -353,7 +351,7 @@ mod tests {
         let db = dir.path().join("side-effects.db");
         std::fs::write(&db, b"").unwrap();
         assert!(harden_sqlite_files(&db));
-        assert!(is_restricted_to_current_user(&db));
+        assert!(is_owner_only(&db));
         assert!(!dir.path().join("side-effects.db-wal").exists());
     }
 }

@@ -609,7 +609,10 @@ pub fn search(
     };
     let mut problems = Vec::new();
     for engine in order {
-        match query_engine(engine, query, max, limits, is_cancelled) {
+        // Every engine in the fallback chain leaves by the same route: clone the
+        // limits rather than moving them, so the second engine is not locked out
+        // by the first one's attempt.
+        match query_engine(engine, query, max, limits.clone(), is_cancelled) {
             Ok(results) => {
                 let results = keep_valid(results, max);
                 if !results.is_empty() {

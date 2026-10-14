@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { deliveredSinceLastUser, filesDeliveredSinceLastUser, Transcript } from "./Transcript";
+import { deliveredSinceUser, filesSinceUser, Transcript } from "./Transcript";
 import { SessionIntro } from "./SessionIntro";
 import { I18nProvider } from "@delta/i18n/I18nContext";
 import type { Item } from "../types";
@@ -23,7 +23,7 @@ describe("delivery card", () => {
       write("/w/pending.txt", "…"),
       { kind: "assistant", text: "Done." },
     ];
-    expect(filesDeliveredSinceLastUser(items)).toEqual(["/w/report.docx", "/w/data.csv"]);
+    expect(filesSinceUser(items)).toEqual(["/w/report.docx", "/w/data.csv"]);
   });
 
   it("shows when the request is finished and opens the preview on click", () => {
@@ -96,12 +96,12 @@ describe("restoring a replaced file", () => {
   ];
 
   it("reads the kept version from the stored tool result, and ignores a cut-off preview", () => {
-    expect(deliveredSinceLastUser(replaced())).toEqual([
+    expect(deliveredSinceUser(replaced())).toEqual([
       { path: "reports/q3.md", previous: ".delta/versions/run-1/reports/q3.md" },
     ]);
     const cut = replaced();
     (cut[1] as any).preview = '{"ok":true,"artifacts":[{"path":"reports/q3';
-    expect(deliveredSinceLastUser(cut)).toEqual([{ path: "reports/q3.md" }]);
+    expect(deliveredSinceUser(cut)).toEqual([{ path: "reports/q3.md" }]);
   });
 
   it("offers the restore, reports success and shows a failure's reason", async () => {

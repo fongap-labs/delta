@@ -282,6 +282,12 @@ pub struct CapabilityJob {
     /// execution.
     #[serde(skip)]
     pub secret_values: BTreeMap<String, String>,
+    /// The proxy the runtime resolved for the turn that dispatched this job. Like
+    /// `secret_values` it is memory-only and never on the wire: a worker process
+    /// inherits its own environment. In-process runners (web, MCP bridge) use it
+    /// so one turn never leaves the machine by two different routes.
+    #[serde(skip)]
+    pub proxy: Option<ureq::Proxy>,
 }
 
 impl CapabilityJob {
@@ -300,6 +306,7 @@ impl CapabilityJob {
             timeout_secs: 0,
             artifact_staging_dir: None,
             secret_values: BTreeMap::new(),
+            proxy: None,
         }
     }
 

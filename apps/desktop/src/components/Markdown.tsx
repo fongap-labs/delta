@@ -1,5 +1,6 @@
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 
 // §34 (UX-016): the agent ends a deliverable turn with plain markdown —
@@ -27,8 +28,7 @@ function ArtifactChip({ path, title }: { path: string; title: string }) {
     <button
       className="art-chip"
       data-testid="artifact-chip"
-      title={path}
-      onClick={() =>
+      title={path}      onClick={() =>
         window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path } }))
       }
     >
@@ -41,6 +41,50 @@ function ArtifactChip({ path, title }: { path: string; title: string }) {
       </span>
       <span className="art-chip-open">Open ›</span>
     </button>
+  );
+}
+
+/** Fenced code with a copy affordance, the way ChatGPT/Claude/WorkBuddy present it:
+ *  the button lives in the block's top-right corner and only appears on hover/focus, so
+ *  reading a long snippet is never disturbed by chrome that is irrelevant most of the time. */
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const [isCopied, setCopied] = useState(false);
+  // react-markdown hands us <pre><code class="language-x">…</code></pre>; the code
+  // element owns the raw text, so read it off the child rather than re-deriving it.
+  // Nested arrays (a block built from several text nodes) are flattened.
+  const code = (children as { props?: { children?: unknown } } | undefined)?.props?.children;
+  const flatten = (value: unknown): string => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) return value.map(flatten).join("");
+    return "";
+  };
+  const text = flatten(code);
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1400);
+      })
+      .catch(() => {});
+  };
+  return (
+    <div className="md-code" data-testid="md-code">
+      {children}
+      {text && (
+        <button
+          type="button"
+          className="md-code-copy"
+          data-testid="md-code-copy"
+          aria-label={isCopied ? "Copied" : "Copy code"}
+          title={isCopied ? "Copied" : "Copy code"}
+          onClick={copy}
+        >
+          <Icon name={isCopied ? "check" : "copy"} size={12} />
+          <span>{isCopied ? "Copied" : "Copy"}</span>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -72,6 +116,7 @@ export function Markdown({ text }: { text: string }) {
               </a>
             );
           },
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
         }}
       >
         {text}

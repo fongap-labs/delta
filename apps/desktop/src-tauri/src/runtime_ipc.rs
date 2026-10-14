@@ -215,6 +215,11 @@ pub fn runtime_cancel(state: State<'_, RuntimeRegistry>, session_id: String) -> 
 }
 
 #[tauri::command]
+pub fn runtime_state(state: State<'_, RuntimeRegistry>, session_id: String) -> Value {
+    state.runtime_state(&session_id)
+}
+
+#[tauri::command]
 pub fn runtime_approval(
     state: State<'_, RuntimeRegistry>,
     session_id: String,
@@ -377,6 +382,18 @@ pub fn update_compaction(state: State<'_, RuntimeRegistry>, patch: Value) -> Val
             .unwrap()
             .set_compaction_settings(&patch),
     )
+}
+
+/// Which proxy the outbound doors use. The snapshot already reports what `system`
+/// mode currently resolves to, so a read costs the caller no second round trip.
+#[tauri::command]
+pub fn update_proxy_settings(state: State<'_, RuntimeRegistry>, patch: Value) -> Value {
+    state
+        .models()
+        .lock()
+        .unwrap()
+        .set_proxy_settings(&patch)
+        .unwrap_or_else(|error| json!({"ok": false, "error": error}))
 }
 
 #[tauri::command]
@@ -1008,20 +1025,20 @@ pub fn connector_connect(
 
 /// Which web search service is chosen and whether a key is saved (the key is never returned).
 #[tauri::command]
-pub fn get_web_search_settings(state: State<'_, RuntimeRegistry>) -> Value {
+pub fn read_search_settings(state: State<'_, RuntimeRegistry>) -> Value {
     authority_result(state.application().web_search_settings())
 }
 
 /// Save the search engine list: order, on/off, keys and the engines the user added.
 #[tauri::command]
-pub fn set_web_search_settings(state: State<'_, RuntimeRegistry>, engines: Value) -> Value {
-    authority_result(state.application().set_web_search_settings(&engines))
+pub fn write_search_settings(state: State<'_, RuntimeRegistry>, engines: Value) -> Value {
+    authority_result(state.application().write_search_settings(&engines))
 }
 
 /// Ask one engine a real question, with its saved key, so a new engine can be checked before it
 /// is relied on. Runs off the UI thread; the key never leaves the core.
 #[tauri::command]
-pub async fn test_web_search_engine(
+pub async fn probe_search_engine(
     state: State<'_, RuntimeRegistry>,
     id: String,
 ) -> Result<Value, String> {

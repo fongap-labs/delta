@@ -356,6 +356,11 @@ pub struct ToolExecutionContext {
     /// from the Foundation authority. Never written to environment variables,
     /// never persisted, dropped after execution.
     pub secrets: BTreeMap<String, String>,
+    /// The proxy this turn's tools must use for their own outbound requests, so a
+    /// `web_fetch` during a turn that is proxied does not quietly bypass the proxy
+    /// (or vice versa). Resolved by the runtime once per turn; `None` means direct.
+    /// In-process only — never serialized, never handed to a worker.
+    pub proxy: Option<ureq::Proxy>,
 }
 
 /// A worker-created file that is not visible as a product artifact until the
@@ -660,6 +665,15 @@ pub struct RuntimeHost {
     run_id: Option<String>,
     sink: Arc<dyn EventSink>,
     event_error: Arc<Mutex<Option<String>>>,
+    /// Set once a provider has refused a request parameter, so the next attempt omits the
+    /// optional ones. One shot per host: if the reduced body is refused too, the failure is
+    /// reported instead of stripping the request down to nothing.
+    reduced_request: bool,
+    /// The proxy this turn's outbound requests go through, resolved once before the first
+    /// request and reused for the rest of the turn (including every retry). `None` is
+    /// direct. Frozen per turn so a settings change cannot split one answer across two
+    /// routes — the same reason `reduced_request` is sticky.
+    turn_proxy: Option<ureq::Proxy>,
 }
 
 /// A queued steering/follow-up instruction: (text, optional MessageSource sidecar).
@@ -735,27 +749,14 @@ fn uuid_v4() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+/// Whether a provider failure is worth retrying.
+///
+/// The decision is delegated to [`crate::retry::is_retryable_failure`] (ADR-039), which
+/// consults the endpoint's own verdict first. The previous inline copy looked at the status code
+/// only, so a gateway wrapping a rejected request in a 502 was retried as if the upstream had
+/// hiccuped.
 fn is_retryable_error(e: &str) -> bool {
-    // A reply with a status is judged by the status alone, so a body that merely mentions a
-    // number ("HTTP 400: ... 500 tokens") is not mistaken for a server failure.
-    if let Some(rest) = e.strip_prefix("HTTP ") {
-        let code: String = rest.chars().take_while(char::is_ascii_digit).collect();
-        if let Ok(code) = code.parse::<u16>() {
-            return matches!(
-                code,
-                408 | 425 | 429 | 500 | 502 | 503 | 504 | 520..=524 | 529
-            );
-        }
-    }
-    let lower = e.to_lowercase();
-    lower.contains("429")
-        || lower.contains("502")
-        || lower.contains("503")
-        || lower.contains("504")
-        || lower.contains("connection")
-        || lower.contains("timeout")
-        || lower.contains("timed out")
-        || lower.contains("transport")
+    crate::retry::is_retryable_failure(e)
 }
 
 fn classify_transient_error(e: &str) -> String {
@@ -1061,6 +1062,10 @@ impl RuntimeHost {
             run_id: None,
             sink: Arc::new(NullSink),
             event_error: Arc::new(Mutex::new(None)),
+            reduced_request: false,
+            // Test hosts carry no authorities and never reach the product doors, so
+            // they stay direct; a test that needs a proxy sets it explicitly.
+            turn_proxy: None,
         }
     }
 

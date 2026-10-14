@@ -28,8 +28,8 @@ test("Settings: Context compaction card edits threshold, cap, and summarizer mod
   await expect.poll(async () => (await readMockState<any>(page)).settings.compaction_cap_tokens).toBe(100000);
 
   // Summarizer pin: the picker offers the session-default plus the configured models.
-  await card.getByTestId("compaction-model").selectOption("gpt-4o-mini");
-  await expect.poll(async () => (await readMockState<any>(page)).settings.compaction_model).toBe("gpt-4o-mini");
+  await card.getByTestId("compaction-model").selectOption("gpt-5.5");
+  await expect.poll(async () => (await readMockState<any>(page)).settings.compaction_model).toBe("gpt-5.5");
 });
 
 test("the compacted divider renders mid-session and the transcript stays intact", async ({

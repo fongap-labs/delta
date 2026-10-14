@@ -52,7 +52,7 @@ const HEALTH = {
 const SETTINGS = {
   provider: "openai",
   model: "anthropic:claude-opus-4-8",
-  models: ["anthropic:claude-opus-4-8", "gpt-5.5", "gpt-4o", "gpt-4o-mini", "o3-mini"],
+  models: ["anthropic:claude-opus-4-8", "gpt-5.5", "gpt-5.6-sol", "anthropic:claude-sonnet-4-6", "gpt-5.6-terra"],
   has_key: true,
   model_ready: true,
   source: "store",
@@ -305,7 +305,7 @@ function commandSources(): Record<string, string> {
     set_path_rule: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: args.rule ? [{ workspace: args.workspace, path: args.path, rule: args.rule }] : [] })`,
     set_local_only: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: args.isLocalOnly ? [args.server] : [], path_overrides: [] })`,
     // Same shape as the runtime's WebSearchSettings::public_view: the built-in engines, no keys.
-    get_web_search_settings: `(args) => ({ ok: true, engines: [
+    read_search_settings: `(args) => ({ ok: true, engines: [
       { id: "google", name: "Google", builtin: true, enabled: true, needs_key: false, accepts_key: true, has_key: false, has_cx: false, template: "", auth_header: "" },
       { id: "bing", name: "Bing", builtin: true, enabled: true, needs_key: false, accepts_key: false, has_key: false, has_cx: false, template: "", auth_header: "" },
       { id: "duckduckgo", name: "DuckDuckGo", builtin: true, enabled: true, needs_key: false, accepts_key: false, has_key: false, has_cx: false, template: "", auth_header: "" },
@@ -525,6 +525,7 @@ function fakeAgentSources(): Record<string, string> {
       return { ok: true, cancelled: true };
     }`,
     runtime_messages: `(args) => ({ messages: $state.sessionMessages[args.sessionId] || [] })`,
+    runtime_state: `(args) => ({ ok: true, state: $state.epicTimers[args.sessionId] ? "running" : "idle", active: !!$state.epicTimers[args.sessionId] })`,
     runtime_steer: `(args) => ({ ok: true, accepted: true })`,
     runtime_retry: `(args) => { const sessionId = args.sessionId; const messages = ($state.sessionMessages[sessionId] = $state.sessionMessages[sessionId] || []); const send = (type, payload) => { const body = payload || {}; if (type === "assistant_message") messages.push({ role: "assistant", content: String(body.text || ""), ts: Date.now() / 1000 }); const sequence = ($state.runtimeSequences[sessionId] = ($state.runtimeSequences[sessionId] || 1) + 1); emit("delta-runtime-event", { type, version: 1, sessionId, sequence, payload: body }); }; send("turn_start", { input: "" }); send("assistant_message", { text: "Recovered after retry." }); send("turn_done"); return { ok: true, accepted: true, runId: "run-retry" }; }`,
     runtime_resume: `(args) => ({ ok: true, accepted: true, runId: "run-resume" })`,

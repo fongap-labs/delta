@@ -192,6 +192,10 @@ impl CapabilityHost {
             .collect();
         job.input_files = collect_input_files(&job, registration.workspace_write)?;
         validate_input_files(&job)?;
+        // The tool's own outbound requests follow the turn's route: a proxied turn
+        // must not have a `web_fetch` leave the machine unproxied. Workers inherit
+        // their own environment and never see this.
+        job.proxy = context.proxy.clone();
         Ok(job)
     }
 }

@@ -167,6 +167,7 @@ impl CoreControlPlane {
             cancel: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(|_| {}),
             secrets: BTreeMap::new(),
+            proxy: None,
         };
         let result = self.capabilities.execute(&call, &context);
         if let Some(error) = result.error {
@@ -443,11 +444,11 @@ impl CoreControlPlane {
         if let Err(error) = crate::runtime::interrupted_run_of(&self.authorities, session_id) {
             return json!({"ok": false, "error": error});
         }
-        let (model_id, mode) =
-            match control_plane::get_session_model_and_mode(&self.state_dir, session_id) {
-                Ok(settings) => settings,
-                Err(error) => return json!({"ok": false, "error": error.to_string()}),
-            };
+        let (model_id, mode) = match control_plane::session_model_mode(&self.state_dir, session_id)
+        {
+            Ok(settings) => settings,
+            Err(error) => return json!({"ok": false, "error": error.to_string()}),
+        };
         self.start_runtime_with(
             RuntimeStartRequest {
                 session_id: session_id.to_string(),
@@ -518,6 +519,7 @@ impl CoreControlPlane {
         }
 
         let mut prompt = DELTA_AGENT.system_prompt.to_string();
+        prompt.push_str(&crate::agent::environment_block());
         if mode.as_deref() == Some("plan") {
             prompt.push_str("\n\nPlan mode is active. Inspect and reason, but do not perform writes until the user explicitly approves the plan.");
         }
@@ -707,6 +709,24 @@ impl CoreControlPlane {
         match self.runtime_handle(session_id) {
             Some(handle) => json!({"ok": true, "cancelled": handle.cancel()}),
             None => json!({"ok": false, "error": format!("session not found: {session_id}")}),
+        }
+    }
+
+    /// Lifecycle state of one session's runtime, or `idle` when no live handle
+    /// exists. Switching conversations tears down the foreground socket, so a
+    /// turn that is still running keeps running — this is how the UI finds that
+    /// out when it opens the session again.
+    pub fn runtime_state(&self, session_id: &str) -> Value {
+        match self.runtime_handle(session_id) {
+            Some(handle) => {
+                let state = handle.state();
+                json!({
+                    "ok": true,
+                    "state": state,
+                    "active": state.is_active(),
+                })
+            }
+            None => json!({"ok": true, "state": "idle", "active": false}),
         }
     }
 
@@ -1123,6 +1143,7 @@ impl CoreControlPlane {
                 cancel: Arc::new(AtomicBool::new(false)),
                 progress: Arc::new(|_| {}),
                 secrets: BTreeMap::new(),
+                proxy: None,
             },
         );
         let cleanup = std::fs::remove_dir_all(&workspace);

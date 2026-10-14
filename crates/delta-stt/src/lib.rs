@@ -102,7 +102,92 @@ fn detect_system_proxy() -> Option<String> {
             return Some(normalize_proxy_url(&p));
         }
     }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(p) = macos_system_proxy() {
+            return Some(normalize_proxy_url(&p));
+        }
+    }
+    // Linux has no single desktop-wide proxy store; GNOME's gsettings covers the majority
+    // of desktop users. Spawning a console tool is fine here — the download runs on a
+    // background worker thread, not the UI process's visible lifetime.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Some(p) = linux_gnome_proxy() {
+            return Some(normalize_proxy_url(&p));
+        }
+    }
     None
+}
+
+/// macOS per-user system proxy via `scutil --proxy`. Prefers the HTTPS entry (the model
+/// download is HTTPS) and falls back to the HTTP one; `*Enable : 0` means off.
+#[cfg(target_os = "macos")]
+fn macos_system_proxy() -> Option<String> {
+    let output = std::process::Command::new("scutil")
+        .arg("--proxy")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    // "<key> : <value>" lines inside the dictionary; parse the HTTPS pair, then HTTP.
+    let value = |key: &str| -> Option<String> {
+        text.lines()
+            .find(|line| line.trim_start().starts_with(key))
+            .and_then(|line| line.split(':').nth(1))
+            .map(|v| v.trim().trim_matches('"').to_string())
+            .filter(|v| !v.is_empty())
+    };
+    let enabled = |key: &str| value(key).is_some_and(|v| v == "1");
+    if enabled("HTTPSEnable") {
+        if let (Some(host), Some(port)) = (value("HTTPSProxy"), value("HTTPSPort")) {
+            return Some(format!("{host}:{port}"));
+        }
+    }
+    if enabled("HTTPEnable") {
+        if let (Some(host), Some(port)) = (value("HTTPProxy"), value("HTTPPort")) {
+            return Some(format!("{host}:{port}"));
+        }
+    }
+    // SOCKS-only setups still carry traffic, but ureq's Proxy speaks HTTP CONNECT; a
+    // socks5:// URL is passed through untouched so ureq can decide.
+    if enabled("SOCKSEnable") {
+        if let (Some(host), Some(port)) = (value("SOCKSProxy"), value("SOCKSPort")) {
+            return Some(format!("socks5://{host}:{port}"));
+        }
+    }
+    None
+}
+
+/// GNOME/desktop Linux proxy via `gsettings` (org.gnome.system.proxy). `mode` must be
+/// 'manual'; the https:// schema is preferred (the model download is HTTPS), http:// as
+/// fallback. Absent gsettings (servers, minimal WMs) yields None — env vars were the
+/// portable contract checked before this.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn linux_gnome_proxy() -> Option<String> {
+    let get = |schema: &str, key: &str| -> Option<String> {
+        let output = std::process::Command::new("gsettings")
+            .args(["get", schema, key])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        (!value.is_empty()).then_some(value)
+    };
+    // mode is a GTK enum rendered as 'manual' / 'none' (with quotes).
+    if get("org.gnome.system.proxy", "mode")?.trim_matches('\'') != "manual" {
+        return None;
+    }
+    let host_of = |schema: &str| {
+        let host = get(schema, "host")?.trim_matches('\'').to_string();
+        let port = get(schema, "port")?.parse::<u16>().ok()?;
+        (!host.is_empty()).then_some(format!("{host}:{port}"))
+    };
+    host_of("org.gnome.system.proxy.https").or_else(|| host_of("org.gnome.system.proxy.http"))
 }
 
 /// Ensure the proxy URL carries a scheme (ureq requires one; a bare `host:port` is the form
@@ -190,33 +275,69 @@ fn should_retry_proxy(error: &ureq::Error) -> bool {
     )
 }
 
-/// Fetch the model response: try a DIRECT connection first; only if the host is unreachable
-/// (a transport-level failure, not an HTTP error) retry through the auto-detected system
-/// proxy. An HTTP status error (404/403) is never retried via proxy — it's a server problem.
-fn fetch_model_response(url: &str) -> Result<ureq::http::Response<ureq::Body>, String> {
-    let direct = build_http_agent(None);
-    match direct.get(url).call() {
-        Ok(r) => Ok(r),
-        Err(e) if should_retry_proxy(&e) => {
-            // Direct connection failed — retry through the system proxy if one is detected.
-            match detect_system_proxy() {
-                Some(proxy_url) => {
-                    let proxy = ureq::Proxy::new(&proxy_url)
-                        .map_err(|err| format!("Could not configure the system proxy: {err}"))?;
-                    let proxied = build_http_agent(Some(proxy));
-                    proxied
-                        .get(url)
-                        .call()
-                        .map_err(|err| {
-                            format!(
-                                "Could not download the local voice model (tried direct, then the system proxy): {err}"
-                            )
-                        })
+/// Fetch the model response on the route the product chose. `System` keeps today's probe:
+/// direct first, then the auto-detected system proxy only on a transport-level failure —
+/// once a server has answered, the result is authoritative (a 404 is never "retry through
+/// a proxy"). `Direct` and `Manual` are strict: exactly that route, no fallback, because
+/// the user (or the product's settings) chose it on purpose. `start` > 0 asks the server
+/// to resume the transfer from that byte (`Range`); a mirror that ignores the header
+/// answers 200 with the whole file, which the caller reads as "restart from zero".
+fn fetch_model_response(
+    url: &str,
+    route: &DownloadRoute,
+    start: u64,
+) -> Result<ureq::http::Response<ureq::Body>, String> {
+    // One shared request shape for all three routes: the (optional) Range header is the
+    // only difference, so a probe retry and a proxy retry both resume from the same byte.
+    let request = |agent: &ureq::Agent| {
+        let request = agent.get(url);
+        if start > 0 {
+            request.header("Range", &format!("bytes={start}-"))
+        } else {
+            request
+        }
+    };
+    match route {
+        DownloadRoute::Direct => request(&build_http_agent(None))
+            .call()
+            .map_err(|err| format!("Could not download the local voice model: {err}")),
+        DownloadRoute::Manual(proxy_url) => {
+            let proxy = ureq::Proxy::new(proxy_url).map_err(|err| {
+                format!("Could not configure the proxy {proxy_url} for the model download: {err}")
+            })?;
+            request(&build_http_agent(Some(proxy)))
+                .call()
+                .map_err(|err| {
+                    format!(
+                        "Could not download the local voice model (through the configured proxy): {err}"
+                    )
+                })
+        }
+        DownloadRoute::System => {
+            let direct = build_http_agent(None);
+            match request(&direct).call() {
+                Ok(r) => Ok(r),
+                Err(e) if should_retry_proxy(&e) => {
+                    // Direct connection failed — retry through the system proxy if one is detected.
+                    match detect_system_proxy() {
+                        Some(proxy_url) => {
+                            let proxy = ureq::Proxy::new(&proxy_url).map_err(|err| {
+                                format!("Could not configure the system proxy: {err}")
+                            })?;
+                            request(&build_http_agent(Some(proxy)))
+                                .call()
+                                .map_err(|err| {
+                                    format!(
+                                        "Could not download the local voice model (tried direct, then the system proxy): {err}"
+                                    )
+                                })
+                        }
+                        None => Err(format!("Could not download the local voice model: {e}")),
+                    }
                 }
-                None => Err(format!("Could not download the local voice model: {e}")),
+                Err(other) => Err(format!("Could not download the local voice model: {other}")),
             }
         }
-        Err(other) => Err(format!("Could not download the local voice model: {other}")),
     }
 }
 
@@ -298,6 +419,21 @@ type LiveRecording = Arc<Mutex<Option<(SampleBuffer, u32)>>>;
 /// It records only while a host has explicitly started a session; audio is held in memory for
 /// that session and is never persisted. The downloaded recognition model is the only data kept
 /// under `model_dir`.
+/// The proxy decision the host hands the downloader, so a voice-model download leaves the
+/// machine by the same route the rest of the product uses. `Direct` and `Manual` are strict
+/// — no fallback, because the user (or the product) chose that route on purpose. `System`
+/// keeps today's probe: direct first, the system proxy only when the host is unreachable.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum DownloadRoute {
+    /// Direct first, the system proxy only on a transport-level failure (today's behaviour).
+    #[default]
+    System,
+    /// Never proxied, never falls back.
+    Direct,
+    /// Always through this proxy URL, never falls back.
+    Manual(String),
+}
+
 pub struct Dictation {
     /// Directory holding the model's files (see [`DEFAULT_MODEL_DIR`]).
     model_dir: PathBuf,
@@ -315,6 +451,10 @@ pub struct Dictation {
     live: LiveRecording,
     download_in_progress: AtomicBool,
     cancel_download: AtomicBool,
+    /// Which route a model download takes, set by the host from the product's network
+    /// settings (read at download time, not at construction, so a settings change applies
+    /// to the next download without a restart).
+    download_route: Mutex<DownloadRoute>,
 }
 
 enum Command {
@@ -351,7 +491,14 @@ impl Dictation {
             live,
             download_in_progress: AtomicBool::new(false),
             cancel_download: AtomicBool::new(false),
+            download_route: Mutex::new(DownloadRoute::System),
         }
+    }
+
+    /// Which route a model download takes. Read again at every download, so a host that
+    /// re-reads its network settings applies them without restarting the app.
+    pub fn set_download_route(&self, route: DownloadRoute) {
+        *self.download_route.lock().unwrap() = route;
     }
 
     pub fn status(&self) -> DictationStatus {
@@ -399,6 +546,9 @@ impl Dictation {
         }
         self.cancel_download.store(false, Ordering::SeqCst);
 
+        // One route for the whole model: read once, before any byte moves, so a settings
+        // change mid-download cannot split one model across two networks.
+        let route = self.download_route.lock().unwrap().clone();
         let result = (|| {
             fs::create_dir_all(&self.model_dir)
                 .map_err(|e| format!("Could not create model directory: {e}"))?;
@@ -412,7 +562,7 @@ impl Dictation {
                 // A file that is already here and matches its pin (an earlier attempt got this
                 // far) is kept: only what is missing or wrong is fetched again.
                 if verify_asset(&target, asset).is_err() {
-                    self.download_asset(asset, &target, done_bytes, &mut on_progress)?;
+                    self.download_asset(asset, &target, done_bytes, &route, &mut on_progress)?;
                 }
                 done_bytes += asset.bytes;
                 on_progress(DownloadProgress {
@@ -440,12 +590,13 @@ impl Dictation {
         asset: &ModelAsset,
         target: &Path,
         base: u64,
+        route: &DownloadRoute,
         on_progress: &mut impl FnMut(DownloadProgress),
     ) -> Result<(), String> {
         let partial = target.with_extension("part");
         let mut last_error = String::new();
         for url in asset.urls {
-            match self.download_url(url, &partial, asset, base, on_progress) {
+            match self.download_url(url, &partial, asset, base, route, on_progress) {
                 Ok(()) => {
                     if target.exists() {
                         fs::remove_file(target)
@@ -473,21 +624,47 @@ impl Dictation {
         partial: &Path,
         asset: &ModelAsset,
         base: u64,
+        route: &DownloadRoute,
         on_progress: &mut impl FnMut(DownloadProgress),
     ) -> Result<(), DownloadError> {
         // Per-read timeout, not overall: the model legitimately takes minutes to arrive, but a
         // stalled connection must surface as an error — the cancel flag is only observed
         // between reads, so an indefinitely blocked read would also make Cancel unresponsive.
-        // Direct first; if the host is unreachable, retry through the auto-detected system
-        // proxy (non-persistent — see fetch_model_response / detect_system_proxy).
-        let response = fetch_model_response(url).map_err(DownloadError::Failed)?;
+        // The route is the product's decision (system probe, strict direct, or a fixed proxy).
+
+        // Resume from an earlier attempt: whatever the .part file already holds is reused via a
+        // Range request. A 206 answer appends; any full-entity answer (200) means the mirror does
+        // not honor ranges (or the byte offset is gone), and the transfer restarts cleanly.
+        let mut start = fs::metadata(partial).map(|m| m.len()).unwrap_or(0);
+        if start >= asset.bytes {
+            // Enough bytes are already on disk (an interrupted transfer got everything);
+            // only the final verification was missing.
+            return verify_asset(partial, asset).map_err(DownloadError::Failed);
+        }
+
+        let response = fetch_model_response(url, route, start).map_err(DownloadError::Failed)?;
+        // A resumed transfer is only valid on 206; anything else is the whole file.
+        let resumed = response.status() == 206 && start > 0;
+        if !resumed {
+            start = 0;
+        }
+        let mut output = if resumed {
+            fs::OpenOptions::new()
+                .append(true)
+                .open(partial)
+                .map_err(|e| {
+                    DownloadError::Failed(format!("Could not save the local voice model: {e}"))
+                })?
+        } else {
+            let _ = fs::remove_file(partial);
+            fs::File::create(partial).map_err(|e| {
+                DownloadError::Failed(format!("Could not save the local voice model: {e}"))
+            })?
+        };
         let mut input =
             TimeoutRead::new(response.into_body().into_reader(), Duration::from_secs(30));
-        let mut output = fs::File::create(partial).map_err(|e| {
-            DownloadError::Failed(format!("Could not save the local voice model: {e}"))
-        })?;
-        let mut downloaded = 0_u64;
-        let mut last_reported = 0_u64;
+        let mut downloaded = start;
+        let mut last_reported = start;
         let mut buffer = [0_u8; 64 * 1024];
         loop {
             if self.cancel_download.load(Ordering::SeqCst) {
@@ -519,7 +696,6 @@ impl Dictation {
         drop(output);
         verify_asset(partial, asset).map_err(DownloadError::Failed)
     }
-
     fn drop_recognizer(&self) {
         if let Ok(mut cached) = self.recognizer.lock() {
             *cached = None;

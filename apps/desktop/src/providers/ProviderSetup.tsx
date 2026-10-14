@@ -16,6 +16,7 @@ import {
 import { openExternal } from "../tauri";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { PROVIDER_LOGOS, providerRank } from "./providerLogos";
+import { endpointPreview } from "./endpoint";
 
 // The provider gallery ⇄ key form, shared by Onboarding step 1 (§39) and
 // Settings ▸ Models (UX-021) so the two can never drift apart visually. The hook
@@ -752,6 +753,18 @@ export function ProviderForm({
         </span>
       )}
       {f.help && <p className="text-[11.5px] text-faint mt-1">{fieldHelp(f, t, info?.protocol ?? undefined)}</p>}
+      {f.key === "base_url" && info?.protocol && (ps.fields[f.key] || "").trim() && (
+        <p
+          className="text-[11.5px] text-ok mt-1 font-mono break-all"
+          data-testid={`${tp}-endpoint-preview`}
+        >
+          {t("providers.fields.serverAddressPreview", undefined, "Requests go to")}{" "}
+          {endpointPreview(
+            ps.fields[f.key],
+            info.protocol === "anthropic" ? "anthropic" : "openai_chat",
+          )}
+        </p>
+      )}
     </div>
   );
 

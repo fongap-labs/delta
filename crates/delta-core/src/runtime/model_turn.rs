@@ -137,8 +137,26 @@ impl RuntimeHost {
             api_key: self.config.api_key.clone(),
             base_url: self.config.base_url.clone(),
             timeout_secs: self.config.ttft_timeout,
+            reduced: self.reduced_request,
             pinned_addrs: Vec::new(),
+            // Resolved once per turn so a mid-turn settings change cannot split one
+            // answer across two routes (and so a retry after a param rejection reuses
+            // the same one).
+            proxy: self.turn_proxy.clone(),
         }
+    }
+
+    /// The proxy for this turn's outbound requests, or `None` for direct.
+    ///
+    /// Read from the same preferences file the settings UI writes, through the state
+    /// directory the authorities own. A host without authorities (tests) has no
+    /// preferences to read and goes direct; a file that cannot be read or parsed is
+    /// likewise direct, because a missing proxy must never be the reason a request
+    /// fails.
+    pub(super) fn resolve_turn_proxy(&self) -> Option<ureq::Proxy> {
+        let state_dir = self.authorities.as_ref()?.state_dir().to_path_buf();
+        let prefs = crate::model_authority::prefs_at(&state_dir)?;
+        crate::net::proxy::ProxySettings::from_prefs(&prefs).ureq_proxy(&self.config.base_url)
     }
 
     pub(super) fn assistant_message(
@@ -276,6 +294,10 @@ impl RuntimeHost {
         let mut turn_retries = 0u32;
         // An *Ask each time* confirmation covers one run; a resumed or retried run asks again.
         let mut is_egress_confirmed = false;
+        // One route per turn: the model request, every retry of it, and every tool the
+        // model asks for in between all go out the same way. Resolving per request
+        // would let a settings change land halfway through an answer.
+        self.turn_proxy = self.resolve_turn_proxy();
         loop {
             self.ensure_event_delivery()?;
             if iterations >= self.config.max_iterations {
@@ -366,6 +388,27 @@ impl RuntimeHost {
                 }
                 Err(e) => {
                     self.ensure_event_delivery()?;
+                    // A provider that refuses a request parameter is not one that will accept
+                    // the same body later. Re-send once without the optional parameters this
+                    // protocol permits it to reject — that is the difference between
+                    // recovering from a gateway's 400 and retrying it four times. One shot
+                    // only: if the reduced body is refused too, the failure is reported rather
+                    // than stripping the request down to nothing.
+                    if !self.reduced_request
+                        && streamed_text.is_empty()
+                        && streamed_reasoning.is_empty()
+                        && crate::retry::looks_protocol_rejection(&e)
+                    {
+                        self.reduced_request = true;
+                        self.emit_event(RuntimeEvent::Error {
+                            error: "The provider refused a request parameter - retrying with a reduced request."
+                                .to_string(),
+                            error_type: "ProtocolIncompatible".to_string(),
+                            terminal: false,
+                            retry: None,
+                        });
+                        continue;
+                    }
                     if turn_retries < self.config.max_retries
                         && streamed_text.is_empty()
                         && streamed_reasoning.is_empty()
