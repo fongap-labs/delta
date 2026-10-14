@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual); the SenseVoice speech model download resumes with HTTP Range requests and reads system proxy settings on macOS and Linux; a failed web search reports the error instead of opening a browser; and Settings > Privacy gains a network proxy card with direct, system and manual modes.
+
 - feat [breaking, migration]: the release version is only the version entered when the release is started. The release build writes it into the version fields of its checkout (`scripts/stamp_release_version.py`) and verifies the portable metadata against it. The version-consistency check, the required dated CHANGELOG release section and `version_source` in the release manifest are removed.
 
 - fix: a background shell task is reported as exited only after its output has been read. The process can be gone while its last lines still sit unread in the pipe (the reader thread lags on a loaded machine), and the status used to flip to `exited` then, so `shell_task_output` answered with an empty output and the command's verdict was lost â€?the flaky `test_background_task_runs_and_exits` failure in CI. The exited status now requires both the process being gone and the output drained; a kill waits briefly for the drain so the read after it reports `exited` with the full output.
@@ -70,6 +72,10 @@
 - fix: when settings cannot be read, the cards that used to show built-in values now say they could not load and offer a retry: the PDF limits and compaction thresholds under Models, and the context-bar switch, the sidebar count and the scratch folder under General. Before, the runtime's error was returned as an object without the saved fields, so the cards showed their defaults as if they were the saved settings, and a click would then save the default. Trusted workspaces likewise no longer reads as "No workspaces are trusted." after a failed read.
 
 - feat: an interrupted run can be resumed from the desktop. When a conversation ends in "Interrupted." and the runtime reports that the session's last run is interrupted (new read-only query `runtime_resumable`), the notice offers Resume; it continues the same run under its original run id (ADR-0053). Resume also works after the app was restarted: the runtime builds the session again from what it saved (model, workspace, mode, messages), so the client sends nothing but the session id. The one thing not carried over is a skill picked for that single turn. If the runtime cannot resume, or cannot be asked, no button is shown; Retry for failed turns is unchanged.
+- feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual), so a turn no longer leaves the machine by two different routes.
+- feat: the SenseVoice speech model resumes an interrupted download with HTTP Range requests, and system proxy settings are read on macOS (scutil) and Linux (gsettings).
+- feat: a failed web search reports the error instead of opening a browser.
+- feat: Settings > Privacy has a network proxy card with direct, system and manual modes.
 
 - fix: the Automations, Skills, MCP servers and Connectors lists no longer present a failed read as an empty list ("No skills yet", no servers, an empty connector catalogue, the automation quickstart as if none existed). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow; a later failed refresh keeps the list already on screen. The four read functions throw when the runtime reports an error instead of returning an empty result.
 - feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual), so a turn no longer leaves the machine by two different routes.
