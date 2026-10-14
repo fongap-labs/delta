@@ -220,12 +220,10 @@ impl ProxySettings {
     /// proxy (both pointing at the same process is the norm for local tooling), never
     /// the other way round.
     fn proxy_url(&self, scheme: &str) -> Option<String> {
-        let raw = if scheme == "http" {
-            self.http.as_str()
-        } else if self.https.trim().is_empty() {
-            self.http.as_str()
-        } else {
+        let raw = if scheme != "http" && !self.https.trim().is_empty() {
             self.https.as_str()
+        } else {
+            self.http.as_str()
         };
         let raw = raw.trim();
         if raw.is_empty() {
