@@ -6,9 +6,9 @@ import type { SearchEngine } from "../api";
 const api = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), test: vi.fn() }));
 vi.mock("../api", async (original) => ({
   ...(await original<typeof import("../api")>()),
-  getWebSearchEngines: api.get,
-  saveWebSearchEngines: api.save,
-  testWebSearchEngine: api.test,
+  readSearchEngines: api.get,
+  saveSearchEngines: api.save,
+  probeSearchEngine: api.test,
 }));
 
 import { WebSearchCard } from "./SettingsView";

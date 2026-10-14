@@ -232,7 +232,7 @@ fn read_capped(
     }
 }
 
-fn charset_from_content_type(content_type: &str) -> Option<String> {
+fn charset_from_header(content_type: &str) -> Option<String> {
     let lower = content_type.to_ascii_lowercase();
     let (_, rest) = lower.split_once("charset=")?;
     let label: String = rest
@@ -245,14 +245,14 @@ fn charset_from_content_type(content_type: &str) -> Option<String> {
 
 fn charset_from_html(head: &[u8]) -> Option<String> {
     let text = String::from_utf8_lossy(head).to_ascii_lowercase();
-    charset_from_content_type(&text)
+    charset_from_header(&text)
 }
 
 /// Decode a page body: the declared charset (header, then `<meta>`), UTF-8 otherwise. Pages in
 /// GBK or Big5 are common for Chinese sites, so this is not optional.
 pub fn decode_body(bytes: &[u8], content_type: &str) -> String {
     let is_html = content_type.to_ascii_lowercase().contains("html");
-    let label = charset_from_content_type(content_type).or_else(|| {
+    let label = charset_from_header(content_type).or_else(|| {
         is_html
             .then(|| charset_from_html(&bytes[..bytes.len().min(2048)]))
             .flatten()

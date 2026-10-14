@@ -451,9 +451,9 @@ export const updateWorkspaceTrust = (path: string, isTrusted: boolean) =>
   invokeAuthority("update_workspace_trust", { path, isTrusted });
 export const directSessionRevert = (sessionId: string, index: number) =>
   invokeAuthority("session_revert", { sessionId, index });
-export const directRestoreFileVersion = (sessionId: string, backup: string, target: string) =>
+export const directRestoreVersion = (sessionId: string, backup: string, target: string) =>
   invokeAuthority("restore_file_version", { sessionId, backup, target });
-export const directWebSearchSettings = () => invokeAuthority("get_web_search_settings", {});
+export const directReadSearch = () => invokeAuthority("read_search_settings", {});
 // Egress levels (ADR-0057): where a workspace's content may be sent. Only these settings commands change them.
 export const directEgressSettings = () => invokeAuthority("get_egress_settings", {});
 export const updateEgressDefault = (level: string, isConfirmed: boolean) =>
@@ -471,9 +471,9 @@ export const updatePathRule = (
   rule: string | null,
   isConfirmed: boolean,
 ) => invokeAuthority("set_path_rule", { workspace, path, class: destinationClass, rule, isConfirmed });
-export const directSetWebSearchSettings = (engines: unknown) =>
-  invokeAuthority("set_web_search_settings", { engines });
-export const directTestWebSearchEngine = (id: string) => invokeAuthority("test_web_search_engine", { id });
+export const directWriteSearch = (engines: unknown) =>
+  invokeAuthority("write_search_settings", { engines });
+export const directProbeEngine = (id: string) => invokeAuthority("probe_search_engine", { id });
 export const updateSessionReasoning = (sessionId: string, effort: string) =>
   invokeAuthority("update_session_reasoning", { sessionId, effort });
 export const directSessionRoots = (sessionId: string) =>
@@ -532,7 +532,7 @@ export const directConnectMcp = (name: string) => invokeAuthority("mcp_connect",
 export const directSignoutMcp = (name: string) => invokeAuthority("mcp_signout", { name });
 export const directListAudit = (params: Record<string, unknown>) =>
   invokeAuthority("audit_list", params);
-export const directListRunSources = (runId: string) =>
+export const directListSources = (runId: string) =>
   invokeAuthority("run_sources_list", { runId });
 export const directListSkills = (workspace?: string) =>
   invokeAuthority("skills_list", { workspace });

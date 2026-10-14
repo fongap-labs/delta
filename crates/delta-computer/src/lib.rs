@@ -320,7 +320,7 @@ fn extension_of(path: &Path) -> String {
 
 /// Show a file in the file manager with it selected. Done by hand: the library's version needs a
 /// system D-Bus library on Linux, which the build must not require.
-fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
+fn reveal_in_folder(path: &Path) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -384,7 +384,7 @@ fn open_file() -> CapabilityRegistration {
                 );
             }
             let outcome = if reveal {
-                reveal_in_file_manager(&full)
+                reveal_in_folder(&full)
             } else {
                 opener::open(&full).map_err(|e| e.to_string())
             };
@@ -503,6 +503,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(|_| {}),
             secrets: BTreeMap::new(),
+            proxy: None,
         }
     }
 

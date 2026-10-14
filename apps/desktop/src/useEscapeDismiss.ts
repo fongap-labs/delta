@@ -12,7 +12,7 @@ import { useEffect } from "react";
 
 const FIELD_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
-export function shouldDismissOnEscape(
+export function shouldDismissEscape(
   event: Pick<KeyboardEvent, "key" | "defaultPrevented" | "isComposing" | "keyCode" | "target">,
   options: { shouldIgnoreFields?: boolean } = {},
 ): boolean {
@@ -35,7 +35,7 @@ export function useEscapeDismiss(
   useEffect(() => {
     if (!isActive) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!shouldDismissOnEscape(event, { shouldIgnoreFields })) return;
+      if (!shouldDismissEscape(event, { shouldIgnoreFields })) return;
       event.preventDefault();
       onDismiss();
     };

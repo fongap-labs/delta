@@ -305,7 +305,7 @@ function commandSources(): Record<string, string> {
     set_path_rule: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: args.rule ? [{ workspace: args.workspace, path: args.path, rule: args.rule }] : [] })`,
     set_local_only: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: args.isLocalOnly ? [args.server] : [], path_overrides: [] })`,
     // Same shape as the runtime's WebSearchSettings::public_view: the built-in engines, no keys.
-    get_web_search_settings: `(args) => ({ ok: true, engines: [
+    read_search_settings: `(args) => ({ ok: true, engines: [
       { id: "google", name: "Google", builtin: true, enabled: true, needs_key: false, accepts_key: true, has_key: false, has_cx: false, template: "", auth_header: "" },
       { id: "bing", name: "Bing", builtin: true, enabled: true, needs_key: false, accepts_key: false, has_key: false, has_cx: false, template: "", auth_header: "" },
       { id: "duckduckgo", name: "DuckDuckGo", builtin: true, enabled: true, needs_key: false, accepts_key: false, has_key: false, has_cx: false, template: "", auth_header: "" },

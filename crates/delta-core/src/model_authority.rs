@@ -19,7 +19,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use crate::durability::atomic_write_private_checked;
+use crate::durability::write_private_checked;
 use crate::model_catalog::{
     suggested_models, ProviderDescriptor, ANTHROPIC_PROTOCOL, DEFAULT_ANTHROPIC_URL,
     DEFAULT_OPENAI_URL, MODEL_MATRIX, OPENAI_PROTOCOL, PROVIDERS,
@@ -96,7 +96,7 @@ impl ModelAuthority {
     /// Persist the whole authority (prefs + secrets) in one private atomic write.
     fn write_authority(&self, file: &ModelAuthorityFile) -> Result<(), String> {
         let bytes = serde_json::to_vec_pretty(file).map_err(|error| error.to_string())?;
-        let is_protected = atomic_write_private_checked(self.authority_path(), &bytes)
+        let is_protected = write_private_checked(self.authority_path(), &bytes)
             .map_err(|error| error.to_string())?;
         SECRETS_FILE_IS_PROTECTED.store(is_protected, Ordering::Relaxed);
         if !is_protected {

@@ -444,11 +444,11 @@ impl CoreControlPlane {
         if let Err(error) = crate::runtime::interrupted_run_of(&self.authorities, session_id) {
             return json!({"ok": false, "error": error});
         }
-        let (model_id, mode) =
-            match control_plane::get_session_model_and_mode(&self.state_dir, session_id) {
-                Ok(settings) => settings,
-                Err(error) => return json!({"ok": false, "error": error.to_string()}),
-            };
+        let (model_id, mode) = match control_plane::session_model_mode(&self.state_dir, session_id)
+        {
+            Ok(settings) => settings,
+            Err(error) => return json!({"ok": false, "error": error.to_string()}),
+        };
         self.start_runtime_with(
             RuntimeStartRequest {
                 session_id: session_id.to_string(),

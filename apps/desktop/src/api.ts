@@ -1,6 +1,6 @@
 import type { GroupedQuestion, QuestionOption, SessionInfo, WsEvent } from "./types";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
-import { canOpenWithDefaultApp } from "./artifactOpen";
+import { canOpenExternally } from "./artifactOpen";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   RuntimeContractError,
@@ -59,10 +59,10 @@ import {
   directSessionRename,
   deleteSessionRoot,
   directSessionRevert,
-  directRestoreFileVersion,
-  directWebSearchSettings,
-  directSetWebSearchSettings,
-  directTestWebSearchEngine,
+  directRestoreVersion,
+  directReadSearch,
+  directWriteSearch,
+  directProbeEngine,
   directSessionRoots,
   updateSessionFlags,
   updateSessionReasoning,
@@ -88,7 +88,7 @@ import {
   directUpdateAutomation,
   finalizeAutomationRun as finalizeAutomationRuntime,
   directListAudit,
-  directListRunSources,
+  directListSources,
   directListMcp,
   directPutMcp,
   directPatchMcp,
@@ -406,7 +406,7 @@ export async function restoreFileVersion(
   backup: string,
   target: string,
 ): Promise<{ ok: boolean; error?: string; path?: string }> {
-  return await directRestoreFileVersion(sessionId, backup, target);
+  return await directRestoreVersion(sessionId, backup, target);
 }
 
 /** One search engine in the user's list. The key itself is never sent to the interface. */
@@ -438,21 +438,21 @@ export interface SearchEngineEdit {
   auth_header?: string;
 }
 
-export async function getWebSearchEngines(): Promise<SearchEngine[]> {
-  const out = (await directWebSearchSettings()) as { ok?: boolean; engines?: SearchEngine[]; error?: string };
+export async function readSearchEngines(): Promise<SearchEngine[]> {
+  const out = (await directReadSearch()) as { ok?: boolean; engines?: SearchEngine[]; error?: string };
   if (out?.ok === false || !Array.isArray(out?.engines)) throw new Error(out?.error || "could not read the search settings");
   return out.engines;
 }
 
-export async function saveWebSearchEngines(
+export async function saveSearchEngines(
   engines: SearchEngineEdit[],
 ): Promise<{ ok: boolean; error?: string; engines?: SearchEngine[] }> {
-  return (await directSetWebSearchSettings(engines)) as { ok: boolean; error?: string; engines?: SearchEngine[] };
+  return (await directWriteSearch(engines)) as { ok: boolean; error?: string; engines?: SearchEngine[] };
 }
 
 /** Ask one saved engine a real question; `first` is the title of its first result. */
-export async function testWebSearchEngine(id: string): Promise<{ ok: boolean; count?: number; first?: string; error?: string }> {
-  return (await directTestWebSearchEngine(id)) as { ok: boolean; count?: number; first?: string; error?: string };
+export async function probeSearchEngine(id: string): Promise<{ ok: boolean; count?: number; first?: string; error?: string }> {
+  return (await directProbeEngine(id)) as { ok: boolean; count?: number; first?: string; error?: string };
 }
 
 export async function setReasoningEffort(
@@ -538,7 +538,7 @@ export async function revealArtifact(
     return { ok: false, error: resolved.error || "Artifact is unavailable" };
   }
   try {
-    if (mode === "open" && canOpenWithDefaultApp(resolved.path)) {
+    if (mode === "open" && canOpenExternally(resolved.path)) {
       await openPath(resolved.path);
       return { ok: true };
     }
@@ -796,7 +796,7 @@ export interface RunSource {
 }
 
 export async function getRunSources(runId: string): Promise<RunSource[]> {
-  const out = throwOnError(await directListRunSources(runId));
+  const out = throwOnError(await directListSources(runId));
   return out.sources ?? [];
 }
 

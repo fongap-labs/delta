@@ -209,21 +209,21 @@ fn any_contains(text: &str, markers: &[&str]) -> bool {
 /// The order matters. A gateway that wraps a rejected request in a 502 used to look like a
 /// transient upstream fault here, so the runtime resent the identical body four times and, on a
 /// gateway that retries internally, multiplied that into fifteen pointless upstream attempts.
-pub fn is_retryable_error_message(message: &str) -> bool {
+pub fn is_retryable_failure(message: &str) -> bool {
     // 1. The endpoint said not to.
     if message.contains(crate::provider::NO_RETRY_TAG) {
         return false;
     }
     // 2. The failure families say every attempt was non-retryable.
-    if failure_kinds_block_retry(message) {
+    if failures_block_retry(message) {
         return false;
     }
     // 3. Fall back to the status code for endpoints that say nothing.
-    is_retryable_status_or_text(message)
+    is_retryable_text(message)
 }
 
 /// True when a gateway `failure_kinds` payload names only non-retryable families.
-fn failure_kinds_block_retry(message: &str) -> bool {
+fn failures_block_retry(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
     let Some(start) = lower.find("\"failure_kinds\"") else {
         return false;
@@ -248,15 +248,18 @@ fn failure_kinds_block_retry(message: &str) -> bool {
 
 /// Status-code and text matching, for an error that carries no endpoint verdict.
 ///
-/// Kept separate from [`is_retryable_error_message`] so the two policies can be reasoned about —
+/// Kept separate from [`is_retryable_failure`] so the two policies can be reasoned about —
 /// and tested — independently.
-pub fn is_retryable_status_or_text(message: &str) -> bool {
+pub fn is_retryable_text(message: &str) -> bool {
     // A reply with a status is judged by the status alone, so a body that merely mentions a
     // number ("HTTP 400: ... 500 tokens") is not mistaken for a server failure.
     if let Some(rest) = message.strip_prefix("HTTP ") {
         let code: String = rest.chars().take_while(char::is_ascii_digit).collect();
         if let Ok(code) = code.parse::<u16>() {
-            return matches!(code, 408 | 425 | 429 | 500 | 502 | 503 | 504 | 520..=524 | 529);
+            return matches!(
+                code,
+                408 | 425 | 429 | 500 | 502 | 503 | 504 | 520..=524 | 529
+            );
         }
     }
     let lower = message.to_lowercase();
@@ -272,7 +275,7 @@ pub fn is_retryable_status_or_text(message: &str) -> bool {
 
 /// The marker set that means "a parameter this provider does not accept", which supports the
 /// runtime's one-shot reduced re-send rather than a blind retry.
-pub fn looks_like_protocol_rejection(message: &str) -> bool {
+pub fn looks_protocol_rejection(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
     PROTOCOL_MARKERS.iter().any(|m| lower.contains(m))
         // A gateway that reports a request-local failure family is telling us the body, not the
@@ -326,46 +329,47 @@ mod tests {
             "HTTP 502: {{\"error\":{{\"message\":\"All attempted nodes failed for model \\\"Max\\\".\"}}}} {}",
             crate::provider::NO_RETRY_TAG
         );
-        assert!(!is_retryable_error_message(&message));
+        assert!(!is_retryable_failure(&message));
     }
 
     #[test]
     fn failure_kinds_of_client_only_is_not_retried() {
         let message = "HTTP 502: {\"error\":{\"message\":\"All attempted nodes failed.\",\"details\":{\"failure_kinds\":{\"client\":3}}}}";
-        assert!(!is_retryable_error_message(message));
+        assert!(!is_retryable_failure(message));
     }
 
     #[test]
     fn failure_kinds_with_a_retryable_family_stays_retryable() {
-        let message = "HTTP 502: {\"error\":{\"details\":{\"failure_kinds\":{\"server\":2,\"network\":1}}}}";
-        assert!(is_retryable_error_message(message));
+        let message =
+            "HTTP 502: {\"error\":{\"details\":{\"failure_kinds\":{\"server\":2,\"network\":1}}}}";
+        assert!(is_retryable_failure(message));
     }
 
     #[test]
     fn a_plain_502_with_no_signal_is_still_retried() {
-        assert!(is_retryable_error_message("HTTP 502: bad gateway"));
+        assert!(is_retryable_failure("HTTP 502: bad gateway"));
     }
 
     #[test]
     fn an_auth_failure_is_never_retried() {
-        assert!(!is_retryable_error_message("HTTP 401: invalid api key"));
+        assert!(!is_retryable_failure("HTTP 401: invalid api key"));
     }
 
     #[test]
     fn protocol_rejection_markers_drive_the_reduced_resend() {
-        assert!(looks_like_protocol_rejection(
+        assert!(looks_protocol_rejection(
             "HTTP 400: 'reasoning_effort' is not supported"
         ));
-        assert!(looks_like_protocol_rejection(
+        assert!(looks_protocol_rejection(
             "HTTP 502: All attempted nodes failed for model \"Max\"."
         ));
-        assert!(looks_like_protocol_rejection(
+        assert!(looks_protocol_rejection(
             "HTTP 400: unknown parameter: stream_options"
         ));
         // A genuine transient fault must not be mistaken for a parameter problem, or the runtime
         // would strip parameters it did not need to strip.
-        assert!(!looks_like_protocol_rejection("HTTP 503: service unavailable"));
-        assert!(!looks_like_protocol_rejection("connection refused"));
+        assert!(!looks_protocol_rejection("HTTP 503: service unavailable"));
+        assert!(!looks_protocol_rejection("connection refused"));
     }
 
     #[test]

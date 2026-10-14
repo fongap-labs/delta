@@ -751,12 +751,12 @@ fn uuid_v4() -> String {
 
 /// Whether a provider failure is worth retrying.
 ///
-/// The decision is delegated to [`crate::retry::is_retryable_error_message`] (ADR-039), which
+/// The decision is delegated to [`crate::retry::is_retryable_failure`] (ADR-039), which
 /// consults the endpoint's own verdict first. The previous inline copy looked at the status code
 /// only, so a gateway wrapping a rejected request in a 502 was retried as if the upstream had
 /// hiccuped.
 fn is_retryable_error(e: &str) -> bool {
-    crate::retry::is_retryable_error_message(e)
+    crate::retry::is_retryable_failure(e)
 }
 
 fn classify_transient_error(e: &str) -> String {

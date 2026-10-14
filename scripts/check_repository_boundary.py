@@ -65,20 +65,6 @@ MIGRATED_IMPLEMENTATION_GUARDS: dict[pathlib.Path, tuple[tuple[str, re.Pattern[s
         ("first-party catalog prose", re.compile(r"\b(?:Gmail|Slack|Notion|Outlook|HubSpot|Canva|Figma|QuickBooks)\b")),
         ("vendor-specific access catalog", re.compile(r"\"(?:gmail|slack|notion|outlook|hubspot|canva|figma|quickbooks)\"\s*:", re.I)),
     ),
-    pathlib.Path("integrations/connectors/gmail_accounts.py"): (
-        ("Gmail profile storage implementation", re.compile(r"gmail:account:", re.I)),
-        ("Gmail SecretStore mutation", re.compile(r"secrets\.(?:put|delete|status)\s*\(", re.I)),
-        ("Gmail sender-filter algorithm", re.compile(r"rule\.startswith\(\s*[\"']@[\"']\s*\)", re.I)),
-    ),
-    pathlib.Path("integrations/connectors/gcal_accounts.py"): (
-        ("Google Calendar profile storage implementation", re.compile(r"google_calendar:account:", re.I)),
-        ("Google Calendar SecretStore mutation", re.compile(r"secrets\.(?:put|delete|status)\s*\(", re.I)),
-    ),
-    pathlib.Path("integrations/connectors/hubspot_portals.py"): (
-        ("HubSpot portal storage implementation", re.compile(r"hubspot:portal:", re.I)),
-        ("HubSpot SecretStore mutation", re.compile(r"secrets\.(?:put|delete|status)\s*\(", re.I)),
-        ("HubSpot field filtering algorithm", re.compile(r"properties|hidden_fields.*lower\(\)", re.I)),
-    ),
     pathlib.Path("integrations/connectors/tool_defs.py"): (
         ("Gmail first-party tool catalog", re.compile(r"gmail_(?:search_messages|get_message|send_email)", re.I)),
         ("Google Calendar first-party tool catalog", re.compile(r"gcal_(?:list_events|free_busy|create_event|update_event|delete_event)", re.I)),

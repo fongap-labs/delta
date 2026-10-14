@@ -156,8 +156,7 @@ impl RuntimeHost {
     pub(super) fn resolve_turn_proxy(&self) -> Option<ureq::Proxy> {
         let state_dir = self.authorities.as_ref()?.state_dir().to_path_buf();
         let prefs = crate::model_authority::prefs_at(&state_dir)?;
-        crate::net::proxy::ProxySettings::from_prefs(&prefs)
-            .ureq_proxy(&self.config.base_url)
+        crate::net::proxy::ProxySettings::from_prefs(&prefs).ureq_proxy(&self.config.base_url)
     }
 
     pub(super) fn assistant_message(
@@ -398,7 +397,7 @@ impl RuntimeHost {
                     if !self.reduced_request
                         && streamed_text.is_empty()
                         && streamed_reasoning.is_empty()
-                        && crate::retry::looks_like_protocol_rejection(&e)
+                        && crate::retry::looks_protocol_rejection(&e)
                     {
                         self.reduced_request = true;
                         self.emit_event(RuntimeEvent::Error {

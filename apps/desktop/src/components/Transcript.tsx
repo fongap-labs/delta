@@ -636,8 +636,8 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
   });
   flush(!!running);
 
-  const deliveredFiles = deliveredSinceLastUser(items);
-  const stepsInLastRequest = toolStepsSinceLastUser(items);
+  const deliveredFiles = deliveredSinceUser(items);
+  const stepsInLastRequest = stepsSinceUser(items);
   const lastTurnIndex = blocks.reduce((acc, b, i) => ("turn" in b ? i : acc), -1);
   // Regenerate is offered only on the final answer of an idle thread whose last user message is
   // a plain (non-skill) message with a raw index; anywhere else the reply is history.
@@ -979,7 +979,7 @@ function previousVersionOf(preview: string | undefined, path: string): string | 
 }
 
 /** Files the last request wrote or edited, newest last, one row per path. */
-export function deliveredSinceLastUser(items: Item[]): DeliveredFile[] {
+export function deliveredSinceUser(items: Item[]): DeliveredFile[] {
   let from = 0;
   items.forEach((it, i) => {
     if (it.kind === "user") from = i + 1;
@@ -998,8 +998,8 @@ export function deliveredSinceLastUser(items: Item[]): DeliveredFile[] {
   return files;
 }
 
-export const filesDeliveredSinceLastUser = (items: Item[]): string[] =>
-  deliveredSinceLastUser(items).map((f) => f.path);
+export const filesSinceUser = (items: Item[]): string[] =>
+  deliveredSinceUser(items).map((f) => f.path);
 
 const DELIVERY_TOOLS = new Set([
   "write_file",
@@ -1010,7 +1010,7 @@ const DELIVERY_TOOLS = new Set([
 ]);
 
 /** Tool calls the last request made: a request with a real workflow behind it is worth keeping. */
-export function toolStepsSinceLastUser(items: Item[]): number {
+export function stepsSinceUser(items: Item[]): number {
   let from = 0;
   items.forEach((it, i) => {
     if (it.kind === "user") from = i + 1;

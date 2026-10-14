@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import {
   getSettingsStrict,
   getTrustedWorkspaces,
-  getWebSearchEngines,
-  saveWebSearchEngines,
-  testWebSearchEngine,
+  readSearchEngines,
+  saveSearchEngines,
+  probeSearchEngine,
   type SearchEngine,
   type SearchEngineEdit,
   setCompactionSettings,
@@ -750,7 +750,7 @@ export function WebSearchCard() {
 
   const load = () => {
     setFailed(false);
-    getWebSearchEngines()
+    readSearchEngines()
       .then((engines) => {
         setDrafts(engines);
         setDirty(false);
@@ -807,7 +807,7 @@ export function WebSearchCard() {
   const save = async () => {
     setBusy(true);
     setError(null);
-    const result = await saveWebSearchEngines(drafts.map(toEdit)).catch(() => ({
+    const result = await saveSearchEngines(drafts.map(toEdit)).catch(() => ({
       ok: false as const,
       error: t("settings.search.saveFailed"),
     }));
@@ -822,7 +822,7 @@ export function WebSearchCard() {
   };
   const runTest = async (id: string) => {
     setTests((cur) => ({ ...cur, [id]: "…" }));
-    const out: { ok: boolean; count?: number; first?: string; error?: string } = await testWebSearchEngine(id).catch(
+    const out: { ok: boolean; count?: number; first?: string; error?: string } = await probeSearchEngine(id).catch(
       () => ({ ok: false, error: "" }),
     );
     setTests((cur) => ({
@@ -1099,7 +1099,7 @@ function NetworkProxyCard() {
   const [settings, setSettings] = useState<ProxySettings | null>(null);
   const [draft, setDraft] = useState<ProxySettings | null>(null);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [isSaved, setSaved] = useState(false);
   const [hasFailed, setFailed] = useState(false);
 
   const load = () => {
@@ -1232,7 +1232,7 @@ function NetworkProxyCard() {
             <button className={BTN_ACCENT} data-testid="proxy-save" onClick={() => persist(draft)}>
               {t("settings.proxy.save")}
             </button>
-            {saved && (
+            {isSaved && (
               <span className="text-[12px] text-muted">{t("settings.proxy.saved")}</span>
             )}
           </div>

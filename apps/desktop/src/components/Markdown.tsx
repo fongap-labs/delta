@@ -48,7 +48,7 @@ function ArtifactChip({ path, title }: { path: string; title: string }) {
  *  the button lives in the block's top-right corner and only appears on hover/focus, so
  *  reading a long snippet is never disturbed by chrome that is irrelevant most of the time. */
 function CodeBlock({ children }: { children?: ReactNode }) {
-  const [copied, setCopied] = useState(false);
+  const [isCopied, setCopied] = useState(false);
   // react-markdown hands us <pre><code class="language-x">…</code></pre>; the code
   // element owns the raw text, so read it off the child rather than re-deriving it.
   // Nested arrays (a block built from several text nodes) are flattened.
@@ -76,12 +76,12 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           type="button"
           className="md-code-copy"
           data-testid="md-code-copy"
-          aria-label={copied ? "Copied" : "Copy code"}
-          title={copied ? "Copied" : "Copy code"}
+          aria-label={isCopied ? "Copied" : "Copy code"}
+          title={isCopied ? "Copied" : "Copy code"}
           onClick={copy}
         >
-          <Icon name={copied ? "check" : "copy"} size={12} />
-          <span>{copied ? "Copied" : "Copy"}</span>
+          <Icon name={isCopied ? "check" : "copy"} size={12} />
+          <span>{isCopied ? "Copied" : "Copy"}</span>
         </button>
       )}
     </div>

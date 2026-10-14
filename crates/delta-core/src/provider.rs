@@ -276,7 +276,7 @@ fn http_error(e: ureq::Error) -> String {
 /// `auth`, `model_missing` and `endpoint_not_found` all mean "this request cannot succeed as
 /// sent", and retrying the identical body is futile.
 ///
-/// The interpretation lives in [`crate::retry::is_retryable_error_message`], next to the rest of
+/// The interpretation lives in [`crate::retry::is_retryable_failure`], next to the rest of
 /// the retry policy; this list is the vocabulary it reads.
 pub const NON_RETRYABLE_KINDS: &[&str] = &[
     "client",
@@ -867,7 +867,8 @@ pub fn stream_anthropic(
 ) -> Result<Value, String> {
     let url = versioned_endpoint(&req.base_url, "messages");
     let body = build_anthropic_body(req, true);
-    let mut request = stream_agent(req.timeout_secs, &req.pinned_addrs, req.proxy.as_ref()).post(&url);
+    let mut request =
+        stream_agent(req.timeout_secs, &req.pinned_addrs, req.proxy.as_ref()).post(&url);
     for (k, v) in anthropic_headers(req) {
         request = request.set(k, &v);
     }
@@ -1356,7 +1357,10 @@ mod tests {
             "https://gw.example.test/v1/messages"
         );
         assert_eq!(
-            versioned_endpoint("https://gw.example.test/v1/chat/completions", "chat/completions"),
+            versioned_endpoint(
+                "https://gw.example.test/v1/chat/completions",
+                "chat/completions"
+            ),
             "https://gw.example.test/v1/chat/completions"
         );
         // A different version segment is kept as given, not rewritten to /v1.

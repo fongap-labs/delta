@@ -452,7 +452,7 @@ fn session_workspace(state_dir: &Path, session_id: &str) -> Result<String, Shado
 
 /// The model and mode a session was last run with, so a resumed run continues under the same
 /// settings instead of the caller supplying them again.
-pub fn get_session_model_and_mode(
+pub fn session_model_mode(
     state_dir: &Path,
     session_id: &str,
 ) -> Result<(String, String), ShadowReadError> {

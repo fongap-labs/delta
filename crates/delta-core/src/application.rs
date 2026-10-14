@@ -432,7 +432,7 @@ impl ApplicationStore {
 
     /// Save the engine list the interface sends (order, on/off, keys, user-added engines). On a
     /// rejected list nothing is saved and the reason comes back.
-    pub fn set_web_search_settings(&self, engines: &Value) -> Result<Value, ShadowReadError> {
+    pub fn write_search_settings(&self, engines: &Value) -> Result<Value, ShadowReadError> {
         use crate::web::config::{merge, Incoming};
         let incoming: Vec<Incoming> = match serde_json::from_value(engines.clone()) {
             Ok(list) => list,
@@ -789,7 +789,7 @@ mod tests {
 
         // Turn Brave on with a key, add an engine of one's own, move DuckDuckGo first.
         let saved = store
-            .set_web_search_settings(&json!([
+            .write_search_settings(&json!([
                 {"id": "duckduckgo", "enabled": true},
                 {"id": "brave", "enabled": true, "api_key": " BSA-secret "},
                 {"id": "google", "enabled": true},
@@ -812,7 +812,7 @@ mod tests {
 
         // A rejected list saves nothing.
         let refused = store
-            .set_web_search_settings(&json!([{"id": "tavily", "enabled": true}]))
+            .write_search_settings(&json!([{"id": "tavily", "enabled": true}]))
             .unwrap();
         assert_eq!(refused["ok"], false);
         assert_eq!(

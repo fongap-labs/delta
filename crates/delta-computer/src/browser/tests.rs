@@ -29,7 +29,7 @@ fn test_browser() -> Option<PathBuf> {
 
 /// Cold-starting Chromium takes seconds on a loaded CI runner, and the launch gives up after 20 s.
 /// The tests that start a browser run one at a time so their launches do not compete for the CPU.
-fn one_browser_at_a_time() -> std::sync::MutexGuard<'static, ()> {
+fn browser_is_exclusive() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -136,6 +136,7 @@ impl Rig {
                 cancel: Arc::new(AtomicBool::new(false)),
                 progress: Arc::new(|_| {}),
                 secrets: BTreeMap::new(),
+                proxy: None,
             },
         )
     }
@@ -174,7 +175,7 @@ fn element<'a>(page: &'a Value, label: &str) -> &'a Value {
 }
 
 #[test]
-fn the_guard_keeps_the_browser_off_the_users_network() {
+fn guard_blocks_lan() {
     let strict = NetGuard::new(false);
     for blocked in [
         "http://127.0.0.1:8080/",
@@ -204,7 +205,7 @@ fn the_guard_keeps_the_browser_off_the_users_network() {
 }
 
 #[test]
-fn reading_and_scrolling_need_no_approval_and_acting_does() {
+fn scroll_no_approval() {
     let state = tempfile::tempdir().unwrap();
     let browser = BrowserHost::new(state.path().to_path_buf(), Settings::default());
     for registration in registrations(&browser) {
@@ -229,7 +230,7 @@ fn reading_and_scrolling_need_no_approval_and_acting_does() {
 }
 
 #[test]
-fn a_missing_browser_is_reported_in_plain_words() {
+fn missing_browser_message() {
     let rig = rig(Settings {
         executable: Some(PathBuf::from("/definitely/not/here/browser")),
         ..Settings::default()
@@ -239,12 +240,12 @@ fn a_missing_browser_is_reported_in_plain_words() {
 }
 
 #[test]
-fn the_agent_can_browse_fill_in_and_submit_a_form() {
+fn agent_fills_form() {
     let Some(executable) = test_browser() else {
         eprintln!("no browser installed; skipping");
         return;
     };
-    let _serial = one_browser_at_a_time();
+    let _serial = browser_is_exclusive();
     let port = serve();
     let rig = rig(settings(executable));
     let base = format!("http://127.0.0.1:{port}");
@@ -364,12 +365,12 @@ fn the_agent_can_browse_fill_in_and_submit_a_form() {
 }
 
 #[test]
-fn the_browser_refuses_addresses_on_the_users_own_network() {
+fn refuse_local_network() {
     let Some(executable) = test_browser() else {
         eprintln!("no browser installed; skipping");
         return;
     };
-    let _serial = one_browser_at_a_time();
+    let _serial = browser_is_exclusive();
     let port = serve();
     let rig = rig(Settings {
         allow_loopback: false,
@@ -387,12 +388,12 @@ fn the_browser_refuses_addresses_on_the_users_own_network() {
 }
 
 #[test]
-fn the_browser_closes_itself_when_unused_and_comes_back_when_needed() {
+fn browser_sleeps_wakes() {
     let Some(executable) = test_browser() else {
         eprintln!("no browser installed; skipping");
         return;
     };
-    let _serial = one_browser_at_a_time();
+    let _serial = browser_is_exclusive();
     let port = serve();
     let rig = rig(Settings {
         idle_timeout: Duration::from_secs(1),
