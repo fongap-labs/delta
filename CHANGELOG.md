@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: asked which model it is, the assistant names the model set in the user's model settings (given in the environment block) instead of answering with Delta's name; it no longer names a developer for the model unless the environment says so.
+
 - feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
 
 - feat: a model that refuses tool definitions is run without tools for that model only, with a visible notice (`notice` runtime event, `tools_refused` transcript entry). Web search still works: the model asks for it with a `SEARCH:` line, and the runtime runs the existing approval-gated `web_search` tool and returns the results as model-only data.
