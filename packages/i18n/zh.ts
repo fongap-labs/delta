@@ -1314,7 +1314,7 @@ export const zh: Record<TranslationKey, string> = {
   "connectors.editServerTitle": "编辑 MCP 服务器配置（JSON）",
   "connectors.editServerHelp": "保存后立即替换该服务器的配置。已脱敏的密钥保持原值，不会被清空。",
   "connectors.invalidServerConfig": "配置必须是一个 JSON 对象。",
-  "connectors.addServerPlus": "+ 添加服务器",
+  "connectors.addServerPlus": "+ 添加自定义 MCP 服务器",
   "connectors.allowOnly": "仅允许",
   "connectors.allowedToMessage": "允许发消息",
   "connectors.asks": "需审批",

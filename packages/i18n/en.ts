@@ -1317,7 +1317,7 @@ export const en = {
   "connectors.editServerTitle": "Edit MCP server config (JSON)",
   "connectors.editServerHelp": "Saving replaces this server's config. Redacted secrets keep their stored values.",
   "connectors.invalidServerConfig": "The config must be a JSON object.",
-  "connectors.addServerPlus": "+ Add server",
+  "connectors.addServerPlus": "+ Add a custom MCP server",
   "connectors.allowOnly": "Allow only",
   "connectors.allowedToMessage": "Allowed to message",
   "connectors.asks": "asks",
