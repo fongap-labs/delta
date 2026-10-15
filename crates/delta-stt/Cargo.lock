@@ -325,10 +325,12 @@ checksum = "ac6b926516df9c60bfa16e107b21086399f8285a44ca9711344b9e553c5146e2"
 name = "delta-stt"
 version = "0.1.0"
 dependencies = [
+ "bzip2 0.5.2",
  "cpal",
  "serde",
  "sha2",
  "sherpa-onnx",
+ "tar",
  "ureq 3.4.2",
 ]
 
