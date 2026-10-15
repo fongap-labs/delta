@@ -274,6 +274,22 @@ pub fn record_runtime_event(state_dir: &Path, frame: &Value) -> Result<(), Shado
             )?;
         }
         "turn_end" | "interrupted" | "error" => {
+            // A failure that ends the turn belongs in the transcript, not only in the live view:
+            // otherwise a conversation reopened later shows the question with no answer and no
+            // reason. Retry progress (non-terminal) is not written.
+            if event_type == "error"
+                && payload.get("terminal").and_then(Value::as_bool) == Some(true)
+            {
+                let text = payload
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown error");
+                append_session_message(
+                    state_dir,
+                    session_id,
+                    &json!({"role": "notice", "kind": "error", "text": text, "ts": crate::runtime::now_ts()}),
+                )?;
+            }
             let conn = open_conn(&state_dir.join("core.db"))?;
             conn.execute(
                 "UPDATE sessions SET recovery = ?1, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?2",
@@ -1132,6 +1148,47 @@ mod tests {
         let title = derive_title(&long).unwrap();
         assert_eq!(title.chars().count(), AUTO_TITLE_MAX_CHARS + 1);
         assert!(title.ends_with('…'));
+    }
+
+    #[test]
+    fn a_failure_that_ends_the_turn_stays_in_the_transcript_but_retry_progress_does_not() {
+        let tmp = tempfile::tempdir().unwrap();
+        ensure_session(tmp.path(), "failing", None, "m").unwrap();
+        let frame = |kind: &str, payload: Value| json!({"sessionId": "failing", "type": kind, "payload": payload});
+        record_runtime_event(
+            tmp.path(),
+            &frame(
+                "turn_start",
+                json!({"input": "Find the news", "run_id": "r"}),
+            ),
+        )
+        .unwrap();
+        record_runtime_event(
+            tmp.path(),
+            &frame(
+                "error",
+                json!({"error": "retrying", "terminal": false, "attempt": 2}),
+            ),
+        )
+        .unwrap();
+        record_runtime_event(
+            tmp.path(),
+            &frame(
+                "error",
+                json!({"error": "HTTP 504: all nodes failed", "terminal": true}),
+            ),
+        )
+        .unwrap();
+        let messages = get_session_messages(tmp.path(), "failing").unwrap()["messages"].clone();
+        let notices: Vec<&Value> = messages
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|m| m["role"] == "notice")
+            .collect();
+        assert_eq!(notices.len(), 1, "{messages}");
+        assert_eq!(notices[0]["kind"], "error");
+        assert_eq!(notices[0]["text"], "HTTP 504: all nodes failed");
     }
 
     #[test]
