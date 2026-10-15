@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, Attachment, Item } from "../types";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
@@ -384,7 +384,8 @@ function StepRow({ tool, approval }: { tool: ToolItem; approval?: ApprovalItem }
   const { t } = useI18n();
   const [isRaw, setRaw] = useState(false);
   const running = tool.status === "…";
-  const failed = tool.status !== "ok" && !running;
+  // Only a recorded error reads as failed: an unknown status must not turn the dot red.
+  const failed = tool.status === "error";
   return (
     <div>
       <div className="group flex items-baseline gap-2 px-2 py-0.5 rounded-lg hover:bg-bg" data-testid="turn-step">
@@ -443,12 +444,15 @@ function TurnGroup({
   items,
   isLive,
   streamingText,
+  stepOffset = 0,
 }: {
   items: TurnItem[];
   isLive?: boolean;
   // Sub-threshold streamed text belongs to THIS group (§33 ref #3): collapsed → it rides
   // the header as the live line; expanded → the small quiet line under the steps.
   streamingText?: string;
+  // Steps already taken earlier in the same request (in groups split by a question).
+  stepOffset?: number;
 }) {
   const { t } = useI18n();
   // Turns start COLLAPSED, running or not (owner call 2026-07-14) — the header's live
@@ -461,7 +465,7 @@ function TurnGroup({
   const lastNarr = [...items].reverse().find((it): it is AssistantItem => it.kind === "assistant");
   const liveLine = streamingText || lastNarr?.text || "";
 
-  const nSteps = rows.filter((r) => r.type !== "narr").length;
+  const nSteps = stepOffset + rows.filter((r) => r.type !== "narr").length;
   const declined = items.filter((it) => it.kind === "approval" && it.resolved === "deny").length;
   const hiddenTotal = tools.reduce((n, t) => n + (t.hidden || 0), 0);
   const stepsLabel = t("transcript.stepCount", { n: nSteps, s: nSteps === 1 ? "" : "s" }, `${nSteps} step${nSteps === 1 ? "" : "s"}`);
@@ -543,6 +547,8 @@ interface Props {
   running?: boolean;
   // Sub-threshold streamed text (streamGate mode "quiet") — handed to the live turn group.
   streamingText?: string;
+  // The live turn's thinking (reasoning models). It shows above the live steps, not below them.
+  liveReasoning?: string;
   // Re-run the failed turn (no new user message). Offered only on a retriable notice that
   // is the transcript tail of an idle session — anywhere else the error is history.
   onRetry?: () => void;
@@ -597,13 +603,13 @@ export function interruptedAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, onRetry, onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain }: Props) {
+export function Transcript({ items, running, streamingText, liveReasoning, onRetry,onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
   // ANSWER and render as bubbles after the group; interior assistant texts are narration and
   // stay inside. A run with no activity at all is just bubbles (unchanged chat behavior).
-  const blocks: Array<{ turn: TurnItem[]; isLive?: boolean } | { item: Item; i: number }> = [];
+  const blocks: Array<{ turn: TurnItem[]; isLive?: boolean; reasoning?: string } | { item: Item; i: number }> = [];
   let run: TurnItem[] = [];
   const flush = (isLive = false) => {
     if (!run.length) return;
@@ -616,9 +622,19 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
     if (!keepTrailing)
       while (turn.length && turn[turn.length - 1].kind === "assistant")
         answers.unshift(turn.pop() as AssistantItem);
-    if (turn.some((it) => it.kind !== "assistant")) blocks.push({ turn, isLive });
-    else turn.forEach((t) => blocks.push({ item: t, i: -1 }));
-    answers.forEach((a) => blocks.push({ item: a, i: -1 }));
+    if (turn.some((it) => it.kind !== "assistant")) {
+      // The turn's thinking is lifted out of its answer and shown above the steps, so the
+      // order reads thinking → steps → answer rather than steps → thinking.
+      const reasoning = [...turn, ...answers]
+        .map((it) => (it.kind === "assistant" ? it.reasoning : undefined))
+        .filter((r): r is string => !!r)
+        .join("\n\n");
+      blocks.push({ turn, isLive, ...(reasoning ? { reasoning } : {}) });
+      answers.forEach((a) => blocks.push({ item: a.reasoning ? { ...a, reasoning: undefined } : a, i: -1 }));
+    } else {
+      turn.forEach((t) => blocks.push({ item: t, i: -1 }));
+      answers.forEach((a) => blocks.push({ item: a, i: -1 }));
+    }
   };
   items.forEach((item, i) => {
     if (item.kind === "tool" || item.kind === "assistant" || (item.kind === "approval" && item.resolved))
@@ -696,6 +712,19 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
       return openedBy ?? itemDay(b.item);
     });
   })();
+  // Steps taken before each group in the same request, so a group split by a question keeps counting.
+  const stepBases = ((): number[] => {
+    let base = 0;
+    return blocks.map((b) => {
+      if ("turn" in b) {
+        const at = base;
+        base += buildRows(b.turn).filter((r) => r.type !== "narr").length;
+        return at;
+      }
+      if (b.item.kind === "user") base = 0;
+      return 0;
+    });
+  })();
   const dayLabel = (key: string): string => {
     const [y, m, d] = key.split("-").map(Number);
     const day = new Date(y, m, d);
@@ -716,15 +745,21 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
         const showDivider = day !== null && day !== lastDay && day !== todayKey;
         if (day !== null) lastDay = day;
         const node = (() => {
-        if ("turn" in block)
+        if ("turn" in block) {
+          // Thinking leads the turn: the live stream while it runs, otherwise the thinking the answer kept.
+          const thinking = [block.reasoning, block.isLive ? liveReasoning : undefined].filter(Boolean).join("\n\n");
           return (
-            <TurnGroup
-              items={block.turn}
-              isLive={block.isLive}
-              streamingText={block.isLive && bi === lastTurnIndex ? streamingText : undefined}
-              key={bi}
-            />
+            <Fragment key={bi}>
+              {thinking && <ThinkingBlock text={thinking} isLive={!!block.isLive && !!liveReasoning} />}
+              <TurnGroup
+                items={block.turn}
+                isLive={block.isLive}
+                streamingText={block.isLive && bi === lastTurnIndex ? streamingText : undefined}
+                stepOffset={stepBases[bi]}
+              />
+            </Fragment>
           );
+        }
         const { item } = block;
         switch (item.kind) {
           case "connector":
@@ -952,6 +987,8 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
           </div>
         );
       })}
+      {/* A reply with no tool activity yet has no step group to lead; its live thinking closes the transcript. */}
+      {liveReasoning && !blocks.some((b) => "turn" in b && b.isLive) && <ThinkingBlock text={liveReasoning} isLive />}
       {!running && (deliveredFiles.length > 0 || (onSaveAsSkill && stepsInLastRequest >= SKILL_MIN_STEPS)) && (
         <DeliveryCard
           files={deliveredFiles}

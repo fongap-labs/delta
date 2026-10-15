@@ -58,7 +58,7 @@ import { Icon } from "./components/Icon";
 import { Sidebar } from "./components/Sidebar";
 import { Composer } from "./components/Composer";
 import { RunStatusBar } from "./components/RunStatusBar";
-import { interruptedAnchor, ThinkingBlock, Transcript } from "./components/Transcript";
+import { interruptedAnchor, Transcript } from "./components/Transcript";
 import { Markdown } from "./components/Markdown";
 import { SessionIntro } from "./components/SessionIntro";
 import { Onboarding } from "./components/Onboarding";
@@ -717,8 +717,9 @@ export function App() {
             updateLastTool(
               p,
               d.name,
-              d.status,
-              d.result_preview || d.reason,
+              // The runtime sends `error`, not a status: a failed call must read as failed live, as it does after reload.
+              d.error ? "error" : "ok",
+              d.result_preview || d.reason || (typeof d.result === "string" ? d.result : d.result == null ? undefined : JSON.stringify(d.result)),
               d.display?.hidden_by_filters,
               d.standing_rule,
             ),
@@ -1622,6 +1623,7 @@ export function App() {
                     items={items}
                     onApprove={approve}
                     running={isRunning}
+                    liveReasoning={isRunning && !streaming ? reasoningStream : undefined}
                     onRetry={retry}
                     onSwitchModel={openModelSetup}
                     onSaveAsSkill={() => send(tr("skill.savePrompt"))}
@@ -1637,14 +1639,6 @@ export function App() {
                     // floating paragraph.
                     streamingText={streamMode(streaming, items, isRunning) === "quiet" ? streaming : undefined}
                   />
-                  {/* Live thinking (reasoning models): a quiet collapsed block that streams the
-                      trace for anyone who expands it; folds into the answer's disclosure when
-                      the message finalizes. */}
-                  {isRunning && reasoningStream && !streaming && (
-                    <div className="transcript">
-                      <ThinkingBlock text={reasoningStream} isLive />
-                    </div>
-                  )}
                   {/* Compaction runs between provider turns (nothing streams during it), so
                       the transient takes over the waiting slot with a specific label. */}
                   {isRunning && isCompacting && (

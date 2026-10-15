@@ -263,7 +263,7 @@ function ProgressSummary({ running, toolNames, todo }: { running: boolean; toolN
   if (running) {
     return (
       <div className="rail-muted">
-        {toolNames.length ? t("artifacts.workingOnTaskCount", { n: toolNames.length, s: toolNames.length === 1 ? "" : "s" }) : t("artifacts.workingOnTaskPlain")}
+        {toolNames.length ? t("artifacts.workingOnStep", { n: toolNames.length }) : t("artifacts.workingOnTaskPlain")}
       </div>
     );
   }

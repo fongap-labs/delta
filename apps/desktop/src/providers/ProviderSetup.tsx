@@ -1034,8 +1034,8 @@ export function CustomCreateForm({ ps, tp, inline = false }: { ps: ProviderSetup
           {proto && (
             <span className="block text-[13px] font-normal text-faint truncate">
               {ps.protoId === "anthropic"
-                ? t("providers.customProviderFormSubAnthropic", undefined, "Configure an Anthropic-compatible or native-protocol service")
-                : t("providers.customProviderFormSub", undefined, "Configure an OpenAI-compatible or native-protocol service")}
+                ? t("providers.customProviderFormSubAnthropic", undefined, "Configure an Anthropic Messages-compatible service")
+                : t("providers.customProviderFormSub", undefined, "Configure an OpenAI-compatible service (Chat Completions)")}
             </span>
           )}
         </span>
