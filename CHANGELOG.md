@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: a turn's thinking shows above its steps, live and after the answer; step counts keep going across a question answered mid-turn; a step's dot is red only when its call failed, live and after reopening the conversation; the progress line reads "正在进行第 N 步"; the custom provider form names the OpenAI Chat Completions and Anthropic Messages protocols.
+
 - feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
 
 - feat: a model that refuses tool definitions is run without tools for that model only, with a visible notice (`notice` runtime event, `tools_refused` transcript entry). Web search still works: the model asks for it with a `SEARCH:` line, and the runtime runs the existing approval-gated `web_search` tool and returns the results as model-only data.

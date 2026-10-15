@@ -16,8 +16,11 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
   // `_display` sidecar on a tool message = user-facing metadata the agent never saw
   // (e.g. how many hits the privacy filters hid) — surfaces on the tool card.
   const hiddenCounts: Record<string, number> = {};
+  // A tool result the runtime stored with an `error` is a failed step, so it replays as one.
+  const failed = new Set<string>();
   for (const m of messages || []) {
     if (m.role === "tool" && m.tool_call_id) {
+      if (m.error) failed.add(m.tool_call_id);
       results[m.tool_call_id] =
         typeof m.content === "string" ? m.content : JSON.stringify(m.content);
       const hidden = Number(m._display?.hidden_by_filters || 0);
@@ -66,7 +69,7 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
           id: tc.id,
           name: tc.function?.name,
           args,
-          status: "ok",
+          status: failed.has(tc.id) ? "error" : "ok",
           preview,
           ...(hidden ? { hidden } : {}),
         });

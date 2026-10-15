@@ -137,10 +137,10 @@ describe("CustomCreateForm subtitle follows the protocol", () => {
 
   it("names OpenAI for the OpenAI protocol and Anthropic for the Anthropic protocol", () => {
     const { unmount } = render(wrap(<CustomCreateForm ps={withProto("openai")} tp="t" inline />));
-    expect(screen.getByText(/OpenAI-compatible or native-protocol/)).toBeTruthy();
+    expect(screen.getByText(/OpenAI-compatible service/)).toBeTruthy();
     unmount();
     render(wrap(<CustomCreateForm ps={withProto("anthropic")} tp="t" inline />));
-    expect(screen.getByText(/Anthropic-compatible or native-protocol/)).toBeTruthy();
+    expect(screen.getByText(/Anthropic Messages-compatible service/)).toBeTruthy();
     expect(screen.queryByText(/OpenAI-compatible/)).toBeNull();
   });
 
