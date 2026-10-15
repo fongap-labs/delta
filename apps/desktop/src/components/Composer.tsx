@@ -494,12 +494,14 @@ export function Composer(props: Props) {
   };
 
   const modelsLoaded = !!(props.models && props.models.length);
-  const modelOptions: Option[] = Array.from(
-    new Set([props.model, ...(props.models || [])]),
-  ).map((m) => ({
-    value: m,
-    label: props.modelLabels?.[m] || shortModel(m),
-  }));
+  // A model id with no name after its provider prefix ("alias:") is not a model; it would show as a
+  // blank row, so it is dropped here rather than offered.
+  const modelOptions: Option[] = Array.from(new Set([props.model, ...(props.models || [])]))
+    .filter((m) => shortModel(m).trim() !== "")
+    .map((m) => ({
+      value: m,
+      label: props.modelLabels?.[m] || shortModel(m),
+    }));
 
   const iconBtn =
     "w-7 h-7 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-bg shrink-0";

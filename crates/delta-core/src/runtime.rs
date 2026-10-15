@@ -195,6 +195,10 @@ pub enum RuntimeEvent {
     ModelChanged {
         model: String,
     },
+    /// A plain information line for the transcript (not a failure, not progress).
+    Notice {
+        text: String,
+    },
 }
 
 /// The only event envelope exposed by the Rust Runtime to product surfaces.
@@ -342,6 +346,7 @@ impl RuntimeEvent {
             Self::Compacting => ("compacting", json!({})),
             Self::Compacted { text } => ("compacted", json!({"text": text})),
             Self::ModelChanged { model } => ("model_changed", json!({"model": model})),
+            Self::Notice { text } => ("notice", json!({"text": text})),
         };
         serde_json::to_value(RuntimeEventEnvelopeV1 {
             event_type: event_type.to_string(),
@@ -679,10 +684,16 @@ pub struct RuntimeHost {
     run_id: Option<String>,
     sink: Arc<dyn EventSink>,
     event_error: Arc<Mutex<Option<String>>>,
-    /// Set once a provider has refused a request parameter, so the next attempt omits the
-    /// optional ones. One shot per host: if the reduced body is refused too, the failure is
-    /// reported instead of stripping the request down to nothing.
+    /// Set once a provider has refused a request parameter, so the next attempt of this turn omits
+    /// the optional ones. Reset at the start of each turn: the refusal belongs to that request
+    /// body, and a later turn must not inherit a stripped body from an unrelated failure. One shot
+    /// per turn: if the reduced body is refused too, the failure is reported instead of stripping
+    /// the request down to nothing.
     reduced_request: bool,
+    /// The model that refused the request's tool definitions. While it remains the session's
+    /// model, requests go without tools; web search is then asked for in text and run by the
+    /// runtime (see `model_turn.rs`). Keyed by model so a switch to another model tries tools again.
+    refused_tools_model: Option<String>,
     /// The proxy this turn's outbound requests go through, resolved once before the first
     /// request and reused for the rest of the turn (including every retry). `None` is
     /// direct. Frozen per turn so a settings change cannot split one answer across two
@@ -1183,6 +1194,7 @@ impl RuntimeHost {
             sink: Arc::new(NullSink),
             event_error: Arc::new(Mutex::new(None)),
             reduced_request: false,
+            refused_tools_model: None,
             // Test hosts carry no authorities and never reach the product doors, so
             // they stay direct; a test that needs a proxy sets it explicitly.
             turn_proxy: None,

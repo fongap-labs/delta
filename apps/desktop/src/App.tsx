@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { modelAfterSettings } from "./modelSync";
 import {
   announceInboxUnlock,
   finalizeAutomationRun,
@@ -472,10 +473,16 @@ export function App() {
     return () => clearTimeout(t);
   }, [isUiReady, isBooting]);
 
+  // The default model last read from settings: a change to it reaches the composer (see modelAfterSettings).
+  const defaultModelRef = useRef("");
   const loadSettings = () =>
     getSettings()
       .then((s) => {
         setModels(s.models || []);
+        const nextDefault = s.model || "";
+        const previousDefault = defaultModelRef.current;
+        defaultModelRef.current = nextDefault;
+        setModel((current) => modelAfterSettings(current, previousDefault, nextDefault));
         setModelLabels(s.model_labels || {});
         setModelContextWindows(s.model_context_windows || {});
         setContextBar(s.context_bar === true);
@@ -767,6 +774,10 @@ export function App() {
           // Auto-compaction marker (OPE-27): outbound-only — the transcript stays intact,
           // this divider just shows where the model's memory was summarized.
           setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "Context compacted" }]);
+          break;
+        case "notice":
+          // A plain runtime line (e.g. the model cannot take tools): information, never an error.
+          setItems((p) => [...p, { kind: "notice", tone: "info", text: String(d.text || "") }]);
           break;
         case "interrupted":
           flushPartialStream();

@@ -28,7 +28,7 @@ describe("Transcript message times", () => {
     expect(stamp.getAttribute("title")).toBeTruthy();
   });
 
-  it("announces the day once and keeps it implicit inside the run", () => {
+  it("announces an earlier day once and never announces today", () => {
     const day = 86_400;
     const now = Math.floor(Date.now() / 1000);
     const items: Item[] = [
@@ -38,10 +38,23 @@ describe("Transcript message times", () => {
       { kind: "assistant", text: "answer two", ts: now + 60 },
     ];
     renderTranscript(<Transcript items={items} onApprove={vi.fn()} />);
+    // Today's messages carry no divider; only the earlier day is named.
     const dividers = screen.getAllByTestId("day-divider");
-    expect(dividers.length).toBe(2);
+    expect(dividers.length).toBe(1);
     expect(dividers[0].textContent).toBe("Yesterday");
-    expect(dividers[1].textContent).toBe("Today");
+    expect(screen.queryByText("Today")).toBeNull();
+  });
+
+  it("keeps the first message of an earlier day right-aligned inside its divider wrapper", () => {
+    const day = 86_400;
+    const now = Math.floor(Date.now() / 1000);
+    const items: Item[] = [{ kind: "user", text: "old question", ts: now - day }];
+    const { container } = renderTranscript(<Transcript items={items} onApprove={vi.fn()} />);
+    const wrap = container.querySelector(".day-divider-wrap");
+    expect(wrap).not.toBeNull();
+    // The bubble's own group carries self-end; the wrapper must be a column so that still aligns it.
+    expect(wrap!.className).toContain("day-divider-wrap");
+    expect(wrap!.querySelector(".self-end")).not.toBeNull();
   });
 
   it("keeps a turn that runs past midnight under ONE divider", () => {

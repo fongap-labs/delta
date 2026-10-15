@@ -27,6 +27,9 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
   for (let msgIndex = 0; msgIndex < (messages || []).length; msgIndex++) {
     const m = (messages || [])[msgIndex];
     if (m.role === "user") {
+      // Written for the model alone (a web search result the model asked for in text): not something the
+      // user said, and not shown in the transcript.
+      if (m.model_only) continue;
       // Connector message → structured card; the framed `content` stays for the model, but display
       // renders from the source sidecar.
       if (m.source?.connector) {
@@ -77,6 +80,8 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
       items.push(
         m.kind === "interrupted"
           ? { kind: "notice", tone: "warn", text: "Interrupted." }
+          : m.kind === "tools_refused"
+            ? { kind: "notice", tone: "info", text: String(m.text || "") }
           : m.kind === "model_switch"
             ? { kind: "notice", tone: "info", text: m.text || "Model switched", modelSwitchModel: m.model as string | undefined, modelSwitchImageWarning: !!m.image_warning }
             : m.kind === "compacted"

@@ -38,12 +38,11 @@ impl ProxyMode {
 
     fn parse(raw: Option<&Value>) -> Self {
         match raw.and_then(Value::as_str) {
-            Some("direct") => Self::Direct,
+            Some("system") => Self::System,
             Some("manual") => Self::Manual,
-            // Absent, unknown, or "system": the system's own configuration is the
-            // conservative reading of "unset" for a product whose other doors
-            // already follow it.
-            _ => Self::System,
+            // Absent or unknown means direct: a fresh install connects the way it always
+            // has, and a proxy is used only when the user chooses one.
+            _ => Self::Direct,
         }
     }
 }
@@ -354,11 +353,14 @@ mod tests {
     }
 
     #[test]
-    fn unset_preferences_mean_system_mode_not_direct() {
+    fn unset_preferences_mean_direct_not_system() {
         assert_eq!(
             ProxySettings::from_prefs(&Map::new()).mode,
-            ProxyMode::System
+            ProxyMode::Direct
         );
+        // An unknown stored value is treated the same as unset.
+        let prefs = prefs(&[("proxy_mode", json!("bogus"))]);
+        assert_eq!(ProxySettings::from_prefs(&prefs).mode, ProxyMode::Direct);
     }
 
     #[test]

@@ -228,6 +228,7 @@ const SESSION_EVENT_TYPES = new Set<string>([
   "memory_saved",
   "compacting",
   "compacted",
+  "notice",
   "turn_done",
 ]);
 const APP_EVENT_TYPES = new Set<string>(["automation_run_started"]);

@@ -356,6 +356,7 @@ const RUNTIME_SESSION_EVENT_TYPES = new Set<string>([
   "memory_saved",
   "compacting",
   "compacted",
+  "notice",
   "turn_done",
 ]);
 

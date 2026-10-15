@@ -32,6 +32,7 @@ import {
   checkForUpdate,
   installUpdate,
   isTauri,
+  listenDictationDone,
   listenDictationProgress,
   markDictationPassed,
   pickFolder,
@@ -136,7 +137,14 @@ export function SettingsView({
       <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
         <div className="max-w-3xl mx-auto px-7 py-6">
           {tab === "appearance" ? (
-            <AppearanceSection />
+            <>
+              <AppearanceSection />
+              {/* The network route is a general behaviour of the app (every outbound call follows it),
+                  so it lives beside the other general settings, not under Privacy. */}
+              <div className="mt-6">
+                <NetworkProxyCard />
+              </div>
+            </>
           ) : tab === "models" ? (
             <section>
               <PanelHead
@@ -158,7 +166,6 @@ export function SettingsView({
             <section>
               <PanelHead title={t("settings.privacy.title")} sub={t("settings.privacy.sub")} />
               <PrivacySection />
-              <NetworkProxyCard />
             </section>
           ) : tab === "skills" ? (
             <SkillsTab onCreateSkill={onCreateSkill} />
@@ -190,7 +197,7 @@ function VoiceInputSection() {
   const { t } = useI18n();
   const [status, setStatus] = useState<DictationStatus | null>(null);
   const [progress, setProgress] = useState<DictationDownloadProgress | null>(null);
-  const [phase, setPhase] = useState<"idle" | "downloading" | "verifying" | "testing" | "transcribing">("idle");
+  const [phase, setPhase] = useState<"idle" | "verifying" | "testing" | "transcribing">("idle");
   const [error, setError] = useState<string | null>(null);
   const [testTranscript, setTestTranscript] = useState("");
   const desktop = isTauri();
@@ -204,10 +211,22 @@ function VoiceInputSection() {
     if (!desktop) return;
     let isActive = true;
     let unlisten = () => {};
+    let unlistenFinished = () => {};
     void listenDictationProgress((next) => {
       if (isActive) setProgress(next);
     }).then((stop) => {
       unlisten = stop;
+    });
+    // The download runs in the background, so it can finish while this page is closed; the event
+    // only adds the reason on a failure, the status read below is what the page shows.
+    void listenDictationDone((error) => {
+      if (!isActive) return;
+      if (error) setError(error);
+      void getDictationStatus().then((latest) => {
+        if (isActive && latest) publish(latest);
+      });
+    }).then((stop) => {
+      unlistenFinished = stop;
     });
     void getDictationStatus().then(async (initial) => {
       if (!isActive || !initial) return;
@@ -228,22 +247,37 @@ function VoiceInputSection() {
     return () => {
       isActive = false;
       unlisten();
+      unlistenFinished();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desktop]);
 
+  // While the download runs in the background, re-read its state so progress and the finish show
+  // even if the events were missed (a page reopened mid-download starts from the status alone).
+  const downloadingNow = !!status?.download_in_progress;
+  useEffect(() => {
+    if (!desktop || !downloadingNow) return;
+    const timer = window.setInterval(() => {
+      void getDictationStatus()
+        .then((latest) => {
+          if (latest) publish(latest);
+        })
+        .catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktop, downloadingNow]);
+
+  // Starting the download returns at once; the transfer itself is reported by the progress and finish events.
   const download = async () => {
     setError(null);
     setProgress({ downloaded_bytes: 0, total_bytes: status?.model_bytes || 0 });
-    setPhase("downloading");
     try {
       publish(await downloadDictationModel());
     } catch (downloadError) {
       setError(voiceError(downloadError, t));
       const latest = await getDictationStatus();
       if (latest) publish(latest);
-    } finally {
-      setPhase("idle");
     }
   };
 
@@ -297,7 +331,7 @@ function VoiceInputSection() {
     }
   };
 
-  const downloading = phase === "downloading" || !!status?.download_in_progress;
+  const downloading = !!status?.download_in_progress;
   const progressTotal = progress?.total_bytes || status?.model_bytes || 1;
   const progressPercent = Math.min(100, Math.round(((progress?.downloaded_bytes || 0) / progressTotal) * 100));
   const ready = !!status?.supported && !!status?.model_verified && !!status?.test_passed;
@@ -369,6 +403,7 @@ function VoiceInputSection() {
               <div className="border-t border-line px-4 py-3">
                 <div className="h-1.5 rounded-full bg-line overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${progressPercent}%` }} /></div>
                 <div className="mt-1.5 text-[11.5px] text-muted flex"><span>{formatBytes(progress?.downloaded_bytes || 0)} {t("settings.voice.of")} {formatBytes(progressTotal)}</span><span className="ml-auto">{progressPercent}%</span></div>
+                <div className="mt-1 text-[11.5px] text-faint">{t("settings.voice.backgroundHint")}</div>
               </div>
             )}
           </div>
@@ -1107,7 +1142,7 @@ function NetworkProxyCard() {
     getSettingsStrict()
       .then((s) => {
         const proxy: ProxySettings = {
-          mode: s.proxy?.mode ?? "system",
+          mode: s.proxy?.mode ?? "direct",
           http: s.proxy?.http ?? "",
           https: s.proxy?.https ?? "",
           no_proxy: s.proxy?.no_proxy ?? "",

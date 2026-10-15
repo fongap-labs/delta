@@ -195,7 +195,7 @@ impl ModelAuthority {
             .filter_map(Value::as_str)
             .collect();
         let mut models: Vec<String> = Vec::new();
-        if !default_model.is_empty() {
+        if !is_nameless_model(&default_model) {
             models.push(default_model.clone());
         }
         for (model, _, _) in MODEL_MATRIX {
@@ -212,6 +212,7 @@ impl ModelAuthority {
             .into_iter()
             .flatten()
             .filter_map(Value::as_str)
+            .filter(|model| !is_nameless_model(model))
         {
             if !hidden.contains(model)
                 && self.provider_configured(&self.route_model(model, prefs).0, prefs, secrets)?
@@ -459,7 +460,7 @@ impl ModelAuthority {
 
     pub fn set_default_model(&self, model: &str) -> Result<Value, String> {
         let model = model.trim();
-        if model.is_empty() {
+        if is_nameless_model(model) {
             return Err("empty model".to_string());
         }
         let mut file = self.read_authority()?;
@@ -471,7 +472,7 @@ impl ModelAuthority {
 
     pub fn add_model(&self, model: &str) -> Result<Value, String> {
         let model = model.trim();
-        if model.is_empty() {
+        if is_nameless_model(model) {
             return Err("empty model".to_string());
         }
         let mut file = self.read_authority()?;
@@ -819,6 +820,13 @@ impl ModelAuthority {
             push_unique(prefs, "models", model);
         }
     }
+}
+
+/// A model id whose name is missing: empty, or a provider prefix with nothing after it
+/// (`alias:`). Such an id has no label to show, so it is never stored or offered.
+fn is_nameless_model(model: &str) -> bool {
+    let name = model.split_once(':').map_or(model, |(_, rest)| rest);
+    name.trim().is_empty()
 }
 
 struct ProbeConfig {
@@ -1181,5 +1189,19 @@ mod tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o600);
+    }
+}
+
+#[cfg(test)]
+mod nameless_model_tests {
+    use super::*;
+
+    #[test]
+    fn an_alias_with_no_model_name_is_not_a_model() {
+        assert!(is_nameless_model(""));
+        assert!(is_nameless_model("alias:"));
+        assert!(is_nameless_model("alias:   "));
+        assert!(!is_nameless_model("alias:Air"));
+        assert!(!is_nameless_model("Air"));
     }
 }

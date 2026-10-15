@@ -15,7 +15,7 @@ type IntTab = "connectors" | "mcp";
 // Fixed sub-nav (UX-DECISIONS §21): connector detail lives as a SUBPAGE under
 // Connectors, never as a nav item — the nav must not grow per connector.
 const INT_TABS: { key: IntTab; labelKey: TranslationKey; icon: "plug" | "code" }[] = [
-  { key: "connectors", labelKey: "connectors.title", icon: "plug" },
+  { key: "connectors", labelKey: "connectors.appsTab", icon: "plug" },
   { key: "mcp", labelKey: "connectors.mcp", icon: "code" },
 ];
 

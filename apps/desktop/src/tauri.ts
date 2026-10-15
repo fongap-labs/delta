@@ -109,6 +109,17 @@ export async function listenDictationProgress(
   })) as () => void;
 }
 
+// The background download reports how it ended: `null` when the model verified, otherwise the
+// reason. The page may be gone by then, so a later visit reads the status, and this only adds the message.
+export async function listenDictationDone(
+  handler: (error: string | null) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  return (await tauriListen("dictation-download-finished", (event: { payload: string | null }) => {
+    handler(event.payload ?? null);
+  })) as () => void;
+}
+
 // --- Auto-update (desktop only; browser builds see null / throw) -----------------
 
 export type UpdateInfo = { version: string; notes: string };

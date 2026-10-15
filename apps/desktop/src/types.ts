@@ -22,6 +22,7 @@ export type EventType =
   | "memory_saved"
   | "compacting"
   | "compacted"
+  | "notice"
   | "turn_done";
 
 export interface WsEvent {
