@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - fix: a turn's thinking shows above its steps, live and after the answer; step counts keep going across a question answered mid-turn; a step's dot is red only when its call failed, live and after reopening the conversation; the progress line reads "Step N in progress"; the custom provider form names the OpenAI Chat Completions and Anthropic Messages protocols.
+- feat: desktop input-control consent policy (ADR-0062). Programs are refused, confirmed per action (banking and password managers), or authorized per session; sensitive clicks and keys, password fields and coordinate clicks are confirmed; screenshots are refused while a banking or password-manager window is visible; a run stops after 50 actions or three repeated failures. The policy is not connected to any tool yet, so no user-visible behaviour changes.
 
 - feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
 

@@ -7,6 +7,7 @@
 //! model.
 
 mod browser;
+pub mod control;
 mod screen;
 
 use std::path::{Path, PathBuf};
