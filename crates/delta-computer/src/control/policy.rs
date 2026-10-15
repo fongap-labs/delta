@@ -290,9 +290,9 @@ impl RunBudget {
 
     /// Call after each action with its outcome. A success clears the streak; a failure of the same
     /// action extends it, and a failure of a different action starts a new one.
-    pub fn record(&mut self, action: &Action, succeeded: bool) -> Result<(), Stop> {
+    pub fn record(&mut self, action: &Action, is_success: bool) -> Result<(), Stop> {
         let key = action.key();
-        if succeeded {
+        if is_success {
             self.streak = 0;
             self.last_key = None;
             return Ok(());
