@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { getAudit, type AuditEvent } from "../api";
+import { auditArgs, auditLine, auditState, auditWhen, type AuditState } from "../auditPlain";
 import { PanelHead } from "./IntegrationsView";
 import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
 
-// Activity — connector/browser tool history, restructured onto the IntegrationsView page shell
-// (centered panel + PanelHead + cards), replacing the legacy `page-view` layout. Read-only:
-// filterable, with sanitized arguments.
+// Activity — what Delta has done for the user, in plain words: one sentence and one status per
+// action. The technical fields (session, connector, raw status, sanitized arguments) sit behind a
+// "Technical details" disclosure. Read-only and filterable.
 const CARD = "rounded-xl2 border border-line bg-panel";
 const INPUT = "px-3 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary";
 const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-primary text-on-primary shrink-0";
@@ -79,29 +80,86 @@ export function AuditView() {
 
 function AuditRow({ ev }: { ev: AuditEvent }) {
   const { t } = useI18n();
+  const line = auditLine(ev);
+  const state = auditState(ev);
+  const args = auditArgs(ev.args);
+  const reason = ev.reason || ev.result_preview;
   return (
     <div className={CARD + " p-3.5"}>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-mono text-[12.5px] font-medium text-ink">{ev.tool}</span>
-        <span className="text-[11.5px] text-faint">
-          {ev.connector || t("activity.row.connectorFallback", undefined, "tool")} · {ev.stage || ev.status || t("activity.row.stageFallback", undefined, "event")} · {ev.timestamp}
-        </span>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-medium text-ink break-words">{t(line.key, line.params)}</div>
+          <div className={"text-[12px] mt-0.5 " + STATE_TONE[state]}>{stateText(state, ev, t)}</div>
+          {state === "waiting" && (
+            <div className="text-[12px] text-muted mt-0.5">{t("activity.reason.approval", undefined, "This runs only after you approve it.")}</div>
+          )}
+        </div>
+        <span className="text-[12px] text-faint shrink-0 whitespace-nowrap">{auditWhen(ev.timestamp)}</span>
       </div>
-      <div className="text-[11.5px] text-muted mt-0.5">
-        {t("activity.row.sessionPrefix", undefined, "session")} {ev.session_id || "-"} {ev.approval ? `· ${ev.approval}` : ""} {ev.status ? `· ${ev.status}` : ""}
-      </div>
-      {ev.resource && <div className="text-[11.5px] text-faint mt-0.5">{t("activity.row.resourcePrefix", undefined, "resource")}: {ev.resource}</div>}
-      {ev.args && Object.keys(ev.args).length > 0 && (
-        <div className="font-mono text-[11.5px] text-muted mt-1.5 break-words">{formatAuditArgs(ev.args)}</div>
-      )}
-      {(ev.reason || ev.result_preview) && (
-        <div className="text-[11.5px] text-faint mt-1">{ev.reason || ev.result_preview}</div>
-      )}
+      <details className="mt-2">
+        <summary className="text-[12px] text-faint cursor-pointer select-none">
+          {t("activity.details", undefined, "Technical details")}
+        </summary>
+        <dl className="mt-2 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-[11.5px] text-muted">
+          <dt>{t("activity.detail.session", undefined, "Conversation")}</dt>
+          <dd className="font-mono break-all">{ev.session_id || "-"}</dd>
+          <dt>{t("activity.detail.tool", undefined, "Tool")}</dt>
+          <dd className="font-mono break-all">{ev.tool || "-"}</dd>
+          <dt>{t("activity.detail.connector", undefined, "App connector")}</dt>
+          <dd className="break-all">{ev.connector || "-"}</dd>
+          <dt>{t("activity.detail.status", undefined, "Recorded status")}</dt>
+          <dd className="break-all">{[ev.stage, ev.status, ev.approval].filter(Boolean).join(" · ") || "-"}</dd>
+          {ev.resource && (
+            <>
+              <dt>{t("activity.row.resourcePrefix", undefined, "resource")}</dt>
+              <dd className="break-all">{ev.resource}</dd>
+            </>
+          )}
+          {Object.keys(args).length > 0 && (
+            <>
+              <dt>{t("activity.detail.arguments", undefined, "Sent")}</dt>
+              <dd className="font-mono break-all">{formatAuditArgs(args)}</dd>
+            </>
+          )}
+          {reason && (
+            <>
+              <dt>{t("activity.detail.note", undefined, "Note")}</dt>
+              <dd className="break-all">{reason}</dd>
+            </>
+          )}
+        </dl>
+      </details>
     </div>
   );
 }
 
-function formatAuditArgs(args: Record<string, any>) {
+const STATE_TONE: Record<AuditState, string> = {
+  waiting: "text-warn",
+  approved: "text-ok",
+  denied: "text-muted",
+  done: "text-ok",
+  failed: "text-danger",
+  other: "text-muted",
+};
+
+function stateText(state: AuditState, ev: AuditEvent, t: (key: string, params?: Record<string, string>, fallback?: string) => string) {
+  switch (state) {
+    case "waiting":
+      return t("activity.status.waiting", undefined, "Waiting for your approval");
+    case "approved":
+      return t("activity.status.approved", undefined, "You approved");
+    case "denied":
+      return t("activity.status.denied", undefined, "You declined");
+    case "done":
+      return t("activity.status.done", undefined, "Done");
+    case "failed":
+      return t("activity.status.failed", undefined, "Failed");
+    default:
+      return t("activity.status.other", { status: ev.status || ev.stage || "-" }, `Status: ${ev.status || ev.stage || "-"}`);
+  }
+}
+
+function formatAuditArgs(args: Record<string, unknown>) {
   return Object.entries(args)
     .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join("  ");

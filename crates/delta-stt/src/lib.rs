@@ -33,33 +33,37 @@ pub const DEFAULT_MODEL_NAME: &str = "SenseVoice Small";
 /// Directory (under the host's model directory) that holds the model's files.
 pub const DEFAULT_MODEL_DIR: &str = "sensevoice-small-int8-2024-07-17";
 
-/// One file of the model: pinned by size and SHA-256, tried against each URL in order. A URL
-/// that is unreachable only moves on to the next one; whatever arrives must match the pin.
+/// One file of the model, pinned by size and SHA-256. Whatever arrives must match the pin.
 struct ModelAsset {
     file: &'static str,
     bytes: u64,
     sha256: &'static str,
-    urls: [&'static str; 2],
+    /// Where the file can be fetched, tried in order. Empty when the file is unpacked from an archive.
+    urls: &'static [&'static str],
 }
 
+/// The official SenseVoice release archive (sherpa-onnx, int8, 2024-07-17). It holds the two model
+/// files in `MODEL_ASSETS`; the app downloads it once, checks its hash, and unpacks those files.
+const MODEL_ARCHIVE: ModelAsset = ModelAsset {
+    file: "sensevoice-int8-2024-07-17.tar.bz2",
+    bytes: 163_002_883,
+    sha256: "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e",
+    urls: &["https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"],
+};
+
+/// The two files the recognizer loads. Their pins are checked after unpacking from `MODEL_ARCHIVE`.
 const MODEL_ASSETS: [ModelAsset; 2] = [
     ModelAsset {
         file: "model.int8.onnx",
         bytes: 239_233_841,
         sha256: "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51",
-        urls: [
-            "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/resolve/main/model.int8.onnx",
-            "https://hf-mirror.com/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/resolve/main/model.int8.onnx",
-        ],
+        urls: &[],
     },
     ModelAsset {
         file: "tokens.txt",
         bytes: 315_894,
         sha256: "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
-        urls: [
-            "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/resolve/main/tokens.txt",
-            "https://hf-mirror.com/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/resolve/main/tokens.txt",
-        ],
+        urls: &[],
     },
 ];
 /// Total download size of the model, in bytes.
@@ -583,24 +587,20 @@ impl Dictation {
         let result = (|| {
             fs::create_dir_all(&self.model_dir)
                 .map_err(|e| format!("Could not create model directory: {e}"))?;
-            let mut done_bytes = 0_u64;
             on_progress(DownloadProgress {
                 downloaded_bytes: 0,
                 total_bytes: DEFAULT_MODEL_BYTES,
             });
-            for asset in &MODEL_ASSETS {
-                let target = self.model_dir.join(asset.file);
-                // A file that is already here and matches its pin (an earlier attempt got this
-                // far) is kept: only what is missing or wrong is fetched again.
-                if verify_asset(&target, asset).is_err() {
-                    self.download_asset(asset, &target, done_bytes, &route, &mut on_progress)?;
-                }
-                done_bytes += asset.bytes;
-                on_progress(DownloadProgress {
-                    downloaded_bytes: done_bytes,
-                    total_bytes: DEFAULT_MODEL_BYTES,
-                });
+            if MODEL_ASSETS
+                .iter()
+                .any(|asset| verify_asset(&self.model_dir.join(asset.file), asset).is_err())
+            {
+                self.install_from_archive(&route, &mut on_progress)?;
             }
+            on_progress(DownloadProgress {
+                downloaded_bytes: DEFAULT_MODEL_BYTES,
+                total_bytes: DEFAULT_MODEL_BYTES,
+            });
             self.drop_recognizer();
             write_verification_marker(&self.model_dir, &self.verified_marker_path)?;
             let _ = fs::remove_file(&self.ready_marker_path);
@@ -611,6 +611,32 @@ impl Dictation {
         self.download_in_progress.store(false, Ordering::SeqCst);
         self.cancel_download.store(false, Ordering::SeqCst);
         result
+    }
+
+    /// Installs both model files from the official archive. The archive is downloaded once (resumable,
+    /// checked by its own hash); the two files are then unpacked and each checked against its pin.
+    fn install_from_archive(
+        &self,
+        route: &DownloadRoute,
+        on_progress: &mut impl FnMut(DownloadProgress),
+    ) -> Result<(), String> {
+        let archive = self.model_dir.join(MODEL_ARCHIVE.file);
+        if verify_asset(&archive, &MODEL_ARCHIVE).is_err() {
+            // The transfer counts archive bytes; scale them onto the model total the page shows.
+            let mut scaled = |progress: DownloadProgress| {
+                on_progress(DownloadProgress {
+                    downloaded_bytes: progress
+                        .downloaded_bytes
+                        .saturating_mul(DEFAULT_MODEL_BYTES)
+                        / MODEL_ARCHIVE.bytes,
+                    total_bytes: DEFAULT_MODEL_BYTES,
+                })
+            };
+            self.download_asset(&MODEL_ARCHIVE, &archive, 0, route, &mut scaled)?;
+        }
+        extract_model_files(&archive, &self.model_dir)?;
+        let _ = fs::remove_file(&archive);
+        Ok(())
     }
 
     /// Downloads one model file to `target` (through a `.part` file that is verified before it
@@ -869,6 +895,51 @@ fn encode_lower_hex(bytes: &[u8]) -> String {
 enum DownloadError {
     Canceled,
     Failed(String),
+}
+
+/// Unpacks the model files from the archive into `dir`. Each file is written under a `.part` name
+/// and checked against its own pin before it takes its final name.
+fn extract_model_files(archive: &Path, dir: &Path) -> Result<(), String> {
+    let file = fs::File::open(archive)
+        .map_err(|e| format!("Could not open the voice model archive: {e}"))?;
+    let mut tar = tar::Archive::new(bzip2::read::BzDecoder::new(file));
+    let entries = tar
+        .entries()
+        .map_err(|e| format!("Could not read the voice model archive: {e}"))?;
+    let mut found = [false; 2];
+    for entry in entries {
+        let mut entry =
+            entry.map_err(|e| format!("Could not read the voice model archive: {e}"))?;
+        let path = entry
+            .path()
+            .map_err(|e| format!("Could not read the voice model archive: {e}"))?
+            .into_owned();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(index) = MODEL_ASSETS.iter().position(|asset| asset.file == name) else {
+            continue;
+        };
+        let asset = &MODEL_ASSETS[index];
+        let target = dir.join(asset.file);
+        let partial = target.with_extension("part");
+        entry
+            .unpack(&partial)
+            .map_err(|e| format!("Could not save the local voice model: {e}"))?;
+        verify_asset(&partial, asset)?;
+        if target.exists() {
+            fs::remove_file(&target)
+                .map_err(|e| format!("Could not replace the local voice model: {e}"))?;
+        }
+        fs::rename(&partial, &target)
+            .map_err(|e| format!("Could not install the local voice model: {e}"))?;
+        found[index] = true;
+    }
+    if found.iter().all(|present| *present) {
+        Ok(())
+    } else {
+        Err("The voice model archive does not contain the expected files.".to_owned())
+    }
 }
 
 fn verify_asset(path: &Path, asset: &ModelAsset) -> Result<(), String> {
@@ -1168,7 +1239,7 @@ mod tests {
 
     use super::{
         encode_lower_hex, resample_mono, should_retry_proxy, write_verification_marker, Dictation,
-        DEFAULT_MODEL_BYTES, MODEL_ASSETS,
+        DEFAULT_MODEL_BYTES, MODEL_ARCHIVE, MODEL_ASSETS,
     };
 
     #[test]
@@ -1225,9 +1296,13 @@ mod tests {
         assert_eq!(DEFAULT_MODEL_BYTES, 239_549_735);
         for asset in &MODEL_ASSETS {
             assert_eq!(asset.sha256.len(), 64);
-            assert!(asset.urls.iter().all(|url| url.starts_with("https://")));
-            assert!(asset.urls.iter().all(|url| url.ends_with(asset.file)));
         }
+        assert_eq!(MODEL_ARCHIVE.sha256.len(), 64);
+        assert_eq!(MODEL_ARCHIVE.bytes, 163_002_883);
+        assert!(MODEL_ARCHIVE
+            .urls
+            .iter()
+            .all(|url| url.starts_with("https://") && url.ends_with(".tar.bz2")));
     }
 
     fn model_dir_with_files(unique: &str) -> (std::path::PathBuf, Dictation) {

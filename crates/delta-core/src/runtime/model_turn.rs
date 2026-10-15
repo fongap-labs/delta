@@ -6,11 +6,49 @@
 use super::*;
 
 /// Told to a model that cannot take tool definitions, so it can still ask for a web search in text.
-const TEXT_SEARCH_INSTRUCTION: &str = "Tools are not available in this conversation. When you need the web, reply with one line that starts with \"SEARCH:\" and the search query, and nothing else in that reply. The results come back in the next message: answer from them and name the sources you used.";
+const TEXT_SEARCH_INSTRUCTION: &str = "Tools are not available in this conversation. When you need the web, reply with one line that starts with \"SEARCH:\" and the search query, and nothing else in that reply. The results come back in the next message: answer from them and name the sources you used. Today's date, weekday and time come from the Environment block, not from a search.";
 /// What the transcript says once a model has refused tool definitions.
 pub(super) const TOOLS_REFUSED_NOTICE: &str = "This model does not accept tool calls, so it answers without tools. Web search still works: the model asks for a search in text and Delta runs it.";
 /// Upper bound on the search results handed to a model that cannot take tool results.
 const TEXT_SEARCH_RESULT_CHARS: usize = 12_000;
+
+/// Keys the runtime keeps for itself. They never reach a provider: gateways reject message fields
+/// they do not know, and some of these (such as `model`) mean something else to the UI.
+const SIDECAR_KEYS: [&str; 10] = [
+    "source",
+    "_display",
+    "ts",
+    "reasoning",
+    "usage",
+    "attachments",
+    "run_id",
+    "images",
+    "model_only",
+    "model",
+];
+
+/// The message as the provider receives it: the same fields, without the runtime's own keys.
+fn without_sidecars(message: &Value) -> Value {
+    let Some(object) = message.as_object() else {
+        return message.clone();
+    };
+    Value::Object(
+        object
+            .iter()
+            .filter(|(key, _)| !SIDECAR_KEYS.contains(&key.as_str()))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect(),
+    )
+}
+
+/// A tool result as the model reads it: text. Chat-style protocols take a string here, so a
+/// structured result is sent as its compact JSON text.
+fn tool_result_content(output: &Value) -> String {
+    match output {
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
+    }
+}
 
 /// The query a tool-less reply asks for: the first line that starts with `SEARCH:`.
 pub(super) fn text_search_query(text: &str) -> Option<String> {
@@ -73,17 +111,6 @@ impl RuntimeHost {
     }
 
     pub(super) fn outbound_messages(&self) -> Vec<Value> {
-        let sidecars = [
-            "source",
-            "_display",
-            "ts",
-            "reasoning",
-            "usage",
-            "attachments",
-            "run_id",
-            "images",
-            "model_only",
-        ];
         // Only the newest screenshots go to the model: each costs thousands of tokens and an old
         // one is stale. Older ones stay on disk and in the transcript as text.
         let with_images: Vec<usize> = self
@@ -122,20 +149,7 @@ impl RuntimeHost {
             if role != Some("tool") {
                 flush(&mut out, &mut pending);
             }
-            let has_sidecar = sidecars.iter().any(|s| m.get(*s).is_some());
-            let mut message = if has_sidecar {
-                let mut object = serde_json::Map::new();
-                if let Some(obj) = m.as_object() {
-                    for (k, v) in obj {
-                        if !sidecars.contains(&k.as_str()) {
-                            object.insert(k.clone(), v.clone());
-                        }
-                    }
-                }
-                Value::Object(object)
-            } else {
-                m.clone()
-            };
+            let mut message = without_sidecars(m);
             if role == Some("user") {
                 if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
                     if !attachments.is_empty() {
@@ -625,7 +639,9 @@ impl RuntimeHost {
                 }
                 let result = self.execute_tool_call(tc);
                 let mut tool_message = json!({
-                    "role": "tool", "tool_call_id": &tc.id, "content": &result.output
+                    "role": "tool",
+                    "tool_call_id": &tc.id,
+                    "content": tool_result_content(&result.output),
                 });
                 // Pictures a tool made (a screenshot) ride beside the text result as file paths;
                 // `outbound_messages` turns the newest ones into an image message for the model.
@@ -685,5 +701,34 @@ mod tests {
         );
         assert_eq!(text_search_query("SEARCH:   "), None);
         assert_eq!(text_search_query("The search was fine."), None);
+    }
+
+    #[test]
+    fn a_tool_result_reaches_the_model_as_text() {
+        assert_eq!(tool_result_content(&json!("done")), "done");
+        assert_eq!(
+            tool_result_content(&json!({"results": []})),
+            r#"{"results":[]}"#
+        );
+    }
+
+    #[test]
+    fn runtime_fields_never_reach_the_provider() {
+        let assistant = json!({
+            "role": "assistant",
+            "ts": 1,
+            "model": "some-model",
+            "content": "hi",
+            "tool_calls": [{"id": "c1"}],
+        });
+        let sent = without_sidecars(&assistant);
+        let mut keys: Vec<&str> = sent
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["content", "role", "tool_calls"]);
     }
 }

@@ -763,7 +763,7 @@ pub struct RuntimeHandle {
     authorities: Option<RuntimeAuthorities>,
 }
 
-fn now_ts() -> f64 {
+pub(crate) fn now_ts() -> f64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())

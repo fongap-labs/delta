@@ -1181,10 +1181,12 @@ dependencies = [
 name = "delta-stt"
 version = "0.1.0"
 dependencies = [
+ "bzip2 0.5.2",
  "cpal",
  "serde",
  "sha2 0.11.0",
  "sherpa-onnx",
+ "tar",
  "ureq 3.4.1",
 ]
 

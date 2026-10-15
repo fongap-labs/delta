@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { getConnectors } from "../api";
+import { useState } from "react";
 import { McpTab } from "./ManageTabs";
 import { ConnectorsSection } from "../features/connectors/components/ConnectorsSection";
 import { Icon } from "./Icon";
@@ -14,25 +13,14 @@ type IntTab = "connectors" | "mcp";
 
 // Fixed sub-nav (UX-DECISIONS §21): connector detail lives as a SUBPAGE under
 // Connectors, never as a nav item — the nav must not grow per connector.
-const INT_TABS: { key: IntTab; labelKey: TranslationKey; icon: "plug" | "code" }[] = [
-  { key: "connectors", labelKey: "connectors.appsTab", icon: "plug" },
-  { key: "mcp", labelKey: "connectors.mcp", icon: "code" },
+const INT_TABS: { key: IntTab; labelKey: TranslationKey; icon: "puzzle" | "server" }[] = [
+  { key: "connectors", labelKey: "connectors.appsTab", icon: "puzzle" },
+  { key: "mcp", labelKey: "connectors.mcp", icon: "server" },
 ];
 
 export function IntegrationsView() {
   const [tab, setTab] = useState<IntTab>("connectors");
   const { t } = useI18n();
-  // Sub-nav count: how many connectors exist. Polled so the badge stays live.
-  const [connCount, setConnCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    const load = () => {
-      getConnectors().then((cs) => setConnCount(cs.length)).catch(() => {});
-    };
-    load();
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
-  }, []);
 
   return (
     <main className="flex-1 min-w-0 flex bg-bg">
@@ -46,7 +34,7 @@ export function IntegrationsView() {
             <button
               key={tb.key}
               className={
-                "w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center justify-between " +
+                "w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center " +
                 (active
                   ? "bg-bg text-primary font-medium"
                   : "text-muted hover:bg-bg hover:text-ink")
@@ -56,11 +44,6 @@ export function IntegrationsView() {
               <span className="flex items-center gap-2 min-w-0">
                 <Icon name={tb.icon} size={15} /> {t(tb.labelKey)}
               </span>
-              {tb.key === "connectors" && connCount != null && (
-                <span className={"text-[11px] shrink-0 " + (active ? "text-primary" : "text-faint")}>
-                  {connCount}
-                </span>
-              )}
             </button>
           );
         })}
@@ -71,7 +54,7 @@ export function IntegrationsView() {
           {tab === "connectors" ? (
             <section>
               <PanelHead
-                title={t("connectors.title")}
+                title={t("connectors.appsTab")}
                 sub={t("connectors.subList")}
               />
               <ConnectorsSection />

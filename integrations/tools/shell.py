@@ -57,6 +57,10 @@ _IS_WINDOWS = sys.platform == "win32"
 # a model-requested timeout can't wedge the turn for more than ten minutes.
 _DEFAULT_TIMEOUT = 120.0
 _MAX_TIMEOUT = 600.0
+# How long a fresh Windows PowerShell may take to answer its first no-op. A cold start on a loaded
+# CI runner can exceed 30s; if the warmup gives up early, the first real command is charged the
+# startup time and times out, and the shell is then rebuilt without its state.
+_WINDOWS_WARMUP_TIMEOUT = 90.0
 
 # Env defaults that discourage commands from blocking on a prompt.
 _NONINTERACTIVE_ENV = {
@@ -328,7 +332,7 @@ class LocalExecutor(Executor):
             stdin.flush()
         except (OSError, ValueError):
             return
-        deadline = time.monotonic() + 30.0
+        deadline = time.monotonic() + _WINDOWS_WARMUP_TIMEOUT
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
