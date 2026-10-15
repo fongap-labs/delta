@@ -27,7 +27,8 @@ test("Activity: a failed read says so and Retry loads the records", async ({ pag
   await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.auditFail = false; });
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByTestId("load-error")).toHaveCount(0);
-  await expect(page.getByText("send_message")).toBeVisible();
+  // The plain sentence is the entry; the tool name also sits in the technical details, so match the sentence.
+  await expect(page.getByText("Used a tool: send_message")).toBeVisible();
 });
 
 test("Activity: an empty history is the empty message, not an error", async ({ page }) => {
