@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- fix: a turn's thinking shows above its steps, live and after the answer; step counts keep going across a question answered mid-turn; a step's dot is red only when its call failed, live and after reopening the conversation; the progress line reads "正在进行第 N 步"; the custom provider form names the OpenAI Chat Completions and Anthropic Messages protocols.
+- fix: a turn's thinking shows above its steps, live and after the answer; step counts keep going across a question answered mid-turn; a step's dot is red only when its call failed, live and after reopening the conversation; the progress line reads "Step N in progress"; the custom provider form names the OpenAI Chat Completions and Anthropic Messages protocols.
 
 - feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
 
