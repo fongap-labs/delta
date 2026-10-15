@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - fix: asked which model it is, the assistant names the model set in the user's model settings (given in the environment block) instead of answering with Delta's name; it no longer names a developer for the model unless the environment says so.
+- feat: desktop input-control consent policy (ADR-0062). Programs are refused, confirmed per action (banking and password managers), or authorized per session; sensitive clicks and keys, password fields and coordinate clicks are confirmed; screenshots are refused while a banking or password-manager window is visible; a run stops after 50 actions or three repeated failures. The policy is not connected to any tool yet, so no user-visible behaviour changes.
 
 - feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
 

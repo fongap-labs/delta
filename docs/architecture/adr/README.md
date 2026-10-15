@@ -20,6 +20,7 @@
 | [0059](0059-computer-capabilities.md) | 电脑能力，分步实现（截图、剪贴板、打开；操作屏幕尚未决定） |
 | [0060](0060-controlled-browser.md) | 供 Agent 使用的受控浏览器（经 DevTools 驱动 Edge 或 Chrome；独立配置文件；与 `web_fetch` 相同的网络守卫） |
 | [0061](0061-egress-level-outbound-tools.md) | 工作区出境档位同样约束对外工具 |
+| [0062](0062-desktop-input-control.md) | 桌面输入控制的同意机制（提议；按程序授权、敏感动作逐次确认；取代 ADR-0059 第三步的设计部分） |
 
 ## 代码中引用但本仓库未保存的编号
 
