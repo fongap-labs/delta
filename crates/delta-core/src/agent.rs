@@ -1,6 +1,8 @@
 //! The single product agent definition owned by the Rust runtime.
 
 use chrono::Datelike;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkspacePolicy {
@@ -21,7 +23,8 @@ pub const DELTA_AGENT: AgentDefinition = AgentDefinition {
     id: "delta",
     name: "Delta",
     system_prompt: concat!(
-        "You are Delta, a careful desktop assistant for office work, research analysis, content creation, and task-focused scripts. ",
+        "You are Delta, a local-first AI work assistant developed by Fongap Labs. You help the user get everyday office work, research analysis and content creation done efficiently. ",
+        "When asked who you are, answer in the language the user writes in: in Chinese, 「我是 Delta，由 Fongap Labs 开发的本地优先 AI 工作助手，帮助你高效完成日常办公、研究分析与内容创作。」; in English, \"I am Delta, a local-first AI work assistant developed by Fongap Labs, helping you get everyday office work, research analysis and content creation done efficiently.\" ",
         "Use only the capabilities exposed by the Rust runtime. Treat the workspace and granted roots as the complete filesystem boundary. ",
         "Ask for approval when required, cite sources when using research results, and describe created artifacts clearly.\n\n",
         "How to work:\n",
@@ -58,14 +61,115 @@ pub fn environment_block() -> String {
         "Saturday",
         "Sunday",
     ][now.weekday().num_days_from_monday() as usize];
-    format!(
+    let mut block = format!(
         "\n\nEnvironment:\n- Current date and time: {} {} ({})\n- Time zone: {}\n- Platform: {}\n",
         now.format("%Y-%m-%d"),
         weekday,
         now.format("%H:%M"),
         now.format("%Z %:z"),
         std::env::consts::OS,
-    )
+    );
+    if let Some(note) = clock_note(cached_clock_sync()) {
+        block.push_str(note);
+    }
+    block
+}
+
+/// The environment line for a clock that is known not to follow a time server. Nothing is said when
+/// the clock is in step or when the platform cannot tell.
+fn clock_note(sync: Option<ClockSync>) -> Option<&'static str> {
+    match sync {
+        Some(ClockSync::NotSynced) => Some(
+            "- Clock: this computer's clock is not kept in step with a time server, so the date and time above may be wrong. When you answer a date or time question, say so and suggest turning on automatic time in the system settings.\n",
+        ),
+        _ => None,
+    }
+}
+
+/// Whether the operating system reports this computer's clock as kept in step with a time server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClockSync {
+    Synced,
+    NotSynced,
+}
+
+/// Starting a system tool is not free, so a reading is reused for this long.
+const CLOCK_SYNC_TTL: Duration = Duration::from_secs(600);
+
+static CLOCK_SYNC_CACHE: Mutex<Option<(Instant, Option<ClockSync>)>> = Mutex::new(None);
+
+/// The clock reading, refreshed when it is older than `CLOCK_SYNC_TTL`.
+fn cached_clock_sync() -> Option<ClockSync> {
+    let Ok(mut cache) = CLOCK_SYNC_CACHE.lock() else {
+        return read_clock_sync();
+    };
+    if let Some((at, value)) = *cache {
+        if at.elapsed() < CLOCK_SYNC_TTL {
+            return value;
+        }
+    }
+    let value = read_clock_sync();
+    *cache = Some((Instant::now(), value));
+    value
+}
+
+/// The operating system's own report, read locally. Nothing is sent over the network. `None` when
+/// the platform offers no such report or the tool cannot be run.
+#[cfg(windows)]
+fn read_clock_sync() -> Option<ClockSync> {
+    use std::os::windows::process::CommandExt;
+    // CREATE_NO_WINDOW: a GUI process must not flash a console window.
+    let output = std::process::Command::new("w32tm")
+        .args(["/query", "/status"])
+        .creation_flags(0x0800_0000)
+        .output()
+        .ok()?;
+    parse_w32tm_status(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(target_os = "linux")]
+fn read_clock_sync() -> Option<ClockSync> {
+    let output = std::process::Command::new("timedatectl")
+        .args(["show", "-p", "NTPSynchronized", "--value"])
+        .output()
+        .ok()?;
+    parse_timedatectl(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn read_clock_sync() -> Option<ClockSync> {
+    None
+}
+
+#[cfg(any(windows, test))]
+/// `w32tm /query /status` names its source. When no time server has answered, the source is the
+/// local clock itself. The labels are the English ones; other Windows languages report `None`.
+fn parse_w32tm_status(output: &str) -> Option<ClockSync> {
+    let source = output.lines().find_map(|line| {
+        let (label, value) = line.split_once(':')?;
+        label
+            .trim()
+            .eq_ignore_ascii_case("Source")
+            .then(|| value.trim().to_owned())
+    })?;
+    let local_clock = ["Local CMOS Clock", "Free-running System Clock"]
+        .iter()
+        .any(|name| source.contains(name));
+    Some(if local_clock {
+        ClockSync::NotSynced
+    } else {
+        ClockSync::Synced
+    })
+}
+
+#[cfg(any(target_os = "linux", test))]
+/// `timedatectl show -p NTPSynchronized --value` prints `yes` or `no`, whatever the language.
+fn parse_timedatectl(output: &str) -> Option<ClockSync> {
+    match output.trim() {
+        "yes" => Some(ClockSync::Synced),
+        "no" => Some(ClockSync::NotSynced),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -76,7 +180,10 @@ mod tests {
     fn delta_is_the_only_static_product_agent() {
         assert_eq!(DELTA_AGENT.id, "delta");
         assert_eq!(DELTA_AGENT.name, "Delta");
-        assert!(DELTA_AGENT.system_prompt.contains("office work"));
+        assert!(DELTA_AGENT.system_prompt.contains("Fongap Labs"));
+        assert!(DELTA_AGENT
+            .system_prompt
+            .contains("我是 Delta，由 Fongap Labs 开发的本地优先 AI 工作助手"));
         // The prompt must name the tools that exist, or the model will not use them.
         for tool in [
             "read_document",
@@ -94,6 +201,34 @@ mod tests {
             .contains("The environment block below the signature is authoritative"));
         assert!(DELTA_AGENT.capabilities.contains(&"mcp"));
         assert_eq!(DELTA_AGENT.workspace_policy, WorkspacePolicy::TaskWorkspace);
+    }
+
+    #[test]
+    fn a_local_clock_source_means_the_clock_is_not_synchronized() {
+        let local = "Source: Local CMOS Clock\nStratum: 0 (unspecified)\n";
+        assert_eq!(parse_w32tm_status(local), Some(ClockSync::NotSynced));
+        let free = "Source: Free-running System Clock\n";
+        assert_eq!(parse_w32tm_status(free), Some(ClockSync::NotSynced));
+        let server = "Source: time.windows.com,0x9\nStratum: 3 (secondary reference)\n";
+        assert_eq!(parse_w32tm_status(server), Some(ClockSync::Synced));
+        // No source line: the platform did not say, so nothing is claimed either way.
+        assert_eq!(parse_w32tm_status("Stratum: 3\n"), None);
+    }
+
+    #[test]
+    fn timedatectl_yes_and_no_are_the_only_answers_read() {
+        assert_eq!(parse_timedatectl("yes\n"), Some(ClockSync::Synced));
+        assert_eq!(parse_timedatectl("no\n"), Some(ClockSync::NotSynced));
+        assert_eq!(parse_timedatectl(""), None);
+    }
+
+    #[test]
+    fn the_environment_warns_only_when_the_clock_is_known_to_be_off() {
+        assert!(clock_note(Some(ClockSync::NotSynced))
+            .unwrap()
+            .contains("may be wrong"));
+        assert_eq!(clock_note(Some(ClockSync::Synced)), None);
+        assert_eq!(clock_note(None), None);
     }
 
     #[test]

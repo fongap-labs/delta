@@ -24,6 +24,8 @@
 
 - fix: a web search (or any tool) result is sent to chat-style providers as text; before, a structured result made the provider reject the request, which showed as "service temporarily unavailable". Runtime-only fields are no longer sent to providers. A failure that ends a turn is kept in the conversation, so it is still there when the conversation is reopened.
 
+- feat: Delta introduces itself as a local-first AI work assistant developed by Fongap Labs, in the language the user writes in. The environment block tells the model when this computer's clock is known not to follow a time server (read locally with `w32tm` on Windows and `timedatectl` on Linux; nothing is sent over the network).
+
 - fix: setting a default model on the Models page no longer leaves a blank, unnamed model in the composer picker; the composer follows the new default unless the user picked another model for the session.
 
 - fix: the first message of each day is right-aligned; today's day divider is no longer shown; message actions (time, copy, edit, regenerate) are visible at the same contrast on every message.
