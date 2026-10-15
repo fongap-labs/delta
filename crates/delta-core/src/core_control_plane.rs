@@ -519,7 +519,7 @@ impl CoreControlPlane {
         }
 
         let mut prompt = DELTA_AGENT.system_prompt.to_string();
-        prompt.push_str(&crate::agent::environment_block());
+        prompt.push_str(&crate::agent::environment_block(&config.model));
         if mode.as_deref() == Some("plan") {
             prompt.push_str("\n\nPlan mode is active. Inspect and reason, but do not perform writes until the user explicitly approves the plan.");
         }
