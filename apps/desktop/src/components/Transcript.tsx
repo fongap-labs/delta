@@ -49,14 +49,11 @@ function BubbleMeta({
   const { t } = useI18n();
   const [isCopied, setCopied] = useState(false);
   const when = typeof ts === "number" ? new Date(ts * 1000) : null;
-  // The time is INFORMATION, not chrome: it stays legible at rest (owner-hit 2026-10-14,
-  // "conversation messages show no time"). Only the copy/edit actions wait for hover.
-  // Pre-stamp history carries no `ts`, so its strip falls back to the hover-only behaviour
-  // instead of showing an empty row at full contrast.
-  const strip =
-    when ?
-      "opacity-70 " + (actions ? "group-hover:opacity-100 group-focus-within:opacity-100 " : "")
-    : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 ";
+  // One strip for every bubble, always visible at rest: the time and the actions (copy, edit,
+  // regenerate…) sit at the same contrast on every message, so a reader never has to hover to
+  // find out which controls a message has. Only the emphasis changes on hover. Pre-stamp history
+  // carries no `ts`, so it simply has no time to show.
+  const strip = "opacity-70 hover:opacity-100 focus-within:opacity-100 ";
   const copy = () => {
     // "Copied" only after the write actually lands — WebKit can reject outside a
     // trusted gesture, and claiming success on a silent no-op would gaslight the user.
@@ -84,7 +81,7 @@ function BubbleMeta({
         )}
         {actions}
         <button
-          className="flex items-center cursor-pointer hover:text-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+          className="flex items-center cursor-pointer hover:text-muted"
           data-testid="bubble-copy"
           title={t("transcript.copyMessage", undefined, "Copy message")}
           onClick={copy}
@@ -104,6 +101,10 @@ function BubbleMeta({
 // history format stays untouched; the known markers localize at render — the same
 // pattern as localizeVerifyMsg in ProviderSetup. Unknown text passes through verbatim
 // (audit information is never rewritten).
+// The runtime's line when a model refuses tool definitions (rust: runtime/model_turn.rs). Must match it exactly.
+export const TOOLS_REFUSED_TEXT =
+  "This model does not accept tool calls, so it answers without tools. Web search still works: the model asks for a search in text and Delta runs it.";
+
 export function localizeNoticeText(
   text: string,
   t: (key: string, vars?: Record<string, string | number>, fallback?: string) => string,
@@ -116,6 +117,7 @@ export function localizeNoticeText(
   if (text === "That message was rejected.")
     return t("transcript.rejected", undefined, "That message was rejected.");
   if (text === "Model switched") return t("transcript.modelSwitched", undefined, "Model switched");
+  if (text === TOOLS_REFUSED_TEXT) return t("transcript.toolsRefused", undefined, text);
   const switched = text.match(/^Model switched to (.+)$/);
   if (switched)
     return t("transcript.modelSwitchedTo", { model: switched[1] }, `Model switched to ${switched[1]}`);
@@ -704,12 +706,14 @@ export function Transcript({ items, running, streamingText, onRetry, onSwitchMod
     if (gap === 1) return t("transcript.dayYesterday", undefined, "Yesterday");
     return day.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
   };
+  // Today is the default context of the screen, so it is never announced; only earlier days get a divider.
+  const todayKey = dayKey(Date.now() / 1000);
   let lastDay: string | null = null;
   return (
     <div className="transcript">
       {blocks.map((block, bi) => {
         const day = blockDays[bi];
-        const showDivider = day !== null && day !== lastDay;
+        const showDivider = day !== null && day !== lastDay && day !== todayKey;
         if (day !== null) lastDay = day;
         const node = (() => {
         if ("turn" in block)

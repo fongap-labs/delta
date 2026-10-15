@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+- feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
+
+- feat: a model that refuses tool definitions is run without tools for that model only, with a visible notice (`notice` runtime event, `tools_refused` transcript entry). Web search still works: the model asks for it with a `SEARCH:` line, and the runtime runs the existing approval-gated `web_search` tool and returns the results as model-only data.
+
+- feat: the speech model downloads in the background; leaving Settings does not stop it, and progress and completion arrive as `dictation-download-progress` and `dictation-download-finished` events. `download_dictation_model` returns at once.
+
+- feat: fetched models use the same checklist as the Models page (show in picker, default). Model ids with no name after the provider prefix are refused and never listed.
+
+- feat: MCP servers have a JSON config editor. Saving keeps any secret the editor shows redacted at its stored value.
+
+- feat: an endpoint mark shows on the MCP server or custom provider card that owns its host, and can be removed there.
+
+- fix: a provider protocol rejection retry no longer sticks for the rest of the session; it applies to the turn it happened in.
+
+- fix: setting a default model on the Models page no longer leaves a blank, unnamed model in the composer picker; the composer follows the new default unless the user picked another model for the session.
+
+- fix: the first message of each day is right-aligned; today's day divider is no longer shown; message actions (time, copy, edit, regenerate) are visible at the same contrast on every message.
+
+- fix: the email connector's setup labels and steps are translated; the connector list's first sub-navigation item reads "App connectors".
+
 - feat: Word, Excel and PowerPoint files (.docx, .xlsx, .pptx) can be attached in chat. They are saved into the workspace under `.delta/attachments/` when the message is sent, and the model reads them with `read_document`. The limit is 10 MB per file, and a workspace must be set. Archives and other binary files are still not supported.
 
 - feat: the MCP client speaks the 2026-07-28 protocol first and keeps initialize as a legacy fallback for servers that do not speak it.

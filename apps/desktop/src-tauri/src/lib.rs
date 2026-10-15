@@ -441,20 +441,25 @@ fn cancel_dictation(state: tauri::State<Arc<Dictation>>) {
     state.cancel();
 }
 
+/// Starts the voice-model download in the background and returns the status at once. Progress
+/// arrives as `dictation-download-progress`; the end, success or failure, as
+/// `dictation-download-finished`. Neither depends on the settings page staying open.
 #[tauri::command]
-async fn download_dictation_model(
+fn download_dictation_model(
     app: tauri::AppHandle,
     state: tauri::State<'_, Arc<Dictation>>,
 ) -> Result<VoiceInputStatus, String> {
     let dictation = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        dictation.install_model_progress(|progress: DownloadProgress| {
-            let _ = app.emit("dictation-download-progress", progress);
-        })?;
-        Ok::<VoiceInputStatus, String>(voice_input_status(&dictation))
-    })
-    .await
-    .map_err(|e| format!("Voice model download stopped unexpectedly: {e}"))?
+    let progress_app = app.clone();
+    dictation.install_model_background(
+        move |progress: DownloadProgress| {
+            let _ = progress_app.emit("dictation-download-progress", progress);
+        },
+        move |result: Result<(), String>| {
+            let _ = app.emit("dictation-download-finished", result.err());
+        },
+    )?;
+    Ok(voice_input_status(&dictation))
 }
 
 #[tauri::command]

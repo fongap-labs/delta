@@ -532,20 +532,51 @@ impl Dictation {
     /// A canceled/failed transfer never replaces a previously verified model.
     pub fn install_model_progress(
         &self,
-        mut on_progress: impl FnMut(DownloadProgress),
+        on_progress: impl FnMut(DownloadProgress),
     ) -> Result<(), String> {
         if self.status().model_verified {
             return Ok(());
         }
-        if self
-            .download_in_progress
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return Err("The local voice model is already downloading.".to_owned());
-        }
-        self.cancel_download.store(false, Ordering::SeqCst);
+        self.begin_download()?;
+        self.run_download(on_progress)
+    }
 
+    /// Starts the same download on a background thread and returns at once. The transfer does not
+    /// depend on whichever page asked for it, so leaving the screen does not stop it; `on_done`
+    /// reports how it ended. A model that is already verified, or already downloading, is not
+    /// started again.
+    pub fn install_model_background<P, D>(
+        self: &Arc<Self>,
+        on_progress: P,
+        on_done: D,
+    ) -> Result<(), String>
+    where
+        P: FnMut(DownloadProgress) + Send + 'static,
+        D: FnOnce(Result<(), String>) + Send + 'static,
+    {
+        if self.status().model_verified {
+            return Ok(());
+        }
+        // Claimed here, before the thread starts, so the caller's status read already shows the download.
+        self.begin_download()?;
+        let dictation = Arc::clone(self);
+        thread::spawn(move || {
+            let result = dictation.run_download(on_progress);
+            on_done(result);
+        });
+        Ok(())
+    }
+
+    fn begin_download(&self) -> Result<(), String> {
+        self.download_in_progress
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .map_err(|_| "The local voice model is already downloading.".to_owned())?;
+        self.cancel_download.store(false, Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// The body of a download whose claim is already held; always releases it on the way out.
+    fn run_download(&self, mut on_progress: impl FnMut(DownloadProgress)) -> Result<(), String> {
         // One route for the whole model: read once, before any byte moves, so a settings
         // change mid-download cannot split one model across two networks.
         let route = self.download_route.lock().unwrap().clone();

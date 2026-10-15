@@ -24,6 +24,7 @@ import {
 } from "../api";
 import { ModelChecklist } from "./ModelChecklist";
 import { CustomCreateForm, ProviderCards, ProviderForm, useProviderSetup } from "../providers/ProviderSetup";
+import { EndpointMarkNote } from "./EndpointMarkNote";
 import { Toggle } from "./Toggle";
 import { LoadError, LoadingRows } from "./ViewStates";
 import { useI18n } from "@delta/i18n/I18nContext";
@@ -454,6 +455,10 @@ function McpRow({
   const [tools, setTools] = useState<{ name: string; description: string }[] | null>(null);
   const [isBusy, setBusy] = useState(false);
   const [toolErr, setToolErr] = useState<string | null>(null);
+  // The config editor: the server's own JSON, saved as a whole. The name is fixed here (it is the key).
+  const [isEditing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   const isOauth = server.auth === "oauth";
   const authorizing = server.status === "authorizing";
@@ -463,6 +468,32 @@ function McpRow({
   };
   const signOut = async () => {
     await signoutMcp(server.name);
+    onRefresh();
+  };
+
+  const openEditor = () => {
+    setDraft(JSON.stringify(server.config, null, 2));
+    setEditError(null);
+    setEditing((open) => !open);
+  };
+  const saveEdit = async () => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(draft);
+    } catch (e: any) {
+      setEditError(t("connectors.invalidJson", { message: e.message }));
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setEditError(t("connectors.invalidServerConfig"));
+      return;
+    }
+    const res = (await addMcpServer(server.name, parsed as Record<string, any>)) as { ok?: boolean; error?: string } | undefined;
+    if (res?.ok === false) {
+      setEditError(res.error || t("connectors.invalidServerConfig"));
+      return;
+    }
+    setEditing(false);
     onRefresh();
   };
 
@@ -515,14 +546,44 @@ function McpRow({
         >
           {isBusy ? "…" : tools ? t("connectors.hideTools") : t("connectors.tools")}
         </button>
+        <button
+          className="text-[12px] text-muted hover:text-ink shrink-0"
+          onClick={openEditor}
+          data-testid={`mcp-edit-${server.name}`}
+        >
+          {t("connectors.editServer")}
+        </button>
         <button className={BTN_DANGER} onClick={onRemove}>
           {t("common.remove")}
         </button>
       </div>
+      {typeof server.config.url === "string" && <EndpointMarkNote url={server.config.url} />}
       {server.last_error && server.status !== "connected" && (
         <div className="text-[12.5px] text-danger mt-1.5">{server.last_error}</div>
       )}
       {toolErr && <div className="text-[12.5px] text-danger mt-1.5">{toolErr}</div>}
+      {isEditing && (
+        <div className="mt-2.5 pt-2.5 border-t border-line space-y-2" data-testid={`mcp-editor-${server.name}`}>
+          <div className="text-[12.5px] text-muted">{t("connectors.editServerTitle")}</div>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            spellCheck={false}
+            rows={10}
+            className="w-full font-mono text-[12px] px-3 py-2.5 rounded-lg border border-line bg-bg text-ink outline-none focus:border-primary resize-y"
+          />
+          <div className="text-[11.5px] text-faint">{t("connectors.editServerHelp")}</div>
+          {editError && <div className="text-[12.5px] text-danger">{editError}</div>}
+          <div className="flex items-center gap-3">
+            <button className={BTN_ACCENT} onClick={saveEdit}>
+              {t("common.save")}
+            </button>
+            <button className="text-[12.5px] text-muted hover:text-ink" onClick={() => setEditing(false)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      )}
       {tools && (
         <div className="mt-2.5 pt-2.5 border-t border-line flex flex-wrap gap-1.5">
           {tools.length === 0 && <div className="text-[12px] text-faint">{t("connectors.noTools")}</div>}
@@ -860,6 +921,12 @@ export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () =
 
 // Exported: also hosted inside the SourcesDrawer's connect-in-context child panel, so a
 // recommended connector can be connected without leaving the session (owner ask, 2026-07-03).
+// Setup steps come from the runtime in English. A connector's own translation (connectors.<name>.instructions,
+// one step per line) wins when the dictionary has one; the runtime's text is the fallback.
+function localizedInstructions(c: Connector, t: (k: string, v?: Record<string, string | number>, f?: string) => string): string[] {
+  return t("connectors." + c.name + ".instructions", undefined, c.instructions.join("\n")).split("\n");
+}
+
 export function ConnectSetup({
   c,
   onConnected,
@@ -912,7 +979,7 @@ export function ConnectSetup({
       )}
       {c.instructions.length > 0 && (
         <ol className="list-decimal pl-4 text-[12.5px] text-muted leading-relaxed space-y-1">
-          {c.instructions.map((step, i) => (
+          {localizedInstructions(c, t).map((step, i) => (
             <li key={i}>{step}</li>
           ))}
         </ol>
@@ -920,7 +987,7 @@ export function ConnectSetup({
       {c.fields.map((f) => (
         <label className="conn-field" key={f.key}>
           <span className="conn-field-label">
-            {f.label}
+            {t("connectors.field." + f.key, undefined, f.label)}
             {!f.required && <em> ({t("common.optional")})</em>}
           </span>
           <input

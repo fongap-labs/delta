@@ -395,6 +395,9 @@ body {
 /* Day dividers (ChatGPT/Claude parity): the day is announced once when it changes, so a
    reply reads unambiguously as "this morning" or "three days ago". Centered, quiet, and
    spaced like a section break rather than a chat message. */
+/* The divider and the block it announces share one column, so the block's own alignment
+   (a user bubble's self-end) still works on the first message of each day. */
+.day-divider-wrap { display: flex; flex-direction: column; min-width: 0; }
 .day-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; }
 .day-divider::before,
 .day-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }

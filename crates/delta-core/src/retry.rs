@@ -285,9 +285,43 @@ pub fn looks_protocol_rejection(message: &str) -> bool {
         || lower.contains(crate::provider::NO_RETRY_TAG)
 }
 
+/// A provider that cannot take tool definitions says so about its `tools` / `functions` field.
+/// Only that reading counts: a generic 400 is not evidence that the model lacks tool calling.
+pub fn looks_tools_rejection(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    let names_tools = lower.contains("tool") || lower.contains("function");
+    let refuses = [
+        "not support",
+        "unsupported",
+        "does not support",
+        "not enabled",
+        "not available",
+        "unknown parameter",
+        "unrecognized",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker));
+    names_tools && refuses
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_refusal_of_tool_definitions_is_recognised_but_a_generic_400_is_not() {
+        assert!(looks_tools_rejection(
+            "HTTP 400: model does not support tools"
+        ));
+        assert!(looks_tools_rejection(
+            "{\"error\":\"Function calling is not enabled for this model\"}"
+        ));
+        // A gateway failure is not a verdict on the model's tool support.
+        assert!(!looks_tools_rejection(
+            "Error: HTTP 504: All attempted nodes failed for model \"Air\"."
+        ));
+        assert!(!looks_tools_rejection("HTTP 400: invalid temperature"));
+    }
 
     fn input(error_type: &str, message: &str) -> RetryClassifyInput {
         RetryClassifyInput {

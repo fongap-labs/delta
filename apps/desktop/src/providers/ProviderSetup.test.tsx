@@ -112,7 +112,6 @@ function makePs(fields: Record<string, string>, setFieldValue = vi.fn()): Provid
     isFetching: false,
     fetchMsg: null,
     fetchedModels: [],
-    pickFetchedDefault: async () => {},
   };
 }
 

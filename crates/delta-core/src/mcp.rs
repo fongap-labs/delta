@@ -102,6 +102,9 @@ impl McpStore {
         }
         let mut servers = self.servers.lock().unwrap();
         let mut next = servers.clone();
+        // The settings page edits a config it was shown redacted; a secret it sends back unchanged
+        // keeps the value stored under this name rather than overwriting it with the placeholder.
+        let config = keep_redacted(&config, servers.get(name));
         next.insert(name.to_string(), config);
         self.save(&next)?;
         *servers = next;
@@ -134,6 +137,34 @@ impl McpStore {
         self.save(&next)?;
         *servers = next;
         Ok(json!({"ok": removed}))
+    }
+}
+
+/// `incoming` with every redaction placeholder replaced by the value stored at the same path.
+fn keep_redacted(incoming: &Value, stored: Option<&Value>) -> Value {
+    match incoming {
+        Value::String(text) if text == REDACTED => {
+            stored.cloned().unwrap_or_else(|| incoming.clone())
+        }
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        key.clone(),
+                        keep_redacted(value, stored.and_then(|s| s.get(key))),
+                    )
+                })
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .enumerate()
+                .map(|(index, item)| keep_redacted(item, stored.and_then(|s| s.get(index))))
+                .collect(),
+        ),
+        _ => incoming.clone(),
     }
 }
 
@@ -325,6 +356,36 @@ mod tests {
                 Err(ShadowReadError::Parse(_))
             ));
         }
+    }
+
+    #[test]
+    fn put_keeps_stored_secrets_when_the_edit_sends_back_the_placeholder() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = McpStore::open(temp.path()).unwrap();
+        store
+            .put(
+                "fs",
+                json!({"command": "npx", "env": {"TOKEN": "real-secret"}, "args": ["a"]}),
+            )
+            .unwrap();
+        // What the settings page shows: the secret redacted, everything else as stored.
+        let shown = store.list()[0]["config"].clone();
+        assert_eq!(shown["env"]["TOKEN"], REDACTED);
+        let mut edited = shown;
+        edited["args"] = json!(["a", "b"]);
+        store.put("fs", edited).unwrap();
+        let stored = store.servers.lock().unwrap()["fs"].clone();
+        assert_eq!(stored["env"]["TOKEN"], "real-secret");
+        assert_eq!(stored["args"], json!(["a", "b"]));
+        // A secret the user actually types replaces the stored one.
+        store
+            .put(
+                "fs",
+                json!({"command": "npx", "env": {"TOKEN": "new-secret"}}),
+            )
+            .unwrap();
+        let stored = store.servers.lock().unwrap()["fs"].clone();
+        assert_eq!(stored["env"]["TOKEN"], "new-secret");
     }
 
     #[test]

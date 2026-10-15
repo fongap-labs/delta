@@ -4,9 +4,9 @@ import {
   fetchModels,
   getProtocols,
   getProviders,
+  getSettings,
   removeCustomProvider as deleteCustomProvider,
   removeProvider,
-  setDefaultModel,
   setProvider,
   verifyProvider,
   type ProviderField as ProviderFieldT,
@@ -17,6 +17,8 @@ import { openExternal } from "../tauri";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { PROVIDER_LOGOS, providerRank } from "./providerLogos";
 import { endpointPreview } from "./endpoint";
+import { ModelChecklist } from "../components/ModelChecklist";
+import { EndpointMarkNote } from "../components/EndpointMarkNote";
 
 // The provider gallery ⇄ key form, shared by Onboarding step 1 (§39) and
 // Settings ▸ Models (UX-021) so the two can never drift apart visually. The hook
@@ -186,7 +188,6 @@ export interface ProviderSetupState {
   isFetching: boolean;
   fetchMsg: { state: "ok" | "error"; text: string } | null;
   fetchedModels: string[];
-  pickFetchedDefault: (bareId: string) => Promise<void>;
 }
 
 export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetupState {
@@ -441,29 +442,6 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     opts?.onSaved?.();
   };
 
-  // One-click default from the fetched list: the chip id is bare; the pool entry carries
-  // the alias prefix ("alias:model").
-  const pickFetchedDefault = async (bareId: string): Promise<void> => {
-    const name = (sel ?? alias.trim()).trim();
-    if (!name) return;
-    const r = await setDefaultModel(`${name}:${bareId}`).catch(() => ({
-      ok: false,
-      error: "unreachable",
-    }));
-    setFetchMsg(
-      r.ok
-        ? {
-            state: "ok",
-            text: t(
-              "providers.defaultSet",
-              { m: `${name}:${bareId}` },
-              `Default model set to ${name}:${bareId}`,
-            ),
-          }
-        : { state: "error", text: localizeVerifyMsg(r.error || "couldn't save", t) },
-    );
-  };
-
   // Blur-save for non-secret fields when the provider is already configured: extras like
   // anthropic's thinking_budget must persist without a key re-test (owner-hit 2026-07-23 —
   // typed, left Settings, silently never saved). Secrets keep the explicit Test-to-save
@@ -599,7 +577,6 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     isFetching,
     fetchMsg,
     fetchedModels,
-    pickFetchedDefault,
     isProtocolsLoading,
     protocolsErr,
     protocolErrorMessage,
@@ -765,6 +742,7 @@ export function ProviderForm({
           )}
         </p>
       )}
+      {f.key === "base_url" && (ps.fields[f.key] || "").trim() && <EndpointMarkNote url={ps.fields[f.key]} />}
     </div>
   );
 
@@ -953,27 +931,42 @@ export function ProviderForm({
  * Rendered by ProviderForm when `ps.isCreating` is true; distinct from the built-in
  * edit path because there is no `sel`/`info` to prefill from yet.
  */
-/** The fetched model list as clickable chips — click sets that model as the default.
-    Shown after a successful Fetch in both the create and the edit form. */
+/** The fetched model list as the Models page's checklist: Use (shown in the picker) and Default
+    (exactly one). Shown after a successful Fetch in both the create and the edit form. Fetch
+    enables what it found, so unticking a row is how a model is hidden. */
 export function FetchedModelChips({ ps }: { ps: ProviderSetupState }) {
   const { t } = useI18n();
-  if (!ps.fetchedModels.length) return null;
+  const [enabled, setEnabled] = useState<{ models: string[]; model: string; labels?: Record<string, string> } | null>(
+    null,
+  );
+  const providerName = (ps.sel ?? ps.alias.trim()).trim();
+  useEffect(() => {
+    if (!ps.fetchedModels.length) return;
+    let isLive = true;
+    getSettings()
+      .then((s) => {
+        if (isLive) setEnabled({ models: s.models, model: s.model, labels: s.model_labels });
+      })
+      .catch(() => {});
+    return () => {
+      isLive = false;
+    };
+  }, [ps.fetchedModels]);
+  if (!ps.fetchedModels.length || !providerName) return null;
   return (
     <div className="mt-2.5" data-testid="fetched-models">
       <div className="text-[11.5px] text-faint mb-1.5">
-        {t("providers.fetchedList", { n: ps.fetchedModels.length }, `${ps.fetchedModels.length} available — click one to make it the default:`)}
+        {t("providers.fetchedList", { n: ps.fetchedModels.length }, `${ps.fetchedModels.length} available — tick the models to show, and pick one as the default:`)}
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {ps.fetchedModels.map((m) => (
-          <button
-            key={m}
-            className="px-2 py-1 rounded-md border border-line bg-panel text-[12px] font-mono text-ink hover:border-primary hover:text-primary text-left"
-            onClick={() => void ps.pickFetchedDefault(m)}
-          >
-            {m}
-          </button>
-        ))}
-      </div>
+      <ModelChecklist
+        provider={providerName}
+        knownProviders={ps.providers.map((p) => p.name)}
+        suggested={ps.fetchedModels}
+        curated={enabled?.models ?? []}
+        defaultModel={enabled?.model ?? ""}
+        labels={enabled?.labels}
+        onChanged={(next) => setEnabled((prev) => ({ ...prev, ...next }))}
+      />
     </div>
   );
 }
