@@ -103,24 +103,19 @@ export function ModelsTab() {
     const createOpen = createToggle ?? (!hasCustom || ps.fetchedModels.length > 0);
     return (
       <div>
-        {hasCustom ? (
-          // Configured providers and the add-provider tile share one grid, so adding one reads as
-          // the same kind of thing as the providers already there.
-          <div className="mb-4">
-            <div className={SEC_H + " mb-1.5"}>{t("providers.yourProviders")}</div>
-            <ProviderCards ps={ps} tp="set" gridClass="grid grid-cols-2 xl:grid-cols-3 gap-2.5" lastUsed customOnly />
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="text-[13px] text-primary hover:underline inline-flex items-center gap-1"
-            onClick={() => setCreateToggle(!createOpen)}
-            data-testid="set-add-provider-link"
-          >
-            {t("providers.addCustomProvider")}
-            <span aria-hidden="true">›</span>
-          </button>
-        )}
+        {/* Configured providers and the add-provider tile share one grid, so adding one reads as
+            the same kind of thing as the providers already there — also when there are none yet. */}
+        <div className="mb-4">
+          {hasCustom && <div className={SEC_H + " mb-1.5"}>{t("providers.yourProviders")}</div>}
+          <ProviderCards
+            ps={ps}
+            tp="set"
+            gridClass="grid grid-cols-2 xl:grid-cols-3 gap-2.5"
+            lastUsed
+            customOnly
+            onAdd={() => setCreateToggle(!createOpen)}
+          />
+        </div>
         {createOpen && (
           <div className="mt-3">
             <CustomCreateForm ps={ps} tp="set" inline />

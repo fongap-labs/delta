@@ -592,6 +592,7 @@ export function ProviderCards({
   lastUsed = false,
   hideAdd = false,
   customOnly = false,
+  onAdd,
 }: {
   ps: ProviderSetupState;
   tp: string; // testid prefix ("ob" onboarding, "set" settings)
@@ -599,6 +600,8 @@ export function ProviderCards({
   lastUsed?: boolean;
   hideAdd?: boolean;
   customOnly?: boolean;
+  // The add tile's action; defaults to opening the custom-provider form.
+  onAdd?: () => void;
 }) {
   const { t } = useI18n();
   const card =
@@ -609,7 +612,7 @@ export function ProviderCards({
       {!hideAdd && (
         <button
           className={card + " border-dashed text-muted hover:text-ink"}
-          onClick={ps.openNewCustom}
+          onClick={onAdd ?? ps.openNewCustom}
           data-testid={`${tp}-provider-add`}
         >
           <span
