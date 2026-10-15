@@ -14,9 +14,9 @@ type IntTab = "connectors" | "mcp";
 
 // Fixed sub-nav (UX-DECISIONS §21): connector detail lives as a SUBPAGE under
 // Connectors, never as a nav item — the nav must not grow per connector.
-const INT_TABS: { key: IntTab; labelKey: TranslationKey; icon: "plug" | "code" }[] = [
-  { key: "connectors", labelKey: "connectors.appsTab", icon: "plug" },
-  { key: "mcp", labelKey: "connectors.mcp", icon: "code" },
+const INT_TABS: { key: IntTab; labelKey: TranslationKey; icon: "puzzle" | "server" }[] = [
+  { key: "connectors", labelKey: "connectors.appsTab", icon: "puzzle" },
+  { key: "mcp", labelKey: "connectors.mcp", icon: "server" },
 ];
 
 export function IntegrationsView() {
@@ -71,7 +71,7 @@ export function IntegrationsView() {
           {tab === "connectors" ? (
             <section>
               <PanelHead
-                title={t("connectors.title")}
+                title={t("connectors.appsTab")}
                 sub={t("connectors.subList")}
               />
               <ConnectorsSection />

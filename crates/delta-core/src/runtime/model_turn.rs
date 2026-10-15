@@ -6,7 +6,7 @@
 use super::*;
 
 /// Told to a model that cannot take tool definitions, so it can still ask for a web search in text.
-const TEXT_SEARCH_INSTRUCTION: &str = "Tools are not available in this conversation. When you need the web, reply with one line that starts with \"SEARCH:\" and the search query, and nothing else in that reply. The results come back in the next message: answer from them and name the sources you used.";
+const TEXT_SEARCH_INSTRUCTION: &str = "Tools are not available in this conversation. When you need the web, reply with one line that starts with \"SEARCH:\" and the search query, and nothing else in that reply. The results come back in the next message: answer from them and name the sources you used. Today's date, weekday and time come from the Environment block, not from a search.";
 /// What the transcript says once a model has refused tool definitions.
 pub(super) const TOOLS_REFUSED_NOTICE: &str = "This model does not accept tool calls, so it answers without tools. Web search still works: the model asks for a search in text and Delta runs it.";
 /// Upper bound on the search results handed to a model that cannot take tool results.

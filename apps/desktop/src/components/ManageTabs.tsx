@@ -103,21 +103,24 @@ export function ModelsTab() {
     const createOpen = createToggle ?? (!hasCustom || ps.fetchedModels.length > 0);
     return (
       <div>
-        {hasCustom && (
+        {hasCustom ? (
+          // Configured providers and the add-provider tile share one grid, so adding one reads as
+          // the same kind of thing as the providers already there.
           <div className="mb-4">
             <div className={SEC_H + " mb-1.5"}>{t("providers.yourProviders")}</div>
-            <ProviderCards ps={ps} tp="set" gridClass="grid grid-cols-2 xl:grid-cols-3 gap-2.5" lastUsed customOnly hideAdd />
+            <ProviderCards ps={ps} tp="set" gridClass="grid grid-cols-2 xl:grid-cols-3 gap-2.5" lastUsed customOnly />
           </div>
+        ) : (
+          <button
+            type="button"
+            className="text-[13px] text-primary hover:underline inline-flex items-center gap-1"
+            onClick={() => setCreateToggle(!createOpen)}
+            data-testid="set-add-provider-link"
+          >
+            {t("providers.addCustomProvider")}
+            <span aria-hidden="true">›</span>
+          </button>
         )}
-        <button
-          type="button"
-          className="text-[13px] text-primary hover:underline inline-flex items-center gap-1"
-          onClick={() => setCreateToggle(!createOpen)}
-          data-testid="set-add-provider-link"
-        >
-          {t("providers.addCustomProvider")}
-          <span aria-hidden="true">›</span>
-        </button>
         {createOpen && (
           <div className="mt-3">
             <CustomCreateForm ps={ps} tp="set" inline />
@@ -343,28 +346,23 @@ export function McpTab() {
     return () => window.clearInterval(timer);
   }, [authorizing]);
 
+  // Every change takes effect at once: the runtime reloads its servers, then the list is read again.
+  const applyChange = async () => {
+    await reloadMcp().catch(() => undefined);
+    refresh();
+  };
   const toggle = async (s: McpServer) => {
     await patchMcpServer(s.name, { enabled: !s.enabled });
-    refresh();
+    applyChange();
   };
   const remove = async (s: McpServer) => {
     await deleteMcpServer(s.name);
-    refresh();
+    applyChange();
   };
 
   return (
     <div className="space-y-3">
-      <p className="text-[12.5px] text-muted leading-relaxed">
-        {t("connectors.mcpSub")}
-        {t("connectors.mcpPermissionGated")}
-        <button
-          className="text-primary font-medium hover:underline"
-          onClick={() => reloadMcp().then(refresh)}
-        >
-          {t("connectors.reloadNow")}
-        </button>
-        .
-      </p>
+      <p className="text-[12.5px] text-muted leading-relaxed">{t("connectors.mcpPermissionGated")}</p>
 
       {servers.length === 0 && hasFailed ? (
         <LoadError
@@ -380,7 +378,7 @@ export function McpTab() {
         <div className={CARD + " p-4 text-[13px] text-muted"}>
           {t("connectors.noMcpServers")}
           <button className="text-primary font-medium" onClick={() => setAdding(true)}>
-            {t("connectors.addServer")}
+            {t("connectors.addCustomServer")}
           </button>
         </div>
       ) : (
@@ -391,7 +389,7 @@ export function McpTab() {
               server={s}
               onToggle={() => toggle(s)}
               onRemove={() => remove(s)}
-              onRefresh={refresh}
+              onRefresh={applyChange}
             />
           ))}
         </div>
@@ -409,7 +407,7 @@ export function McpTab() {
             onClick={async () => {
               await addMcpServer(p.name, p.config);
               await connectMcp(p.name); // opens the browser sign-in right away
-              refresh();
+              applyChange();
             }}
           >
             {t("connectors.connect")}
@@ -427,7 +425,7 @@ export function McpTab() {
           onAdded={() => {
             setAdding(false);
             setError(null);
-            refresh();
+            applyChange();
           }}
         />
       ) : servers.length > 0 ? (

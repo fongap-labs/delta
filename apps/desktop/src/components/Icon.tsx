@@ -28,6 +28,8 @@ export type IconName =
   | "panelClose"
   | "panelOpen"
   | "plug"
+  | "puzzle"
+  | "server"
   | "audit"
   | "chevronRight"
   | "chevronDown"
@@ -378,6 +380,20 @@ export function Icon({
         <svg {...s}>
           <rect x="4" y="5" width="16" height="14" rx="2" />
           <path d="M9.5 5v14M16 10l-3 2 3 2" />
+        </svg>
+      );
+    case "puzzle":
+      return (
+        <svg {...s}>
+          <path d="M9 3.5h6v3a2 2 0 1 0 0 4v3h3a2 2 0 1 1 0 4 2 2 0 0 0 0 0V20H9v-2.5a2 2 0 1 0-4 0V14h2.5v-3H5v-2.5a2 2 0 1 1 4 0V6.5h0z" />
+        </svg>
+      );
+    case "server":
+      return (
+        <svg {...s}>
+          <rect x="3.5" y="4" width="17" height="6.5" rx="1.8" />
+          <rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8" />
+          <path d="M7.5 7.25h.01M7.5 16.75h.01" />
         </svg>
       );
     case "plug":

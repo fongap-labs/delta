@@ -139,10 +139,14 @@ export function SettingsView({
           {tab === "appearance" ? (
             <>
               <AppearanceSection />
-              {/* The network route is a general behaviour of the app (every outbound call follows it),
-                  so it lives beside the other general settings, not under Privacy. */}
+              {/* Network and web search are general behaviour of the app (every outbound call follows
+                  the network route; search is a general capability), so they sit beside the other
+                  general settings, not under Models or Privacy. */}
               <div className="mt-6">
                 <NetworkProxyCard />
+              </div>
+              <div className="mt-6">
+                <WebSearchCard />
               </div>
             </>
           ) : tab === "models" ? (
@@ -152,9 +156,6 @@ export function SettingsView({
                 sub={t("settings.models.sub")}
               />
               <ModelsTab />
-              <div className="mt-6">
-                <WebSearchCard />
-              </div>
               {/* Token savings is model-spend behavior, so it lives here (UX-021),
                   not under General. */}
               <div className="mt-6">

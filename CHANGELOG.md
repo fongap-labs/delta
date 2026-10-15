@@ -16,6 +16,10 @@
 
 - fix: a provider protocol rejection retry no longer sticks for the rest of the session; it applies to the turn it happened in.
 
+- fix: the speech model is downloaded from the official sherpa-onnx release archive, checked by its hash and unpacked; the earlier download address returned 404. The two model files still have to match their pinned hashes.
+
+- fix: web search and the model-card add tile moved to General / beside the configured providers; MCP changes reload the servers at once; date and time questions are answered from the environment, not by searching.
+
 - fix: setting a default model on the Models page no longer leaves a blank, unnamed model in the composer picker; the composer follows the new default unless the user picked another model for the session.
 
 - fix: the first message of each day is right-aligned; today's day divider is no longer shown; message actions (time, copy, edit, regenerate) are visible at the same contrast on every message.
