@@ -587,7 +587,6 @@ impl Dictation {
         let result = (|| {
             fs::create_dir_all(&self.model_dir)
                 .map_err(|e| format!("Could not create model directory: {e}"))?;
-            let mut done_bytes = 0_u64;
             on_progress(DownloadProgress {
                 downloaded_bytes: 0,
                 total_bytes: DEFAULT_MODEL_BYTES,
@@ -1240,7 +1239,7 @@ mod tests {
 
     use super::{
         encode_lower_hex, resample_mono, should_retry_proxy, write_verification_marker, Dictation,
-        DEFAULT_MODEL_BYTES, MODEL_ASSETS,
+        DEFAULT_MODEL_BYTES, MODEL_ARCHIVE, MODEL_ASSETS,
     };
 
     #[test]
