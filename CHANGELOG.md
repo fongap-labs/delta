@@ -20,6 +20,8 @@
 
 - fix: web search and the model-card add tile moved to General / beside the configured providers; MCP changes reload the servers at once; date and time questions are answered from the environment, not by searching.
 
+- fix: the Activity page shows each action as one plain sentence with its status (waiting for approval, approved, done). The stored arguments are read as JSON, which fixes the garbled character-by-character output; technical fields move under "Technical details".
+
 - fix: setting a default model on the Models page no longer leaves a blank, unnamed model in the composer picker; the composer follows the new default unless the user picked another model for the session.
 
 - fix: the first message of each day is right-aligned; today's day divider is no longer shown; message actions (time, copy, edit, regenerate) are visible at the same contrast on every message.
