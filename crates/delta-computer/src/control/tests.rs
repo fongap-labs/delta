@@ -205,7 +205,7 @@ fn clearing_the_session_withdraws_every_grant() {
 fn screenshots_stop_while_a_banking_or_password_window_is_visible() {
     let vault = Program::new("bitwarden.exe", "");
     let notes = notepad();
-    assert!(capture_allowed(&[notes.clone()]));
+    assert!(capture_allowed(std::slice::from_ref(&notes)));
     assert!(!capture_allowed(&[notes, vault]));
     assert!(capture_allowed(&[]));
 }
