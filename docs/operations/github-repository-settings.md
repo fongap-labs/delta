@@ -150,7 +150,7 @@ permissions:
 
 发布类 Workflow 只负责发布相关行为。
 
-本仓库的 `.github/workflows/` 当前只有 PR 治理派发工作流（`dispatch-pr-governance.yml`）；发布由中央 Action Worker 调度（参见 `.github/release.manifest.json`）。若将来在本仓库新增发布 Workflow，它可以在确有需要时申请：
+本仓库的 `.github/workflows/` 当前只有 PR 治理派发工作流（`notify-action-worker.yml`）；发布由中央 Action Worker 调度（参见 `.github/release.manifest.json`）。若将来在本仓库新增发布 Workflow，它可以在确有需要时申请：
 
 ```yaml
 contents: write
