@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- build: accept the six Rust advisories that have no upstream fix yet. The `zip` extraction advisories and the unmaintained `zvariant` crates are recorded with their impact, exploitability, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md; the policy itself is unchanged.
+
 - ci: replace the deprecated dispatch-pr-governance workflow with the approved notify-action-worker bridge, so every push to main wakes central Intake and the Main Write Guard and CI Evidence statuses are written immediately.
 
 - fix: a turn's thinking shows above its steps, live and after the answer; step counts keep going across a question answered mid-turn; a step's dot is red only when its call failed, live and after reopening the conversation; the progress line reads "Step N in progress"; the custom provider form names the OpenAI Chat Completions and Anthropic Messages protocols.

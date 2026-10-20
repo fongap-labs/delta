@@ -9,6 +9,12 @@
 unmaintained = "all"
 ignore = [
     { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4, transitive build dep; unmaintained, no vulnerability" },
+    { id = "RUSTSEC-2026-0367", reason = "zip keeps SUID/SGID bits while extracting; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extract creates symlinks that point outside the destination; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extract applies Unix permissions through symlinks; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
 ]
 
 [licenses]

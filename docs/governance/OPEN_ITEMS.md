@@ -35,3 +35,21 @@
 
 - `scripts/check_repository_boundary.py`：报告 `integrations/connectors/gcal_accounts.py`、`gmail_accounts.py`、`hubspot_portals.py` 缺少迁移后的公开合同（退出码 1）。
 - `scripts/check_naming.py`：报告若干 Rust 与 Python 函数名超过三段（退出码 1）。
+
+## 6. Rust 依赖公告例外
+
+RustSec 于 2026-10-17 发布的新公告使 `cargo deny check advisories` 在四个工作区失败。`deny.toml` 现接受以下例外，每条都写明影响、可利用性、缓解措施与后续计划；复审日期 **2027-01-31**。
+
+### 6.1 zip 提取类漏洞（RUSTSEC-2026-0367 / 0368 / 0369）
+
+- 现状：受影响的版本是全部 `zip < 9.0.0`。Delta 锁定两个版本：`sherpa-onnx-sys` 引入的 `zip 2.4.2`，以及 `tauri-plugin-updater` 引入的 `zip 4.6.1`。两个上游 crate 当前都没有把依赖抬到 `zip 9` 的发布版本，因此单靠 `cargo update` 无法消除。
+- 可利用性：三条公告都只影响 `ZipArchive::extract()` / `ZipStreamReader::extract()` 这条落盘路径。Delta 自身代码不调用 `extract()`：Office 文档读取只在内存中按名字取条目（`crates/delta-core/src/document/ooxml.rs`），Skill 归档展开使用 `enclosed_name()` 并自行写文件（`crates/delta-core/src/skills.rs`），已阻断路径穿越。仓库内唯一的 zip 落盘提取来自自动更新插件，而它只安装经 minisign 公钥校验过的发布产物（`apps/desktop/src-tauri/tauri.conf.json` 的 `pubkey`），攻击者需要签名私钥才能构造被安装的包。
+- 缓解措施：保留“Delta 不把归档解包到磁盘”这一约束；更新链路的签名校验不得放宽。
+- 后续：① `sherpa-onnx-sys` 发布依赖 `zip >= 9` 的版本后，删除 `crates/delta-stt` 的 `zip 2.x`；② `tauri-plugin-updater`（或 Tauri 3 系列）改用 `zip >= 9` 后，删除 `apps/desktop/src-tauri` 的 `zip 4.x`；③ 把 `crates/delta-core` 自身声明的 `zip = "2"` 升到 `9`，使 `delta-core` 与 `delta-computer` 工作区不再出现受影响的版本；④ 三条公告的例外在对应版本消失后一并删除。
+
+### 6.2 zvariant 系列停止维护（RUSTSEC-2026-0370 / 0371 / 0372）
+
+- 现状：`zvariant`、`zbus_names`、`zvariant_derive` 被标记为停止维护，全部版本都受影响。它们经 `zbus 5.19.0` 引入，而 `zbus` 由 `tauri-plugin-single-instance` 与 `tauri-plugin-notification` 依赖，当前插件版本仍要求 `zbus ^5`。
+- 可利用性：停止维护不等于漏洞，这三条公告没有可利用的缺陷，只表示上游不再修复。
+- 缓解措施：不降低 `unmaintained = "all"` 的整体口径，例外只针对这三个 crate。
+- 后续：等 Tauri 插件支持 `zbus 6.0.0`（`zbus 6` 已移除 `zvariant` / `zbus_names`）后升级插件，并删除这三条例外；在此之前保持当前 Tauri 版本，不为消除告警而引入 alpha 插件。
