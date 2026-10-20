@@ -1780,6 +1780,8 @@ export function App() {
             scratchPrimary
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
+            approvals={items.filter((i) => i.kind === "approval")}
+            onOpenAudit={() => setSurface("audit")}
           />
         </div>
       </div>
