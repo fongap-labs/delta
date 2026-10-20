@@ -5,9 +5,9 @@ import type { JSX } from "react";
 import {
   ApprovalModal,
   canRememberChoice,
-  readImportantOpsPref,
+  readDialogPref,
   usesApprovalModal,
-  writeImportantOpsPref,
+  writeDialogPref,
 } from "./ApprovalModal";
 import { I18nProvider } from "@delta/i18n/I18nContext";
 import type { Item } from "../types";
@@ -145,10 +145,10 @@ describe("ApprovalModal", () => {
   });
 
   it("the preference is stored per device and reads back", () => {
-    expect(readImportantOpsPref()).toBe(false);
-    writeImportantOpsPref(true);
-    expect(readImportantOpsPref()).toBe(true);
-    writeImportantOpsPref(false);
-    expect(readImportantOpsPref()).toBe(false);
+    expect(readDialogPref()).toBe(false);
+    writeDialogPref(true);
+    expect(readDialogPref()).toBe(true);
+    writeDialogPref(false);
+    expect(readDialogPref()).toBe(false);
   });
 });

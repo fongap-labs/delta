@@ -72,7 +72,7 @@ import { SettingsView } from "./components/SettingsView";
 import { AuditView } from "./components/AuditView";
 import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
-import { ApprovalModal, useDefaultEgressLevel, useImportantOpsPref, usesApprovalModal } from "./components/ApprovalModal";
+import { ApprovalModal, useEgressLevel, useDialogPref, usesApprovalModal } from "./components/ApprovalModal";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
@@ -235,8 +235,8 @@ export function App() {
     "session" | "scheduled" | "integrations" | "audit" | "inbox" | "settings"
   >("session");
   // Approval dialog inputs: the default egress level (re-read when Settings closes) and the preference.
-  const egressLevel = useDefaultEgressLevel(surface);
-  const [importantOps] = useImportantOpsPref();
+  const egressLevel = useEgressLevel(surface);
+  const [importantOps] = useDialogPref();
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
   // possibly-deleted automation's dead detail.

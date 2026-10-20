@@ -18,7 +18,7 @@ import type { Item, TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
 import { TitleText } from "./ApprovalCard";
-import { useDefaultEgressLevel } from "./ApprovalModal";
+import { useEgressLevel } from "./ApprovalModal";
 import { TrustStrip } from "./TrustStrip";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
@@ -267,9 +267,9 @@ export function RightRail({
 // jumps to the approval card. Reads only what the app already holds: no new API.
 function PermissionsSummary({ sessionId, approvals }: { sessionId: string; approvals: ApprovalItem[] }) {
   const { t } = useI18n();
-  const level = useDefaultEgressLevel(sessionId);
+  const level = useEgressLevel(sessionId);
 
-  const jumpToPendingApproval = () => {
+  const scrollToApproval = () => {
     const cards = document.querySelectorAll<HTMLElement>(".approval");
     cards[cards.length - 1]?.scrollIntoView?.({ block: "center", behavior: "smooth" });
   };
@@ -312,7 +312,7 @@ function PermissionsSummary({ sessionId, approvals }: { sessionId: string; appro
             className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-bg"
             data-testid="rail-perm-row"
             data-state={state}
-            onClick={jumpToPendingApproval}
+            onClick={scrollToApproval}
           >
             {body}
           </button>

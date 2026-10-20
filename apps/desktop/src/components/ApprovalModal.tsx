@@ -31,7 +31,7 @@ const PREF_KEY = "delta-approval-dialog";
 const PREF_EVENT = "delta:approval-dialog-pref";
 
 /** The "confirm important actions in a dialog" preference. Per device, like the theme. Off by default. */
-export function readImportantOpsPref(): boolean {
+export function readDialogPref(): boolean {
   try {
     return localStorage.getItem(PREF_KEY) === "1";
   } catch {
@@ -39,7 +39,7 @@ export function readImportantOpsPref(): boolean {
   }
 }
 
-export function writeImportantOpsPref(isOn: boolean) {
+export function writeDialogPref(isOn: boolean) {
   try {
     localStorage.setItem(PREF_KEY, isOn ? "1" : "0");
   } catch {
@@ -48,18 +48,18 @@ export function writeImportantOpsPref(isOn: boolean) {
   window.dispatchEvent(new Event(PREF_EVENT));
 }
 
-export function useImportantOpsPref(): [boolean, (isOn: boolean) => void] {
-  const [isOn, setOn] = useState(readImportantOpsPref);
+export function useDialogPref(): [boolean, (isOn: boolean) => void] {
+  const [isOn, setOn] = useState(readDialogPref);
   useEffect(() => {
-    const sync = () => setOn(readImportantOpsPref());
+    const sync = () => setOn(readDialogPref());
     window.addEventListener(PREF_EVENT, sync);
     return () => window.removeEventListener(PREF_EVENT, sync);
   }, []);
-  return [isOn, writeImportantOpsPref];
+  return [isOn, writeDialogPref];
 }
 
 /** The workspace default egress level, re-read whenever `refreshKey` changes (e.g. after Settings). */
-export function useDefaultEgressLevel(refreshKey: unknown): EgressLevel | null {
+export function useEgressLevel(refreshKey: unknown): EgressLevel | null {
   const [level, setLevel] = useState<EgressLevel | null>(null);
   useEffect(() => {
     getEgressSettings()

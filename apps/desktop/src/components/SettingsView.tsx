@@ -51,7 +51,7 @@ import { useI18n, type TranslationKey } from "@delta/i18n/I18nContext";
 import type { Locale } from "@delta/i18n/types";
 import { Icon } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
-import { useImportantOpsPref } from "./ApprovalModal";
+import { useDialogPref } from "./ApprovalModal";
 import { Toggle } from "./Toggle";
 import { PrivacySection } from "./PrivacySection";
 import { ModelsTab } from "./ManageTabs";
@@ -781,7 +781,7 @@ const toEdit = (d: Draft): SearchEngineEdit => ({
 // every other approval, not only the outbound and connector ones.
 function ApprovalDialogCard() {
   const { t } = useI18n();
-  const [isOn, setOn] = useImportantOpsPref();
+  const [isOn, setOn] = useDialogPref();
   return (
     <div className={CARD + " p-4 flex items-start justify-between gap-4"}>
       <div className="min-w-0">
