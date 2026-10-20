@@ -51,6 +51,8 @@ import { useI18n, type TranslationKey } from "@delta/i18n/I18nContext";
 import type { Locale } from "@delta/i18n/types";
 import { Icon } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
+import { useDialogPref } from "./ApprovalModal";
+import { Toggle } from "./Toggle";
 import { PrivacySection } from "./PrivacySection";
 import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
@@ -147,6 +149,9 @@ export function SettingsView({
               </div>
               <div className="mt-6">
                 <WebSearchCard />
+              </div>
+              <div className="mt-6">
+                <ApprovalDialogCard />
               </div>
             </>
           ) : tab === "models" ? (
@@ -771,6 +776,22 @@ const toEdit = (d: Draft): SearchEngineEdit => ({
   ...(d.cx ? { cx: d.cx } : {}),
   ...(d.clear_key ? { clear_key: true } : {}),
 });
+
+// Off by default: approvals stay in the conversation. On: the dialog (ApprovalModal) also takes
+// every other approval, not only the outbound and connector ones.
+function ApprovalDialogCard() {
+  const { t } = useI18n();
+  const [isOn, setOn] = useDialogPref();
+  return (
+    <div className={CARD + " p-4 flex items-start justify-between gap-4"}>
+      <div className="min-w-0">
+        <div className={FIELD_LABEL}>{t("settings.approvalDialog.title")}</div>
+        <p className="text-[12.5px] text-muted mt-1">{t("settings.approvalDialog.sub")}</p>
+      </div>
+      <Toggle checked={isOn} onChange={setOn} title={t("settings.approvalDialog.title")} />
+    </div>
+  );
+}
 
 export function WebSearchCard() {
   const { t } = useI18n();

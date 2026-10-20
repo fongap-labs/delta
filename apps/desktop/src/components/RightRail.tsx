@@ -12,15 +12,19 @@ import {
   type RunSource,
 } from "../api";
 import { trustFromMessages, type ArtifactTrust } from "../artifactTrust";
+import { humanizeApprovalTitle } from "../humanize";
 import { useEscapeDismiss } from "../useEscapeDismiss";
-import type { TodoItem } from "../types";
+import type { Item, TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
+import { TitleText } from "./ApprovalCard";
+import { useEgressLevel } from "./ApprovalModal";
 import { TrustStrip } from "./TrustStrip";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 
-type Panel = "progress" | "artifacts";
+type Panel = "progress" | "permissions" | "artifacts";
+type ApprovalItem = Extract<Item, { kind: "approval" }>;
 
 // Quiet file-type icons for the artifact list (the colored kind pills read as noisy).
 function kindIcon(kind: string): "file" | "fileCode" | "image" | "table" {
@@ -61,6 +65,10 @@ interface Props {
   scratchPrimary?: boolean;
   openAccessKey?: number;
   onOpenIntegrations?: () => void;
+  // This session's approval items: the Permissions section lists their decisions.
+  approvals?: Item[];
+  // The rail footer points to the full record in Audit.
+  onOpenAudit?: () => void;
 }
 
 export function RightRail({
@@ -78,9 +86,12 @@ export function RightRail({
   scratchPrimary,
   openAccessKey = 0,
   onOpenIntegrations,
+  approvals = [],
+  onOpenAudit,
 }: Props) {
   const [open, setOpen] = useState<Record<Panel, boolean>>({
     progress: true,
+    permissions: true,
     artifacts: true,
   });
   const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
@@ -179,6 +190,10 @@ export function RightRail({
             <ProgressSummary running={running} toolNames={toolNames} todo={todo} />
           </RailSection>
 
+          <RailSection title={t("rail.permissions")} open={open.permissions} onToggle={() => setOpen({ ...open, permissions: !open.permissions })}>
+            <PermissionsSummary sessionId={sessionId} approvals={approvals as ApprovalItem[]} />
+          </RailSection>
+
           {showArtifacts && (
           <RailSection
             title={`${t("artifacts.title")}${artifacts.length ? ` (${artifacts.length})` : ""}`}
@@ -232,9 +247,82 @@ export function RightRail({
             openKey={openAccessKey}
             onOpenIntegrations={onOpenIntegrations}
           />
+
+          {/* Footer: the rail shows the live state; the full, dated record lives in Audit. */}
+          <button
+            className="rail-section flex w-full items-center gap-2 text-left text-[12px] text-muted hover:text-ink"
+            data-testid="rail-footer"
+            onClick={() => onOpenAudit?.()}
+          >
+            <Icon name="shield" size={14} className="shrink-0" />
+            <span>{t("rail.footer")}</span>
+          </button>
         </>
       )}
     </aside>
+  );
+}
+
+// One line per approval decision this session, plus the workspace egress level. A pending row
+// jumps to the approval card. Reads only what the app already holds: no new API.
+function PermissionsSummary({ sessionId, approvals }: { sessionId: string; approvals: ApprovalItem[] }) {
+  const { t } = useI18n();
+  const level = useEgressLevel(sessionId);
+
+  const scrollToApproval = () => {
+    const cards = document.querySelectorAll<HTMLElement>(".approval");
+    cards[cards.length - 1]?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 px-1 py-1 text-[12.5px]" data-testid="rail-perm-egress">
+        <Icon name="shield" size={14} className="shrink-0 text-muted" />
+        <span className="flex-1 min-w-0 truncate">{t("rail.perm.egress")}</span>
+        <span className="text-[10.5px] px-2 py-px rounded-full border border-line text-muted shrink-0">
+          {level ? t(`egress.level.${level}`) : t("nav.trustUnset")}
+        </span>
+      </div>
+      {approvals.length === 0 && <div className="rail-muted px-1">{t("rail.permissionsEmpty")}</div>}
+      {approvals.map((item, index) => {
+        const pending = !item.resolved;
+        const revoked = item.resolved === "deny";
+        const state = pending ? "pending" : revoked ? "revoked" : "granted";
+        const icon = pending ? "hand" : revoked ? "cancelCircle" : "check";
+        const chipText = pending ? t("rail.perm.pending") : revoked ? t("rail.perm.revoked") : t("rail.perm.session");
+        const chipClass = {
+          pending: "text-warn bg-warn-soft border-warn-line",
+          revoked: "text-muted border-line",
+          granted: "text-ok bg-ok-soft border-ok-line",
+        }[state];
+        const body = (
+          <>
+            <span className={"shrink-0 " + (pending ? "text-warn" : revoked ? "text-muted" : "text-ok")}>
+              <Icon name={icon} size={14} />
+            </span>
+            <span className="flex-1 min-w-0 truncate text-[12.5px]">
+              <TitleText line={humanizeApprovalTitle(item.name, item.args)} />
+            </span>
+            <span className={"text-[10.5px] px-2 py-px rounded-full border shrink-0 " + chipClass}>{chipText}</span>
+          </>
+        );
+        return pending ? (
+          <button
+            key={index}
+            className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-bg"
+            data-testid="rail-perm-row"
+            data-state={state}
+            onClick={scrollToApproval}
+          >
+            {body}
+          </button>
+        ) : (
+          <div key={index} className="flex w-full items-center gap-2 px-1 py-1" data-testid="rail-perm-row" data-state={state}>
+            {body}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

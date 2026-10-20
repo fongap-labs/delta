@@ -72,6 +72,7 @@ import { SettingsView } from "./components/SettingsView";
 import { AuditView } from "./components/AuditView";
 import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
+import { ApprovalModal, useEgressLevel, useDialogPref, usesApprovalModal } from "./components/ApprovalModal";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
@@ -175,6 +176,9 @@ export function App() {
   // multi-second silent stall mid-turn.
   const [isCompacting, setCompacting] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
+  // Resolved approval decisions per session, kept for this app run. A finished turn re-reads its
+  // history, and history does not carry approvals, so the Permissions rail reads them from here.
+  const [approvalLog, setApprovalLog] = useState<Record<string, Item[]>>({});
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [streaming, setStreamingState] = useState("");
   // Ref mirror of `streaming`: the WS handler closure is built once per socket and can't read
@@ -230,6 +234,9 @@ export function App() {
   const [surface, setSurface] = useState<
     "session" | "scheduled" | "integrations" | "audit" | "inbox" | "settings"
   >("session");
+  // Approval dialog inputs: the default egress level (re-read when Settings closes) and the preference.
+  const egressLevel = useEgressLevel(surface);
+  const [importantOps] = useDialogPref();
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
   // possibly-deleted automation's dead detail.
@@ -1012,6 +1019,11 @@ export function App() {
       .catch(() => {});
   };
   const approve = (decision: ApprovalDecision) => {
+    const decided = [...items].reverse().find((i) => i.kind === "approval" && !i.resolved);
+    if (decided?.kind === "approval") {
+      const record: Item = { ...decided, resolved: decision };
+      setApprovalLog((log) => ({ ...log, [sessionId]: [...(log[sessionId] ?? []), record] }));
+    }
     setItems((p) => resolveLastApproval(p, decision));
     dropSessionInbox("approval");
     sessionRef.current?.approve(decision);
@@ -1302,6 +1314,11 @@ export function App() {
 
   const idle = items.length === 0 && !streaming;
   const pendingApproval = [...items].reverse().find((i) => i.kind === "approval" && !i.resolved);
+  // The dialog takes the consequential approvals on the conversation surface; all others stay inline.
+  const modalApproval =
+    surface === "session" && !isUnattended && pendingApproval?.kind === "approval" && usesApprovalModal(pendingApproval, { egressLevel, importantOps })
+      ? pendingApproval
+      : undefined;
   const pendingDirReq = [...items].reverse().find((i) => i.kind === "dirreq" && !i.resolved);
   const pendingPlan = [...items].reverse().find((i) => i.kind === "planreq" && !i.resolved);
   const pendingQuestion = [...items].reverse().find((i) => i.kind === "question" && !i.resolved);
@@ -1473,6 +1490,10 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
+        onOpenConversations={() => setSurface("session")}
+        onOpenPrivacy={() => openSettings("privacy")}
+        surface={surface}
+        conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
@@ -1505,7 +1526,7 @@ export function App() {
           }}
         />
       ) : surface === "audit" ? (
-        <AuditView />
+        <AuditView onOpenSession={(sid) => selectSession(sid, sessions.find((s) => s.session_id === sid)?.workspace ?? "")} />
       ) : surface === "inbox" ? (
         <InboxView onOpenSession={openInboxSession} />
       ) : (
@@ -1730,7 +1751,7 @@ export function App() {
                   <PlanCard item={pendingPlan} onRespond={respondPlan} />
                 ) : !isUnattended && pendingDirReq?.kind === "dirreq" ? (
                   <DirectoryRequestCard item={pendingDirReq} onRespond={respondDirectory} />
-                ) : !isUnattended && pendingApproval?.kind === "approval" ? (
+                ) : !isUnattended && pendingApproval?.kind === "approval" && !modalApproval ? (
                   <ApprovalCard item={pendingApproval} onApprove={approve} runTask={runContext} compact />
                 ) : !isUnattended && pendingQuestion?.kind === "question" ? (
                   // Live ask_user in an attended session — answer inline (reuses the Inbox card UI).
@@ -1776,9 +1797,15 @@ export function App() {
             scratchPrimary
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
+            approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
+            onOpenAudit={() => setSurface("audit")}
           />
         </div>
       </div>
+      )}
+
+      {modalApproval && (
+        <ApprovalModal key={items.indexOf(modalApproval)} item={modalApproval} onApprove={approve} />
       )}
 
       {workspaceTrustRequest && (

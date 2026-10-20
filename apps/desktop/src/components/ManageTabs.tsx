@@ -278,7 +278,7 @@ function DangerZone({
           {t("common.cancel", undefined, "Cancel")}
         </button>
         <button
-          className="rounded-lg border border-danger bg-danger px-4 py-1.5 text-[12.5px] font-medium text-white hover:brightness-110 disabled:opacity-40"
+          className="rounded-lg border border-danger bg-danger px-4 py-1.5 text-[12.5px] font-medium text-on-danger hover:brightness-110 disabled:opacity-40"
           disabled={isBusy}
           data-testid="set-danger-confirm-btn"
           onClick={async () => {
