@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: the desktop sidebar groups Conversations, Task center, Automations, Inbox, Connectors and Audit, and shows the workspace's egress level under them. The right rail gains a Permissions section (this session's approval decisions) and a footer that opens Audit. Outbound messages under "Ask each time", connector writes, and any approval the user chooses in General settings open a confirmation dialog. Audit shows counts for the loaded records and a View source link to each record's conversation.
+
 - build: accept the six Rust advisories that have no upstream fix yet. The `zip` extraction advisories and the unmaintained `zvariant` crates are recorded with their impact, exploitability, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md; the policy itself is unchanged.
 
 - ci: replace the deprecated dispatch-pr-governance workflow with the approved notify-action-worker bridge, so every push to main wakes central Intake and the Main Write Guard and CI Evidence statuses are written immediately.
