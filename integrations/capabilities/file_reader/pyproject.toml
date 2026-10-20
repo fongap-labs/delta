@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "delta-capability-file-reader"
 version = "0.1.0"
 description = "File reader capability worker (read-only connector)"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 dependencies = [
     "delta-worker-sdk",
