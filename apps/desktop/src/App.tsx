@@ -72,6 +72,7 @@ import { SettingsView } from "./components/SettingsView";
 import { AuditView } from "./components/AuditView";
 import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
+import { ApprovalModal, useDefaultEgressLevel, useImportantOpsPref, usesApprovalModal } from "./components/ApprovalModal";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
@@ -230,6 +231,9 @@ export function App() {
   const [surface, setSurface] = useState<
     "session" | "scheduled" | "integrations" | "audit" | "inbox" | "settings"
   >("session");
+  // Approval dialog inputs: the default egress level (re-read when Settings closes) and the preference.
+  const egressLevel = useDefaultEgressLevel(surface);
+  const [importantOps] = useImportantOpsPref();
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
   // possibly-deleted automation's dead detail.
@@ -1302,6 +1306,11 @@ export function App() {
 
   const idle = items.length === 0 && !streaming;
   const pendingApproval = [...items].reverse().find((i) => i.kind === "approval" && !i.resolved);
+  // The dialog takes the consequential approvals on the conversation surface; all others stay inline.
+  const modalApproval =
+    surface === "session" && !isUnattended && pendingApproval?.kind === "approval" && usesApprovalModal(pendingApproval, { egressLevel, importantOps })
+      ? pendingApproval
+      : undefined;
   const pendingDirReq = [...items].reverse().find((i) => i.kind === "dirreq" && !i.resolved);
   const pendingPlan = [...items].reverse().find((i) => i.kind === "planreq" && !i.resolved);
   const pendingQuestion = [...items].reverse().find((i) => i.kind === "question" && !i.resolved);
@@ -1734,7 +1743,7 @@ export function App() {
                   <PlanCard item={pendingPlan} onRespond={respondPlan} />
                 ) : !isUnattended && pendingDirReq?.kind === "dirreq" ? (
                   <DirectoryRequestCard item={pendingDirReq} onRespond={respondDirectory} />
-                ) : !isUnattended && pendingApproval?.kind === "approval" ? (
+                ) : !isUnattended && pendingApproval?.kind === "approval" && !modalApproval ? (
                   <ApprovalCard item={pendingApproval} onApprove={approve} runTask={runContext} compact />
                 ) : !isUnattended && pendingQuestion?.kind === "question" ? (
                   // Live ask_user in an attended session — answer inline (reuses the Inbox card UI).
@@ -1785,6 +1794,10 @@ export function App() {
           />
         </div>
       </div>
+      )}
+
+      {modalApproval && (
+        <ApprovalModal key={items.indexOf(modalApproval)} item={modalApproval} onApprove={approve} />
       )}
 
       {workspaceTrustRequest && (

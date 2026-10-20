@@ -3,14 +3,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   getArtifacts,
-  getEgressSettings,
   getSessionMessages,
   readArtifact,
   revealArtifact,
   getRunSources,
   type ArtifactContent,
   type ArtifactInfo,
-  type EgressLevel,
   type RunSource,
 } from "../api";
 import { trustFromMessages, type ArtifactTrust } from "../artifactTrust";
@@ -20,6 +18,7 @@ import type { Item, TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
 import { TitleText } from "./ApprovalCard";
+import { useDefaultEgressLevel } from "./ApprovalModal";
 import { TrustStrip } from "./TrustStrip";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
@@ -268,10 +267,7 @@ export function RightRail({
 // jumps to the approval card. Reads only what the app already holds: no new API.
 function PermissionsSummary({ sessionId, approvals }: { sessionId: string; approvals: ApprovalItem[] }) {
   const { t } = useI18n();
-  const [level, setLevel] = useState<EgressLevel | null>(null);
-  useEffect(() => {
-    getEgressSettings().then((s) => setLevel(s.default_level)).catch(() => setLevel(null));
-  }, [sessionId]);
+  const level = useDefaultEgressLevel(sessionId);
 
   const jumpToPendingApproval = () => {
     const cards = document.querySelectorAll<HTMLElement>(".approval");
