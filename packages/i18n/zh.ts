@@ -964,6 +964,10 @@ export const zh: Record<TranslationKey, string> = {
   "search.recent": "最近的聊天",
 
   "activity.sub": "Delta 替你做过的事：联网搜索、打开网页、使用应用连接器。每条只说明发生了什么和现在的状态。",
+  "activity.stat.total": "记录的动作",
+  "activity.stat.waiting": "等你批准",
+  "activity.stat.failed": "失败",
+  "activity.viewSource": "查看来源",
   "activity.filter.submit": "筛选",
   "activity.empty": "暂无审计事件。",
   "activity.row.sessionPrefix": "会话 ",

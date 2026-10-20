@@ -12,7 +12,7 @@ const CARD = "rounded-xl2 border border-line bg-panel";
 const INPUT = "px-3 py-1.5 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary";
 const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-primary text-on-primary shrink-0";
 
-export function AuditView() {
+export function AuditView({ onOpenSession }: { onOpenSession?: (sessionId: string) => void }) {
   const { t } = useI18n();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [sessionFilter, setSessionFilter] = useState("");
@@ -66,11 +66,19 @@ export function AuditView() {
           ) : events.length === 0 ? (
             <div className={CARD + " p-4 text-[13px] text-muted"}>{t("activity.empty", undefined, "No audit events yet.")}</div>
           ) : (
-            <div className="space-y-2">
-              {events.map((ev) => (
-                <AuditRow ev={ev} key={ev.id} />
-              ))}
-            </div>
+            <>
+              {/* Three numbers for the page the user is looking at, from the events already loaded. */}
+              <div className="grid grid-cols-3 gap-3 mb-5" data-testid="audit-stats">
+                <StatCard value={events.length} label={t("activity.stat.total", undefined, "Recorded actions")} />
+                <StatCard value={events.filter((ev) => auditState(ev) === "waiting").length} label={t("activity.stat.waiting", undefined, "Waiting for your approval")} />
+                <StatCard value={events.filter((ev) => auditState(ev) === "failed").length} label={t("activity.stat.failed", undefined, "Failed")} />
+              </div>
+              <div className="space-y-2">
+                {events.map((ev) => (
+                  <AuditRow ev={ev} key={ev.id} onOpenSession={onOpenSession} />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -78,7 +86,7 @@ export function AuditView() {
   );
 }
 
-function AuditRow({ ev }: { ev: AuditEvent }) {
+function AuditRow({ ev, onOpenSession }: { ev: AuditEvent; onOpenSession?: (sessionId: string) => void }) {
   const { t } = useI18n();
   const line = auditLine(ev);
   const state = auditState(ev);
@@ -94,7 +102,14 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
             <div className="text-[12px] text-muted mt-0.5">{t("activity.reason.approval", undefined, "This runs only after you approve it.")}</div>
           )}
         </div>
-        <span className="text-[12px] text-faint shrink-0 whitespace-nowrap">{auditWhen(ev.timestamp)}</span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-[12px] text-faint whitespace-nowrap">{auditWhen(ev.timestamp)}</span>
+          {ev.session_id && onOpenSession && (
+            <button className="text-[12px] text-link hover:text-link-hover hover:underline" onClick={() => onOpenSession(ev.session_id)}>
+              {t("activity.viewSource", undefined, "View source")}
+            </button>
+          )}
+        </div>
       </div>
       <details className="mt-2">
         <summary className="text-[12px] text-faint cursor-pointer select-none">
@@ -129,6 +144,16 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
           )}
         </dl>
       </details>
+    </div>
+  );
+}
+
+// Statistic card: the figure is 28px semibold; its caption is 12px muted (design 2:603).
+function StatCard({ value, label }: { value: number; label: string }) {
+  return (
+    <div className={CARD + " p-3.5"}>
+      <div className="text-[28px] font-semibold leading-none tabular-nums">{value}</div>
+      <div className="text-[12px] text-muted mt-1.5">{label}</div>
     </div>
   );
 }

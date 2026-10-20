@@ -1518,7 +1518,7 @@ export function App() {
           }}
         />
       ) : surface === "audit" ? (
-        <AuditView />
+        <AuditView onOpenSession={(sid) => selectSession(sid, sessions.find((s) => s.session_id === sid)?.workspace ?? "")} />
       ) : surface === "inbox" ? (
         <InboxView onOpenSession={openInboxSession} />
       ) : (

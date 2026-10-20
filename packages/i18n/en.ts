@@ -967,6 +967,10 @@ export const en = {
   "search.recent": "Recent chats",
 
   "activity.sub": "What Delta has done for you: web searches, opened pages and app connector actions. Each entry says what happened and where it stands.",
+  "activity.stat.total": "Recorded actions",
+  "activity.stat.waiting": "Waiting for your approval",
+  "activity.stat.failed": "Failed",
+  "activity.viewSource": "View source",
   "activity.filter.submit": "Filter",
   "activity.empty": "No audit events yet.",
   "activity.row.sessionPrefix": "session ",
