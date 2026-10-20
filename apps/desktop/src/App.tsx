@@ -176,6 +176,9 @@ export function App() {
   // multi-second silent stall mid-turn.
   const [isCompacting, setCompacting] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
+  // Resolved approval decisions per session, kept for this app run. A finished turn re-reads its
+  // history, and history does not carry approvals, so the Permissions rail reads them from here.
+  const [approvalLog, setApprovalLog] = useState<Record<string, Item[]>>({});
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [streaming, setStreamingState] = useState("");
   // Ref mirror of `streaming`: the WS handler closure is built once per socket and can't read
@@ -1016,6 +1019,11 @@ export function App() {
       .catch(() => {});
   };
   const approve = (decision: ApprovalDecision) => {
+    const decided = [...items].reverse().find((i) => i.kind === "approval" && !i.resolved);
+    if (decided?.kind === "approval") {
+      const record: Item = { ...decided, resolved: decision };
+      setApprovalLog((log) => ({ ...log, [sessionId]: [...(log[sessionId] ?? []), record] }));
+    }
     setItems((p) => resolveLastApproval(p, decision));
     dropSessionInbox("approval");
     sessionRef.current?.approve(decision);
@@ -1789,7 +1797,7 @@ export function App() {
             scratchPrimary
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
-            approvals={items.filter((i) => i.kind === "approval")}
+            approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
             onOpenAudit={() => setSurface("audit")}
           />
         </div>
