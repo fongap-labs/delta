@@ -1473,6 +1473,10 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
+        onOpenConversations={() => setSurface("session")}
+        onOpenPrivacy={() => openSettings("privacy")}
+        surface={surface}
+        conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}

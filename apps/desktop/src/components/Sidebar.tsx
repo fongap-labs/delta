@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AUTOMATIONS_CHANGED, getAutomations, type Automation } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { AUTOMATIONS_CHANGED, getAutomations, getEgressSettings, type Automation, type EgressSettings } from "../api";
 import type { SessionInfo } from "../types";
 import { ConnectorIcon } from "../features/connectors/ConnectorIcon";
 import { Icon, type IconName } from "./Icon";
@@ -137,6 +137,12 @@ interface Props {
   integrationsActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
+  // Primary nav group (design 2:615). The conversation list is the "task center" anchor.
+  conversationActive?: boolean;
+  onOpenConversations?: () => void;
+  onOpenPrivacy?: () => void;
+  // The app surface: the trust row re-reads the egress level when the user returns from Settings.
+  surface?: string;
   collapsed?: boolean;
   onCollapse?: () => void;
   onPeekLeave?: () => void;
@@ -161,6 +167,13 @@ export function Sidebar(props: Props) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectEditValue, setProjectEditValue] = useState("");
   const [confirmRemoveProjectId, setConfirmRemoveProjectId] = useState<string | null>(null);
+  const [egress, setEgress] = useState<EgressSettings | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Trust row: the workspace default egress level. Read here; Settings ▸ Privacy changes it.
+  useEffect(() => {
+    getEgressSettings().then(setEgress).catch(() => setEgress(null));
+  }, [props.surface]);
 
   // ⌘/Ctrl+K opens search from anywhere in the window.
   useEffect(() => {
@@ -198,6 +211,14 @@ export function Sidebar(props: Props) {
   const archived = real.filter((session) => session.archived);
   const totalAttention = real.reduce((sum, session) => sum + (session.attention || 0), 0);
   const recentLimit = 4;
+  // The count the Inbox chip shows is the attention total already carried by the session list,
+  // so the nav adds no polling of its own.
+  const trustLevel = egress?.is_chosen && egress.default_level ? t(`egress.level.${egress.default_level}`) : t("nav.trustUnset");
+  // "Task center" is the task list itself: bring it back to the top and show the conversation view.
+  const showTaskCenter = () => {
+    props.onOpenConversations?.();
+    if (listRef.current) listRef.current.scrollTop = 0;
+  };
 
   const commitNewProject = () => {
     const name = projectDraft.trim();
@@ -437,21 +458,27 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
-      <div className="px-2.5 mt-1">
+      <nav className="px-2.5 mt-1 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
+        <NavItem icon="chat" label={t("nav.conversations")} active={props.conversationActive} onClick={() => props.onOpenConversations?.()} testid="nav-conversations" />
+        <NavItem icon="sparkle" label={t("nav.taskCenter")} onClick={showTaskCenter} testid="nav-task-center" />
+        <NavItem icon="clock" label={t("nav.scheduled", undefined, "Automations")} active={props.scheduledActive} onClick={props.onOpenScheduled} testid="nav-automations" />
+        <NavItem icon="inbox" label={t("nav.inbox")} active={props.inboxActive} onClick={props.onOpenInbox} badge={totalAttention} testid="nav-inbox" />
+        <NavItem icon="plug" label={t("nav.integrations")} active={props.integrationsActive} onClick={props.onOpenIntegrations} testid="nav-connectors" />
+        <NavItem icon="audit" label={t("nav.audit")} active={props.auditActive} onClick={props.onOpenAudit} testid="nav-audit" />
+      </nav>
+
+      <div className="px-2.5 mt-1.5">
         <button
-          className={
-            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-bg hover:text-ink " +
-            (props.scheduledActive ? "text-ink bg-bg" : "text-muted")
-          }
-          data-testid="nav-automations"
-          onClick={props.onOpenScheduled}
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12px] text-left text-muted hover:bg-bg hover:text-ink"
+          data-testid="nav-trust"
+          onClick={() => props.onOpenPrivacy?.()}
         >
-          <Icon name="clock" size={15} className="shrink-0" />
-          <span className="flex-1">{t("nav.scheduled", undefined, "Automations")}</span>
+          <Icon name="shield" size={14} className="shrink-0" />
+          <span className="min-w-0 truncate">{t("nav.trustStatus", { level: trustLevel })}</span>
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">
         <div className="space-y-4">
           {pinned.length > 0 && <TaskBand title={t("common.pinned", undefined, "Pinned")}>{pinned.map(row)}</TaskBand>}
           {automations.length > 0 && (
@@ -641,8 +668,46 @@ export function Sidebar(props: Props) {
           <SidebarFooterIcon icon="plug" label={t("nav.integrations", undefined, "Connectors")} active={props.integrationsActive} onClick={props.onOpenIntegrations} testid="sidebar-footer-integrations" />
           <SidebarFooterIcon icon="gear" label={t("nav.settings", undefined, "Settings")} onClick={props.onManage} testid="sidebar-footer-settings" />
         </div>
+        <div className="flex items-center gap-2 px-1.5 pt-1.5 text-[12.5px] text-muted" data-testid="nav-user">
+          <span className="w-6 h-6 rounded-full bg-selected grid place-items-center shrink-0" aria-hidden>
+            <span className="w-2 h-2 rounded-full bg-selected-ink" />
+          </span>
+          <span className="min-w-0 truncate">{t("nav.localDevice")}</span>
+        </div>
       </div>
     </div>
+  );
+}
+
+function NavItem({
+  icon,
+  label,
+  active,
+  onClick,
+  badge,
+  testid,
+}: {
+  icon: IconName;
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  badge?: number;
+  testid: string;
+}) {
+  return (
+    <button
+      className={
+        "w-full h-8 flex items-center gap-2.5 px-2.5 rounded-lg text-[13px] text-left transition-colors " +
+        (active ? "bg-selected text-selected-ink font-medium" : "text-muted hover:bg-bg hover:text-ink")
+      }
+      data-testid={testid}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+    >
+      <Icon name={icon} size={15} className="shrink-0" />
+      <span className="flex-1 min-w-0 truncate">{label}</span>
+      {badge ? <AttnBadge n={badge} /> : null}
+    </button>
   );
 }
 
