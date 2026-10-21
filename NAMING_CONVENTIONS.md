@@ -2,7 +2,7 @@
 
 本文说明本仓库的命名约定入口。跨仓库的规范命名规则维护在 Action Worker 中：
 
-- https://github.com/fongap-labs/action-worker/blob/main/docs/NAMING_CONVENTIONS.md
+- https://github.com/fongap-labs/action-worker/blob/main/docs/03_NAMING_CONVENTIONS.md
 
 本仓库不复制中央命名规范。
 
