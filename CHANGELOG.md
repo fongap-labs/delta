@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- chore: enforce the Conventional Commits subject locally like the central gate does. `.githooks/commit-msg` (install with `git config core.hooksPath .githooks`, or through the new commit-msg hook in `.pre-commit-config.yaml`) accepts the eleven engineering types, exempts `Merge`/`Revert` subjects and refuses non-ASCII text. CONTRIBUTING.md documents the subject format, the CHANGELOG entry rule and where the release flow is driven from.
 - fix: the three root certificate advisories of 2026-10-19 are cleared by the lockfile. `rustls-webpki` moves to 0.103.16, `webpki-roots` to 1.0.10 and `webpki-root-certs` to 1.0.10, in the four workspaces that carry them; `rustls-webpki` could accept a distrusted intermediate certificate, and the two root stores still shipped an emSign root whose intermediate private keys are public. One advisory stays on the list: `webpki-roots 0.26.11` is the wrapper `ureq 2.12.1` requires, it resolves the fixed 1.0.10 root store, and the 0.26 line has no upstream release, so it is accepted with the impact, exploitability, mitigation and upgrade plan in `docs/governance/OPEN_ITEMS.md`, section 6.3.
 
 - fix: the Python advisory scan of the central CI passes again. `certifi` moves to 2026.10.19, because the pinned 2026.7.22 is affected by PYSEC-2026-4320, a certificate parsing defect published on 2026-10-19.

@@ -53,3 +53,9 @@ repos:
         types: [python, rust]
         pass_filenames: false
         always_run: true
+      - id: conventional-commit-msg
+        name: Conventional Commit Subject
+        entry: .githooks/commit-msg
+        language: system
+        stages: [commit-msg]
+        always_run: true
