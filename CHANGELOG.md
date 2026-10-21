@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the naming gate no longer reads a Rust unit-test module as production code. Delta keeps some unit-test modules in their own `tests.rs` file next to the code they cover, and the checker only excluded inline `#[cfg(test)]` sections and `test_*.rs` files, so every descriptive test function name in those modules was reported as a violation. The gate was red on `main` and the three test modules are all declared under `#[cfg(test)]`, so no runtime code is affected.
+
 - feat: the desktop sidebar groups Conversations, Task center, Automations, Inbox, Connectors and Audit, and shows the workspace's egress level under them. The right rail gains a Permissions section (this session's approval decisions) and a footer that opens Audit. Outbound messages under "Ask each time", connector writes, and any approval the user chooses in General settings open a confirmation dialog. Audit shows counts for the loaded records and a View source link to each record's conversation.
 
 - build: accept the six Rust advisories that have no upstream fix yet. The `zip` extraction advisories and the unmaintained `zvariant` crates are recorded with their impact, exploitability, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md; the policy itself is unchanged.

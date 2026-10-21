@@ -143,13 +143,24 @@ def _strip_rust_tests(text: str) -> str:
     return text if marker < 0 else text[:marker]
 
 
+def is_rust_test_file(path: Path) -> bool:
+    """Report whether a Rust file holds unit tests rather than runtime code.
+
+    Delta keeps some unit-test modules inline and some in their own module file
+    next to the code they cover. Both forms are excluded from the production
+    naming surface, so the test function names stay descriptive.
+    """
+    stem = path.stem
+    return stem == "tests" or stem.endswith("_tests") or stem.startswith("test_")
+
+
 def check_rust(errors: list[str]) -> None:
     rust_paths = [
         path
         for path in ROOT.rglob("*.rs")
         if not is_skipped(path)
         and "tests" not in path.parts
-        and not path.name.startswith("test_")
+        and not is_rust_test_file(path)
     ]
     fn_pattern = re.compile(
         r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)"
