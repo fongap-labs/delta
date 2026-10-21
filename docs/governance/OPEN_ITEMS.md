@@ -38,7 +38,7 @@
 
 ## 6. Rust 依赖公告例外
 
-RustSec 于 2026-10-17 发布的新公告使 `cargo deny check advisories` 在四个工作区失败。`deny.toml` 现接受以下例外，每条都写明影响、可利用性、缓解措施与后续计划；复审日期 **2027-01-31**。
+RustSec 于 2026-10-17 与 2026-10-19 两批公告使 `cargo deny check advisories` 在四个工作区失败。`deny.toml` 现接受以下例外，每条都写明影响、可利用性、缓解措施与后续计划；复审日期 **2027-01-31**。
 
 ### 6.1 zip 提取类漏洞（RUSTSEC-2026-0367 / 0368 / 0369）
 
@@ -53,3 +53,10 @@ RustSec 于 2026-10-17 发布的新公告使 `cargo deny check advisories` 在�
 - 可利用性：停止维护不等于漏洞，这三条公告没有可利用的缺陷，只表示上游不再修复。
 - 缓解措施：不降低 `unmaintained = "all"` 的整体口径，例外只针对这三个 crate。
 - 后续：等 Tauri 插件支持 `zbus 6.0.0`（`zbus 6` 已移除 `zvariant` / `zbus_names`）后升级插件，并删除这三条例外；在此之前保持当前 Tauri 版本，不为消除告警而引入 alpha 插件。
+
+### 6.3 根证书信任链类漏洞（RUSTSEC-2026-0381 / 0382 / 0383）
+
+- 现状：三条公告都指向 TLS 根证书与校验链。`RUSTSEC-2026-0382`（`rustls-webpki` 可能接受不受信的中间证书）与 `RUSTSEC-2026-0383`（`webpki-root-certs` 打包了已被 distrusted 的 emSign 根）已随锁文件把 `rustls-webpki` 升到 0.103.16、`webpki-root-certs` 升到 1.0.10、`webpki-roots` 升到 1.0.10 消除。`RUSTSEC-2026-0381`（`webpki-roots` 打包了已被 distrusted 的 emSign 根）仍剩一处：Delta 直接依赖 `ureq 2`，它引入 `webpki-roots 0.26.11`；该 wrapper 本身依赖 `webpki-roots ^1.0`，锁文件现已解析到修复版 1.0.10，但 `ureq 2.12.1` 是 2.x 的最后一个版本，钉死 `webpki-roots ^0.26`，而 0.26.x 没有修复版（修复从 1.0.10 起）。
+- 可利用性：需要 emSign 中间证书的私钥（已公开）才能构造被误信的证书链，属于中间人攻击，条件苛刻但不为零。Delta 桌面端的网络访问经 Tauri 插件，模型与浏览器请求走各自的客户端；受影响的 `ureq` 只用于 MCP 运行时与模型权威的出站请求。
+- 缓解措施：锁文件把 `webpki-roots` 固定在 1.0.10，实际使用的根证书集已不含该根；`ureq` 的出站请求已关闭重定向并对解析出的地址做固定。
+- 后续：① 把 `crates/delta-core` 的 `ureq = "2"` 迁到 `ureq 3`（`ureq 3` 依赖 `webpki-roots 1.x`），随后删除本例外；② 迁移要改写 `crates/delta-core/src/mcp_runtime.rs` 的 TLS 连接器实现（`ureq::TlsConnector` 与 `ReadWrite` 在 3.x 改了 trait 形状），且必须保留现有的地址固定与重定向关闭语义；③ 迁移完成后本节与 `deny.toml` 中的 0381 例外一并删除。

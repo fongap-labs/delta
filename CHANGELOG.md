@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- fix: the three root certificate advisories of 2026-10-19 are cleared by the lockfile. `rustls-webpki` moves to 0.103.16, `webpki-roots` to 1.0.10 and `webpki-root-certs` to 1.0.10, in the four workspaces that carry them; `rustls-webpki` could accept a distrusted intermediate certificate, and the two root stores still shipped an emSign root whose intermediate private keys are public. One advisory stays on the list: `webpki-roots 0.26.11` is the wrapper `ureq 2.12.1` requires, it resolves the fixed 1.0.10 root store, and the 0.26 line has no upstream release, so it is accepted with the impact, exploitability, mitigation and upgrade plan in `docs/governance/OPEN_ITEMS.md`, section 6.3.
+
+- fix: the Python advisory scan of the central CI passes again. `certifi` moves to 2026.10.19, because the pinned 2026.7.22 is affected by PYSEC-2026-4320, a certificate parsing defect published on 2026-10-19.
+
+- fix: the naming gate no longer reads a Rust unit-test module as production code. Delta keeps some unit-test modules in their own `tests.rs` file next to the code they cover, and the checker only excluded inline `#[cfg(test)]` sections and `test_*.rs` files, so every descriptive test function name in those modules was reported as a violation. The gate was red on `main` and the three test modules are all declared under `#[cfg(test)]`, so no runtime code is affected.
+
 - fix: the naming gate no longer reads a Rust unit-test module as production code. Delta keeps some unit-test modules in their own `tests.rs` file next to the code they cover, and the checker only excluded inline `#[cfg(test)]` sections and `test_*.rs` files, so every descriptive test function name in those modules was reported as a violation. The gate was red on `main` and the three test modules are all declared under `#[cfg(test)]`, so no runtime code is affected.
 
 - feat: the desktop sidebar groups Conversations, Task center, Automations, Inbox, Connectors and Audit, and shows the workspace's egress level under them. The right rail gains a Permissions section (this session's approval decisions) and a footer that opens Audit. Outbound messages under "Ask each time", connector writes, and any approval the user chooses in General settings open a confirmation dialog. Audit shows counts for the loaded records and a View source link to each record's conversation.
