@@ -91,6 +91,21 @@ R6 正在执行。PR #203 已落地 Rust RuntimeHost 与 Tauri 直接 IPC；Desk
 
 仍需迁移：Python Application Control Plane、TurnEngine、Provider fallback、Capability Workerization 与持久化的 Python 后端（persistent Python backend）。
 
+## 提交信息（Conventional Commits）
+
+- 提交（即 Squash merge 后的 PR 标题）使用 `type(scope): summary` 格式，类型限定 11 种：`build`、`chore`、`ci`、`docs`、`feat`、`fix`、`perf`、`refactor`、`revert`、`style`、`test`。
+- 破坏性变更用 `!`（如 `feat(api)!: drop the v1 protocol`）或正文中的 `BREAKING CHANGE` 脚注声明；安全、迁移等以属性标注（`feat [security]:`）。
+- 摘要使用英文工程文本；非 ASCII、`Merge`/`Revert` 以外的裸消息会被拒绝。
+- 权威定义见 `fongap-labs/action-worker` 的 `docs/04_CHANGELOG_CONVENTIONS.md`；本仓库与中心 PR 门禁都执行同一套规则，本地的 `.githooks/commit-msg` 只是提前反馈。
+
+本地安装消息校验：
+
+```bash
+git config core.hooksPath .githooks
+# 或者使用 pre-commit（已包含 commit-msg 阶段的同一校验）：
+pre-commit install --hook-type commit-msg
+```
+
 ## 分支与 PR
 
 常规开发从 `main` 创建分支：
