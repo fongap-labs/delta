@@ -5,17 +5,18 @@
 # License posture: Rust dependencies must resolve to an explicitly accepted SPDX
 # license family. New license families require a deliberate policy change.
 
-[advisories]
-unmaintained = "all"
-ignore = [
-    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4, transitive build dep; unmaintained, no vulnerability" },
-    { id = "RUSTSEC-2026-0367", reason = "zip keeps SUID/SGID bits while extracting; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
-    { id = "RUSTSEC-2026-0368", reason = "zip extract creates symlinks that point outside the destination; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
-    { id = "RUSTSEC-2026-0369", reason = "zip extract applies Unix permissions through symlinks; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
-    { id = "RUSTSEC-2026-0370", reason = "zvariant is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
-    { id = "RUSTSEC-2026-0371", reason = "zbus_names is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
-    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
-]
+  [advisories]
+  unmaintained = "all"
+  ignore = [
+      { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4, transitive build dep; unmaintained, no vulnerability" },
+      { id = "RUSTSEC-2026-0367", reason = "zip keeps SUID/SGID bits while extracting; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0368", reason = "zip extract creates symlinks that point outside the destination; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0369", reason = "zip extract applies Unix permissions through symlinks; Delta never extracts an archive to disk and the locked zip 2.4.2 (sherpa-onnx-sys) and 4.6.1 (tauri-plugin-updater) have no patched upstream release yet; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0370", reason = "zvariant is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0371", reason = "zbus_names is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0381", reason = "webpki-roots 0.26.11 is the wrapper ureq 2.12.1 requires, and the lockfile now resolves webpki-roots 1.0.10, the fixed root store; the 0.26 line has no upstream release and the patched range starts at 1.0.10, so only moving to ureq 3 leaves this advisory behind; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+  ]
 
 [licenses]
 confidence-threshold = 0.8
