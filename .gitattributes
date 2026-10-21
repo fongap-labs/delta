@@ -22,3 +22,9 @@ test/** linguist-detectable=false
 **/conftest.py linguist-detectable=false
 e2e/** linguist-detectable=false
 **/e2e/** linguist-detectable=false
+# The changelog only grows, and every change adds its entry at the top of the
+# unreleased section. Two changes that are open at the same time therefore touch the
+# same lines, and the merge stops with a conflict that has to be resolved by hand.
+# Unioning keeps the entries of both sides, which is what an append-only changelog
+# wants anyway.
+CHANGELOG.md merge=union
