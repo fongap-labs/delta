@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: extension capabilities are locked down. Every tool an extension registers is forced to high risk and requires user approval, and its secret grants are cut to the ones declared for its connector. Connector, web, browser and MCP tools always require approval no matter what their manifest declares, and the desktop UI can only invoke its three browser state tools instead of any registered capability.
+
 - fix: the Python advisory scan of the central CI passes again. `pypdf` moves to 6.21.2, because the pinned 6.19.0 is affected by five PDF parsing advisories published against it (CVE-2026-113786, CVE-2026-113792, CVE-2026-113793, CVE-2026-113794, CVE-2026-113795). The lockfile carries the new release and the project dependency stays pinned.
 
 - docs: replace the duplicated release governance with a pointer to the central guide, and fix the dead link to the naming conventions.

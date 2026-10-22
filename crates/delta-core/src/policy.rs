@@ -263,6 +263,14 @@ pub fn classify(
 
     let base = band_level(&risk, requires_approval, &category, metadata);
 
+    // Any connection that leaves the local machine requires user approval.
+    // An extension or connector tool that reads a third-party account, fetches
+    // a web page, or sends content outbound is consequential, so the runtime
+    // always asks the user — regardless of what the manifest declared.
+    if OUTBOUND_CATEGORIES.contains(&category.as_str()) && base < RiskLevel::L2 {
+        return RiskLevel::L2;
+    }
+
     // Sensitivity: L3 touching sensitive resource escalates to L4.
     if base == RiskLevel::L3 && touches_sensitive_resource(arguments) {
         return RiskLevel::L4;
@@ -270,6 +278,9 @@ pub fn classify(
 
     base
 }
+
+/// Categories whose tools make a connection that leaves the local machine.
+const OUTBOUND_CATEGORIES: &[&str] = &["connector", "web", "browser", "mcp"];
 
 /// Compute base risk level from metadata (no argument inspection).
 fn band_level(

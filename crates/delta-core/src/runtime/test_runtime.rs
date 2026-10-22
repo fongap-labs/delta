@@ -2826,7 +2826,7 @@ fn ask_each_time_asks_for_an_outbound_call_even_when_the_tool_needs_no_approval(
 }
 
 #[test]
-fn a_local_process_tool_is_refused_under_private_only_and_runs_when_open() {
+fn a_local_process_tool_is_refused_under_private_only_and_runs_after_approval_when_open() {
     let temp = tempfile::tempdir().unwrap();
     let calls = Arc::new(AtomicUsize::new(0));
     let (host, _authorities) = outbound_host(
@@ -2851,11 +2851,30 @@ fn a_local_process_tool_is_refused_under_private_only_and_runs_when_open() {
         outbound_contract("local_notes", "mcp", false, "local_process"),
         open_calls.clone(),
     );
-    let result = open_host.execute_tool_call(&ToolCall {
-        id: "call-local-open".to_string(),
-        name: "local_notes".to_string(),
-        arguments: json!({}),
+    // MCP tools ask for approval under every egress level, even when the manifest
+    // declares no approval and the server runs on this machine.
+    let open_host = Arc::new(open_host);
+    let worker_host = open_host.clone();
+    let worker = std::thread::spawn(move || {
+        worker_host.execute_tool_call(&ToolCall {
+            id: "call-local-open".to_string(),
+            name: "local_notes".to_string(),
+            arguments: json!({}),
+        })
     });
+    for _ in 0..200 {
+        if open_host.approvals.pending_ids() == ["call-local-open"] {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(open_host.approvals.pending_ids(), ["call-local-open"]);
+    assert_eq!(open_calls.load(Ordering::SeqCst), 0);
+    open_host
+        .approvals
+        .resolve(Some("call-local-open"), ApprovalDecision::Once)
+        .unwrap();
+    let result = worker.join().unwrap();
     assert!(result.error.is_none(), "{:?}", result.error);
     assert_eq!(open_calls.load(Ordering::SeqCst), 1);
 }
@@ -2911,11 +2930,28 @@ fn a_local_server_the_user_marked_local_only_runs_under_private_only() {
         calls.clone(),
     );
     crate::egress::set_local_only(temp.path(), "notes", true, true).unwrap();
-    let result = host.execute_tool_call(&ToolCall {
-        id: "call-notes".to_string(),
-        name: "notes_search".to_string(),
-        arguments: json!({}),
+    // The egress level lets a local server run; the MCP category still asks.
+    let host = Arc::new(host);
+    let worker_host = host.clone();
+    let worker = std::thread::spawn(move || {
+        worker_host.execute_tool_call(&ToolCall {
+            id: "call-notes".to_string(),
+            name: "notes_search".to_string(),
+            arguments: json!({}),
+        })
     });
+    for _ in 0..200 {
+        if host.approvals.pending_ids() == ["call-notes"] {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(host.approvals.pending_ids(), ["call-notes"]);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    host.approvals
+        .resolve(Some("call-notes"), ApprovalDecision::Once)
+        .unwrap();
+    let result = worker.join().unwrap();
     assert!(result.error.is_none(), "{:?}", result.error);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }

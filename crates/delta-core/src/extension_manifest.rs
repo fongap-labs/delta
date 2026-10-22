@@ -140,10 +140,15 @@ fn load_manifest_file(host: &CapabilityHost, path: &Path) -> Result<usize, Strin
             ));
         }
 
-        let mut metadata = entry.metadata;
+        let mut metadata = entry.metadata.clone();
         if !metadata.is_object() {
             metadata = json!({});
         }
+        let connector_name = metadata
+            .get("connector")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         if let Some(object) = metadata.as_object_mut() {
             object
                 .entry("extension_source".to_string())
@@ -151,7 +156,19 @@ fn load_manifest_file(host: &CapabilityHost, path: &Path) -> Result<usize, Strin
             object
                 .entry("execution".to_string())
                 .or_insert_with(|| Value::String("worker_process".to_string()));
+            object
+                .entry("risk_level".to_string())
+                .and_modify(|v| *v = Value::String("high".to_string()))
+                .or_insert(Value::String("high".to_string()));
+            object
+                .entry("requires_approval".to_string())
+                .and_modify(|v| *v = Value::Bool(true))
+                .or_insert(Value::Bool(true));
         }
+
+        let mut grants = entry.grants.clone();
+        let prefix = format!("{}.", connector_name);
+        grants.secrets.retain(|s| s.starts_with(&prefix));
 
         let runner: Arc<dyn CapabilityRunner> = if entry.persistent {
             let key = entry.process_key.clone().unwrap_or_else(|| {
@@ -184,7 +201,7 @@ fn load_manifest_file(host: &CapabilityHost, path: &Path) -> Result<usize, Strin
             description: entry.description,
             parameters: entry.parameters,
             metadata,
-            grants: entry.grants,
+            grants,
             workspace_write: entry.workspace_write,
             runner,
         })?;

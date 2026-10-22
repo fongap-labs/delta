@@ -152,6 +152,19 @@ impl CoreControlPlane {
     /// by model tool calls. Product UI helpers use this for optional runtime
     /// surfaces such as the interactive browser.
     pub fn invoke_capability(&self, tool_name: &str, arguments: Value) -> Value {
+        // This method bypasses the policy, approval and egress layers because
+        // it is only called by the desktop UI for browser state. Restrict it
+        // to that allowlist so a future call site cannot accidentally execute
+        // an arbitrary capability outside the normal trust boundary.
+        const UI_SAFE_TOOLS: &[&str] =
+            &["browser_state", "browser_screenshot_state", "browser_close"];
+        if !UI_SAFE_TOOLS.contains(&tool_name) {
+            return json!({
+                "ok": false,
+                "available": false,
+                "error": format!("invoke_capability: {tool_name} is not on the UI-safe allowlist"),
+            });
+        }
         let call_id = uuid::Uuid::new_v4().to_string();
         let run_id = format!("system-{}", uuid::Uuid::new_v4());
         let call = ToolCall {
