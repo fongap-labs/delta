@@ -324,7 +324,7 @@ fn windows_internet_proxy() -> Option<String> {
     // A per-protocol value (`http=…;https=…;ftp=…`) is not a URL; taking the first
     // server is the best reading available without a full IE parser.
     let first = value.split(';').next().unwrap_or(value);
-    let first = first.split('=').last().unwrap_or(first);
+    let first = first.split('=').next_back().unwrap_or(first);
     if first.is_empty() {
         None
     } else {
