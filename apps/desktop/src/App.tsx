@@ -181,6 +181,12 @@ export function App() {
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+  // When the current turn started, for the "Processed m分ss秒" line. Kept while the turn runs and
+  // cleared when it ends; a turn re-attached mid-run starts counting from when we noticed it.
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  useEffect(() => {
+    setTurnStartedAt((started) => (isRunning ? started ?? Date.now() : null));
+  }, [isRunning]);
   // Set from Stop until the run actually ends, so the button answers at once.
   const [isStopping, setStopping] = useState(false);
   // Provider failure the runtime is retrying on its own: "connecting, attempt N of M". Cleared by
@@ -996,7 +1002,7 @@ export function App() {
     // R5.1 C3: human-readable lightweight run status, localized (the run-state word itself is
     // rendered by RunStatusBar).
     if (retryInfo)
-      return tr("run.detail.reconnecting", { n: retryInfo.attempt, max: retryInfo.max });
+      return tr("run.detail.retrying", { n: retryInfo.attempt, max: retryInfo.max });
     if (isStopping) return tr("run.detail.stopping");
     if (stepInfo) return tr("run.detail.step", { n: stepInfo.n, label: stepInfo.label });
     if (reasoningStream) return tr("run.detail.thinking");
@@ -1711,7 +1717,7 @@ export function App() {
                     !isCompacting &&
                     !reasoningStream &&
                     (!streaming || streamMode(streaming, items, isRunning) === "hold") &&
-                    !isLastAssistant(items) && <WaitingForAgent />}
+                    !isLastAssistant(items) && <LiveRunStatus startedAt={turnStartedAt} retry={retryInfo} />}
                   {streaming && streamMode(streaming, items, isRunning) === "answer" && (
                     <div className="transcript">
                       <div className="bubble-assistant">
@@ -1869,6 +1875,45 @@ function isLastAssistant(items: Item[]): boolean {
     return item.kind === "assistant";
   }
   return false;
+}
+
+// The foot of a running transcript: how long the turn has run, over a hairline, then what it is
+// waiting on: a provider retry (with its attempt count) or the agent itself.
+function LiveRunStatus({
+  startedAt,
+  retry,
+}: {
+  startedAt: number | null;
+  retry: { attempt: number; max: number } | null;
+}) {
+  const { t } = useI18n();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  const minutes = Math.floor(seconds / 60);
+  const elapsed =
+    minutes > 0
+      ? t("run.elapsed.minutes", { m: minutes, s: seconds % 60 }, `${minutes}m ${seconds % 60}s`)
+      : t("run.elapsed.seconds", { s: seconds }, `${seconds}s`);
+  return (
+    <div className="live-run-status" aria-live="polite">
+      {startedAt && <div className="live-run-elapsed">{t("run.processed", { time: elapsed }, `Processed ${elapsed}`)}</div>}
+      {retry ? (
+        <div className="waiting-row live-run-retry">
+          <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
+          <span>{t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)}</span>
+        </div>
+      ) : (
+        <div className="waiting-row">
+          <span className="spinner" aria-hidden="true" />
+          <span>{t("transcript.waitingForAgent", undefined, "Waiting for agent…")}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function WaitingForAgent({ label }: { label?: string }) {

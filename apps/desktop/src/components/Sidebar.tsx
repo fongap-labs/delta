@@ -82,10 +82,8 @@ function LiveDot({ state }: { state?: "working" | "sleeping" | "idle" }) {
   const { t } = useI18n();
   if (state !== "working" && state !== "sleeping") return null;
   return state === "working" ? (
-    // Running = the shared neutral spinner arc (shape, not a coloured dot); static under reduced motion.
-    <span className="run-spin flex shrink-0 text-ink" role="img" aria-label={t("nav.working", undefined, "Working now")} title={t("nav.working", undefined, "Working now")}>
-      <Icon name="spinner" size={13} />
-    </span>
+    // Running = a small primary dot; the sleeping state below stays a grey dot.
+    <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" role="img" aria-label={t("nav.working", undefined, "Working now")} title={t("nav.working", undefined, "Working now")} />
   ) : (
     <span className="w-1.5 h-1.5 rounded-full bg-faint/60 shrink-0" title={t("nav.sleeping", undefined, "Sleeping (will wake itself)")} />
   );
