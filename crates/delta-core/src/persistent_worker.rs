@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::capability::CapturedLines;
 use crate::capability::{
     CapabilityControl, CapabilityJob, CapabilityProgress, CapabilityResult, CapabilityRunner,
     CAPABILITY_ABI_VERSION,
@@ -221,7 +222,7 @@ impl CapabilityRunner for PersistentWorkerProcessRunner {
         }
 
         let deadline = Instant::now() + Duration::from_secs(job.timeout_secs.max(1));
-        let mut stderr_lines = Vec::new();
+        let mut stderr_lines = CapturedLines::new();
         loop {
             while let Ok(line) = worker.stderr.try_recv() {
                 stderr_lines.push(line);
@@ -229,11 +230,13 @@ impl CapabilityRunner for PersistentWorkerProcessRunner {
 
             if control.is_cancelled() {
                 Self::reset(&mut guard);
-                return CapabilityResult::cancelled(&job.job_id).with_stderr(stderr_lines);
+                return CapabilityResult::cancelled(&job.job_id)
+                    .with_stderr(stderr_lines.into_vec());
             }
             if Instant::now() >= deadline {
                 Self::reset(&mut guard);
-                return CapabilityResult::timed_out(&job.job_id).with_stderr(stderr_lines);
+                return CapabilityResult::timed_out(&job.job_id)
+                    .with_stderr(stderr_lines.into_vec());
             }
 
             match worker.stdout.recv_timeout(Duration::from_millis(50)) {
@@ -269,9 +272,9 @@ impl CapabilityRunner for PersistentWorkerProcessRunner {
                             "persistent worker returned a result for the wrong job",
                             Some("worker_protocol"),
                         )
-                        .with_stderr(stderr_lines);
+                        .with_stderr(stderr_lines.into_vec());
                     }
-                    return result.with_stderr(stderr_lines);
+                    return result.with_stderr(stderr_lines.into_vec());
                 }
                 Err(RecvTimeoutError::Timeout) => continue,
                 Err(RecvTimeoutError::Disconnected) => {
@@ -281,7 +284,7 @@ impl CapabilityRunner for PersistentWorkerProcessRunner {
                         "persistent worker exited before returning a result",
                         Some("worker_exit"),
                     )
-                    .with_stderr(stderr_lines);
+                    .with_stderr(stderr_lines.into_vec());
                 }
             }
         }
