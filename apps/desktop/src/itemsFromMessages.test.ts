@@ -2,7 +2,8 @@
 // counts) must surface on the replayed tool item — and only there; the
 // agent-visible content string carries no trace.
 import { describe, expect, it } from "vitest";
-import { itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import type { Item } from "./types";
+import { currentTurnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
 
 describe("itemsFromMessages _display sidecar", () => {
   it("attaches hidden counts to the matching tool item", () => {
@@ -141,5 +142,23 @@ describe("itemsFromMessages retries", () => {
       { role: "notice", kind: "retrying", text: "Retrying (attempt 1/2)" },
     ] as any);
     expect(items).toHaveLength(1);
+  });
+});
+
+describe("currentTurnToolNames", () => {
+  it("counts only the tool calls since the last user message", () => {
+    const items: Item[] = [
+      { kind: "user", text: "first" },
+      { kind: "tool", id: "a", name: "web_search", args: {}, status: "ok" },
+      { kind: "tool", id: "b", name: "web_fetch", args: {}, status: "ok" },
+      { kind: "assistant", text: "answer", ts: 1 },
+      { kind: "user", text: "second" },
+      { kind: "tool", id: "c", name: "web_search", args: {}, status: "…" },
+    ];
+    expect(currentTurnToolNames(items)).toEqual(["web_search"]);
+  });
+
+  it("is empty for a request that has not called a tool yet", () => {
+    expect(currentTurnToolNames([{ kind: "user", text: "hi" }])).toEqual([]);
   });
 });

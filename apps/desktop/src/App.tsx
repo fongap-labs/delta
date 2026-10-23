@@ -46,7 +46,7 @@ import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
-import { itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { currentTurnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
 import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
@@ -1835,7 +1835,7 @@ export function App() {
             active={surface === "session" && !isRailHidden}
             sessionId={sessionId}
             refreshKey={browserRefreshKey}
-            toolNames={items.filter((i) => i.kind === "tool").map((i: any) => i.name)}
+            toolNames={currentTurnToolNames(items)}
             todo={todo}
             running={isRunning}
             onPreviewChange={onArtifactPreview}
