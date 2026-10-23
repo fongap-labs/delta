@@ -609,7 +609,7 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
   // ANSWER and render as bubbles after the group; interior assistant texts are narration and
   // stay inside. A run with no activity at all is just bubbles (unchanged chat behavior).
-  const blocks: Array<{ turn: TurnItem[]; isLive?: boolean; reasoning?: string } | { item: Item; i: number }> = [];
+  const blocks: Array<{ turn: TurnItem[]; isLive?: boolean } | { item: Item; i: number }> = [];
   let run: TurnItem[] = [];
   const flush = (isLive = false) => {
     if (!run.length) return;
@@ -623,14 +623,8 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
       while (turn.length && turn[turn.length - 1].kind === "assistant")
         answers.unshift(turn.pop() as AssistantItem);
     if (turn.some((it) => it.kind !== "assistant")) {
-      // The turn's thinking is lifted out of its answer and shown above the steps, so the
-      // order reads thinking → steps → answer rather than steps → thinking.
-      const reasoning = [...turn, ...answers]
-        .map((it) => (it.kind === "assistant" ? it.reasoning : undefined))
-        .filter((r): r is string => !!r)
-        .join("\n\n");
-      blocks.push({ turn, isLive, ...(reasoning ? { reasoning } : {}) });
-      answers.forEach((a) => blocks.push({ item: a.reasoning ? { ...a, reasoning: undefined } : a, i: -1 }));
+      blocks.push({ turn, isLive });
+      answers.forEach((a) => blocks.push({ item: a, i: -1 }));
     } else {
       turn.forEach((t) => blocks.push({ item: t, i: -1 }));
       answers.forEach((a) => blocks.push({ item: a, i: -1 }));
@@ -653,6 +647,25 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
     }
   });
   flush(!!running);
+
+  // One thinking disclosure per user message. A message's thinking can span several model calls
+  // (tool steps, a retry after a dropped connection), and all of it belongs to that message, so it
+  // is collected here and rendered once, under the user message that opened the span. Owner -1 is
+  // a span before any user message.
+  const spanThinking = new Map<number, string[]>();
+  let spanOwner = -1;
+  items.forEach((item, i) => {
+    if (item.kind === "user") spanOwner = i;
+    else if (item.kind === "assistant" && item.reasoning)
+      spanThinking.set(spanOwner, [...(spanThinking.get(spanOwner) ?? []), item.reasoning]);
+  });
+  const liveOwner = spanOwner;
+  const thinkingFor = (owner: number): { text: string; isLive: boolean } | null => {
+    const parts = [...(spanThinking.get(owner) ?? [])];
+    const isLive = !!running && owner === liveOwner && !!liveReasoning;
+    if (isLive && liveReasoning) parts.push(liveReasoning);
+    return parts.length ? { text: parts.join("\n\n"), isLive } : null;
+  };
 
   const deliveredFiles = deliveredSinceUser(items);
   const stepsInLastRequest = stepsSinceUser(items);
@@ -740,17 +753,15 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
   let lastDay: string | null = null;
   return (
     <div className="transcript">
+      {thinkingFor(-1) && <ThinkingBlock key={thinkingFor(-1)!.isLive ? "live" : "done"} text={thinkingFor(-1)!.text} isLive={thinkingFor(-1)!.isLive} />}
       {blocks.map((block, bi) => {
         const day = blockDays[bi];
         const showDivider = day !== null && day !== lastDay && day !== todayKey;
         if (day !== null) lastDay = day;
         const node = (() => {
         if ("turn" in block) {
-          // Thinking leads the turn: the live stream while it runs, otherwise the thinking the answer kept.
-          const thinking = [block.reasoning, block.isLive ? liveReasoning : undefined].filter(Boolean).join("\n\n");
           return (
             <Fragment key={bi}>
-              {thinking && <ThinkingBlock text={thinking} isLive={!!block.isLive && !!liveReasoning} />}
               <TurnGroup
                 items={block.turn}
                 isLive={block.isLive}
@@ -764,62 +775,61 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
         switch (item.kind) {
           case "connector":
             return <ConnectorMessageCard source={item.source} key={bi} />;
-          case "user":
+          case "user": {
+            const thinking = thinkingFor(block.i);
             return (
-              <div className="group self-end max-w-[78%] flex flex-col items-end" key={bi}>
-                <div className="bubble-user px-3.5 py-2.5 rounded-[14px_14px_4px_14px] bg-surface-2 text-ink text-[14.5px] leading-relaxed whitespace-pre-wrap">
-                  {item.attachments && item.attachments.length > 0 && (
-                    <div className="bubble-attachments">
-                      {item.attachments.map((a, i) =>
-                        a.kind === "image" ? (
-                          <img key={i} className="msg-img" src={a.data_url} alt={a.name} />
-                        ) : (
-                          <span key={i} className="msg-file">📄 {a.name}</span>
-                        ),
-                      )}
+              <Fragment key={bi}>
+              <div className="group self-end max-w-[78%] flex flex-col items-end">
+                  <div className="bubble-user px-3.5 py-2.5 rounded-[14px_14px_4px_14px] bg-surface-2 text-ink text-[14.5px] leading-relaxed whitespace-pre-wrap">
+                    {item.attachments && item.attachments.length > 0 && (
+                      <div className="bubble-attachments">
+                        {item.attachments.map((a, i) =>
+                          a.kind === "image" ? (
+                            <img key={i} className="msg-img" src={a.data_url} alt={a.name} />
+                          ) : (
+                            <span key={i} className="msg-file">📄 {a.name}</span>
+                          ),
+                        )}
+                      </div>
+                    )}
+                    <ClampedUserText text={item.text} />
+                  </div>
+                  {item.steer && (
+                    <div className="mt-1 text-[11px] text-faint" data-testid="steer-receipt">
+                      {t("transcript.steerAdded", undefined, "Added to the current task")}
                     </div>
                   )}
-                  <ClampedUserText text={item.text} />
-                </div>
-                {item.steer && (
-                  <div className="mt-1 text-[11px] text-faint" data-testid="steer-receipt">
-                    {t("transcript.steerAdded", undefined, "Added to the current task")}
-                  </div>
-                )}
-                <BubbleMeta
-                  text={item.text}
-                  ts={item.ts}
-                  align="right"
-                  actions={
-                    onEditMessage && item.index !== undefined ? (
-                      /* Edit = revert + prefill: the thread truncates back to before this
-                          message and the original text returns to the composer; re-send
-                          produces a fresh answer to the edited content. */
-                      <button
-                        className="flex items-center cursor-pointer hover:text-muted"
-                        title={t("transcript.editMessage", undefined, "编辑消息")}
-                        onClick={() => onEditMessage(item.index!)}
-                      >
-                        <Icon name="pencil" size={11} />
-                      </button>
-                    ) : undefined
-                  }
-                />
+                  <BubbleMeta
+                    text={item.text}
+                    ts={item.ts}
+                    align="right"
+                    actions={
+                      onEditMessage && item.index !== undefined ? (
+                        /* Edit = revert + prefill: the thread truncates back to before this
+                            message and the original text returns to the composer; re-send
+                            produces a fresh answer to the edited content. */
+                        <button
+                          className="flex items-center cursor-pointer hover:text-muted"
+                          title={t("transcript.editMessage", undefined, "编辑消息")}
+                          onClick={() => onEditMessage(item.index!)}
+                        >
+                          <Icon name="pencil" size={11} />
+                        </button>
+                      ) : undefined
+                    }
+                  />
               </div>
+              {thinking && <ThinkingBlock key={thinking.isLive ? "live" : "done"} text={thinking.text} isLive={thinking.isLive} />}
+              </Fragment>
             );
+          }
           case "assistant":
-            // Thinking-only item (stopped mid-reasoning): just the disclosure, no bubble.
-            if (!item.text && item.reasoning)
-              return (
-                <div key={bi}>
-                  <ThinkingBlock text={item.reasoning} />
-                </div>
-              );
+            // Thinking-only item (stopped mid-reasoning): no bubble; its thinking shows under the message.
+            if (!item.text && item.reasoning) return null;
             return (
               <div className="group bubble-assistant" key={bi}>
                 {/* No "assistant" speaker label — mainstream chat UIs distinguish by
                     alignment alone, and the label read as a stray "Agent" tag. */}
-                {item.reasoning && <ThinkingBlock text={item.reasoning} />}
                 <Markdown text={item.text} />
                 <BubbleMeta
                   text={item.text}
@@ -987,8 +997,6 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
           </div>
         );
       })}
-      {/* A reply with no tool activity yet has no step group to lead; its live thinking closes the transcript. */}
-      {liveReasoning && !blocks.some((b) => "turn" in b && b.isLive) && <ThinkingBlock text={liveReasoning} isLive />}
       {!running && (deliveredFiles.length > 0 || (onSaveAsSkill && stepsInLastRequest >= SKILL_MIN_STEPS)) && (
         <DeliveryCard
           files={deliveredFiles}

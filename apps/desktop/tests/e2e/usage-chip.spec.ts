@@ -61,8 +61,8 @@ test("usage resets on a new session", async ({ page }) => {
   await box.press("Enter");
   await expect(page.getByTestId("usage-chip")).toBeVisible({ timeout: 10_000 });
 
-  // "＋ New session" wipes the transcript — and the usage accumulation with it.
-  await page.getByRole("button", { name: /New task/ }).first().click();
+  // "New task" (⌘N) wipes the transcript — and the usage accumulation with it.
+  await page.keyboard.press("Control+n");
   await expect(page.getByTestId("usage-chip")).toHaveCount(0);
 });
 

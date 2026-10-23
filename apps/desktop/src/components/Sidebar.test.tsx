@@ -7,18 +7,12 @@ import type { SessionInfo } from "../types";
 
 const api = vi.hoisted(() => ({
   getAutomations: vi.fn().mockResolvedValue([]),
-  getEgressSettings: vi.fn().mockResolvedValue({ default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: [] }),
 }));
 
 vi.mock("../api", () => ({
   AUTOMATIONS_CHANGED: "delta:automations-changed",
   getAutomations: api.getAutomations,
-  getEgressSettings: api.getEgressSettings,
 }));
-
-function egressLevel(level: string | null, isChosen = true) {
-  return { default_level: level, is_chosen: isChosen, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: [] };
-}
 
 const SESSIONS: SessionInfo[] = [
   {
@@ -46,7 +40,6 @@ const SESSIONS: SessionInfo[] = [
 const baseProps = {
   sessions: SESSIONS,
   activeSession: "s-research-doe",
-  onNewSession: vi.fn(),
   onSelectSession: vi.fn(),
   onRenameSession: vi.fn(),
   onDeleteSession: vi.fn(),
@@ -80,11 +73,8 @@ afterEach(() => {
 });
 
 describe("Delta task sidebar", () => {
-  it("starts and selects Delta tasks without an identity picker", () => {
+  it("selects Delta tasks without an identity picker", () => {
     renderSidebar();
-
-    fireEvent.click(screen.getByText("New task"));
-    expect(baseProps.onNewSession).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByText("batch rename 100 images"));
     expect(baseProps.onSelectSession).toHaveBeenCalledWith(
@@ -143,70 +133,80 @@ describe("Delta task sidebar", () => {
   });
 });
 
-describe("Delta primary nav group (design 2:615)", () => {
+describe("Delta sidebar layout", () => {
   beforeEach(() => {
     api.getAutomations.mockResolvedValue([]);
-    api.getEgressSettings.mockResolvedValue(egressLevel("private_only"));
   });
 
-  it("lists the six primary destinations inside one navigation landmark", () => {
+  it("puts the collapse control and the four tool buttons in one top row", () => {
+    renderSidebar({ ...baseProps, onCollapse: vi.fn() });
+    const row = screen.getByLabelText("Collapse sidebar").parentElement;
+    for (const testid of [
+      "sidebar-footer-inbox",
+      "sidebar-footer-activity",
+      "sidebar-footer-integrations",
+      "sidebar-footer-settings",
+    ]) {
+      expect(row?.contains(screen.getByTestId(testid))).toBe(true);
+    }
+  });
+
+  it("lists the search field, then the conversation and automation destinations", () => {
     renderSidebar(baseProps);
+    const search = screen.getByTestId("nav-search");
     const nav = screen.getByRole("navigation", { name: "Primary" });
     const names = within(nav).getAllByRole("button").map((b) => b.textContent);
-    expect(names).toEqual(["Conversations", "Task center", "Automations", "Inbox", "Connectors", "Audit"]);
+    expect(names).toEqual(["Conversations", "Automations"]);
+    expect(search.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("routes each destination to its surface", () => {
-    const props = { ...baseProps, onOpenConversations: vi.fn(), onOpenPrivacy: vi.fn() };
+    const props = { ...baseProps, onOpenConversations: vi.fn(), onManage: vi.fn() };
     renderSidebar(props);
     fireEvent.click(screen.getByTestId("nav-conversations"));
     expect(props.onOpenConversations).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("nav-automations"));
     expect(baseProps.onOpenScheduled).toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("nav-inbox"));
+    fireEvent.click(screen.getByTestId("sidebar-footer-inbox"));
     expect(baseProps.onOpenInbox).toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("nav-connectors"));
+    fireEvent.click(screen.getByTestId("sidebar-footer-integrations"));
     expect(baseProps.onOpenIntegrations).toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("nav-audit"));
+    fireEvent.click(screen.getByTestId("sidebar-footer-activity"));
     expect(baseProps.onOpenAudit).toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("sidebar-footer-settings"));
+    expect(props.onManage).toHaveBeenCalled();
   });
 
-  it("marks the active destination with aria-current and the selected tokens", () => {
-    renderSidebar({ ...baseProps, conversationActive: false, auditActive: true });
-    expect(screen.getByTestId("nav-audit").getAttribute("aria-current")).toBe("page");
-    expect(screen.getByTestId("nav-audit").className).toContain("bg-selected");
-    expect(screen.getByTestId("nav-conversations").getAttribute("aria-current")).toBeNull();
+  it("marks the active destination with aria-current and aria-pressed", () => {
+    renderSidebar({ ...baseProps, conversationActive: true, auditActive: true });
+    expect(screen.getByTestId("nav-conversations").getAttribute("aria-current")).toBe("page");
+    expect(screen.getByTestId("sidebar-footer-activity").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("nav-automations").getAttribute("aria-current")).toBeNull();
   });
 
-  it("shows the attention total as the Inbox chip, without a separate fetch", () => {
+  it("shows the attention total on the Inbox button, without a separate fetch", () => {
     const sessions = [{ ...SESSIONS[0], attention: 3 }, SESSIONS[1]];
     renderSidebar({ ...baseProps, sessions });
-    expect(within(screen.getByTestId("nav-inbox")).getByText("3")).toBeTruthy();
+    expect(within(screen.getByTestId("sidebar-footer-inbox")).getByText("3")).toBeTruthy();
   });
 
-  it("shows the default egress level in the trust row and opens Privacy on click", async () => {
-    const props = { ...baseProps, onOpenPrivacy: vi.fn() };
-    renderSidebar(props);
-    const trust = await screen.findByText("Local tools · Private only");
-    fireEvent.click(trust.closest("button")!);
-    expect(props.onOpenPrivacy).toHaveBeenCalledTimes(1);
-  });
-
-  it("says no level is chosen when the egress setting is not yet made", async () => {
-    api.getEgressSettings.mockResolvedValue(egressLevel(null, false));
+  it("no longer carries the task-center, connectors/audit rows, trust row, new-task button or user row", () => {
     renderSidebar(baseProps);
-    expect(await screen.findByText("Local tools · No level chosen")).toBeTruthy();
+    expect(screen.queryByText("New task")).toBeNull();
+    expect(screen.queryByTestId("nav-task-center")).toBeNull();
+    expect(screen.queryByTestId("nav-inbox")).toBeNull();
+    expect(screen.queryByTestId("nav-connectors")).toBeNull();
+    expect(screen.queryByTestId("nav-audit")).toBeNull();
+    expect(screen.queryByTestId("nav-trust")).toBeNull();
+    expect(screen.queryByTestId("nav-user")).toBeNull();
   });
 
-  it("the task center entry returns to the conversation view and the top of the task list", () => {
-    const props = { ...baseProps, onOpenConversations: vi.fn() };
-    renderSidebar(props);
-    fireEvent.click(screen.getByTestId("nav-task-center"));
-    expect(props.onOpenConversations).toHaveBeenCalledTimes(1);
-  });
+  it("offers a left-edge resize handle only while the sidebar is docked", () => {
+    const { unmount } = renderSidebar({ ...baseProps, onResize: vi.fn(), resizeMaxWidth: () => 600 });
+    expect(screen.getByRole("separator", { name: "Resize left sidebar" })).toBeTruthy();
+    unmount();
 
-  it("shows the local device in the user row", () => {
-    renderSidebar(baseProps);
-    expect(within(screen.getByTestId("nav-user")).getByText("Local")).toBeTruthy();
+    renderSidebar({ ...baseProps, onResize: vi.fn(), resizeMaxWidth: () => 600, collapsed: true });
+    expect(screen.queryByRole("separator")).toBeNull();
   });
 });

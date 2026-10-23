@@ -1,15 +1,12 @@
-// AccessSection — the rail's "what can this session touch" section (§32; absorbs the §23
-// Session-settings drawer and retires the topbar row/glance). One collapsible rail section:
-//   · header: "Access" + a permanent summary ("Slack, GitHub · 2 folders") — the §23 trust
-//     glance made ambient. Ships collapsed; expanding edits INLINE at rail width (no overlay).
+// AccessSection — the sources and folders this session can touch. It is the body of the rail's
+// Permissions section (the former standalone "Access" section is folded into it):
 //   · Sources — Connected toggles (per-session mute), Recommended (connect-in-context), and the
 //     two-way connectors' channels drill-down — the drawer's content, recut.
 //   · Folders — the session's working directories (add/remove, RO/RW gate, branch).
-// Owns its data (GET /v1/sessions/{id}/connections + the connector index), like the settings
-// row before it. Deep links (intro "Configure ›", onboarding "Start working") bump `openKey`
-// to expand it and scroll it into view.
+// Owns its data (GET /v1/sessions/{id}/connections + the connector index). It mounts with the
+// Permissions section, so opening that section refetches everything it shows.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, type Ref } from "react";
 import {
   getConnectors,
   getRecentChannels,
@@ -25,7 +22,6 @@ import {
 } from "../api";
 import { ConnectorBadge } from "../features/connectors/ConnectorIcon";
 import { indexConnectors, labelFor, visualFor, type ConnectorMap } from "../features/connectors/visuals";
-import { baseName } from "../paths";
 import { useRoots } from "../useRoots";
 import { AddFolderForm } from "./AddFolderForm";
 import { Icon } from "./Icon";
@@ -48,30 +44,23 @@ const BTN_BORDERED =
 
 export function AccessSection({
   sessionId,
-  projectScoped,
-  workspace,
   branch,
   scratchPrimary,
-  openKey = 0,
+  sectionRef,
   onOpenIntegrations,
 }: {
   sessionId: string;
-  // Project-scoped tasks summarize the folder name, not a count.
-  projectScoped?: boolean;
-  workspace?: string;
   branch?: string | null;
   scratchPrimary?: boolean;
-  // Bumped by deep links ("Configure ›", onboarding's Start-working) → expand + scroll here.
-  openKey?: number;
+  // The rail scrolls this into view on a deep link ("Configure ›", onboarding's Start-working).
+  sectionRef?: Ref<HTMLDivElement>;
   onOpenIntegrations?: () => void;
 }) {
-  const [isOpen, setOpen] = useState(false);
   const { t } = useI18n();
   const [conns, setConns] = useState<SessionConnections | null>(null);
   const [byName, setByName] = useState<ConnectorMap>({});
   const { roots, isBusy: rootsBusy, error: rootsError, addRoot, toggleAccess, removeRoot } =
-    useRoots(sessionId, isOpen ? 1 : 0);
-  const rootEl = useRef<HTMLElement | null>(null);
+    useRoots(sessionId);
 
   const reload = useCallback(() => {
     getSessionConnections(sessionId)
@@ -82,8 +71,8 @@ export function AccessSection({
     reload();
   }, [reload]);
 
-  // The connector index feeds brand colors and gates the "Channels ·" links; refetch on every
-  // expand so a single failed fetch at mount can't hide them for the session's whole lifetime.
+  // The connector index feeds brand colors and gates the "Channels ·" links. It loads on every
+  // mount, so a single failed fetch can't hide them for as long as the section stays open.
   useEffect(() => {
     let isLive = true;
     getConnectors()
@@ -92,16 +81,7 @@ export function AccessSection({
     return () => {
       isLive = false;
     };
-  }, [isOpen]);
-
-  // Deep link: expand + scroll into view (ignore the mount value).
-  const seenKey = useRef(openKey);
-  useEffect(() => {
-    if (openKey === seenKey.current) return;
-    seenKey.current = openKey;
-    setOpen(true);
-    setTimeout(() => rootEl.current?.scrollIntoView({ block: "nearest" }), 30);
-  }, [openKey]);
+  }, []);
 
   // Child views (connect-in-context / channels drill-down) replace the section body inline.
   const [channelsFor, setChannelsFor] = useState<string | null>(null);
@@ -122,22 +102,9 @@ export function AccessSection({
   const [addErr, setAddErr] = useState<string | null>(null);
   const loadSubs = () => getSubscriptions().then(setSubs).catch(() => setSubs([]));
   useEffect(() => {
-    if (!isOpen) return;
     loadSubs();
     getRecentChannels().then(setRecent).catch(() => setRecent([]));
-  }, [isOpen]);
-
-  // Collapsing the section also closes any child view — reopening starts at the top level.
-  useEffect(() => {
-    if (!isOpen) {
-      setChannelsFor(null);
-      setConnectFor(null);
-      setAdding(false);
-      setQuery("");
-      setAddedFrom(null);
-      setAddingFolder(false);
-    }
-  }, [isOpen]);
+  }, []);
 
   const toggleSession = async (connector: string, isNext: boolean) => {
     await setSessionConnection(sessionId, connector, isNext);
@@ -165,7 +132,6 @@ export function AccessSection({
 
   const connected = conns?.connected ?? [];
   const recommended = conns?.recommended ?? [];
-  const live = connected.filter((c) => c.enabled);
 
   // Catalog list: available, not already in the Connected list (those have toggles above).
   // Empty query = the whole catalog (FB-012 — the list renders before any typing); a query
@@ -186,270 +152,244 @@ export function AccessSection({
     )
     .sort((a, b) => a.title.localeCompare(b.title));
 
-  // The header summary — the §23 glance, permanent: live source names + the folder fact.
-  const names = live.map((c) => labelFor(c.connector, byName));
-  const sourcesPart =
-    names.length === 0
-      ? t("access.noSources", undefined, "no sources")
-      : names.length <= 2
-        ? names.join(", ")
-        : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
-  const folderPart = projectScoped
-    ? baseName(workspace || roots.find((r) => r.primary)?.path || "") || null
-    : roots.length > 0
-      ? t("access.folderCount", { n: roots.length, s: roots.length === 1 ? "" : "s" }, `${roots.length} folder${roots.length === 1 ? "" : "s"}`)
-      : null;
-  const summary = [sourcesPart, folderPart].filter(Boolean).join(" · ");
-
   return (
-    <section className="rail-section" ref={rootEl} data-testid="access-section">
-      <div className="rail-section-head">
-        <button className="rail-section-toggle" onClick={() => setOpen((v) => !v)} data-testid="access-toggle">
-          <Icon name={isOpen ? "chevronDown" : "chevronRight"} size={14} className="rail-chev" />
-          <span>{t('access.sectionTitle', undefined, 'Access')}</span>
-          <span
-            className="ml-auto min-w-0 truncate text-[11px] font-normal text-faint"
-            data-testid="access-summary"
-            title={summary}
-          >
-            {summary}
-          </span>
-        </button>
-      </div>
-      {isOpen && (
-        <div className="rail-section-body" role="region" aria-label={t("access.sessionAccessAria", undefined, "Session access")}>
-          {connectFor ? (
-            <ConnectInline
-              c={connectFor}
-              onDone={() => {
-                const name = connectFor.name;
-                setConnectFor(null);
-                if (addedFrom === name) {
-                  // Added from THIS session's panel → also enable it here explicitly (a
-                  // catalog connector need not already have a session override).
-                  setAddedFrom(null);
-                  setSessionConnection(sessionId, name, true)
-                    .catch(() => {})
-                    .finally(reload);
-                  return;
-                }
-                reload();
-              }}
-              onBack={() => {
-                setConnectFor(null);
-                setAddedFrom(null);
-              }}
-            />
-          ) : channelsFor ? (
-            <ChannelsInline
-              label={labelFor(channelsFor, byName)}
-              channels={channelsOf(channelsFor)}
-              recent={recent}
-              draft={draft}
-              onDraft={(v) => {
-                setDraft(v);
-                setAddErr(null);
-              }}
-              onAdd={addChannel}
-              error={addErr}
-              onRemove={removeChannel}
-              onBack={() => setChannelsFor(null)}
-            />
-          ) : (
-            <div className="space-y-4">
-              {/* Sources — each toggle is a per-session override (mute for THIS session only). */}
-              <div>
-                <div className={`${SEC_H} mb-1.5`}>{t("access.sources", undefined, "Sources")}</div>
-                {connected.length === 0 && (
-                  <div className="text-[12px] text-faint py-0.5">
-                    {t("access.noConnectors", undefined, "No connectors enabled for this session.")}
-                  </div>
-                )}
-                <div className="space-y-1">
-                  {connected.map((c) => (
-                    <div className="flex items-center gap-2 py-1" key={c.connector}>
-                      <ConnectorBadge connector={visualFor(c.connector, "connector", byName)} size={24} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[12.5px] font-medium leading-tight truncate">
-                          <span>{labelFor(c.connector, byName)}</span>
-                          {c.detail && <span className="text-faint font-normal"> · {c.detail}</span>}
-                        </div>
-                        {byName[c.connector]?.channels && (
-                          <button
-                            className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
-                            onClick={() => {
-                              setDraft("");
-                              setChannelsFor(c.connector);
-                            }}
-                          >
-                            {t("access.channelsCount", { n: channelsOf(c.connector).length }, `Channels · ${channelsOf(c.connector).length}`)}
-                            <Icon name="chevronRight" size={10} />
-                          </button>
-                        )}
-                      </div>
-                      <Toggle
-                        checked={c.enabled}
-                        onChange={(isNext) => toggleSession(c.connector, isNext)}
-                        title={t("access.toggleTitle", undefined, "Enabled for this session — tap to mute here")}
-                      />
-                    </div>
-                  ))}
-                </div>
-                {connected.length > 0 && (
-                  <p className="text-[10.5px] text-faint mt-1 leading-snug">
-                    {t("access.offHint", undefined, "Off mutes it for ")}
-                    <b>{t("access.offHintEm", undefined, "this session only")}</b>
-                    {t("access.offHintTail", undefined, " — the connector stays connected.")}
-                  </p>
-                )}
-                {/* §32 addendum (owner ask 2026-07-13; FB-012): the catalog's long tail,
-                    in-session. A quiet row that becomes a typeahead: full list on focus,
-                    filter as you type. */}
-                {isAdding ? (
-                  <div className="mt-1.5">
-                    <input
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-line bg-panel text-[12.5px] outline-none focus:border-primary"
-                      placeholder={t("access.searchPlaceholder", undefined, "Search connectors…")}
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setAdding(false);
-                          setQuery("");
-                        }
-                      }}
-                      autoFocus
-                      data-testid="access-add-search"
-                    />
-                    {results.length === 0 && (
-                      // Also covers a failed/empty catalog fetch: an open picker must never
-                      // be silently blank — point at the Connectors page either way.
-                      <div className="text-[11.5px] text-faint mt-1.5 px-0.5">
-                        {t("access.noMatch", undefined, "No match — see all on the Connectors page below.")}
-                      </div>
-                    )}
-                    <div className="mt-1 max-h-64 overflow-y-auto">
-                      {results.map((c) => (
-                        <button
-                          key={c.name}
-                          className="w-full flex items-center gap-2 py-1.5 px-0.5 rounded-lg text-left hover:bg-bg"
-                          data-testid={`access-add-${c.name}`}
-                          onClick={() => {
-                            setAdding(false);
-                            setQuery("");
-                            setAddedFrom(c.name);
-                            setConnectFor(c);
-                          }}
-                        >
-                          <ConnectorBadge connector={visualFor(c.name, "connector", byName)} size={22} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[12.5px] font-medium leading-tight">
-                              {c.title}
-                            </span>
-                            <span className="block text-[11px] text-faint truncate">
-                              {t("connectors." + c.name + ".blurb", undefined, c.blurb)}
-                            </span>
-                          </span>
-                          <Icon name="chevronRight" size={11} className="text-faint shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    className="mt-1 text-[12px] text-primary hover:underline text-left"
-                    onClick={() => setAdding(true)}
-                    data-testid="access-add-source"
-                  >
-                    {t("access.addSource", undefined, "+ Add a source…")}
-                  </button>
-                )}
-                {/* Lives with its list (tester ask 2026-07-26): each group's manage link sits
-                    directly under that group, not pooled at the section's bottom. */}
-                <button
-                  className="mt-1.5 block text-[12px] text-primary font-medium hover:underline text-left"
-                  onClick={() => onOpenIntegrations?.()}
-                >
-                  {t("access.manageAll", undefined, "Manage all connectors (global) →")}
-                </button>
+    <div
+      ref={sectionRef}
+      className="mt-4 pt-3 border-t border-line"
+      data-testid="access-section"
+      role="region"
+      aria-label={t("access.sessionAccessAria", undefined, "Session access")}
+    >
+      {connectFor ? (
+        <ConnectInline
+          c={connectFor}
+          onDone={() => {
+            const name = connectFor.name;
+            setConnectFor(null);
+            if (addedFrom === name) {
+              // Added from THIS session's panel → also enable it here explicitly (a
+              // catalog connector need not already have a session override).
+              setAddedFrom(null);
+              setSessionConnection(sessionId, name, true)
+                .catch(() => {})
+                .finally(reload);
+              return;
+            }
+            reload();
+          }}
+          onBack={() => {
+            setConnectFor(null);
+            setAddedFrom(null);
+          }}
+        />
+      ) : channelsFor ? (
+        <ChannelsInline
+          label={labelFor(channelsFor, byName)}
+          channels={channelsOf(channelsFor)}
+          recent={recent}
+          draft={draft}
+          onDraft={(v) => {
+            setDraft(v);
+            setAddErr(null);
+          }}
+          onAdd={addChannel}
+          error={addErr}
+          onRemove={removeChannel}
+          onBack={() => setChannelsFor(null)}
+        />
+      ) : (
+        <div className="space-y-4">
+          {/* Sources — each toggle is a per-session override (mute for THIS session only). */}
+          <div>
+            <div className={`${SEC_H} mb-1.5`}>{t("access.sources", undefined, "Sources")}</div>
+            {connected.length === 0 && (
+              <div className="text-[12px] text-faint py-0.5">
+                {t("access.noConnectors", undefined, "No connectors enabled for this session.")}
               </div>
-
-              {recommended.length > 0 && (
-                <div>
-                  <div className={`${SEC_H} mb-1.5`}>{t("access.recommended", undefined, "Recommended")}</div>
-                  <div className="space-y-1">
-                    {recommended.map((r) => (
-                      <div className="flex items-center gap-2 py-1" key={r.connector}>
-                        <ConnectorBadge connector={visualFor(r.connector, "connector", byName)} size={24} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 text-[12.5px] font-medium leading-tight">
-                            <span className="truncate">{labelFor(r.connector, byName)}</span>
-                            {r.tier === "core" && <span className={TAG_CORE}>{t("access.core", undefined, "core")}</span>}
-                          </div>
-                          <div className="text-[11px] text-faint truncate" title={r.reason}>
-                            {r.reason}
-                          </div>
-                        </div>
-                        <button
-                          className={r.tier === "core" ? BTN_ACCENT : BTN_BORDERED}
-                          onClick={() => {
-                            // Connect IN CONTEXT when we ship this connector; unknown refs
-                            // (no descriptor) still fall back to the global page.
-                            const desc = byName[r.connector];
-                            if (desc) setConnectFor(desc);
-                            else onOpenIntegrations?.();
-                          }}
-                        >
-                          {t("access.connect", undefined, "Connect")}
-                        </button>
-                      </div>
-                    ))}
+            )}
+            <div className="space-y-1">
+              {connected.map((c) => (
+                <div className="flex items-center gap-2 py-1" key={c.connector}>
+                  <ConnectorBadge connector={visualFor(c.connector, "connector", byName)} size={24} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-medium leading-tight truncate">
+                      <span>{labelFor(c.connector, byName)}</span>
+                      {c.detail && <span className="text-faint font-normal"> · {c.detail}</span>}
+                    </div>
+                    {byName[c.connector]?.channels && (
+                      <button
+                        className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+                        onClick={() => {
+                          setDraft("");
+                          setChannelsFor(c.connector);
+                        }}
+                      >
+                        {t("access.channelsCount", { n: channelsOf(c.connector).length }, `Channels · ${channelsOf(c.connector).length}`)}
+                        <Icon name="chevronRight" size={10} />
+                      </button>
+                    )}
                   </div>
+                  <Toggle
+                    checked={c.enabled}
+                    onChange={(isNext) => toggleSession(c.connector, isNext)}
+                    title={t("access.toggleTitle", undefined, "Enabled for this session — tap to mute here")}
+                  />
                 </div>
-              )}
-
-              {/* Working directories — standing session config (§22/§23 lineage). Flat rows +
-                  a quiet "+" link, structurally identical to Sources (owner ask 2026-07-13:
-                  the old drawer's card wrapper read too heavy in the rail). */}
-              <div data-testid="drawer-directories">
-                <div className={`${SEC_H} mb-1.5`}>{t("access.folders", undefined, "Folders")}</div>
-                <div className="-mx-1.5">
-                  {roots.map((r) => (
-                    <RootRow
-                      key={r.path}
-                      root={r}
-                      busy={rootsBusy}
-                      scratchPrimary={scratchPrimary}
-                      branch={r.primary ? branch : undefined}
-                      onToggle={toggleAccess}
-                      onRemove={removeRoot}
-                    />
+              ))}
+            </div>
+            {connected.length > 0 && (
+              <p className="text-[10.5px] text-faint mt-1 leading-snug">
+                {t("access.offHint", undefined, "Off mutes it for ")}
+                <b>{t("access.offHintEm", undefined, "this session only")}</b>
+                {t("access.offHintTail", undefined, " — the connector stays connected.")}
+              </p>
+            )}
+            {/* §32 addendum (owner ask 2026-07-13; FB-012): the catalog's long tail,
+                in-session. A quiet row that becomes a typeahead: full list on focus,
+                filter as you type. */}
+            {isAdding ? (
+              <div className="mt-1.5">
+                <input
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-line bg-panel text-[12.5px] outline-none focus:border-primary"
+                  placeholder={t("access.searchPlaceholder", undefined, "Search connectors…")}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setAdding(false);
+                      setQuery("");
+                    }
+                  }}
+                  autoFocus
+                  data-testid="access-add-search"
+                />
+                {results.length === 0 && (
+                  // Also covers a failed/empty catalog fetch: an open picker must never
+                  // be silently blank — point at the Connectors page either way.
+                  <div className="text-[11.5px] text-faint mt-1.5 px-0.5">
+                    {t("access.noMatch", undefined, "No match — see all on the Connectors page below.")}
+                  </div>
+                )}
+                <div className="mt-1 max-h-64 overflow-y-auto">
+                  {results.map((c) => (
+                    <button
+                      key={c.name}
+                      className="w-full flex items-center gap-2 py-1.5 px-0.5 rounded-lg text-left hover:bg-bg"
+                      data-testid={`access-add-${c.name}`}
+                      onClick={() => {
+                        setAdding(false);
+                        setQuery("");
+                        setAddedFrom(c.name);
+                        setConnectFor(c);
+                      }}
+                    >
+                      <ConnectorBadge connector={visualFor(c.name, "connector", byName)} size={22} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[12.5px] font-medium leading-tight">
+                          {c.title}
+                        </span>
+                        <span className="block text-[11px] text-faint truncate">
+                          {t("connectors." + c.name + ".blurb", undefined, c.blurb)}
+                        </span>
+                      </span>
+                      <Icon name="chevronRight" size={11} className="text-faint shrink-0" />
+                    </button>
                   ))}
                 </div>
-                {isAddingFolder ? (
-                  <div className="mt-1.5">
-                    <AddFolderForm
-                      onAdd={addRoot}
-                      busy={rootsBusy}
-                      startOpen
-                      onDismiss={() => setAddingFolder(false)}
-                    />
+              </div>
+            ) : (
+              <button
+                className="mt-1 text-[12px] text-primary hover:underline text-left"
+                onClick={() => setAdding(true)}
+                data-testid="access-add-source"
+              >
+                {t("access.addSource", undefined, "+ Add a source…")}
+              </button>
+            )}
+            {/* Lives with its list (tester ask 2026-07-26): each group's manage link sits
+                directly under that group, not pooled at the section's bottom. */}
+            <button
+              className="mt-1.5 block text-[12px] text-primary font-medium hover:underline text-left"
+              onClick={() => onOpenIntegrations?.()}
+            >
+              {t("access.manageAll", undefined, "Manage all connectors (global) →")}
+            </button>
+          </div>
+
+          {recommended.length > 0 && (
+            <div>
+              <div className={`${SEC_H} mb-1.5`}>{t("access.recommended", undefined, "Recommended")}</div>
+              <div className="space-y-1">
+                {recommended.map((r) => (
+                  <div className="flex items-center gap-2 py-1" key={r.connector}>
+                    <ConnectorBadge connector={visualFor(r.connector, "connector", byName)} size={24} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-[12.5px] font-medium leading-tight">
+                        <span className="truncate">{labelFor(r.connector, byName)}</span>
+                        {r.tier === "core" && <span className={TAG_CORE}>{t("access.core", undefined, "core")}</span>}
+                      </div>
+                      <div className="text-[11px] text-faint truncate" title={r.reason}>
+                        {r.reason}
+                      </div>
+                    </div>
+                    <button
+                      className={r.tier === "core" ? BTN_ACCENT : BTN_BORDERED}
+                      onClick={() => {
+                        // Connect IN CONTEXT when we ship this connector; unknown refs
+                        // (no descriptor) still fall back to the global page.
+                        const desc = byName[r.connector];
+                        if (desc) setConnectFor(desc);
+                        else onOpenIntegrations?.();
+                      }}
+                    >
+                      {t("access.connect", undefined, "Connect")}
+                    </button>
                   </div>
-                ) : (
-                  <button
-                    className="mt-1 text-[12px] text-primary hover:underline text-left"
-                    onClick={() => setAddingFolder(true)}
-                  >
-                    {t("access.addFolder", undefined, "+ Give access to a folder…")}
-                  </button>
-                )}
-                {rootsError && <div className="roots-err">{rootsError}</div>}
+                ))}
               </div>
             </div>
           )}
+
+          {/* Working directories — standing session config (§22/§23 lineage). Flat rows +
+              a quiet "+" link, structurally identical to Sources (owner ask 2026-07-13:
+              the old drawer's card wrapper read too heavy in the rail). */}
+          <div data-testid="drawer-directories">
+            <div className={`${SEC_H} mb-1.5`}>{t("access.folders", undefined, "Folders")}</div>
+            <div className="-mx-1.5">
+              {roots.map((r) => (
+                <RootRow
+                  key={r.path}
+                  root={r}
+                  busy={rootsBusy}
+                  scratchPrimary={scratchPrimary}
+                  branch={r.primary ? branch : undefined}
+                  onToggle={toggleAccess}
+                  onRemove={removeRoot}
+                />
+              ))}
+            </div>
+            {isAddingFolder ? (
+              <div className="mt-1.5">
+                <AddFolderForm
+                  onAdd={addRoot}
+                  busy={rootsBusy}
+                  startOpen
+                  onDismiss={() => setAddingFolder(false)}
+                />
+              </div>
+            ) : (
+              <button
+                className="mt-1 text-[12px] text-primary hover:underline text-left"
+                onClick={() => setAddingFolder(true)}
+              >
+                {t("access.addFolder", undefined, "+ Give access to a folder…")}
+              </button>
+            )}
+            {rootsError && <div className="roots-err">{rootsError}</div>}
+          </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 

@@ -1,15 +1,11 @@
-// The rail's Access section (§32 — absorbs the §23 Session-settings drawer; the topbar
-// row/glance machinery is retired). Contract: the header carries a PERMANENT summary of what
-// the session can touch; expanding edits inline at rail width (no overlay, no dialog).
-// Fixture state: browser + slack + github connected/enabled (github is two_way WITHOUT
-// channels — relay mentions, no subscriptions), gmail recommended-not-connected, one
-// primary root → summary "Browser, Slack +1 · 1 folder".
+// The rail's Access sources and folders (§32). They sit inside the rail's Permissions section,
+// which is open by default, so there is no separate Access header to expand. Fixture state:
+// browser + slack + github connected/enabled (github is two_way WITHOUT channels — relay
+// mentions, no subscriptions), gmail recommended-not-connected, one primary root.
 import { expect } from "@playwright/test";
 import { test } from "./fixtures";
 
-test("no topbar opener; the Access header IS the ambient glance; expanding edits inline", async ({
-  page,
-}) => {
+test("Access lives inside Permissions; sources and folders render inline", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Draft the launch note").first().click();
 
@@ -17,15 +13,10 @@ test("no topbar opener; the Access header IS the ambient glance; expanding edits
   await expect(page.getByRole("button", { name: "Open session settings" })).toHaveCount(0);
   await expect(page.getByTestId("session-settings-row")).toHaveCount(0);
 
-  // The trust surface is ambient: the collapsed header always shows the summary — and no
-  // nudge text ever renders at rest (§23's rule carried over).
+  // Sources (per-session toggles), Recommended (with its reason), Folders — all inline in the
+  // Permissions section; no dialog appears anywhere.
   const section = page.getByTestId("access-section");
-  await expect(section.getByTestId("access-summary")).toHaveText("Browser, Slack +1 · 1 folder");
-  await expect(section.getByText(/recommended/i)).toHaveCount(0);
-
-  // Expand → Sources (per-session toggles), Recommended (with its reason), Folders — all
-  // inline in the rail; no dialog appears anywhere.
-  await section.getByTestId("access-toggle").click();
+  await expect(section.locator("xpath=ancestor::section[1]").locator(".rail-section-toggle")).toHaveText("Permissions");
   const body = page.getByRole("region", { name: "Session access" });
   await expect(body.getByText("Sources")).toBeVisible();
   await expect(body.getByText("Slack", { exact: true })).toBeVisible();
@@ -44,7 +35,6 @@ test("+ Add a source: full catalog on focus, filter as you type → connect-in-c
 }) => {
   await page.goto("/");
   await page.getByText("Draft the launch note").first().click();
-  await page.getByTestId("access-toggle").click();
 
   // Focusing the empty input shows the FULL catalog (FB-012) — every available connector
   // minus the already-connected three, before any typing.
@@ -82,15 +72,14 @@ test("+ Add a source: full catalog on focus, filter as you type → connect-in-c
   await expect(body.getByText("Slack", { exact: true })).toBeVisible();
 });
 
-test("per-session mute round-trips; the summary follows", async ({ page }) => {
+test("per-session mute round-trips", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Draft the launch note").first().click();
 
-  const section = page.getByTestId("access-section");
-  await section.getByTestId("access-toggle").click();
   const body = page.getByRole("region", { name: "Session access" });
-  // Muting Slack for this session drops it from the live summary (the fixture flips
-  // enabled on POST and the section reloads).
-  await body.getByTitle("Enabled for this session — tap to mute here").nth(1).click();
-  await expect(section.getByTestId("access-summary")).toHaveText("Browser, GitHub · 1 folder");
+  // Muting Slack for this session turns its switch off (the fixture flips enabled on POST and
+  // the section reloads).
+  const slackSwitch = body.getByRole("switch").nth(1);
+  await slackSwitch.click();
+  await expect(slackSwitch).toHaveAttribute("aria-checked", "false");
 });

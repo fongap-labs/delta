@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { modelAfterSettings } from "./modelSync";
 import {
   announceInboxUnlock,
@@ -46,7 +46,7 @@ import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
-import { itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { currentTurnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
 import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
@@ -77,6 +77,7 @@ import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
 import { EgressChoice } from "./components/EgressChoice";
+import { CENTER_MIN_WIDTH } from "./components/ColumnResizer";
 
 const newId = () => {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID().slice(0, 12);
@@ -109,6 +110,25 @@ function normalizeTodos(raw: unknown): TodoItem[] {
 }
 
 const NAV_COLLAPSED_KEY = "delta:nav-collapsed:v1";
+const NAV_WIDTH_KEY = "delta:nav-width:v1";
+const RAIL_WIDTH_KEY = "delta:rail-width:v1";
+const ARTIFACT_RAIL_WIDTH_KEY = "delta:artifact-rail-width:v1";
+const DEFAULT_NAV_WIDTH = 264;
+const DEFAULT_RAIL_WIDTH = 332;
+
+// A stored column width in px, or null when the user has never dragged that column.
+function readStoredWidth(key: string): number | null {
+  try {
+    const width = Number(localStorage.getItem(key));
+    return Number.isFinite(width) && width > 0 ? width : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWidth(key: string, width: number) {
+  try { localStorage.setItem(key, String(Math.round(width))); } catch { /* best effort */ }
+}
 
 export function App() {
   const [locale, setLocaleState] = useState<Locale>(() => normalizeLocale(navigator.language));
@@ -160,6 +180,12 @@ export function App() {
   const isRunningRef = useRef(false);
   useEffect(() => {
     isRunningRef.current = isRunning;
+  }, [isRunning]);
+  // When the current turn started, for the "Processed m分ss秒" line. Kept while the turn runs and
+  // cleared when it ends; a turn re-attached mid-run starts counting from when we noticed it.
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  useEffect(() => {
+    setTurnStartedAt((started) => (isRunning ? started ?? Date.now() : null));
   }, [isRunning]);
   // Set from Stop until the run actually ends, so the button answers at once.
   const [isStopping, setStopping] = useState(false);
@@ -251,6 +277,18 @@ export function App() {
     try { return localStorage.getItem(NAV_COLLAPSED_KEY) === "1"; } catch { return false; }
   });
   const [isNavPeek, setNavPeek] = useState(false);
+  // Column widths are set by dragging a column edge (or the arrow keys) and kept per device. Neither
+  // side column has a fixed ceiling: CENTER_MIN_WIDTH is what limits how far they can grow.
+  const [navWidth, setNavWidth] = useState(() => readStoredWidth(NAV_WIDTH_KEY) ?? DEFAULT_NAV_WIDTH);
+  const [railWidth, setRailWidth] = useState(() => readStoredWidth(RAIL_WIDTH_KEY) ?? DEFAULT_RAIL_WIDTH);
+  // The artifact reading panel keeps its own width; null means it has not been dragged yet.
+  const [artifactRailWidth, setArtifactRailWidth] = useState<number | null>(() => readStoredWidth(ARTIFACT_RAIL_WIDTH_KEY));
+  const [isArtifactOpen, setArtifactOpen] = useState(false);
+  useEffect(() => storeWidth(NAV_WIDTH_KEY, navWidth), [navWidth]);
+  useEffect(() => storeWidth(RAIL_WIDTH_KEY, railWidth), [railWidth]);
+  useEffect(() => {
+    if (artifactRailWidth !== null) storeWidth(ARTIFACT_RAIL_WIDTH_KEY, artifactRailWidth);
+  }, [artifactRailWidth]);
   // While an artifact preview is open we auto-collapse the nav (#3). Remember the pre-preview
   // collapse state so we can restore it on close — unless the user re-opened the nav meanwhile.
   const navBeforePreview = useRef<boolean | null>(null);
@@ -266,6 +304,7 @@ export function App() {
   // #3: collapse the nav while a full artifact preview is open, restore it on close (unless the
   // user manually toggled meanwhile). The collapse is transient — it never overwrites the pref.
   const onArtifactPreview = useCallback((open: boolean) => {
+    setArtifactOpen(open);
     if (open) {
       if (navBeforePreview.current === null) navBeforePreview.current = navCollapsed;
       setNavPeek(false);
@@ -796,6 +835,9 @@ export function App() {
           // "connecting, attempt N" in the status bar and keep the transcript free of errors.
           if (d.terminal === false) {
             setRetryInfo({ attempt: Number(d.attempt) || 2, max: Number(d.max_attempts) || Number(d.attempt) || 2 });
+            // The retried request thinks again from the start. Its failed attempt's partial thinking is
+            // dropped, so the one disclosure shows the attempt that produced the answer (as a reload does).
+            setReasoningStream("");
             break;
           }
           setRetryInfo(null);
@@ -963,7 +1005,7 @@ export function App() {
     // R5.1 C3: human-readable lightweight run status, localized (the run-state word itself is
     // rendered by RunStatusBar).
     if (retryInfo)
-      return tr("run.detail.reconnecting", { n: retryInfo.attempt, max: retryInfo.max });
+      return tr("run.detail.retrying", { n: retryInfo.attempt, max: retryInfo.max });
     if (isStopping) return tr("run.detail.stopping");
     if (stepInfo) return tr("run.detail.step", { n: stepInfo.n, label: stepInfo.label });
     if (reasoningStream) return tr("run.detail.thinking");
@@ -1326,6 +1368,15 @@ export function App() {
   const activeInfo = sessions.find((s) => s.session_id === sessionId);
   const activeTitle = activeInfo?.title || tr("nav.newSession");
 
+  // The right rail is only laid out on the session surface, and only while it is not hidden.
+  const railVisible = surface === "session" && !isRailHidden;
+  // The width the right rail takes now: the artifact panel's own width, or the rail's.
+  const railPx = isArtifactOpen ? (artifactRailWidth ?? window.innerWidth * 0.62) : railWidth;
+  const railCssWidth = isArtifactOpen && artifactRailWidth === null ? "62vw" : `${railPx}px`;
+  // Each side column may grow until the other one plus the centre column's minimum fill the window.
+  const maxNavWidth = () => window.innerWidth - (railVisible ? railPx : 0) - CENTER_MIN_WIDTH;
+  const maxRailWidth = () => window.innerWidth - (navCollapsed ? 0 : navWidth) - CENTER_MIN_WIDTH;
+
   const desktop = isTauri();
   // Dev-only: `?overlay=1` simulates the desktop overlay layout in the browser (adds the
   // tauri-overlay class + draws fake traffic lights at the real position) so the top-left can be
@@ -1380,6 +1431,7 @@ export function App() {
         (navCollapsed ? " nav-collapsed" : "") +
         (navCollapsed && isNavPeek ? " nav-peek" : "")
       }
+      style={{ "--nav-w": `${navWidth}px`, "--rail-w": railCssWidth } as CSSProperties}
     >
       {/* Dev-only fake traffic lights so ?overlay=1 previews the real desktop top-left. */}
       {simOverlay && (
@@ -1473,7 +1525,6 @@ export function App() {
       <Sidebar
         sessions={sessions}
         activeSession={sessionId}
-        onNewSession={startNewSession}
         onSelectSession={selectSession}
         onRenameSession={renameConversation}
         onDeleteSession={deleteConversation}
@@ -1491,8 +1542,6 @@ export function App() {
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
         onOpenConversations={() => setSurface("session")}
-        onOpenPrivacy={() => openSettings("privacy")}
-        surface={surface}
         conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
@@ -1501,6 +1550,8 @@ export function App() {
         collapsed={navCollapsed}
         onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
+        onResize={setNavWidth}
+        resizeMaxWidth={maxNavWidth}
       />
       {surface === "scheduled" ? (
         <ScheduledView
@@ -1644,7 +1695,7 @@ export function App() {
                     items={items}
                     onApprove={approve}
                     running={isRunning}
-                    liveReasoning={isRunning && !streaming ? reasoningStream : undefined}
+                    liveReasoning={isRunning ? reasoningStream : undefined}
                     onRetry={retry}
                     onSwitchModel={openModelSetup}
                     onSaveAsSkill={() => send(tr("skill.savePrompt"))}
@@ -1669,7 +1720,7 @@ export function App() {
                     !isCompacting &&
                     !reasoningStream &&
                     (!streaming || streamMode(streaming, items, isRunning) === "hold") &&
-                    !isLastAssistant(items) && <WaitingForAgent />}
+                    !isLastAssistant(items) && <LiveRunStatus startedAt={turnStartedAt} retry={retryInfo} />}
                   {streaming && streamMode(streaming, items, isRunning) === "answer" && (
                     <div className="transcript">
                       <div className="bubble-assistant">
@@ -1787,18 +1838,19 @@ export function App() {
             active={surface === "session" && !isRailHidden}
             sessionId={sessionId}
             refreshKey={browserRefreshKey}
-            toolNames={items.filter((i) => i.kind === "tool").map((i: any) => i.name)}
+            toolNames={currentTurnToolNames(items)}
             todo={todo}
             running={isRunning}
             onPreviewChange={onArtifactPreview}
             showArtifacts
-            workspace={workspace || undefined}
             branch={branch}
             scratchPrimary
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
             approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
             onOpenAudit={() => setSurface("audit")}
+            onResize={(width) => (isArtifactOpen ? setArtifactRailWidth(width) : setRailWidth(width))}
+            resizeMaxWidth={maxRailWidth}
           />
         </div>
       </div>
@@ -1826,6 +1878,45 @@ function isLastAssistant(items: Item[]): boolean {
     return item.kind === "assistant";
   }
   return false;
+}
+
+// The foot of a running transcript: how long the turn has run, over a hairline, then what it is
+// waiting on: a provider retry (with its attempt count) or the agent itself.
+function LiveRunStatus({
+  startedAt,
+  retry,
+}: {
+  startedAt: number | null;
+  retry: { attempt: number; max: number } | null;
+}) {
+  const { t } = useI18n();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  const minutes = Math.floor(seconds / 60);
+  const elapsed =
+    minutes > 0
+      ? t("run.elapsed.minutes", { m: minutes, s: seconds % 60 }, `${minutes}m ${seconds % 60}s`)
+      : t("run.elapsed.seconds", { s: seconds }, `${seconds}s`);
+  return (
+    <div className="live-run-status" aria-live="polite">
+      {startedAt && <div className="live-run-elapsed">{t("run.processed", { time: elapsed }, `Processed ${elapsed}`)}</div>}
+      {retry ? (
+        <div className="waiting-row live-run-retry">
+          <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
+          <span>{t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)}</span>
+        </div>
+      ) : (
+        <div className="waiting-row">
+          <span className="spinner" aria-hidden="true" />
+          <span>{t("transcript.waitingForAgent", undefined, "Waiting for agent…")}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function WaitingForAgent({ label }: { label?: string }) {

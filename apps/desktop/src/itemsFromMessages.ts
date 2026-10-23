@@ -141,3 +141,13 @@ export function withUserIndexes(current: Item[], persisted: Item[]): Item[] {
   }
   return out;
 }
+
+// Tool names of the current request only: everything after the last user message. The progress
+// panel counts these, so a new request starts from zero instead of carrying the session's total.
+export function currentTurnToolNames(items: Item[]): string[] {
+  let from = 0;
+  items.forEach((it, i) => {
+    if (it.kind === "user") from = i + 1;
+  });
+  return items.slice(from).flatMap((it) => (it.kind === "tool" ? [it.name] : []));
+}
