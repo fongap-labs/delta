@@ -1,7 +1,6 @@
 # Changelog
 
 ## [Unreleased]
-- 变更: 左侧栏顶部改为收起按钮与收件箱、活动、连接器、设置四个工具按钮，下方是搜索框与"对话"、"自动化"两项；去掉"新任务"按钮（⌘N 仍可用）、任务中心、底部用户行与"本地工具"状态行。右侧栏的"访问权限"并入"权限"。左右两栏宽度可拖动调整，不设固定上限，中间栏保留最小宽度。
 - 修复: worker 进程的 stdout/stderr 现在有上限（500 行 / 256 KiB），不再能撑爆宿主内存；`atomic_write_private` 在无法验证文件保护时改为报错；`request_directory` 批准目录时调用 `add_root` 使策略作用域真正生效；execution-grant JSON schema 对齐 `CapabilityGrants` Rust 结构；deny.toml 的 zip 公告理由修正为"更新器确实解包"；`i18n_parity_check.mjs` 补全实现；`EXEMPT_FILES` 重复键删除；`OPEN_ITEMS.md` 已解决的检查更新。
 
 
