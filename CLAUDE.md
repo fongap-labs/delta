@@ -28,11 +28,10 @@ This repository inherits Fongap Labs shared governance from [fongap-labs/action-
 
 ## Change conventions
 
-The PR Gate enforces these rules. Read the linked shared sections before opening a pull request; they are not repeated here.
+Pull request titles, changelog entries and language rules are defined in the shared governance and enforced by the PR Gate. Follow the linked sections; do not restate them here:
 
-- PR titles and engineering text (code comments, logs, test descriptions, configuration keys) are English. See `01_SHARED_GOVERNANCE.md` (language table) and `04_CHANGELOG_CONVENTIONS.md` §3.
-- Changelog entries go in a new fragment under `changelog.d/` (`04_CHANGELOG_CONVENTIONS.md` §4–§5). A pull request must not edit `CHANGELOG.md` `[Unreleased]`.
-- Human-facing documents (README, guides, governance notes) are Chinese.
+- Action Worker `docs/01_SHARED_GOVERNANCE.md` (language rules)
+- Action Worker `docs/04_CHANGELOG_CONVENTIONS.md` (§3 PR titles, §4–§5 changelog fragments)
 
 ## Precedence
 
