@@ -835,6 +835,9 @@ export function App() {
           // "connecting, attempt N" in the status bar and keep the transcript free of errors.
           if (d.terminal === false) {
             setRetryInfo({ attempt: Number(d.attempt) || 2, max: Number(d.max_attempts) || Number(d.attempt) || 2 });
+            // The retried request thinks again from the start. Its failed attempt's partial thinking is
+            // dropped, so the one disclosure shows the attempt that produced the answer (as a reload does).
+            setReasoningStream("");
             break;
           }
           setRetryInfo(null);
@@ -1692,7 +1695,7 @@ export function App() {
                     items={items}
                     onApprove={approve}
                     running={isRunning}
-                    liveReasoning={isRunning && !streaming ? reasoningStream : undefined}
+                    liveReasoning={isRunning ? reasoningStream : undefined}
                     onRetry={retry}
                     onSwitchModel={openModelSetup}
                     onSaveAsSkill={() => send(tr("skill.savePrompt"))}

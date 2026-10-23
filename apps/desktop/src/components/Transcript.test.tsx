@@ -404,3 +404,75 @@ describe("Resume on the Interrupted notice", () => {
     expect(interruptedAnchor(items)).toBe(-1);
   });
 });
+
+// One thinking disclosure per user message: the thinking of every model call in a message (tool
+// steps, a retry after a dropped connection) is one disclosure, under that message.
+describe("Transcript thinking per message", () => {
+  const tool = (id: string): Item => ({ kind: "tool", id, name: "web_search", args: { query: "news" }, status: "ok" });
+  const thoughts = (): number => screen.queryAllByTestId("thinking-toggle").length;
+
+  it("shows one thinking disclosure for a message whose reasoning spans tool steps", () => {
+    renderTranscript(
+      <Transcript
+        items={[
+          { kind: "user", text: "what happened today" },
+          { kind: "assistant", text: "", reasoning: "first plan", ts: 1 },
+          tool("a"),
+          { kind: "assistant", text: "", reasoning: "second plan", ts: 2 },
+          tool("b"),
+          { kind: "assistant", text: "here is the answer", reasoning: "final check", ts: 3 },
+        ]}
+        onApprove={vi.fn()}
+      />,
+    );
+    expect(thoughts()).toBe(1);
+  });
+
+  it("does not split a message's thinking when a notice breaks its steps into two groups", () => {
+    renderTranscript(
+      <Transcript
+        items={[
+          { kind: "user", text: "compare the two" },
+          { kind: "assistant", text: "", reasoning: "before the notice", ts: 1 },
+          tool("a"),
+          { kind: "notice", tone: "info", text: "Context compacted" },
+          { kind: "assistant", text: "", reasoning: "after the notice", ts: 2 },
+          tool("b"),
+        ]}
+        onApprove={vi.fn()}
+      />,
+    );
+    expect(thoughts()).toBe(1);
+  });
+
+  it("gives each user message its own single disclosure", () => {
+    renderTranscript(
+      <Transcript
+        items={[
+          { kind: "user", text: "first" },
+          { kind: "assistant", text: "one", reasoning: "r1", ts: 1 },
+          { kind: "user", text: "second" },
+          { kind: "assistant", text: "two", reasoning: "r2", ts: 2 },
+        ]}
+        onApprove={vi.fn()}
+      />,
+    );
+    expect(thoughts()).toBe(2);
+  });
+
+  it("keeps the live stream inside the message's single disclosure, not a second one below", () => {
+    renderTranscript(
+      <Transcript
+        items={[
+          { kind: "user", text: "check the news" },
+          { kind: "assistant", text: "", reasoning: "earlier thought", ts: 1 },
+          tool("a"),
+        ]}
+        onApprove={vi.fn()}
+        running
+        liveReasoning="still thinking"
+      />,
+    );
+    expect(thoughts()).toBe(1);
+  });
+});
