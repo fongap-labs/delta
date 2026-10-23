@@ -89,9 +89,9 @@ export function UpdateBanner() {
   const busy = phase === "downloading" || phase === "installing";
 
   return (
-    // Docked over the sidebar column (FB-002, owner call): 264px grid column minus the
-    // 12px side margins, bottom offset clearing the ~57px account row so the card sits
-    // just above it. z-[35]: above the account menu's click-away backdrop (z-30) so the
+    // Docked over the sidebar column (FB-002, owner call): the sidebar's minimum width
+    // (SIDEBAR_MIN_WIDTH) keeps the 240px card inside the column, bottom offset clearing the
+    // ~57px account row so the card sits just above it. z-[35]: above the account menu's click-away backdrop (z-30) so the
     // card stays clickable, but BELOW the menu itself (z-40) — an open menu must never
     // be occluded by a passive status card.
     <div

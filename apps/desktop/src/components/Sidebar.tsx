@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { AUTOMATIONS_CHANGED, getAutomations, getEgressSettings, type Automation, type EgressSettings } from "../api";
+import { useEffect, useState } from "react";
+import { AUTOMATIONS_CHANGED, getAutomations, type Automation } from "../api";
 import type { SessionInfo } from "../types";
 import { ConnectorIcon } from "../features/connectors/ConnectorIcon";
 import { Icon, type IconName } from "./Icon";
 import { groupByDate, useProjects, type DateBucket } from "../sessionGroups";
 import { useEscapeDismiss } from "../useEscapeDismiss";
 import { SearchModal } from "./SearchModal";
+import { ColumnResizer, SIDEBAR_MIN_WIDTH } from "./ColumnResizer";
 import { useI18n } from "@delta/i18n/I18nContext";
 
 function AttnBadge({ n }: { n: number }) {
@@ -21,7 +22,7 @@ function AttnBadge({ n }: { n: number }) {
   );
 }
 
-function SidebarFooterIcon({
+function SidebarToolIcon({
   icon,
   label,
   active,
@@ -41,7 +42,7 @@ function SidebarFooterIcon({
   return (
     <button
       className={
-        "tip tip-nowrap relative w-8 h-8 grid place-items-center rounded-lg text-muted transition-colors " +
+        "tip tip-below tip-nowrap relative w-8 h-8 grid place-items-center rounded-lg text-muted transition-colors " +
         (active ? "bg-bg text-ink" : "hover:bg-bg")
       }
       data-testid={testid}
@@ -116,7 +117,6 @@ function ConnectorDot({ subscriptions }: { subscriptions?: string[] }) {
 interface Props {
   sessions: SessionInfo[];
   activeSession: string;
-  onNewSession: () => void;
   onSelectSession: (id: string, workspace: string) => void;
   onRenameSession: (id: string, title: string) => void;
   onDeleteSession: (id: string) => void;
@@ -137,15 +137,14 @@ interface Props {
   integrationsActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
-  // Primary nav group (design 2:615). The conversation list is the "task center" anchor.
   conversationActive?: boolean;
   onOpenConversations?: () => void;
-  onOpenPrivacy?: () => void;
-  // The app surface: the trust row re-reads the egress level when the user returns from Settings.
-  surface?: string;
   collapsed?: boolean;
   onCollapse?: () => void;
   onPeekLeave?: () => void;
+  // Drag handle on the sidebar's right edge. The parent owns the width (see ColumnResizer).
+  onResize?: (width: number) => void;
+  resizeMaxWidth?: () => number;
 }
 
 export function Sidebar(props: Props) {
@@ -167,14 +166,6 @@ export function Sidebar(props: Props) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectEditValue, setProjectEditValue] = useState("");
   const [confirmRemoveProjectId, setConfirmRemoveProjectId] = useState<string | null>(null);
-  const [egress, setEgress] = useState<EgressSettings | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  // Trust row: the workspace default egress level. Read here; Settings ▸ Privacy changes it.
-  useEffect(() => {
-    getEgressSettings().then(setEgress).catch(() => setEgress(null));
-  }, [props.surface]);
-
   // ⌘/Ctrl+K opens search from anywhere in the window.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -211,15 +202,6 @@ export function Sidebar(props: Props) {
   const archived = real.filter((session) => session.archived);
   const totalAttention = real.reduce((sum, session) => sum + (session.attention || 0), 0);
   const recentLimit = 4;
-  // The count the Inbox chip shows is the attention total already carried by the session list,
-  // so the nav adds no polling of its own.
-  const trustLevel = egress?.is_chosen && egress.default_level ? t(`egress.level.${egress.default_level}`) : t("nav.trustUnset");
-  // "Task center" is the task list itself: bring it back to the top and show the conversation view.
-  const showTaskCenter = () => {
-    props.onOpenConversations?.();
-    if (listRef.current) listRef.current.scrollTop = 0;
-  };
-
   const commitNewProject = () => {
     const name = projectDraft.trim();
     if (name) {
@@ -417,7 +399,8 @@ export function Sidebar(props: Props) {
 
   return (
     <div className="sidebar flex flex-col min-h-0 bg-panel border-r border-line" onMouseLeave={props.onPeekLeave}>
-      <div className="brand px-3.5 pt-2.5 pb-3 flex items-center gap-2" data-tauri-drag-region>
+      {/* Top row: the collapse control and the tool buttons, spread evenly across the rail. */}
+      <div className="brand px-3.5 pt-2.5 pb-3 grid grid-cols-5 place-items-center" data-tauri-drag-region>
         {props.onCollapse && (
           <button
             className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-bg shrink-0"
@@ -428,14 +411,22 @@ export function Sidebar(props: Props) {
             <Icon name="sidebar" size={16} />
           </button>
         )}
-        <div className="brand-wordmark text-[15px]">Delta</div>
+        <SidebarToolIcon icon="inbox" label={t("nav.inbox", undefined, "Inbox")} active={props.inboxActive} onClick={props.onOpenInbox} badge={totalAttention || null} badgeTitle={totalAttention ? t("nav.inboxItemsNeedYou", { n: totalAttention }, `Inbox — ${totalAttention} items need you`) : undefined} testid="sidebar-footer-inbox" />
+        <SidebarToolIcon icon="audit" label={t("nav.activity", undefined, "Activity")} active={props.auditActive} onClick={props.onOpenAudit} testid="sidebar-footer-activity" />
+        <SidebarToolIcon icon="plug" label={t("nav.integrations", undefined, "Connectors")} active={props.integrationsActive} onClick={props.onOpenIntegrations} testid="sidebar-footer-integrations" />
+        <SidebarToolIcon icon="gear" label={t("nav.settings", undefined, "Settings")} onClick={props.onManage} testid="sidebar-footer-settings" />
+      </div>
+
+      <div className="px-3 pt-1">
         <button
-          className="tip tip-below tip-start tip-nowrap nav-search-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-bg shrink-0 ml-auto"
-          data-tip={t("common.search", undefined, "Search")}
+          className="w-full h-8 flex items-center gap-2 px-2.5 rounded-lg border border-line bg-panel text-[13px] text-faint hover:border-line-strong"
+          data-testid="nav-search"
           aria-label={t("common.search", undefined, "Search")}
           onClick={() => setSearchOpen(true)}
         >
-          <Icon name="search" size={16} />
+          <Icon name="search" size={14} className="shrink-0" />
+          <span className="flex-1 min-w-0 truncate text-left">{t("common.search", undefined, "Search")}</span>
+          <kbd className="text-[10.5px] font-sans">⌘K</kbd>
         </button>
         {isSearchOpen && (
           <SearchModal
@@ -449,36 +440,12 @@ export function Sidebar(props: Props) {
         )}
       </div>
 
-      <div className="px-3 pt-2">
-        <button
-          className="w-full text-left px-3 py-2 bg-primary text-on-primary text-[13px] font-medium hover:opacity-95 flex items-center gap-2 rounded-lg"
-          onClick={props.onNewSession}
-        >
-          <Icon name="plus" size={15} className="shrink-0" /> {t("nav.newSession", undefined, "New task")}
-        </button>
-      </div>
-
-      <nav className="px-2.5 mt-1 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
+      <nav className="px-2.5 mt-2 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
         <NavItem icon="chat" label={t("nav.conversations")} active={props.conversationActive} onClick={() => props.onOpenConversations?.()} testid="nav-conversations" />
-        <NavItem icon="sparkle" label={t("nav.taskCenter")} onClick={showTaskCenter} testid="nav-task-center" />
         <NavItem icon="clock" label={t("nav.scheduled", undefined, "Automations")} active={props.scheduledActive} onClick={props.onOpenScheduled} testid="nav-automations" />
-        <NavItem icon="inbox" label={t("nav.inbox")} active={props.inboxActive} onClick={props.onOpenInbox} badge={totalAttention} testid="nav-inbox" />
-        <NavItem icon="plug" label={t("nav.integrations")} active={props.integrationsActive} onClick={props.onOpenIntegrations} testid="nav-connectors" />
-        <NavItem icon="audit" label={t("nav.audit")} active={props.auditActive} onClick={props.onOpenAudit} testid="nav-audit" />
       </nav>
 
-      <div className="px-2.5 mt-1.5">
-        <button
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12px] text-left text-muted hover:bg-bg hover:text-ink"
-          data-testid="nav-trust"
-          onClick={() => props.onOpenPrivacy?.()}
-        >
-          <Icon name="shield" size={14} className="shrink-0" />
-          <span className="min-w-0 truncate">{t("nav.trustStatus", { level: trustLevel })}</span>
-        </button>
-      </div>
-
-      <div ref={listRef} className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">
+      <div className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">
         <div className="space-y-4">
           {pinned.length > 0 && <TaskBand title={t("common.pinned", undefined, "Pinned")}>{pinned.map(row)}</TaskBand>}
           {automations.length > 0 && (
@@ -661,20 +628,15 @@ export function Sidebar(props: Props) {
         </div>
       </div>
 
-      <div className="px-2.5 py-2 border-t border-line">
-        <div className="relative flex items-center justify-between gap-1">
-          <SidebarFooterIcon icon="inbox" label={t("nav.inbox", undefined, "Inbox")} active={props.inboxActive} onClick={props.onOpenInbox} badge={totalAttention || null} badgeTitle={totalAttention ? t("nav.inboxItemsNeedYou", { n: totalAttention }, `Inbox — ${totalAttention} items need you`) : undefined} testid="sidebar-footer-inbox" />
-          <SidebarFooterIcon icon="audit" label={t("nav.activity", undefined, "Activity")} active={props.auditActive} onClick={props.onOpenAudit} testid="sidebar-footer-activity" />
-          <SidebarFooterIcon icon="plug" label={t("nav.integrations", undefined, "Connectors")} active={props.integrationsActive} onClick={props.onOpenIntegrations} testid="sidebar-footer-integrations" />
-          <SidebarFooterIcon icon="gear" label={t("nav.settings", undefined, "Settings")} onClick={props.onManage} testid="sidebar-footer-settings" />
-        </div>
-        <div className="flex items-center gap-2 px-1.5 pt-1.5 text-[12.5px] text-muted" data-testid="nav-user">
-          <span className="w-6 h-6 rounded-full bg-selected grid place-items-center shrink-0" aria-hidden>
-            <span className="w-2 h-2 rounded-full bg-selected-ink" />
-          </span>
-          <span className="min-w-0 truncate">{t("nav.localDevice")}</span>
-        </div>
-      </div>
+      {props.onResize && props.resizeMaxWidth && !props.collapsed && (
+        <ColumnResizer
+          edge="right"
+          label={t("nav.resizeSidebar", undefined, "Resize left sidebar")}
+          minWidth={SIDEBAR_MIN_WIDTH}
+          maxWidth={props.resizeMaxWidth}
+          onResize={props.onResize}
+        />
+      )}
     </div>
   );
 }

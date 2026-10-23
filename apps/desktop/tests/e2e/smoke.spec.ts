@@ -3,8 +3,8 @@ import { test, expect } from "./fixtures";
 test("app loads with the persona nav and composer", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Delta").first()).toBeVisible();
-  // New task + Search are the fixed top nav.
-  await expect(page.getByRole("button", { name: /New task/i })).toBeVisible();
-  // Delta is the only persona surface (R6.0).
-  await expect(page.getByText("Delta", { exact: true })).toHaveCount(1);
+  // Search is the fixed top of the sidebar; new task is ⌘N (the collapsed topbar keeps its "+").
+  await expect(page.getByTestId("nav-search")).toBeVisible();
+  // The sidebar carries no wordmark: the search field leads it (the tool row sits above it).
+  await expect(page.locator(".sidebar").getByText("Delta", { exact: true })).toHaveCount(0);
 });

@@ -86,6 +86,16 @@ describe("RightRail permissions section and footer", () => {
     card.remove();
   });
 
+  it("folds Access into the Permissions section rather than a section of its own", async () => {
+    render(wrap(<RightRail {...props()} />));
+    const access = await screen.findByTestId("access-section");
+    const section = access.closest("section");
+    expect(section?.querySelector(".rail-section-toggle")?.textContent).toBe("Permissions");
+    expect(screen.queryByTestId("access-toggle")).toBeNull();
+    const titles = Array.from(document.querySelectorAll(".rail-section-toggle")).map((el) => el.textContent);
+    expect(titles.filter((title) => title?.startsWith("Access"))).toEqual([]);
+  });
+
   it("the footer opens Audit", async () => {
     const onOpenAudit = vi.fn();
     render(wrap(<RightRail {...props({ onOpenAudit })} />));

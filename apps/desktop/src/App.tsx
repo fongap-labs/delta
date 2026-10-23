@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { modelAfterSettings } from "./modelSync";
 import {
   announceInboxUnlock,
@@ -77,6 +77,7 @@ import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
 import { EgressChoice } from "./components/EgressChoice";
+import { CENTER_MIN_WIDTH } from "./components/ColumnResizer";
 
 const newId = () => {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID().slice(0, 12);
@@ -109,6 +110,25 @@ function normalizeTodos(raw: unknown): TodoItem[] {
 }
 
 const NAV_COLLAPSED_KEY = "delta:nav-collapsed:v1";
+const NAV_WIDTH_KEY = "delta:nav-width:v1";
+const RAIL_WIDTH_KEY = "delta:rail-width:v1";
+const ARTIFACT_RAIL_WIDTH_KEY = "delta:artifact-rail-width:v1";
+const DEFAULT_NAV_WIDTH = 264;
+const DEFAULT_RAIL_WIDTH = 332;
+
+// A stored column width in px, or null when the user has never dragged that column.
+function readStoredWidth(key: string): number | null {
+  try {
+    const width = Number(localStorage.getItem(key));
+    return Number.isFinite(width) && width > 0 ? width : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWidth(key: string, width: number) {
+  try { localStorage.setItem(key, String(Math.round(width))); } catch { /* best effort */ }
+}
 
 export function App() {
   const [locale, setLocaleState] = useState<Locale>(() => normalizeLocale(navigator.language));
@@ -251,6 +271,18 @@ export function App() {
     try { return localStorage.getItem(NAV_COLLAPSED_KEY) === "1"; } catch { return false; }
   });
   const [isNavPeek, setNavPeek] = useState(false);
+  // Column widths are set by dragging a column edge (or the arrow keys) and kept per device. Neither
+  // side column has a fixed ceiling: CENTER_MIN_WIDTH is what limits how far they can grow.
+  const [navWidth, setNavWidth] = useState(() => readStoredWidth(NAV_WIDTH_KEY) ?? DEFAULT_NAV_WIDTH);
+  const [railWidth, setRailWidth] = useState(() => readStoredWidth(RAIL_WIDTH_KEY) ?? DEFAULT_RAIL_WIDTH);
+  // The artifact reading panel keeps its own width; null means it has not been dragged yet.
+  const [artifactRailWidth, setArtifactRailWidth] = useState<number | null>(() => readStoredWidth(ARTIFACT_RAIL_WIDTH_KEY));
+  const [isArtifactOpen, setArtifactOpen] = useState(false);
+  useEffect(() => storeWidth(NAV_WIDTH_KEY, navWidth), [navWidth]);
+  useEffect(() => storeWidth(RAIL_WIDTH_KEY, railWidth), [railWidth]);
+  useEffect(() => {
+    if (artifactRailWidth !== null) storeWidth(ARTIFACT_RAIL_WIDTH_KEY, artifactRailWidth);
+  }, [artifactRailWidth]);
   // While an artifact preview is open we auto-collapse the nav (#3). Remember the pre-preview
   // collapse state so we can restore it on close — unless the user re-opened the nav meanwhile.
   const navBeforePreview = useRef<boolean | null>(null);
@@ -266,6 +298,7 @@ export function App() {
   // #3: collapse the nav while a full artifact preview is open, restore it on close (unless the
   // user manually toggled meanwhile). The collapse is transient — it never overwrites the pref.
   const onArtifactPreview = useCallback((open: boolean) => {
+    setArtifactOpen(open);
     if (open) {
       if (navBeforePreview.current === null) navBeforePreview.current = navCollapsed;
       setNavPeek(false);
@@ -1326,6 +1359,15 @@ export function App() {
   const activeInfo = sessions.find((s) => s.session_id === sessionId);
   const activeTitle = activeInfo?.title || tr("nav.newSession");
 
+  // The right rail is only laid out on the session surface, and only while it is not hidden.
+  const railVisible = surface === "session" && !isRailHidden;
+  // The width the right rail takes now: the artifact panel's own width, or the rail's.
+  const railPx = isArtifactOpen ? (artifactRailWidth ?? window.innerWidth * 0.62) : railWidth;
+  const railCssWidth = isArtifactOpen && artifactRailWidth === null ? "62vw" : `${railPx}px`;
+  // Each side column may grow until the other one plus the centre column's minimum fill the window.
+  const maxNavWidth = () => window.innerWidth - (railVisible ? railPx : 0) - CENTER_MIN_WIDTH;
+  const maxRailWidth = () => window.innerWidth - (navCollapsed ? 0 : navWidth) - CENTER_MIN_WIDTH;
+
   const desktop = isTauri();
   // Dev-only: `?overlay=1` simulates the desktop overlay layout in the browser (adds the
   // tauri-overlay class + draws fake traffic lights at the real position) so the top-left can be
@@ -1380,6 +1422,7 @@ export function App() {
         (navCollapsed ? " nav-collapsed" : "") +
         (navCollapsed && isNavPeek ? " nav-peek" : "")
       }
+      style={{ "--nav-w": `${navWidth}px`, "--rail-w": railCssWidth } as CSSProperties}
     >
       {/* Dev-only fake traffic lights so ?overlay=1 previews the real desktop top-left. */}
       {simOverlay && (
@@ -1473,7 +1516,6 @@ export function App() {
       <Sidebar
         sessions={sessions}
         activeSession={sessionId}
-        onNewSession={startNewSession}
         onSelectSession={selectSession}
         onRenameSession={renameConversation}
         onDeleteSession={deleteConversation}
@@ -1491,8 +1533,6 @@ export function App() {
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
         onOpenConversations={() => setSurface("session")}
-        onOpenPrivacy={() => openSettings("privacy")}
-        surface={surface}
         conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
@@ -1501,6 +1541,8 @@ export function App() {
         collapsed={navCollapsed}
         onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
+        onResize={setNavWidth}
+        resizeMaxWidth={maxNavWidth}
       />
       {surface === "scheduled" ? (
         <ScheduledView
@@ -1792,13 +1834,14 @@ export function App() {
             running={isRunning}
             onPreviewChange={onArtifactPreview}
             showArtifacts
-            workspace={workspace || undefined}
             branch={branch}
             scratchPrimary
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
             approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
             onOpenAudit={() => setSurface("audit")}
+            onResize={(width) => (isArtifactOpen ? setArtifactRailWidth(width) : setRailWidth(width))}
+            resizeMaxWidth={maxRailWidth}
           />
         </div>
       </div>

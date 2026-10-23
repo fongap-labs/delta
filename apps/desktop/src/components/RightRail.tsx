@@ -16,6 +16,7 @@ import { humanizeApprovalTitle } from "../humanize";
 import { useEscapeDismiss } from "../useEscapeDismiss";
 import type { Item, TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
+import { ColumnResizer, RAIL_MIN_WIDTH } from "./ColumnResizer";
 import { Icon } from "./Icon";
 import { TitleText } from "./ApprovalCard";
 import { useEgressLevel } from "./ApprovalModal";
@@ -59,8 +60,6 @@ interface Props {
   onPreviewChange?: (open: boolean) => void;
   // §32: the rail is the task's single progress, artifact, and access panel.
   showArtifacts?: boolean;
-  projectScoped?: boolean;
-  workspace?: string;
   branch?: string | null;
   scratchPrimary?: boolean;
   openAccessKey?: number;
@@ -69,6 +68,9 @@ interface Props {
   approvals?: Item[];
   // The rail footer points to the full record in Audit.
   onOpenAudit?: () => void;
+  // Drag handle on the rail's left edge. The parent owns the width (see ColumnResizer).
+  onResize?: (width: number) => void;
+  resizeMaxWidth?: () => number;
 }
 
 export function RightRail({
@@ -80,14 +82,14 @@ export function RightRail({
   running,
   onPreviewChange,
   showArtifacts = true,
-  projectScoped,
-  workspace,
   branch,
   scratchPrimary,
   openAccessKey = 0,
   onOpenIntegrations,
   approvals = [],
   onOpenAudit,
+  onResize,
+  resizeMaxWidth,
 }: Props) {
   const [open, setOpen] = useState<Record<Panel, boolean>>({
     progress: true,
@@ -98,6 +100,16 @@ export function RightRail({
   const [selected, setSelected] = useState<ArtifactInfo | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
   const { t } = useI18n();
+  const accessRef = useRef<HTMLDivElement>(null);
+
+  // Deep link into Access (intro "Configure ›", onboarding "Start working"): open the Permissions
+  // section, where Access lives, and bring it into view.
+  useEffect(() => {
+    if (!openAccessKey) return;
+    setOpen((current) => ({ ...current, permissions: true }));
+    const timer = setTimeout(() => accessRef.current?.scrollIntoView({ block: "nearest" }), 30);
+    return () => clearTimeout(timer);
+  }, [openAccessKey]);
 
   const refreshArtifacts = () => getArtifacts(sessionId).then(setArtifacts).catch(() => setArtifacts([]));
 
@@ -167,6 +179,15 @@ export function RightRail({
 
   return (
     <aside className={"right-rail" + (selected ? " artifact-mode" : "")}>
+      {onResize && resizeMaxWidth && (
+        <ColumnResizer
+          edge="left"
+          label={t("rail.resize", undefined, "Resize right panel")}
+          minWidth={RAIL_MIN_WIDTH}
+          maxWidth={resizeMaxWidth}
+          onResize={onResize}
+        />
+      )}
       {selected ? (
         <ArtifactViewer
           sessionId={sessionId}
@@ -192,6 +213,16 @@ export function RightRail({
 
           <RailSection title={t("rail.permissions")} open={open.permissions} onToggle={() => setOpen({ ...open, permissions: !open.permissions })}>
             <PermissionsSummary sessionId={sessionId} approvals={approvals as ApprovalItem[]} />
+            {/* Access is part of the permissions: the sources and folders this session can touch.
+                key: its data ownership resets with the conversation, like the old row did. */}
+            <AccessSection
+              key={sessionId}
+              sectionRef={accessRef}
+              sessionId={sessionId}
+              branch={branch}
+              scratchPrimary={scratchPrimary}
+              onOpenIntegrations={onOpenIntegrations}
+            />
           </RailSection>
 
           {showArtifacts && (
@@ -234,19 +265,6 @@ export function RightRail({
             )}
           </RailSection>
           )}
-
-          {/* §32: Access — the former Session-settings drawer, one section among peers.
-              key: its data ownership resets with the conversation, like the old row did. */}
-          <AccessSection
-            key={sessionId}
-            sessionId={sessionId}
-            projectScoped={projectScoped}
-            workspace={workspace}
-            branch={branch}
-            scratchPrimary={scratchPrimary}
-            openKey={openAccessKey}
-            onOpenIntegrations={onOpenIntegrations}
-          />
 
           {/* Footer: the rail shows the live state; the full, dated record lives in Audit. */}
           <button
