@@ -3,7 +3,7 @@ param(
   [string]$Target,
 
   [Parameter(Mandatory = $true)]
-  [ValidatePattern('^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')]
+  [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*)?$')]
   [string]$Version,
 
   [Parameter(Mandatory = $true)]

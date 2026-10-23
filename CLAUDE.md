@@ -5,9 +5,9 @@ This repository inherits Fongap Labs shared governance from [fongap-labs/action-
 ## Required reading
 
 1. `CLAUDE.md`
-2. Action Worker `docs/SHARED_GOVERNANCE.md`
-3. Action Worker `docs/NAMING_CONVENTIONS.md`
-4. Action Worker `docs/CHANGELOG_CONVENTIONS.md`
+2. Action Worker `docs/01_SHARED_GOVERNANCE.md`
+3. Action Worker `docs/03_NAMING_CONVENTIONS.md`
+4. Action Worker `docs/04_CHANGELOG_CONVENTIONS.md`
 5. Action Worker `docs/DEVELOPMENT_GUIDE.md`
 6. The project-specific documents below
 
@@ -25,6 +25,13 @@ This repository inherits Fongap Labs shared governance from [fongap-labs/action-
 - Delta Foundation owns the single authority plane and runtime.
 - Optional extensions use public contracts and must not depend on Foundation internals.
 - TypeScript owns product interaction; Rust owns runtime and authority; workers remain controlled execution surfaces.
+
+## Change conventions
+
+Pull request titles, changelog entries and language rules are defined in the shared governance and enforced by the PR Gate. Follow the linked sections; do not restate them here:
+
+- Action Worker `docs/01_SHARED_GOVERNANCE.md` (language rules)
+- Action Worker `docs/04_CHANGELOG_CONVENTIONS.md` (§3 PR titles, §4–§5 changelog fragments)
 
 ## Precedence
 
