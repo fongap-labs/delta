@@ -753,7 +753,7 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
   let lastDay: string | null = null;
   return (
     <div className="transcript">
-      {thinkingFor(-1) && <ThinkingBlock text={thinkingFor(-1)!.text} isLive={thinkingFor(-1)!.isLive} />}
+      {thinkingFor(-1) && <ThinkingBlock key={thinkingFor(-1)!.isLive ? "live" : "done"} text={thinkingFor(-1)!.text} isLive={thinkingFor(-1)!.isLive} />}
       {blocks.map((block, bi) => {
         const day = blockDays[bi];
         const showDivider = day !== null && day !== lastDay && day !== todayKey;
@@ -819,7 +819,7 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
                     }
                   />
               </div>
-              {thinking && <ThinkingBlock text={thinking.text} isLive={thinking.isLive} />}
+              {thinking && <ThinkingBlock key={thinking.isLive ? "live" : "done"} text={thinking.text} isLive={thinking.isLive} />}
               </Fragment>
             );
           }
