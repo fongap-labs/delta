@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: worker 进程的 stdout/stderr 现在有上限（500 行 / 256 KiB），不再能撑爆宿主内存；`atomic_write_private` 在无法验证文件保护时改为报错；`request_directory` 批准目录时调用 `add_root` 使策略作用域真正生效；execution-grant JSON schema 对齐 `CapabilityGrants` Rust 结构；deny.toml 的 zip 公告理由修正为"更新器确实解包"；`i18n_parity_check.mjs` 补全实现；`EXEMPT_FILES` 重复键删除；`OPEN_ITEMS.md` 已解决的检查更新。
+
 - feat: extension capabilities are locked down. Every tool an extension registers is forced to high risk and requires user approval, and its secret grants are cut to the ones declared for its connector. Connector, web, browser and MCP tools always require approval no matter what their manifest declares, and the desktop UI can only invoke its three browser state tools instead of any registered capability.
 
 - fix: the Python advisory scan of the central CI passes again. `pypdf` moves to 6.21.2, because the pinned 6.19.0 is affected by five PDF parsing advisories published against it (CVE-2026-113786, CVE-2026-113792, CVE-2026-113793, CVE-2026-113794, CVE-2026-113795). The lockfile carries the new release and the project dependency stays pinned.
