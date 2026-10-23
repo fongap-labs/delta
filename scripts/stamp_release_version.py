@@ -5,7 +5,7 @@ the released version: this script reads no version from these files and compares
 nothing. It runs on the sandbox checkout of the release build and its result is never
 committed.
 
-    python scripts/stamp_release_version.py <X.Y.Z>
+    python scripts/stamp_release_version.py <X.Y.Z[-beta.N]>
 """
 
 from __future__ import annotations
@@ -17,7 +17,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 
-_STABLE_RE = re.compile(r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$")
+_VERSION_RE = re.compile(
+    r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-beta\.[1-9]\d*)?$"
+)
 
 
 def read_text(path: str) -> str:
@@ -94,8 +96,8 @@ def stamp_json(path: str, version: str, is_package_lock: bool = False) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2 or not _STABLE_RE.fullmatch(sys.argv[1]):
-        raise SystemExit("usage: stamp_release_version.py <X.Y.Z>")
+    if len(sys.argv) != 2 or not _VERSION_RE.fullmatch(sys.argv[1]):
+        raise SystemExit("usage: stamp_release_version.py <X.Y.Z[-beta.N]>")
     version = sys.argv[1]
 
     stamp_toml_table("pyproject.toml", "project", version)
