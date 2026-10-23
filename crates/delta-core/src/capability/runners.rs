@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use super::abi::{
-    CapturedLines, CapabilityExitState, CapabilityJob, CapabilityProgress, CapabilityResult,
+    CapabilityExitState, CapabilityJob, CapabilityProgress, CapabilityResult, CapturedLines,
     CAPABILITY_ABI_VERSION,
 };
 use super::registry::{CapabilityControl, CapabilityRunner};

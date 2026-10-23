@@ -867,10 +867,17 @@ impl CoreControlPlane {
                     // grant. Returning granted:true without calling add_root
                     // left the model believing access was allowed while the
                     // runtime confined every call to the workspace alone.
-                    if response.get("granted").and_then(Value::as_bool).unwrap_or(false) {
+                    if response
+                        .get("granted")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                    {
                         if let Some(path) = response.get("path").and_then(Value::as_str) {
                             if !path.is_empty() {
-                                let writable = response.get("writable").and_then(Value::as_bool).unwrap_or(false);
+                                let writable = response
+                                    .get("writable")
+                                    .and_then(Value::as_bool)
+                                    .unwrap_or(false);
                                 let _ = self.add_root(&item.session_id, path, writable);
                             }
                         }
