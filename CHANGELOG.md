@@ -1,270 +1,225 @@
 # Changelog
 
 ## [Unreleased]
-
 - 修复: worker 进程的 stdout/stderr 现在有上限（500 行 / 256 KiB），不再能撑爆宿主内存；`atomic_write_private` 在无法验证文件保护时改为报错；`request_directory` 批准目录时调用 `add_root` 使策略作用域真正生效；execution-grant JSON schema 对齐 `CapabilityGrants` Rust 结构；deny.toml 的 zip 公告理由修正为"更新器确实解包"；`i18n_parity_check.mjs` 补全实现；`EXEMPT_FILES` 重复键删除；`OPEN_ITEMS.md` 已解决的检查更新。
 
-- feat: extension capabilities are locked down. Every tool an extension registers is forced to high risk and requires user approval, and its secret grants are cut to the ones declared for its connector. Connector, web, browser and MCP tools always require approval no matter what their manifest declares, and the desktop UI can only invoke its three browser state tools instead of any registered capability.
 
-- fix: the Python advisory scan of the central CI passes again. `pypdf` moves to 6.21.2, because the pinned 6.19.0 is affected by five PDF parsing advisories published against it (CVE-2026-113786, CVE-2026-113792, CVE-2026-113793, CVE-2026-113794, CVE-2026-113795). The lockfile carries the new release and the project dependency stays pinned.
+- 安全 [security]: 扩展注册的每个工具强制为高风险并需用户批准，其秘密授权缩减到连接器声明的范围。连接器、网页、浏览器与 MCP 工具无论清单如何声明都需要批准；桌面界面只能调用三个浏览器状态工具。
 
-- docs: replace the duplicated release governance with a pointer to the central guide, and fix the dead link to the naming conventions.
-- chore: enforce the Conventional Commits subject locally like the central gate does. `.githooks/commit-msg` (install with `git config core.hooksPath .githooks`, or through the new commit-msg hook in `.pre-commit-config.yaml`) accepts the eleven engineering types, exempts `Merge`/`Revert` subjects and refuses non-ASCII text. CONTRIBUTING.md documents the subject format, the CHANGELOG entry rule and where the release flow is driven from.
-- fix: the three root certificate advisories of 2026-10-19 are cleared by the lockfile. `rustls-webpki` moves to 0.103.16, `webpki-roots` to 1.0.10 and `webpki-root-certs` to 1.0.10, in the four workspaces that carry them; `rustls-webpki` could accept a distrusted intermediate certificate, and the two root stores still shipped an emSign root whose intermediate private keys are public. One advisory stays on the list: `webpki-roots 0.26.11` is the wrapper `ureq 2.12.1` requires, it resolves the fixed 1.0.10 root store, and the 0.26 line has no upstream release, so it is accepted with the impact, exploitability, mitigation and upgrade plan in `docs/governance/OPEN_ITEMS.md`, section 6.3.
+- 安全 [security]: 新增工作区出站等级授权（ADR-0057）。默认等级由用户在首次运行时选择，选择前不发送任何模型请求；每个工作区可设不同等级；端点可标记为 approved 或 private。放宽设置需用户确认，收紧立即生效；每次变更写入审计日志 `egress.settings`。
 
-- fix: the Python advisory scan of the central CI passes again. `certifi` moves to 2026.10.19, because the pinned 2026.7.22 is affected by PYSEC-2026-4320, a certificate parsing defect published on 2026-10-19.
+- 安全 [security]: 每个模型请求发送前都检查出站等级。未选择等级、端点被拒绝或未确认的 *Ask each time* 时，不发送请求，运行以 `egress` 错误结束并记录 `model.request_refused`。已发送的请求记录为 `model.request`（端点、类别、模型、等级、大小与来源，不含内容）。
 
-- fix: the naming gate no longer reads a Rust unit-test module as production code. Delta keeps some unit-test modules in their own `tests.rs` file next to the code they cover, and the checker only excluded inline `#[cfg(test)]` sections and `test_*.rs` files, so every descriptive test function name in those modules was reported as a violation. The gate was red on `main` and the three test modules are all declared under `#[cfg(test)]`, so no runtime code is affected.
+- 安全 [security]: 工作区出站等级同样约束出站工具（网页搜索、网页抓取、浏览器自动化、远程与本地 MCP 服务器）。*Private only* 与 *Approved endpoints* 拒绝不允许的调用，*Ask each time* 逐次询问，未选择等级时拒绝全部。被拒绝的调用不运行；需要询问的调用只对本次批准；每次出站调用在 `tool.proposed` 上记录目的地与决定。
 
-- fix: the naming gate no longer reads a Rust unit-test module as production code. Delta keeps some unit-test modules in their own `tests.rs` file next to the code they cover, and the checker only excluded inline `#[cfg(test)]` sections and `test_*.rs` files, so every descriptive test function name in those modules was reported as a violation. The gate was red on `main` and the three test modules are all declared under `#[cfg(test)]`, so no runtime code is affected.
+- 安全 [security]: 未声明目的地的连接器工具视为可能发往任意公网站点，在 *Private only* 中拒绝，在 *Approved endpoints* 中询问。每个连接器有独立的路径规则 `connector:<name>`。
 
-- feat: the desktop sidebar groups Conversations, Task center, Automations, Inbox, Connectors and Audit, and shows the workspace's egress level under them. The right rail gains a Permissions section (this session's approval decisions) and a footer that opens Audit. Outbound messages under "Ask each time", connector writes, and any approval the user chooses in General settings open a confirmation dialog. Audit shows counts for the loaded records and a View source link to each record's conversation.
+- 安全 [security]: 可按工具类别或 MCP 服务器设置路径规则（允许、询问或阻止），可针对单个工作区或全部工作区；只能通过设置命令修改。放宽规则需先确认，删除规则立即生效；生效的规则记录在出站调用的账本事件中。
 
-- build: accept the six Rust advisories that have no upstream fix yet. The `zip` extraction advisories and the unmaintained `zvariant` crates are recorded with their impact, exploitability, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md; the policy itself is unchanged.
+- 安全 [security]: 设置 > 隐私可把本地 stdio MCP 服务器标记为仅本地（声明它不访问网络）。添加标记需确认，因为这会让服务器在 *Approved endpoints* 与 *Private only* 工作区中运行；删除标记立即生效。
 
-- ci: replace the deprecated dispatch-pr-governance workflow with the approved notify-action-worker bridge, so every push to main wakes central Intake and the Main Write Guard and CI Evidence statuses are written immediately.
+- 安全 [security]: 离开本机的操作（聊天消息、文件、连接器调用）在批准卡片上显示"需要你批准"标识，确认收件人与内容后才能批准，且不再提供会话级"始终允许"。这是客户端保护，运行时的批准决定与权限不变。
 
-- fix: a turn's thinking shows above its steps, live and after the answer; step counts keep going across a question answered mid-turn; a step's dot is red only when its call failed, live and after reopening the conversation; the progress line reads "Step N in progress"; the custom provider form names the OpenAI Chat Completions and Anthropic Messages protocols.
-- fix: asked which model it is, the assistant names the model set in the user's model settings (given in the environment block) instead of answering with Delta's name; it no longer names a developer for the model unless the environment says so.
-- feat: desktop input-control consent policy (ADR-0062). Programs are refused, confirmed per action (banking and password managers), or authorized per session; sensitive clicks and keys, password fields and coordinate clicks are confirmed; screenshots are refused while a banking or password-manager window is visible; a run stops after 50 actions or three repeated failures. The policy is not connected to any tool yet, so no user-visible behaviour changes.
+- 安全 [security, migration]: 审计数据库与运行事件账本不再保存明文工具参数与结果。新增 `delta_core::redact`，对每一条审计行与每个工具事件进行脱敏，保留工具名、阶段、状态与参数结构；旧版本写入的审计行在下次启动时清理一次。检查点保持不变，因为恢复运行需要它；账本事件因哈希链不改写。Python 与 Rust 使用同一份测试夹具。
 
-- feat [breaking]: the network proxy defaults to direct instead of the system proxy. It lives under General rather than Privacy. Every outbound request, including the speech-model download, follows that one setting; choose the system proxy or a manual address to change it.
+- 安全 [security]: 凭据文件从创建起即仅当前用户可访问。Windows 上 Rust 运行时在文件获得最终名称前收紧 `model-authority.json`、`application.json` 与 MCP 状态文件的 ACL（移除继承）；Python 保险库以 0600 权限创建文件，并按 SID 比较 ACL。SQLite 权威存储（`run_events.db`、`side-effects.db`、`approvals.db`、`tasks.db`、`core.db`、`memory.db`）与 `inbox.json` 从创建或打开起即仅所有者可访问，包括 WAL 与 SHM 边车文件。
 
-- feat: a model that refuses tool definitions is run without tools for that model only, with a visible notice (`notice` runtime event, `tools_refused` transcript entry). Web search still works: the model asks for it with a `SEARCH:` line, and the runtime runs the existing approval-gated `web_search` tool and returns the results as model-only data.
+- 安全 [security]: 产物的"打开"只交给系统默认程序处理文档、文本与常见图片（pdf、docx、xlsx、pptx、txt、md、csv、png、jpg、jpeg、gif、webp）。其他文件（脚本、快捷方式、`.svg`、`.html`、无扩展名文件，以及 `report.pdf.exe` 之类的名称）只在文件管理器中显示。此前模型写入的 `.bat` 或 `.lnk` 可以被一键启动。
 
-- feat: the speech model downloads in the background; leaving Settings does not stop it, and progress and completion arrive as `dictation-download-progress` and `dictation-download-finished` events. `download_dictation_model` returns at once.
+- 安全 [security]: `web_fetch` 流式读取网页，解压后超过 5 MB 或耗时超过 30 秒即停止，被截断的响应标记 `truncated: true`。此前永不结束的响应或能膨胀到数 GB 的小压缩包会耗尽 Delta 进程内存。每个重定向跳转的地址检查与固定不变。
 
-- feat: fetched models use the same checklist as the Models page (show in picker, default). Model ids with no name after the provider prefix are refused and never listed.
+- 安全 [security]: 网址守卫拒绝含凭据的 URL，以及主机部分含反斜杠的 URL（此前 `http://127.0.0.1@example.com/` 在守卫与浏览器中被解析为不同主机）。IPv6 承载的 IPv4 地址（映射、6to4、Teredo、NAT64）由守卫自行判断。
 
-- feat: MCP servers have a JSON config editor. Saving keeps any secret the editor shows redacted at its stored value.
+- 安全 [security]: 地址检查过的连接器 HTTP 请求固定到审定的公网 IP，携带的凭据不随重定向转发。Foundation 提供浏览器连接地址契约，交互式提供方可把连接固定到审定 IP，关闭 DNS 重绑定漏洞。
 
-- feat: an endpoint mark shows on the MCP server or custom provider card that owns its host, and can be removed there.
+- 安全 [security]: 桌面 CSP 禁止内联脚本（`script-src 'self'`）。预绘制的主题脚本移到 `public/theme-init.js`；`tauri dev` 通过 `devCsp` 保留旧策略，使 Vite 的开发前导仍能运行。
 
-- fix: a provider protocol rejection retry no longer sticks for the rest of the session; it applies to the turn it happened in.
+- 安全 [security]: 同步升级 Tauri 系列（`tauri` 2.12.1、`tauri-build` 2.7.1、updater 2.13.1 等插件）及配套的 npm 包，桌面 npm 包统一从 `registry.npmjs.org` 解析；移除随 rust-unic 一起失效的忽略项。开发依赖 `urllib3` 升至 2.8.0。
 
-- fix: the speech model is downloaded from the official sherpa-onnx release archive, checked by its hash and unpacked; the earlier download address returned 404. The two model files still have to match their pinned hashes.
+- 安全 [security]: 锁文件修复多项公告：`pypdf` 6.21.2（五项 PDF 解析公告）、`certifi` 2026.10.19（PYSEC-2026-4320）、`rustls-webpki` 0.103.16，以及 `webpki-roots` 与 `webpki-root-certs` 1.0.10（三项根证书公告）。`webpki-roots 0.26.11` 作为 `ureq` 的依赖保留，其影响与升级计划记录在 `docs/governance/OPEN_ITEMS.md` 6.3 节。
 
-- fix: web search and the model-card add tile moved to General / beside the configured providers; MCP changes reload the servers at once; date and time questions are answered from the environment, not by searching.
+- 新增: 桌面输入控制的同意策略（ADR-0062）：程序可被拒绝、逐次确认（如网银与密码管理器）或按会话授权；敏感点击与按键、密码框与坐标点击需要确认；网银或密码管理器窗口可见时拒绝截图；单次运行在 50 次操作或连续三次失败后停止。尚未接入任何工具，用户可见行为不变。
 
-- fix: the Activity page shows each action as one plain sentence with its status (waiting for approval, approved, done). The stored arguments are read as JSON, which fixes the garbled character-by-character output; technical fields move under "Technical details".
+- 新增: 智能体可在受控浏览器中操作需要点击与表单的网站（ADR-0060，先支持 Windows）。导航、点击、输入、选择与按键需逐次批准；快照、滚动、后退、截图与关闭无需批准。浏览器使用本机已安装的 Edge 或 Chrome，在 Delta 自己的配置文件中以可见窗口运行，用户日常的 Cookie 与密码不可访问；密码与银行卡字段不由智能体输入；页面的所有请求经过与 `web_fetch` 相同的地址守卫。
 
-- fix: a web search (or any tool) result is sent to chat-style providers as text; before, a structured result made the provider reject the request, which showed as "service temporarily unavailable". Runtime-only fields are no longer sent to providers. A failure that ends a turn is kept in the conversation, so it is still there when the conversation is reopened.
+- 新增: 桌面应用可截图（`screenshot`，保存到 `.delta/screens/<run>/`，7 天后删除）、读写剪贴板文本、用本机程序打开工作区文档、以及用浏览器打开 `http(s)` 网址（ADR-0059，先支持 Windows）。每次都需用户批准，批准卡片说明截图与剪贴板内容会发送给模型提供方。图片通过新的消息路径发送给模型；模型不支持图片时，提供方会拒绝请求并显示错误。
 
-- feat: Delta introduces itself as a local-first AI work assistant developed by Fongap Labs, in the language the user writes in. The environment block tells the model when this computer's clock is known not to follow a time server (read locally with `w32tm` on Windows and `timedatectl` on Linux; nothing is sent over the network).
+- 新增: 模型可以读取网页（`web_fetch` 与 `web_search`），与其他外发操作使用相同的批准。两者都拒绝回环、私有、链路本地（含云元数据地址）、CGNAT、组播与保留地址，并检查每一跳重定向，只连接通过检查的地址；页面最多读取 5 MB 或 30 秒。
 
-- fix: setting a default model on the Models page no longer leaves a blank, unnamed model in the composer picker; the composer follows the new default unless the user picked another model for the session.
+- 新增: 网页搜索有一个可排序的引擎列表。Google、Bing（国际版）与 DuckDuckGo 内置，无需密钥；Brave 与 Tavily 需要密钥，默认关闭。每个引擎可启用、禁用或调整顺序，首个返回结果的引擎作答；失败的引擎暂停 10 分钟（无结果时 2 分钟）。用户可添加自定义引擎，结果按 JSON 或网页解析；设置页提供"测试"按钮。密钥与引擎列表作为一个凭据存储值保存，只有搜索工具可以读取。
 
-- fix: the first message of each day is right-aligned; today's day divider is no longer shown; message actions (time, copy, edit, regenerate) are visible at the same contrast on every message.
+- 新增: 默认搜索引擎可以明确设置。第一个启用的引擎带有"Default"标签，"设为默认"会启用并置顶所选引擎；用户在问题中指定引擎（如 "search with Google"）时，`web_search` 会优先尝试该引擎，未知名称在结果的 `note` 中报告。
 
-- fix: the email connector's setup labels and steps are translated; the connector list's first sub-navigation item reads "App connectors".
+- 新增: 模型可以创建 Word、Excel 与 PowerPoint 文件（`create_document`，类型由扩展名决定）。创建后立即读回校验，内容、工作表或幻灯片数量不符时失败且不保存任何文件。不包括编辑已有文件、图片、图表、备注、合并单元格与数字格式。
 
-- feat: Word, Excel and PowerPoint files (.docx, .xlsx, .pptx) can be attached in chat. They are saved into the workspace under `.delta/attachments/` when the message is sent, and the model reads them with `read_document`. The limit is 10 MB per file, and a workspace must be set. Archives and other binary files are still not supported.
+- 新增: 模型可以读取工作区的 PDF、DOCX、XLSX 与 PPTX 文件（`read_document`）。它按块返回内容（PDF 页、工作表、幻灯片或段落组），并保留标题与表格结构；无文本层的 PDF 页面标记为可能是扫描件。只读，不需要安装 Office 或解释器。旧版 `.doc`、`.xls`、`.ppt` 被拒绝，并提示另存为新格式。
 
-- feat: the MCP client speaks the 2026-07-28 protocol first and keeps initialize as a legacy fallback for servers that do not speak it.
+- 新增: 聊天可附加 Word、Excel、PowerPoint 文件，发送时保存到工作区 `.delta/attachments/`，模型通过 `read_document` 读取；单文件上限 10 MB，需先设置工作区。
 
-- feat: artifacts carry a status (`drafting`, `pending_review` or `finalized`) and source lineage (the input file path and the matched snippet, redacted and capped at 200 characters). The runtime reports each registration in an `artifact_updated` frame on the existing session stream, and the desktop app shows a Trace Logs panel for finalized artifacts. Records written before this change load with an unknown status and no lineage.
+- 新增: 完成的请求若包含三个或以上工具步骤，可"保存为技能"。技能没有自身权限、工具或副作用，保存前需用户接受，因此保存方法不会扩大智能体的权限。
 
-- fix: the macOS and Linux system proxy lookups in delta-stt called `std::process::Command::new` via an unqualified `Command` that resolved to the local dictation `enum Command` instead, so the crate failed to compile on those platforms; the `download_asset` call to `download_url` was also missing the `route` argument the method now requires.
+- 新增: 中断的运行可以从桌面恢复（ADR-0053）。对话显示"Interrupted."时提供"恢复"按钮，沿用原运行 ID 继续，并追加 `run.resumed` 事件；应用重启后也可以恢复。单回合选定的技能不会被保留。
 
-- feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual); the SenseVoice speech model download resumes with HTTP Range requests and reads system proxy settings on macOS and Linux; a failed web search reports the error instead of opening a browser; and Settings > Privacy gains a network proxy card with direct, system and manual modes.
+- 新增: 运行时在 `read_file` 成功后记录 `source.read` 事件（来源 ID、相对工作区的位置、读取前的 SHA-256、工具与调用 ID），并可按运行列出读取过的来源。产物信任栏显示"本次运行读取了 N 个来源"，展开可看到位置与哈希。它只表示读取过，不表示引用或依赖。运行时公开契约中定义了该记录。
 
-- feat [breaking, migration]: the release version is only the version entered when the release is started. The release build writes it into the version fields of its checkout (`scripts/stamp_release_version.py`) and verifies the portable metadata against it. The version-consistency check, the required dated CHANGELOG release section and `version_source` in the release manifest are removed.
+- 新增: 产物查看器显示信任栏：验证结论（可展开到每项检查及其原因）、生成该文件的工具与登记的 SHA-256。数据来自已存储的工具结果，没有记录的文件不显示信任栏。
 
-- fix: a background shell task is reported as exited only after its output has been read. The process can be gone while its last lines still sit unread in the pipe (the reader thread lags on a loaded machine), and the status used to flip to `exited` then, so `shell_task_output` answered with an empty output and the command's verdict was lost â€?the flaky `test_background_task_runs_and_exits` failure in CI. The exited status now requires both the process being gone and the output drained; a kill waits briefly for the drain so the read after it reports `exited` with the full output.
+- 新增: 任务运行时状态栏显示当前步骤（如"Step 3 · Read report.xlsx"）；运行中发送的消息标记为"已加入当前任务"；提供方失败时在 Retry 旁提供"切换模型"；请求结束时卡片列出写入或编辑过的文件，并可预览；窗口在后台时任务完成会发出系统通知。
 
-- feat: statistics are computed only by R 4.6.0 (locked, ADR-0054 amendment 2026-10-12). The `statistics_describe` tool refuses any other R release and computes nothing, so a result always comes from the validated environment. CI does not install R 4.6.0 yet.
+- 新增: 空任务显示四个起点（整理文件、总结 PDF、归纳主题、把表格转为报告）。点击只填入输入框，不会自动执行。
 
-- feat: the model can ask for the description of one numeric column of a CSV file in the workspace (`statistics_describe`). R computes n, mean, sample standard deviation, min, max and median; the result records the R version and the SHA-256 of the R program and of the file. If R is not installed the tool says so and computes nothing else (ADR-0054, step 2b). CI does not yet install R, so the R-dependent tests skip where it is missing.
+- 新增: 桌面侧栏分为对话、任务中心、自动化、收件箱、连接器与审计，并显示工作区的出站等级；右侧栏新增"权限"区；"最近"列表按日期分组（今天、昨天、过去 7 天、更早），任务可归入可折叠的项目（仅保存在本机，删除项目不删除任务）。
 
-- feat: a multi-round study keeps its design in a `study.json` record, with a published schema. The module reads and checks it (every problem is reported; a range must stay inside its declared bounds; a factor needs bounds; significance and confidence levels are between 0 and 1) and reports which locked fields differ between two registrations: the objective, the responses, the outer adjustment bounds, the stopping rule and the analysis plan. Factor ranges inside the bounds, rounds, decisions and recommendations are not locked (ADR-0056, step 1). Nothing calls it yet: the amend capability, the history query and the validation rule follow.
-- feat: a report can refer to a computed figure with a binding, `{{result:<path>#<key>|<format>}}`, and the figure is rendered in its declared format: fixed decimals or a whole number, rounded half up on the shortest decimal form of the value, so 2.675 renders as 2.68 at two decimals (ADR-0055, step 1). The binding check and the binding manifest follow.
+- 新增: 快捷键 Ctrl/Cmd+K 打开搜索，Ctrl/Cmd+N 新建任务，Ctrl/Cmd+Shift+L 切换明暗主题；折叠的"思考过程"显示一行摘要。
 
-- feat: the first statistics figures are computed by R. A new `statistics` module describes one CSV column (n, mean, sample sd, min, max, median) with R run under a time limit; the R program is compiled in, and each result records its R version and the SHA-256 of the program and of the input (ADR-0054, step 2a). Not yet a capability the model can call.
+- 新增: 模型请求、网页抓取、网页搜索、工具执行与语音模型下载共用同一个代理决定（直连、系统或手动），不再经两条不同的路由出站。设置 > 隐私新增网络代理卡片；语音模型下载支持 HTTP Range 续传，并在 macOS 与 Linux 上读取系统代理。
 
-- feat [security]: connector tools are governed by the workspace egress level. A tool in category `connector` that declares no destination is treated as going to any public site, so it is refused in Private only and asked for in Approved endpoints; each connector has its own per-path rule (`connector:<name>`). Suite connectors do not declare a destination yet (ADR-0061, step 2d).
+- 变更 [breaking]: 网络代理默认改为直连（而非系统代理），设置位于 General。所有出站请求（包括语音模型下载）遵循同一设置。
 
-- feat [security]: a per-path rule lets the user allow, ask for, or block one tool family or one MCP server in one workspace (or in every workspace), replacing the workspace level's decision for that path. Only the settings command sets a rule; a rule that lets more content go asks for confirmation first, and removing a rule takes effect at once. The rule in force is recorded on the outbound call's ledger event (ADR-0061, step 2c).
+- 新增: 拒绝工具定义的模型只在该模型上不带工具运行，并显示提示。网页搜索通过 `SEARCH:` 行请求，由运行时执行经批准的 `web_search` 并把结果作为仅供模型使用的数据返回。
 
-- feat [security]: Settings â–?Privacy lists the local tool servers (stdio MCP) and lets the user mark each one local-only. The mark is the user's statement that the server does not reach the network; adding it asks for confirmation, because it lets the server run in Approved endpoints and Private only workspaces, and removing it takes effect at once (ADR-0061, step 2b).
+- 新增: 语音模型在后台下载，离开设置页不会中断；进度与完成通过 `dictation-download-progress` 与 `dictation-download-finished` 事件通知。
 
-- feat [security]: the workspace egress level now governs outbound tools (ADR-0061, first step). A tool that sends content off the machine declares its destination: web search and fetch and browser automation are public destinations chosen by the model, remote MCP servers are fixed services at their URL (judged by where they resolve), and local MCP servers are local processes. Before a call runs, the level decides it: *Private only* and *Approved endpoints* refuse what they do not allow, *Ask each time* asks for every call, and an unchosen level refuses everything. A refused call does not run; a call that must be asked is approved for that call only, and standing grants and automatic approval do not apply to it. Every outbound call records its destination and decision on `tool.proposed`. Not yet: per-path overrides, the desktop settings for the local-only mark, and Suite connector declarations. A local MCP server can be marked local-only (confirmed; the mark is the user's statement), and a tool the level refuses for every call is no longer offered to the model.
+- 新增: 从提供方获取的模型与模型页使用相同的选项（显示在选择器中、默认）。提供方前缀后没有名称的模型 ID 被拒绝，不会出现在列表中。
 
-- feat: the desktop asks for the default egress level on first run and once after the upgrade, and Settings â–?Privacy changes it per workspace and per endpoint host; a change that lets content go further asks for confirmation first, and nothing is sent to a model until a level is chosen (ADR-0057, step 3).
+- 新增: MCP 服务器提供 JSON 配置编辑器，保存时保留界面中被脱敏的密钥的原值。拥有某主机的 MCP 服务器或自定义提供方卡片上显示端点标记，可在卡片上移除。
 
-- feat [security]: enforce the workspace egress level on every model request (ADR-0057, second step). Before a request the runtime checks the level: with no level chosen yet, a refused endpoint or an unconfirmed *Ask each time*, nothing is sent and the run ends with an `egress` error and a `model.request_refused` ledger event; an unattended run also leaves one Inbox notice. *Ask each time* asks once per run through the normal approval path. When the decision relied on the endpoint's addresses, the connection is pinned to them. Every request that is sent is recorded as `model.request` (endpoint, class, model, level, size and the run's sources, no content). This change must ship with the desktop first-run choice, or every request is refused.
+- 新增: MCP 客户端优先使用 2026-07-28 协议，只对不支持它的服务器回退到 `initialize`。
 
-- feat: add the egress level authority (ADR-0057, first step). A new Rust module `egress` keeps, in an owner-only `egress.json`, the default level the user chooses at first run (none until then), a level per workspace, and `approved` / `private` marks on endpoint hosts. A change that lets content go somewhere it could not go before is refused unless the user confirms it, tightening applies at once, a corrupt file fails closed and is never overwritten, and every change is written to the audit log as `egress.settings`. It also classifies a model endpoint (user mark first, otherwise private only when every resolved address is on this machine or a private network, using the web address guard) and decides a model request under a level. Nothing calls the decision yet: enforcement on model requests, the desktop settings and outbound tools follow in their own changes.
+- 新增: 产物带有状态（`drafting`、`pending_review`、`finalized`）与来源谱系（输入文件路径与匹配片段，脱敏并限制 200 字符）。运行时通过 `artifact_updated` 帧报告每次登记，已定稿产物显示追踪日志面板。旧记录加载时状态未知。
 
-- docs: amend ADR-0054: R is invoked directly by a Rust-native `statistics` capability instead of a Python worker, because the desktop app does not ship Python; the interface uses base R only (CSV and DCF in, DCF out with `%.17g` numbers), and statsmodels stays as the test-suite cross-check. ADR-0055 fixes the rounding of bound figures to round half up on the shortest round-tripping decimal form. The blueprint and target architecture say R is called by a Rust-native capability.
+- 新增: Delta 以本地优先的 AI 工作助手身份自我介绍，由 Fongap Labs 开发，并使用用户所用的语言。环境信息会告诉模型本机时钟是否已知与时间服务器不同步（在本地读取，不联网）。
 
-- build: regenerate `uv.lock` for the `pypdfium2` 5.14.0 pin from #148, which updated `pyproject.toml` but left the lock at 5.13.0, so every `uv sync --locked` in CI failed; and correct the ADR numbers left over from merging main: the baseline work capabilities, computer capabilities and controlled browser decisions are ADR-0058, ADR-0059 and ADR-0060 in their headings, code comments and the repository layout, not ADR-0054 to ADR-0056. The desktop end-to-end mock now answers `get_web_search_settings` like the runtime, so the Web search card no longer shows a load error in every end-to-end run and the Settings â–?Models failure test reads the card it is about.
+- 新增: 统计只由 R 4.6.0 计算（锁定，ADR-0054 修订）。其他版本的 R 会被拒绝，不计算任何结果。模型可以请求工作区 CSV 中某个数值列的描述统计（`statistics_describe`，计算 n、均值、样本标准差、最小值、最大值与中位数），结果记录 R 版本与 R 程序及文件的 SHA-256；未安装 R 时工具会说明而不计算。CI 尚未安装 R。
 
-- docs: the blueprint states where domain work goes: generic capabilities stay in Delta Foundation and domain capabilities go to `fongap-labs/delta-suite`, with formulation / CMC research analysis as the first domain. ADR-0054 (accepted): R computes every reportable statistic, driven by a Python worker with a pinned environment and provenance, with an optional JMP / SAS script export in Suite; the blueprint and target architecture add R as a task execution language for statistics only. ADR-0055 (accepted): report figures are bound to registered result artifacts and checked by a new `numeric_trace` validation rule, and unbound figures are forbidden in formal reports by default. ADR-0056 (accepted): a multi-round study is kept as a schema-validated `study.json` artifact; its objective, responses with targets, outer adjustment bounds, stopping rule and analysis plan change only through an approved `study.amend`, while factor ranges inside the bounds stay movable. ADR-0057 (accepted): each workspace gets a user-chosen egress level (Open, Approved endpoints, Private only, Ask each time) that the Runtime enforces on model requests, recorded as `model.request` ledger events; the default level is chosen by the user at first run, and no model request is sent before that choice. ADR-0054 pins the current R release to its exact version. ADR-0061 (accepted): the same egress level governs outbound tools (web search, web fetch, remote MCP servers, connectors, browser) by destination class, with user-confirmed per-path overrides, approvals that cannot widen the level, and the destination recorded on each outbound tool call.
+- 新增: 多轮研究的设计保存在带公开 schema 的 `study.json` 记录中。模块读取并校验该记录（所有问题都会报告），并能指出两次登记之间被锁定字段的差异：目标、响应、外层调整边界、停止规则与分析计划（ADR-0056 第一步）。
 
-- feat: the agent can use websites that need clicking and forms, in a controlled browser (ADR-0060; Windows first). New tools: `browser_navigate`, `browser_click`, `browser_type`, `browser_select`, `browser_press_key` (each asks the user and is never auto-allowed), and `browser_snapshot`, `browser_scroll`, `browser_back`, `browser_screenshot`, `browser_close` (no approval; they only read or move around). Delta drives the Microsoft Edge (or Google Chrome) already installed, in a visible window with a profile of its own under Delta's state folder, so the user's everyday cookies and passwords are never reachable and the user logs in themselves. A snapshot returns the page text and numbered buttons, links and fields; clicking and typing must repeat the element's name, which is checked against the real element first, so a page that changed cannot redirect a click, and the approval card shows the name. Password and card fields are never typed by the agent. Every request the page makes goes through the same address guard as `web_fetch` (nothing on the user's network or this machine); pop-ups are closed, downloads and file uploads refused, JavaScript dialogs dismissed. One browser for the app, one tab per task; it closes after ten idle minutes, when the user closes it, and when Delta exits. Tested against Chromium with a local server; not run on Windows (the Windows job object that ends the browser with Delta only compiles there), and real sites with bot detection were not tried. A page's own WebSocket connections and a name that changes its answer between the check and the browser's lookup are not covered by the guard. `delta-computer` gains `tungstenite` (plain websocket client, no TLS or async runtime).
-- feat: the desktop app can see the screen and hand things to the user (ADR-0059, steps 1 and 2; Windows first). New tools, each asking the user every time and never auto-allowed: `screenshot` (the main display or all displays, shrunk to at most 1568 px on the long side, kept in the workspace under `.delta/screens/<run>/` as a record of what the agent saw and deleted after 7 days), `clipboard_read` and `clipboard_write` (text), `open_file` (opens a workspace file in the user's own program, only documents, text and common images; anything else can only be shown in the file manager) and `open_url` (an `http(s)` address in the user's browser; no credentials, no other schemes). Approval cards say what each does, and that what a screenshot or clipboard read shows goes to the model provider. Pictures reach the model through a new path: a tool lists its pictures as `images`, and the runtime sends the newest two as one image message after the tool results (converted for OpenAI-style, Anthropic and Responses messages; a path outside `.delta/screens/` is ignored). The platform code is the new crate `crates/delta-computer`, registered by the desktop app, so `delta-core` and headless builds need no display library. The model must be able to read images: if it cannot, the provider refuses the request and the error is shown. Moving the mouse and typing is not included and needs its own decision. The Windows capture compiles for `x86_64-pc-windows-msvc` but has not been run on Windows; macOS and Linux do not capture yet.
-- fix: approval cards for `web_fetch` and `web_search` no longer say "stays on this computer"; they say they make a request over the internet.
-- feat: the default search engine is explicit. The first engine that is on carries a "Default" label, and "Set as default" on any other usable engine (one that needs no key or has one) turns it on and moves it to the top. The model can also name an engine when the user asks for one ("search with Google"): `web_search` takes an optional `engine`, matched by name or id among the engines that are on, tried first with the user's order as the fallback; an unknown name is reported in the result's `note` instead of being ignored.
-- feat: web search works like a browser's search engine list. Google, Bing (international, `ensearch=1`) and DuckDuckGo are built in and need no key; Settings â–?Models â–?Web search lists them with Brave Search and Tavily (which need a key, so start off). Each engine can be turned on or off and moved up or down; a search asks them in that order and the first with results answers, so a blocked engine does not end the search, and one that failed is skipped for 10 minutes (2 minutes if it answered with nothing) so it does not slow later searches. Google, Brave and Tavily take a key (Google's API needs a key and a search engine id together, otherwise its free result page is read); a user can add engines of their own: a name and an address with `%s` for the search words, plus an optional request header and key. The answer of an added engine is read as JSON when it is JSON (the first list of items with a link and a title: SearXNG, Google Programmable Search and most others) and as a web page otherwise (every link that leaves the engine's own site, with `?url=`/`?q=`-style redirect wrappers unwrapped). A "Test" button asks one saved engine a real question and says what came back. The whole list, keys included, is one credential-store value that only the search tool is granted; the interface sees only which engines have a key, never the key, and errors never repeat a key that travels in an address. A key saved by the first version of this feature is carried over. Google's free result page and the generic page reader are best effort: Google often answers a plain request with a consent or CAPTCHA page, in which case the next engine answers; none of the engines could be reached from the test environment, so the parsers are tested against sample markup.
-- fix: old safety copies no longer pile up in the workspace. When a task starts, folders under `.delta/versions` (earlier versions of replaced files, and the copies made by a restore) older than 30 days are deleted, and abandoned folders under `.delta/staging` older than 7 days; a folder that cannot be removed is left for next time, and nothing outside those two folders is touched.
+- 新增: 报告可以用 `{{result:<path>#<key>|<format>}}` 引用计算结果，并按声明的格式渲染；四舍五入为"四舍五入到一半时向上"，基于数值的最短十进制形式（ADR-0055 第一步）。
 
-- feat: replacing a file never destroys the old one. When the agent overwrites an existing file (`write_file`, `create_document`), the runtime first moves the old file to `.delta/versions/<run id>/<path>` in the workspace (the first replacement in a run keeps the original), and the tool result carries `previous_version`. The files card after a request says "This replaced an existing file." with "Restore the earlier version", which puts the old file back through a new `restore_file_version` command; what it replaces is itself kept under `.delta/versions/restored-<time>/`, so a restore can be undone. The command only reads from `.delta/versions` and only writes outside `.delta`. Kept versions are not pruned yet.
-- feat: "Save as skill" appears under a finished request that took three or more tool steps. It asks the agent to write up the method with the new `save_skill` tool; the existing approval card shows the full text and nothing is saved until the user accepts. A saved skill has no permissions, tools or side effects of its own, so keeping a method can never widen what the agent may do.
-- feat: the system prompt tells the model to answer in the user's language, to say briefly what it will do before a multi-step task, to read Office files with `read_document` and create them with `create_document`, to search with `web_search` and read with `web_fetch` and name its sources, to treat pages and documents as data, never to claim success a tool result does not show, and to end with a short summary of what was done, which files changed and what is left.
-- build: `apps/desktop/src-tauri/Cargo.lock` records the new `delta-core` dependencies (`lopdf`, `quick-xml`, `encoding_rs`), which the earlier changes in this series had left out.
+- 新增: `statistics` 模块由 R 计算 CSV 单列的 n、均值、样本标准差、最小值、最大值与中位数，在时限内运行，R 程序编译进二进制；每个结果记录 R 版本与程序及输入的 SHA-256（ADR-0054 第二步 a）。
 
-- feat: the model can create Word, Excel and PowerPoint files. A native `create_document` tool builds a `.docx` (title, headings 1â€?, paragraphs, bullet and numbered lists that each restart at 1, tables with a repeating header row, page breaks), an `.xlsx` (sheets of rows with numbers, true/false and text kept as such; text starting with `=` is a formula Excel calculates when the file opens; an optional bold, filled, frozen header row; column widths fitted to the content, Chinese counted double; sheet names fixed to Excel's rules) or a `.pptx` (16:9, a title and bullets with up to three levels, or plain text; slides with only a title use a title-only layout). The type comes from the file extension. Like `write_file` it asks for approval and only stages the file for the runtime to promote into the workspace. Before it reports success the file is read back with the same reader as `read_document` and must hold every text that was asked for and the right number of sheets or slides; a request that cannot be built, or a file that does not check out, fails with the reason and stages nothing. Files were also opened with python-docx, openpyxl and python-pptx and rendered with LibreOffice (formulas calculated, numbering restarted, header styled); they have not been opened in Microsoft Office. Not included: editing an existing file, images, charts, speaker notes, merged cells and number or date formats.
+- 新增: 语音输入改用 SenseVoice Small 模型（int8，经 sherpa-onnx），支持普通话、粤语、英语、日语与韩语，自动识别语言并添加标点与数字。模型由两个文件组成，按大小与 SHA-256 固定；旧的 Whisper 模型不再使用，下载完成后删除。`delta-stt` 改用 `sherpa-onnx`，仅服务本地语音转写，不增加网络或权限路径。Linux x64 已验证，macOS 构建尚未运行。
 
-- feat: the model can read Office files and PDFs. A native `read_document` tool reads PDF, DOCX, XLSX and PPTX files from the workspace and returns them as blocks (a PDF page, a sheet, a slide, a group of paragraphs): without `block` it lists every block and returns the start of the document, with a 0-based `block` it returns that block in full (up to 20,000 characters). Word headings keep a `#` prefix and tables read as `cell | cell` rows; spreadsheet rows read as `12: a | b | c` with their column positions, a formula nobody has calculated yet shows as `=SUM(B1:B3)`; slides include speaker notes but not slide numbers; a PDF page with no text layer is flagged as a probable scan instead of being skipped. It is read-only, runs under the same workspace grant as `read_file`, and a read counts as a source read. Old `.doc`, `.xls` and `.ppt` files are refused with a hint to save them in the new format; a password-protected PDF says so. It uses `lopdf` (PDF) and `quick-xml` (OOXML) and needs no Office installation or interpreter. PDF text comes out one text run per line, so a heading and its number can land on separate lines.
-- feat: approval cards and step lines name what the model is about to do with documents and the web ("Read the web page example.com", "Search the web for â€œrustâ€?, "Create plan.docx") instead of "Use web_fetch".
+- 修复: 每个任务以首条消息的首行命名（最多 30 个字符），不再在侧栏、搜索与选择器中显示会话 ID。
 
-- feat: the model can now read the web. Two native tools, `web_fetch` (one page as readable text, HTML reduced to text, GBK and Big5 pages decoded) and `web_search` (titles, links and snippets; see the search-engine entry below), run in the Rust runtime with the same approval as any outbound action. Both refuse loopback, private, link-local (including the cloud metadata address), shared carrier-grade NAT, multicast and reserved addresses, also when written as an IPv4 address inside an IPv6 one, check every redirect hop, and connect only to the address that passed the check, so a name that changes its answer cannot redirect the connection; a page is read to 5 MB or 30 seconds at most. This ports the checks of the Python `integrations/web` code (ADR-0058). The search parsers are tested against sample markup, not the live sites, which could not be reached from the test environment.
-- docs: add ADR-0058 (accepted): reading and creating common work files and reading the web are baseline capabilities that Foundation provides natively, because a Foundation with no extension could not read a document or the web at all; specialist capabilities stay optional extensions.
+- 修复: 停止按钮在模型慢速或无输出时也能立即生效：运行时在辅助线程中等待提供方，并每 50 毫秒检查取消标志，包括退避期间。按钮显示"Stopping"，失败的请求会被报告而不是忽略。
 
-- feat: while a task runs, the status bar names the step in progress ("Step 3 Â· Read report.xlsx") instead of only "Workingâ€?; a message sent during a run is marked "Added to the current task"; a provider failure offers Switch model next to Retry; and when a request ends, a card lists the files it wrote or edited, each with a Preview button that opens the artifact panel. A finished task also raises a system notification when the window is in the background.
-- feat: an empty task shows four starting points (sort files, summarise a PDF, find topics, turn a spreadsheet into a report). Picking one only fills the composer; nothing runs until the user sends it.
+- 修复: 模型调用失败后的自动重试不再显示为错误，在最多四次之间等待 1、2、4、8 秒，状态栏显示"Connecting, attempt 2 of 5"，重试标记不写入会话。HTTP 408、425、500、520–524 与 529 与 429、502–504 一样视为可重试。
 
-- feat: Voice Input now uses the SenseVoice Small model (int8, via sherpa-onnx) instead of Whisper Base. It recognises Mandarin, Cantonese, English, Japanese and Korean with automatic language detection, adds punctuation and digits, and is kept loaded after first use, so a sentence transcribes in well under a second. The model is two files (`model.int8.onnx`, 239 MB, and `tokens.txt`), each pinned by size and SHA-256 and tried against Hugging Face and then hf-mirror.com; whatever arrives must match the pin. Settings shows the new model name and size; an installed Whisper model is no longer used, so Voice Input asks for the new download once, and the old `ggml-base.bin` files are deleted when it finishes. `delta-stt` replaces `whisper-rs` (CMake and clang at build time) with `sherpa-onnx`, which links ONNX Runtime from the project's prebuilt archive (downloaded by its build script; `SHERPA_ONNX_LIB_DIR` points a build at a local copy). It serves the local speech-to-text module only and adds no network, model-protocol or authority path. Checked on Linux x64; the Windows build links the static-CRT archive and the macOS build has not been run.
-- fix: a task is named after its first message (the first line, up to 30 characters) instead of showing its session id in the sidebar, search and pickers. The runtime sets the title when the first turn starts, never over a title the user set, and names existing untitled sessions from their first message the next time the list is read; a session with no message yet reads "New task".
-- fix: Stop works while the model is slow or silent. Cancelling was only noticed between received lines, so a request waiting for a connection or a first byte, a quiet stream or a retry back-off kept the run "running" until the provider answered or timed out (up to five minutes), and a press looked like it did nothing. The runtime now waits for the provider on a helper thread and watches the cancel flag every 50 ms, including during back-off. The button shows "Stoppingâ€? at once, reports a failed request instead of ignoring it, and settles the view if the runtime had nothing to stop.
-- fix: automatic retries of a failed model call no longer show as errors. The runtime waits 1, 2, 4 and 8 seconds between up to four retries instead of retrying at once (an immediate retry only hammers an overloaded or rate-limited gateway), counts retries per model call, and reports the attempt in the existing `error` event (`terminal: false`, with `attempt`, `max_attempts` and `retry_in_ms`). The status bar says "Connecting, attempt 2 of 5â€? and the transcript keeps only a final failure; retry markers are no longer written to the conversation, and ones saved by older builds are not replayed as errors. HTTP 408, 425, 500, 520â€?24 and 529 now count as retryable like 429 and 502â€?04, judged by the status alone.
-- fix: streamed replies are no longer cut off by a fixed total deadline (300 s by default). Streaming calls now bound only the connection (15 s) and the time without data (the previous timeout), so a long reasoning or generation that keeps producing is not turned into a "provider unavailable" failure. Requests also identify themselves as `Delta/<version>` instead of the HTTP library's default.
-- fix: while a task runs, the composer keeps showing the model of the run, and Edit is offered on the messages sent in this run (it stops the run first, then cuts the thread back). Before, the model chip was hidden and a message sent in a running turn had no stored position until the turn ended, so Edit was missing.
-- fix: the collapsed "Thought process" header no longer wraps one character per line next to a long summary; the label keeps its width and only the summary is clipped.
-- fix: the provider form says "OpenAI" instead of "OpenAI (native)", and its subtitle and Base URL hint follow the chosen protocol ("Configure an Anthropic-compatible or native-protocol service").
+- 修复: 模型页设置默认模型后，输入框跟随新默认值，不再留下空白的未命名模型，除非用户为本次会话选择了其他模型。
 
-- fix: when settings cannot be read, the cards that used to show built-in values now say they could not load and offer a retry: the PDF limits and compaction thresholds under Models, and the context-bar switch, the sidebar count and the scratch folder under General. Before, the runtime's error was returned as an object without the saved fields, so the cards showed their defaults as if they were the saved settings, and a click would then save the default. Trusted workspaces likewise no longer reads as "No workspaces are trusted." after a failed read.
+- 修复: 语音模型改从官方 sherpa-onnx 发布包下载（原地址返回 404），按哈希校验并解包。
 
-- feat: an interrupted run can be resumed from the desktop. When a conversation ends in "Interrupted." and the runtime reports that the session's last run is interrupted (new read-only query `runtime_resumable`), the notice offers Resume; it continues the same run under its original run id (ADR-0053). Resume also works after the app was restarted: the runtime builds the session again from what it saved (model, workspace, mode, messages), so the client sends nothing but the session id. The one thing not carried over is a skill picked for that single turn. If the runtime cannot resume, or cannot be asked, no button is shown; Retry for failed turns is unchanged.
-- feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual), so a turn no longer leaves the machine by two different routes.
-- feat: the SenseVoice speech model resumes an interrupted download with HTTP Range requests, and system proxy settings are read on macOS (scutil) and Linux (gsettings).
-- feat: a failed web search reports the error instead of opening a browser.
-- feat: Settings > Privacy has a network proxy card with direct, system and manual modes.
+- 修复: 提供方表单名称改为 "OpenAI"，副标题与 Base URL 提示随所选协议变化。
 
-- fix: the Automations, Skills, MCP servers and Connectors lists no longer present a failed read as an empty list ("No skills yet", no servers, an empty connector catalogue, the automation quickstart as if none existed). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow; a later failed refresh keeps the list already on screen. The four read functions throw when the runtime reports an error instead of returning an empty result.
-- feat: model requests, web fetch, web search, tool execution and speech-model downloads share one proxy decision (direct, system or manual), so a turn no longer leaves the machine by two different routes.
-- feat: the SenseVoice speech model resumes an interrupted download with HTTP Range requests, and system proxy settings are read on macOS (scutil) and Linux (gsettings).
-- feat: a failed web search reports the error instead of opening a browser.
-- feat: Settings > Privacy has a network proxy card with direct, system and manual modes.
+- 修复: 运行中的任务显示当前模型，并可对本次运行发送的消息使用 Edit（先停止运行，再回退线程）。
 
-- feat: resuming an interrupted run now keeps the run's own `run_id` and appends `run.resumed` to it, as the runtime contract always said, instead of starting a new run (ADR-0053, accepted). The runtime picks the run: the one in the session's latest checkpoint whose last lifecycle state is `interrupted`; if there is none, or the last run finished or is waiting on an approval or question, the request is rejected and nothing is written. Artifacts, validation, side-effect state and `source.read` records written after the resume now sit under the same run as the part before it. Retry is unchanged. The desktop does not offer a Resume action yet.
+- 变更: 任务步骤、侧栏工作标记、连接器与语音状态标签使用带无障碍名称的图标；停止按钮为反色按钮；错误颜色仅用于错误。
 
-- docs: add ADR-0053 (proposed) on which run identity a resumed run uses: today `resume` starts a new `run_id`, which contradicts the contract and splits a run's artifacts, validation and sources over two ids. It recommends resuming under the original `run_id` with a `run.resumed` event, which the ledger state machine already allows; nothing is implemented and the desktop keeps showing no Resume action until it is accepted.
+- 修复: 等待批准、文件夹请求、计划决定或提问时，状态栏显示"Awaiting approval"，不再显示为运行中。
 
-- feat: the trust strip under an artifact shows "Read N sources in this run" when the runtime recorded sources (`source.read`) for the run that made the file, and expands to each source's location and short SHA-256. It states only that the run read them: it never says the answer relied on or cited them (an entry is labelled Cited only when the runtime holds a validated citation for that run, which nothing writes yet), file paths are shown as recorded and URLs without their query and fragment. A new read-only runtime query `run_sources_list` serves it; if it fails or finds nothing the chip is simply absent.
+- 修复: 每天的第一条消息右对齐；消息操作按钮（时间、复制、编辑、重新生成）在所有消息上的对比度一致。
 
-- feat: the runtime records which files a read tool read. After a successful `read_file` call it registers the file as a source and appends a `source.read` event (source id, location relative to the workspace, SHA-256 of the file as hashed before the read, tool and call id) to the run's own ledger stream, before `tool.completed`. Only inputs the capability host verified itself are recorded, only for tools declared `category: read`; a failed, cancelled or replayed call adds nothing, and if the record cannot be written the call fails. `SourceCitationReader::sources_read(run_id)` lists them per run. Nothing in the UI shows this yet.
+- 新增: 最后一条回复空闲会话可以"重新生成"。它会回退到最后一条消息之前，并用相同的文本与附件重新发送。
 
-- docs: define the `source.read` record in the runtime public contract: a runtime-written event in the run's own ledger stream saying a tool call read a given version of a source, plus a read-only query by run. It states what the record does not claim (no citation, no reliance), limits the first implementation to workspace file reads, and reserves optional fields on `citation.marked` for later provider citations. Nothing is implemented yet.
+- 变更: macOS 菜单栏图标改为单色模板图标，跟随浅色与深色菜单栏及高亮状态；Windows 与 Linux 保留全彩品牌图标。
 
-- fix: Escape now closes an open session menu in the sidebar and steps back from an open artifact to the artifact list. It is ignored while an input method is composing text and while typing in a text field, and it never overrides a handler that already used it (dictation cancel, the slash menu, an inline rename).
+- 变更: 桌面应用采用 Delta 视觉系统 v1：青绿色为唯一强调色，深色模式下文本对比度为 4.5:1、焦点环高于 3:1；表面扁平，浮层只有一种阴影；键盘焦点只有一种环；状态用形状与文字表示，不只靠颜色。
 
-- fix: the Activity page, the Inbox and the Memory page no longer present a failed read as an empty list ("No audit events yet", an empty queue, "Nothing yet"). They now say the data could not be loaded and offer a retry, and show a skeleton while a first read is slow. The read functions throw when the runtime reports an error instead of returning an empty result.
+- 变更: 运行状态栏位于输入框正上方，带图标与文字，跟随深色主题，支持减少动效偏好。
 
-- fix: while a run is waiting for an approval, a folder request, a plan decision or a question, the run status bar now says "Awaiting approval" with a hand icon instead of "Running", so a blocked run is no longer shown as working.
-- feat: the artifact viewer shows a trust strip when the runtime recorded how the file was made: the validation verdict (checks passed or failed, expandable to each check and its reason), the tool that produced it, and the SHA-256 registered with it. It is read from the producing tool result already stored in the conversation, so nothing is inferred and a file without such a record shows no strip. Sources and versions are not shown yet.
+- 变更: 主要批准按钮改为实心填充。
 
-- feat: the macOS menu-bar icon is now a single-colour template image, so it follows the light and dark menu bar and the highlight state; Windows and Linux keep the full-colour brand icon. The template is derived from the brand source by `scripts/brand_tray_template.py` and registered in the brand icon manifest.
-- feat: the last reply of an idle conversation has a Regenerate action. It cuts the thread back to before the last message and sends the same text and attachments again, so the answer comes from a normal run; it is not offered while a run is in progress or when the last message was a skill command.
+- 修复: 活动页把每个动作显示为一句话与状态（等待批准、已批准、已完成）。存储的参数按 JSON 解析，修复逐字符输出的乱码；技术字段移到"Technical details"下。
 
-- fix: the settings screen showed the HTML entities `&rsquo;` and `&amp;` literally ("Auto follows your Mac&rsquo;s appearance", "Setup &amp; updates"); the hints now use the characters themselves, and the appearance hint no longer names a single operating system.
-- feat: the desktop app moves to the Delta visual system v1: teal is the only accent (a lifted teal in dark mode keeps text at 4.5:1 and the focus ring above 3:1), surfaces are flat with no frosted glass and one shadow for floating layers, keyboard focus has one ring, and status is shown by shape and word instead of colour alone. The retired gray-blue accent is gone, and the old colour names keep working as aliases while components migrate.
-- feat: the run status bar sits directly above the composer and shows the running state with an icon and a word. It now follows the dark theme (it stayed light gray before) and honours reduced motion. Paused, resumed and verified states are not shown until the runtime reports them.
-- feat [security]: approvals for actions that leave the computer (chat messages, files, connector calls), live and parked in the Inbox, carry a labelled "Needs your approval" band and stay locked until the user confirms the recipient and content; the session-wide "Always allow" is no longer offered for them, and the task-scoped "Allow every time" of an automation run needs the same confirmation. This is a client-side safeguard: the runtime's approval decisions and authority are unchanged. The primary approval button is now a solid fill.
-- feat: task steps, the sidebar working marker, connector Live and Ready chips and the voice Ready chip use icons with accessible names, Stop is an inverse button, and error colours are used for errors again instead of the accent.
-- feat: the sidebar groups Recent by date (Today, Yesterday, Previous 7 days, Earlier) and lets tasks be filed into collapsible projects that can be created, renamed, cleared and removed (removing a project never deletes tasks). Projects are stored on this device only; the runtime has no project concept and no contract changes.
-- feat: new shortcuts: Ctrl/Cmd+K opens search, Ctrl/Cmd+N starts a new task, Ctrl/Cmd+Shift+L switches between light and dark; a collapsed "Thought process" shows a one-line summary of the reasoning.
+- 修复: 网页搜索工具结果以文本形式发送给聊天类提供方。此前结构化结果会导致提供方拒绝请求，表现为"service temporarily unavailable"。运行时字段不再发送给提供方；导致回合结束的失败会保留在会话中，重新打开会话时仍然可见。
 
-- fix: the SQLite authority stores (`run_events.db`, `side-effects.db`, `approvals.db`, `tasks.db`, `core.db`, `memory.db`) and `inbox.json` are now owner-only from the moment they are created or opened, like the JSON credential files. `private_fs.rs` gains `harden_sqlite_files(path)` covering the database file and its `-wal`/`-shm` sidecars; on Windows it also restricts the containing directory so sidecars SQLite creates later inherit the restriction.
+- 修复: 助手被问及模型身份时，回答用户模型设置中的模型，而不是 Delta 的名字；环境信息未声明开发者时，不把模型归于任何开发者。
 
-- build [security]: update the Tauri family together: `tauri` 2.12.1, `tauri-build` 2.7.1, the dialog, autostart, opener and updater plugins (updater 2.12.0 to 2.13.1) and, with them, the `@tauri-apps/api`, `@tauri-apps/plugin-opener` and `@tauri-apps/cli` packages (all resolved from `registry.npmjs.org`), instead of merging the single Dependabot updates whose Rust and JavaScript halves must match. The update also drops the rust-unic crates, so their five advisory ignores are removed from `deny.toml`.
+- 修复: 流式回复不再被固定的 300 秒总超时切断，只限制连接（15 秒）与无数据时间；请求标识为 `Delta/<version>`。
 
-- docs: add ADR-0052 (proposed) on credential storage: where API keys and connector credentials are kept today (Rust authority files, Python vault), the Windows gap in the Rust private write, and the options and recommendation, awaiting the owner's decision; nothing is implemented.
-- chore: drop the ten ignore entries for the gtk-rs GTK3 advisories (RUSTSEC-2024-0411 to RUSTSEC-2024-0420) from `deny.toml`; the advisory database withdrew them on 2026-08-14 and `cargo deny check advisories` passes in every workspace without them.
-- fix [security]: credential files are now owner-only from creation. On Windows the Rust runtime restricts `model-authority.json`, `application.json` and the MCP state file to the current user's SID (inheritance removed) before the file takes its final name and verifies the result, instead of relying on the folder's access; the Python vault creates files with mode 0600 (`O_EXCL`), compares Windows ACLs by SID instead of English account names, no longer hides a failed folder restriction, and reports `acl_unprotected` in its status rows; the model settings carry `secrets_file_protected`. No data format change (ADR-0052, step 1).
+- 修复: 思考内容显示在步骤上方（实时与结束后）；问题在回合中途回答后步骤计数继续；步骤圆点仅在调用失败时为红色；进度行显示"Step N in progress"。
 
-- build: add `packaging/portable/sign-windows.ps1`, an Authenticode signing step that signs the launcher and the app executable before the portable ZIP is built and re-verifies them in the final ZIP, but only when `WINDOWS_SIGNING_CERT` and `WINDOWS_SIGNING_PASSWORD` are present; without them the build logs that signing is skipped and behaves exactly as before.
-- fix [security, migration]: the audit database and the run event ledger no longer keep tool arguments and results in clear text. A new `delta_core::redact` module applies the policy of `packages/sanitize.py` (secret-shaped keys, credential headers, `body`/`content`/`html` fields, URL credential parameters) and also scrubs shell command text and tool results for `Authorization:`/`Cookie:` headers, `--password`/`--token` style flags, `?token=` parameters and well-known token shapes (`sk-`, `ghp_`, `AKIA`, JWT). It runs on every audit row written and on every tool event the runtime appends to the ledger; tool names, stages, statuses, levels, resources and the shape of the arguments stay. Audit rows written by older builds are scrubbed once on the next start (`PRAGMA user_version`; a failure never blocks startup). Checkpoints, which hold what is needed to resume a run, are deliberately unchanged, and ledger events written before this change are not rewritten because they are hash chained. Python and Rust are tested against one shared fixture, `crates/delta-core/tests/fixtures/redaction_golden.json`.
-- fix [security]: "Open" on an artifact only hands documents, text and common images (`pdf`, `docx`, `xlsx`, `pptx`, `txt`, `md`, `csv`, `png`, `jpg`, `jpeg`, `gif`, `webp`) to the operating system's default application; any other file, including files with no extension, scripts, shortcuts, `.svg`, `.html` and names such as `report.pdf.exe`, is only revealed in the file manager, and the result carries `downgraded: true`. Previously a model-written `.bat` or `.lnk` could be launched by one click.
-- fix [security]: `web_fetch` streams the page and stops at 5 MB after decompression or after 30 seconds, whichever comes first, instead of reading the whole body into memory; a response that is cut short is reported with `truncated: true`. Previously a server that never stopped sending, or a small compressed file that expands to gigabytes, could exhaust the memory of the Delta process. Address checks and pinning on every redirect hop are unchanged (`guard.stream_checked`).
-- fix [security]: the address guard behind `web_fetch` and `browser_read_url` refuses URLs that carry credentials or a backslash in the host part (`http://127.0.0.1@example.com/` was read as example.com by the guard and as 127.0.0.1 by a browser, and `http://user:pw@host/` was passed through to the pinned request), and it judges IPv4 addresses carried by IPv6 (IPv4-mapped, 6to4, Teredo, NAT64) itself instead of relying on the interpreter's address tables. The module comment no longer says `web_fetch` skips approval.
+- 修复: 提供方协议拒绝后的重试只作用于发生它的那一回合，不再延续到整个会话。
 
-- fix: the Windows portable build invokes the relocatability scanner by its actual filename `scan-portable-paths.ps1` instead of the mistyped `scan_portable_paths.ps1`, and the BUILD.txt provenance label now names `build-portable.ps1` correctly.
+- 修复: 网页搜索的设置移到 General，与已配置提供方并列的"添加模型"卡片调整位置；MCP 修改后立即重载服务器；日期与时间问题直接从环境信息回答，不再搜索。
 
-- fix: retired `fongap/delta` references are repaired â€?the desktop updater feed and portable provenance point to `fongap-labs/delta`, and governance docs use the `fongap-labs` organization path.
+- 修复: 设置读取失败时，相关卡片（模型页的 PDF 限制与压缩阈值，以及 General 中的上下文栏开关、侧栏计数与临时文件夹）显示加载失败与重试按钮，而不是显示默认值（否则点击会保存默认值）。受信工作区在读取失败后也不再显示"没有受信工作区"。
 
-- build [security]: upgrade the dev-only `urllib3` from 2.7.0 to 2.8.0 for published advisories, and resolve every desktop npm package from `registry.npmjs.org` instead of a third-party mirror (integrity hashes unchanged).
+- 修复: 自动化、技能、MCP 服务器、连接器、活动、收件箱与记忆页在读取失败时显示错误与重试按钮，而不是显示为空列表；加载中显示占位骨架；读取函数在运行时报错时抛出异常。
 
-- ci: add Rust to the CodeQL scan so the Rust core runtime (`delta-core`) is covered by static analysis, not only the TypeScript and Python code.
+- 修复: Esc 可关闭侧栏中打开的会话菜单，并从打开的产物返回产物列表；输入法组合与文本输入中忽略，不覆盖已有的处理逻辑。
 
-- fix [security]: the desktop CSP no longer allows inline scripts (`script-src 'self'`); the pre-paint theme script moved from `index.html` into `public/theme-init.js`, and `tauri dev` keeps the previous policy through `devCsp` so Vite's dev preamble still runs.
+- 修复: 设置页中的 `&rsquo;` 与 `&amp;` 实体曾原样显示，现已改为正确字符。
 
-- fix: the README install command no longer asks for a non-existent `messaging` extra (`uv sync --locked --extra dev` is the command CI runs).
+- 修复: 残留的 `fongap/delta` 引用改为 `fongap-labs/delta`，包括桌面更新源与便携包来源信息。
 
-- fix: `read_file_lines` capped its window with the per-line character limit by coincidence; it now uses its own `_READ_FILE_LINES_HARD_MAX` (same value, 500).
+- 修复: Windows 便携构建调用正确的脚本文件名 `scan-portable-paths.ps1`，BUILD.txt 中的来源标签正确指向 `build-portable.ps1`。
 
-- ci: the desktop contract-test list is declared once in `central-ci.sh`, every entry must exist, and the two stale entries (`src/api.contract.test.ts`, `src/api.auth.test.ts`) are gone.
+- 修复: README 的安装命令改为 CI 实际使用的 `uv sync --locked --extra dev`。
 
-- docs: add `docs/architecture/adr/README.md`, an index of the ADR numbers cited in code but stored elsewhere, and point the Rust doc comments at it instead of at files that do not exist.
+- 修复: `read_file_lines` 使用自己的行数上限常量（500），不再依赖与单行字符限制相同的数值。
 
-- ci: add the approved thin PR dispatcher so pull request events reach central governance within about a minute; it runs no PR code and skips Dependabot.
+- 修复: 提供方错误正文按 UTF-8 字符边界截断，并恢复能力契约测试中缺失的 `PathBuf` 导入。
 
-- test: run the Python contract and integration suites from the central Action Worker test pack (`tests/packs/delta`); Rust and desktop tests stay beside their code.
+- 修复: Windows PowerShell 持久 shell 在第一个真实命令前预热，避免冷启动的 CI 运行器在首次读取时超时；持久 shell 的结束标记解析可以抵御带前缀的 PowerShell 输出。
 
-- fix: truncate provider error bodies on a UTF-8 character boundary instead of a raw byte slice and restore the missing PathBuf test import in the capability contract tests.
+- 修复: `apps/desktop/src-tauri/Cargo.lock` 补上此前遗漏的 `delta-core` 依赖（`lopdf`、`quick-xml`、`encoding_rs`）。
 
-- fix: warm up the Windows PowerShell persistent-shell driver before the first real command so cold CI runners do not time out on the first `[Console]::In.ReadLine()` round-trip.
+- 修复: `uv.lock` 与 `pyproject.toml` 中的 `pypdfium2` 5.14.0 重新同步，修复 CI 中 `uv sync --locked` 的失败；合并 main 后遗留的 ADR 编号已修正为 ADR-0058 至 ADR-0060。
 
-- refactor: move `delta-core` runtime tests into a dedicated submodule so `runtime.rs` contains only production runtime code.
+- 修复: 命名检查不再把 Rust 单元测试模块当作生产代码。测试模块在各自的 `tests.rs` 中，并在 `#[cfg(test)]` 下声明，因此没有运行时代码受影响。
 
-- refactor [breaking]: remove the retired JSONL `delta_core` subprocess server/client path and keep the embedded Rust runtime as the only product Runtime authority.
+- 修复: 后台 shell 任务在输出读完之后才报告为已退出，修复 CI 中偶发的 `test_background_task_runs_and_exits` 失败；终止后的读取会得到完整输出。
 
-- refactor: make Foundation connectors consume an injected read-only `SecretSource`, remove dead secret-backed tool enablement state, and keep the concrete file vault only at legacy/headless boundaries.
+- 修复: delta-stt 在 macOS 与 Linux 上的系统代理查询曾因未限定的 `Command` 名称与本地枚举冲突而编译失败；`download_asset` 调用补上 `download_url` 所需的 `route` 参数。
 
-- feat: add a canonical persistent Worker SDK loop so long-lived workers share the same Job, secret-frame, ABI negotiation, and terminal-result contract as one-shot workers.
+- 修复: 连接器状态变化后，复用的会话运行时刷新模型可见的工具结构。
 
-- fix: add the packaged Delta Worker SDK README required by Git subdirectory installs.
+- 修复: Dependabot 的 `uv.lock` 同步跟随当前仓库，不再写死已退役的所有者。
 
-- fix: make the Python Worker SDK fail closed with typed results for malformed jobs, malformed secret payloads, and invalid handler returns.
+- 变更: `delta-core` 运行时测试移入独立子模块，`runtime.rs` 只保留生产代码。
 
-- refactor: remove the retired parallel Worker SDK and keep `delta-worker-sdk` as the single Python Capability ABI implementation.
+- 变更: 桌面与运行时的 ADR 编号统一：ADR-0052 凭据存储（提议中，尚未实施，第一步已实施）、ADR-0053 恢复运行的身份（已接受）、ADR-0054 至 ADR-0057 与 ADR-0061 为统计与出站等级的决定，ADR-0058 至 ADR-0060 为基线能力、电脑能力与受控浏览器；`docs/architecture/adr/README.md` 提供索引。
 
-- fix: align Python worker SDK grants, boundaries, input files, and artifacts with the Rust Capability ABI.
+- 变更: 蓝图说明领域工作的去向：通用能力留在 Delta Foundation，领域能力（如制剂与 CMC 研究分析）放入 `fongap-labs/delta-suite`。ADR-0058 规定读写常见办公文件与读取网页是 Foundation 的基线能力。
 
-- fix: align the Python worker SDK result contract with the Capability ABI so any JSON value can be returned.
+- 变更: 系统提示要求模型使用用户语言回答，在多步任务前简述计划，用 `read_document` 与 `create_document` 处理 Office 文件，用 `web_search` 与 `web_fetch` 检索并注明来源，把页面与文档视为数据，并在结束时简要说明完成的工作、修改的文件与剩余事项。
 
-- fix: expose a Foundation-owned browser connection address contract so interactive providers can pin connections to the vetted IP and close DNS rebinding gaps.
+- 变更: 审批卡片与步骤行直接说明模型要做什么（如"读取网页 example.com"、"创建 plan.docx"），不再显示工具名。
 
-- ci: cancel centralized PR work when a pull request is closed.
+- 变更: 覆盖已有文件（`write_file`、`create_document`）前，旧文件先移入工作区的 `.delta/versions/<run id>/`，工具结果带有 `previous_version`；文件卡片提供"恢复较早版本"，恢复操作本身也会保存旧版本，因此恢复可撤销。
 
-- chore: remove the obsolete Dependabot auto-merge workflow because repository auto-merge is centrally disabled.
+- 变更: 任务开始时删除 `.delta/versions` 中超过 30 天的文件夹，以及 `.delta/staging` 中超过 7 天的遗留文件夹；无法删除的文件夹留待下次处理，其他目录不受影响。
 
-- fix: pin address-checked connector HTTP requests to vetted public IPs and preserve request credentials without following redirects.
+- 变更: `delta-worker-sdk` 是唯一的 Python 能力 ABI 实现，并行的旧 SDK 已移除。持久工作进程与一次性工作进程共享 Job、秘密帧、ABI 协商与终止结果契约；格式错误的任务、秘密载荷与无效返回值会返回带类型的失败结果；结果可以是任意 JSON 值；补充了打包的 README。
 
-- perf: run independent Python and Rust central-CI checks with bounded parallelism to reduce full-suite wall time without reducing coverage.
+- 变更: Foundation 连接器使用注入的只读 `SecretSource`，移除无用的秘密启用状态；具体的文件保险库只保留在遗留与无头边界。
 
-- refactor: move Foundation and Rust license policy checks into Action Worker Central CI and remove the repository-local workflow.
+- 变更 [breaking]: 删除已退役的 JSONL `delta_core` 子进程服务与客户端，嵌入式 Rust 运行时是唯一的产品运行时权威。
 
-- refactor [breaking]: move Delta main CI, Windows Portable release runners, SBOM packaging, attestation, and Release Governance dispatch to Action Worker.
+- 变更: 独立的 Python 与 Rust 中央 CI 检查以有限并行执行，缩短完整测试时间，覆盖率不变。
 
-- refactor [breaking]: bind release artifacts to explicit source and workflow-run provenance for centralized Release Governance.
+- 变更: Foundation 与 Rust 许可证策略检查移到 Action Worker 中央 CI，删除仓库内的工作流。
 
-- refactor: move pull-request CI to Action Worker while retaining main-branch validation until release source/build execution is centralized.
+- 变更 [breaking]: Delta 主 CI、Windows 便携发布运行器、SBOM 打包、证明与 Release Governance 派发移到 Action Worker；发布产物绑定到源码与工作流运行的来源证明，供中央 Release Governance 使用。
 
-- ci: add a lightweight GitHub Actions merge gate for centralized Action Worker evidence.
+- 变更: 测试由 Action Worker 测试包运行：Python 契约与集成测试使用 `tests/packs/delta`，Rust 与桌面测试保留在原处。
 
-- ci: add Linux and Windows project entrypoints for Action Worker centralized CI.
+- 变更: CI 由 Action Worker 调度：PR 的 CI 移到 Action Worker，main 分支验证保留到发布源与构建集中化；通知桥接在 main 推送后立即唤醒中央 Intake；加入轻量合并门禁与 Linux、Windows 项目入口；最终合并校验集中到 Action Worker；PR 关闭时取消中央工作；加入薄 PR 分发器；移除过时的 Dependabot 自动合并工作流。
 
-- ci: centralize final merge validation through Action Worker while keeping repository-native checks local.
-- fix: make Dependabot uv.lock synchronization follow the current repository instead of a retired owner hardcode.
+- 变更: CodeQL 扫描加入 Rust，Rust 核心运行时（`delta-core`）纳入静态分析。
 
-- fix: refresh model-visible tool schemas for reused session runtimes after Connector state changes.
+- 变更 [breaking, migration]: 中央治理派发凭据一次性切换，仓库目标由凭据推导。
 
-- refactor [breaking, migration]: hard cut the central governance dispatch credential and derive its repository target.
+- 变更: 发布治理文档改为指向中央指南，修复已失效的命名约定链接；提交规范由 `.githooks/commit-msg` 在本地检查，CONTRIBUTING.md 说明主题格式、CHANGELOG 条目规则与发布流程。
 
-- fix: harden Windows persistent-shell trailer parsing against prefixed PowerShell output.
+- 变更: 删除 `deny.toml` 中已被上游撤回的十个 gtk-rs GTK3 公告忽略项（RUSTSEC-2024-0411 至 0420）；`cargo deny check advisories` 在所有工作区通过。
+
+- 变更: 六项尚无上游修复的 Rust 公告（zip 解压与未维护的 `zvariant` crate）已记录影响、可利用性、缓解措施与升级计划（`docs/governance/OPEN_ITEMS.md`），策略本身不变。
+
+- 变更: 新增 `packaging/portable/sign-windows.ps1`，在提供 `WINDOWS_SIGNING_CERT` 与 `WINDOWS_SIGNING_PASSWORD` 时对启动器与应用可执行文件签名，并在最终 ZIP 中重新验证；未提供时跳过签名，构建行为不变。
 
 ## [0.1.0] - 2026-09-18
 
 Initial Delta release.
-

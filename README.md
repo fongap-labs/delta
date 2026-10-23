@@ -215,7 +215,7 @@ flowchart LR
 
 完整规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，要点如下：
 
-- 面向人的文档用中文；代码改动、PR 标题和 CHANGELOG 用英文。
+- 面向人的文档与 CHANGELOG 条目用中文；代码改动与 PR 标题用英文。
 - 分支从 `main` 创建，使用 `feat/`、`fix/`、`docs/` 等前缀。
 - 提交遵循 Conventional Commits，并用 `git commit -s` 签署 DCO（确认你有权提交这段代码）。
 - PR 默认以 Squash merge 合并（把一个分支的所有提交压成一个再合并）。
