@@ -306,10 +306,6 @@ EXEMPT_FILES: dict[str, Exemption] = {
         frozenset({"server-packaging"}),
         "the legacy-path guard names deleted server packaging paths solely to reject references",
     ),
-    "scripts/check_architecture_boundary.py": Exemption(
-        frozenset(rule.id for rule in RULES),
-        "the guard must encode every forbidden token in order to reject it",
-    ),
 }
 
 

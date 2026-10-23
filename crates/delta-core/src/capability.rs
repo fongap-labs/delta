@@ -432,8 +432,8 @@ mod tests {
             .send(WorkerLine::Stdout(serde_json::to_string(&typed).unwrap()))
             .unwrap();
         let control = CapabilityControl::new(Arc::new(AtomicBool::new(false)), Arc::new(|_| {}));
-        let mut stdout_lines = Vec::new();
-        let mut stderr_lines = Vec::new();
+        let mut stdout_lines = CapturedLines::new();
+        let mut stderr_lines = CapturedLines::new();
         let mut result = None;
         drain_worker_lines(
             &receiver,
@@ -459,8 +459,8 @@ mod tests {
                 .unwrap();
         }
         let control = CapabilityControl::new(Arc::new(AtomicBool::new(false)), Arc::new(|_| {}));
-        let mut stdout_lines = Vec::new();
-        let mut stderr_lines = Vec::new();
+        let mut stdout_lines = CapturedLines::new();
+        let mut stderr_lines = CapturedLines::new();
         let mut result = None;
         drain_worker_lines(
             &receiver,

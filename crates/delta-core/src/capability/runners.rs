@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use super::abi::{
-    CapabilityExitState, CapabilityJob, CapabilityProgress, CapabilityResult,
+    CapturedLines, CapabilityExitState, CapabilityJob, CapabilityProgress, CapabilityResult,
     CAPABILITY_ABI_VERSION,
 };
 use super::registry::{CapabilityControl, CapabilityRunner};
@@ -229,8 +229,8 @@ impl CapabilityRunner for WorkerProcessRunner {
         });
         let started = Instant::now();
         let timeout = (job.timeout_secs > 0).then(|| Duration::from_secs(job.timeout_secs));
-        let mut stdout_lines = Vec::new();
-        let mut stderr_lines = Vec::new();
+        let mut stdout_lines = CapturedLines::new();
+        let mut stderr_lines = CapturedLines::new();
         let mut result = None;
         let forced_state = loop {
             drain_worker_lines(
@@ -302,7 +302,7 @@ impl CapabilityRunner for WorkerProcessRunner {
             }),
         };
         if !stderr_lines.is_empty() {
-            result = result.with_stderr(stderr_lines);
+            result = result.with_stderr(stderr_lines.into_vec());
         }
         if result.abi_version != CAPABILITY_ABI_VERSION || result.job_id != job.job_id {
             return CapabilityResult::failed(
@@ -324,8 +324,8 @@ impl CapabilityRunner for WorkerProcessRunner {
 pub(super) fn drain_worker_lines(
     receiver: &mpsc::Receiver<WorkerLine>,
     control: &CapabilityControl,
-    stdout_lines: &mut Vec<String>,
-    stderr_lines: &mut Vec<String>,
+    stdout_lines: &mut CapturedLines,
+    stderr_lines: &mut CapturedLines,
     result: &mut Option<CapabilityResult>,
 ) {
     while let Ok(line) = receiver.try_recv() {

@@ -11,7 +11,16 @@ pub fn atomic_write(path: impl AsRef<Path>, bytes: &[u8]) -> Result<(), ShadowRe
 }
 
 pub fn atomic_write_private(path: impl AsRef<Path>, bytes: &[u8]) -> Result<(), ShadowReadError> {
-    write_private_checked(path, bytes).map(|_| ())
+    let protected = write_private_checked(path, bytes)?;
+    if !protected {
+        return Err(ShadowReadError::Parse(
+            "the private file was written but owner-only access could not be \
+             verified on this file system; refusing to store secrets without \
+             protection"
+                .to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Like [`atomic_write_private`]; the flag says whether owner-only access is confirmed on the

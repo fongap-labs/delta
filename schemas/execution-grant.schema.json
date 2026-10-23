@@ -1,32 +1,43 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://delta.foundation/schemas/execution-grant.schema.json",
-  "title": "Execution Grant",
-  "description": "Authorisation contract binding a capability invocation to a run, an execution epoch, a permission scope, and an expiry.",
+  "title": "Capability Grants",
+  "description": "Permission grants scoped to a single capability job. A grant is the most a capability may do; policy/approval already gated it upstream. Mirrors the Rust struct CapabilityGrants in crates/delta-core/src/capability/abi.rs.",
   "type": "object",
-  "required": ["run_id", "execution_epoch", "capability_id", "permission_scope", "expires_at"],
+  "required": ["read_roots", "write_roots", "network", "secrets", "exec"],
   "additionalProperties": false,
   "properties": {
-    "run_id": {
-      "type": "string",
-      "description": "Identifier of the run this grant belongs to."
-    },
-    "execution_epoch": {
-      "type": "number",
-      "description": "Unix timestamp (seconds, fractional) when the grant becomes active. Grants are invalid before this time."
-    },
-    "capability_id": {
-      "type": "string",
-      "description": "Fully-qualified capability identifier (e.g. research.statistics.anova)."
-    },
-    "permission_scope": {
+    "read_roots": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Ordered list of permission tokens granted to this invocation."
+      "description": "Absolute directories the capability may read (the workspace is always included)."
+    },
+    "write_roots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Absolute directories the capability may write (empty = read-only)."
+    },
+    "network": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Allowed outbound network targets, e.g. https://api.example.com:443."
+    },
+    "secrets": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Secret grant keys the capability may read from the secrets boundary."
+    },
+    "exec": {
+      "type": "boolean",
+      "description": "Whether the job may spawn processes (shell/exec)."
+    },
+    "execution_epoch": {
+      "type": ["number", "null"],
+      "description": "Unix timestamp (seconds, fractional) marking when the grant becomes active. null = immediately."
     },
     "expires_at": {
-      "type": "number",
-      "description": "Unix timestamp (seconds, fractional) after which the grant is void."
+      "type": ["number", "null"],
+      "description": "Unix timestamp (seconds, fractional) marking when the grant expires. null = no expiry."
     }
   }
 }

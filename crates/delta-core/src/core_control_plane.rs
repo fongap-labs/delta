@@ -853,7 +853,7 @@ impl CoreControlPlane {
                 "question" => json!({"answer": resolution}),
                 "directory" => {
                     let parsed = serde_json::from_str::<Value>(resolution).unwrap_or(Value::Null);
-                    if parsed.is_object() {
+                    let response = if parsed.is_object() {
                         parsed
                     } else {
                         json!({
@@ -861,7 +861,21 @@ impl CoreControlPlane {
                             "path": item.data.get("path").cloned().unwrap_or(Value::Null),
                             "writable": item.data.get("writable").cloned().unwrap_or(Value::Bool(false)),
                         })
+                    };
+                    // When the user grants a directory, register it with the
+                    // session so the policy scope layer actually enforces the
+                    // grant. Returning granted:true without calling add_root
+                    // left the model believing access was allowed while the
+                    // runtime confined every call to the workspace alone.
+                    if response.get("granted").and_then(Value::as_bool).unwrap_or(false) {
+                        if let Some(path) = response.get("path").and_then(Value::as_str) {
+                            if !path.is_empty() {
+                                let writable = response.get("writable").and_then(Value::as_bool).unwrap_or(false);
+                                let _ = self.add_root(&item.session_id, path, writable);
+                            }
+                        }
                     }
+                    response
                 }
                 "plan" => json!({
                     "approved": matches!(resolution, "allow" | "approve" | "approved" | "yes"),

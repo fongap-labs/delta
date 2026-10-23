@@ -498,3 +498,157 @@ pub(super) fn unix_secs() -> f64 {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
 }
+
+/// Upper bound on how many worker output lines the host retains per job.
+pub const MAX_WORKER_OUTPUT_LINES: usize = 500;
+
+/// Upper bound on the total bytes of worker output the host retains per job.
+pub const MAX_WORKER_OUTPUT_BYTES: usize = 256 * 1024;
+
+/// A bounded line buffer for worker stdout/stderr.
+///
+/// A worker is untrusted code. If it floods a stream, collecting every line in
+/// a `Vec<String>` lets it exhaust the host's memory. This buffer keeps at most
+/// [`MAX_WORKER_OUTPUT_LINES`] lines and [`MAX_WORKER_OUTPUT_BYTES`] bytes,
+/// dropping the oldest lines first so the most recent diagnostics survive, and
+/// records how many lines were dropped.
+#[derive(Debug, Clone)]
+pub struct CapturedLines {
+    lines: std::collections::VecDeque<String>,
+    bytes: usize,
+    dropped: usize,
+    line_limit: usize,
+    byte_limit: usize,
+}
+
+impl Default for CapturedLines {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CapturedLines {
+    pub fn new() -> Self {
+        Self::with_limits(MAX_WORKER_OUTPUT_LINES, MAX_WORKER_OUTPUT_BYTES)
+    }
+
+    pub fn with_limits(line_limit: usize, byte_limit: usize) -> Self {
+        Self {
+            lines: std::collections::VecDeque::new(),
+            bytes: 0,
+            dropped: 0,
+            line_limit: line_limit.max(1),
+            byte_limit: byte_limit.max(1),
+        }
+    }
+
+    pub fn push(&mut self, line: String) {
+        // A single line can itself exceed the budget; clip it on a char
+        // boundary so the buffer never stores more than it promised.
+        let line = if line.len() > self.byte_limit {
+            clip_to_bytes(line, self.byte_limit)
+        } else {
+            line
+        };
+
+        while self.bytes + line.len() > self.byte_limit && !self.lines.is_empty() {
+            if let Some(front) = self.lines.pop_front() {
+                self.bytes = self.bytes.saturating_sub(front.len());
+                self.dropped += 1;
+            }
+        }
+
+        if self.lines.len() >= self.line_limit {
+            if let Some(front) = self.lines.pop_front() {
+                self.bytes = self.bytes.saturating_sub(front.len());
+                self.dropped += 1;
+            }
+        }
+
+        self.bytes += line.len();
+        self.lines.push_back(line);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.lines.len()
+    }
+
+    pub fn into_vec(self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::with_capacity(self.lines.len() + 1);
+        if self.dropped > 0 {
+            out.push(format!(
+                "[delta] {dropped} earlier worker output line(s) dropped to stay within the {lines}-line / {bytes}-byte capture limit",
+                dropped = self.dropped,
+                lines = self.line_limit,
+                bytes = self.byte_limit,
+            ));
+        }
+        out.extend(self.lines);
+        out
+    }
+}
+
+/// Clip `value` to at most `limit` bytes on a UTF-8 character boundary.
+fn clip_to_bytes(mut value: String, limit: usize) -> String {
+    if value.len() <= limit {
+        return value;
+    }
+    let mut end = limit;
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value.truncate(end);
+    value.push('…');
+    value
+}
+
+#[cfg(test)]
+mod captured_lines_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_everything_under_the_limit() {
+        let mut captured = CapturedLines::with_limits(10, 1024);
+        captured.push("one".to_string());
+        captured.push("two".to_string());
+        let lines = captured.into_vec();
+        assert_eq!(lines, vec!["one".to_string(), "two".to_string()]);
+    }
+
+    #[test]
+    fn drops_the_oldest_lines_and_records_the_count() {
+        let mut captured = CapturedLines::with_limits(3, 1024);
+        for index in 0..5 {
+            captured.push(format!("line-{index}"));
+        }
+        let lines = captured.into_vec();
+        assert_eq!(lines.len(), 4, "three kept lines plus one elision marker");
+        assert!(lines[0].contains("2 earlier worker output line(s) dropped"));
+        assert_eq!(&lines[1..], &["line-2", "line-3", "line-4"]);
+    }
+
+    #[test]
+    fn enforces_the_byte_budget_across_lines() {
+        let mut captured = CapturedLines::with_limits(100, 10);
+        captured.push("abcdefghij".to_string());
+        captured.push("klmnopqrst".to_string());
+        let lines = captured.into_vec();
+        assert_eq!(lines.len(), 2, "marker plus the newest line");
+        assert_eq!(lines[1], "klmnopqrst");
+        assert!(lines[0].contains("1 earlier worker output line(s) dropped"));
+    }
+
+    #[test]
+    fn clips_a_single_oversized_line_on_a_char_boundary() {
+        let mut captured = CapturedLines::with_limits(10, 8);
+        captured.push("ééééé".to_string());
+        let lines = captured.into_vec();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].ends_with('…'));
+        assert!(lines[0].len() <= 11, "8 bytes plus the ellipsis marker");
+    }
+}
