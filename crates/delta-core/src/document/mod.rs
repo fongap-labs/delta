@@ -387,6 +387,7 @@ pub fn create_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "document.create".to_owned(),
         tool_name: "create_document".to_owned(),
+        side_effect: crate::skills::SideEffectClass::LocalWrite,
         description: "Create a new Word, Excel or PowerPoint file from structured content; the type \
             comes from the extension of `path`. The file is read back and checked before it is \
             reported as created. Plain structure only (headings, lists, tables, rows, bullets); no \
@@ -447,6 +448,7 @@ pub fn read_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "document.read".to_owned(),
         tool_name: "read_document".to_owned(),
+        side_effect: crate::skills::SideEffectClass::Read,
         description: "Read a PDF, DOCX, XLSX or PPTX file in the workspace and return its text. \
             Without `block` you get the list of blocks (PDF pages, sheets, slides, groups of \
             paragraphs) and the start of the document; with a 0-based `block` you get that block in \

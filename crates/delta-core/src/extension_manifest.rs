@@ -198,6 +198,7 @@ fn load_manifest_file(host: &CapabilityHost, path: &Path) -> Result<usize, Strin
         host.register(CapabilityRegistration {
             capability_id: entry.capability_id,
             tool_name: entry.tool_name,
+            side_effect: crate::skills::SideEffectClass::ExternalWrite,
             description: entry.description,
             parameters: entry.parameters,
             metadata,

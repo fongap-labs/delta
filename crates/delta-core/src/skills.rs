@@ -603,6 +603,7 @@ pub fn save_registration(store: Arc<SkillStore>) -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "skill.save".to_owned(),
         tool_name: "save_skill".to_owned(),
+        side_effect: crate::skills::SideEffectClass::LocalWrite,
         description: "Save a reusable method as a skill for the user's skills list, after the user \
             approves it. Use it only when the user asks to keep how a task was done. Write general \
             steps that work for the next similar task; leave out names, numbers, paths and any other \

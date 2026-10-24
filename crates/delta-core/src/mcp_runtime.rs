@@ -1118,6 +1118,7 @@ impl McpRuntime {
             let registration = CapabilityRegistration {
                 capability_id: format!("mcp.{name}.{remote_name}"),
                 tool_name: local_name.clone(),
+                side_effect: crate::skills::SideEffectClass::ExternalWrite,
                 description: description.clone(),
                 parameters: parameters.clone(),
                 metadata,

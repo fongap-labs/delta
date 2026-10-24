@@ -389,6 +389,7 @@ fn native_read_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "file.read".to_string(),
         tool_name: "read_file".to_string(),
+        side_effect: crate::skills::SideEffectClass::Read,
         description: "Read a UTF-8 text file from the trusted workspace.".to_string(),
         parameters: serde_json::json!({
             "type": "object",
@@ -445,6 +446,7 @@ fn native_write_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "file.write".to_string(),
         tool_name: "write_file".to_string(),
+        side_effect: crate::skills::SideEffectClass::LocalWrite,
         description: "Create a UTF-8 file artifact in the trusted workspace.".to_string(),
         parameters: serde_json::json!({
             "type": "object",
@@ -521,6 +523,7 @@ fn interaction_registration(
     CapabilityRegistration {
         capability_id: format!("interaction.{tool_name}"),
         tool_name: tool_name.to_string(),
+        side_effect: crate::skills::SideEffectClass::Read,
         description: description.to_string(),
         parameters,
         metadata: serde_json::json!({
