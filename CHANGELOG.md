@@ -2,14 +2,6 @@
 
 ## [Unreleased]
 
-### 变更
-
-- 单次运行的工具调用总数上限为 100 次（`max_tool_calls`）。超出上限的调用被拒绝并记入账本，运行以 `tool_budget_exceeded` 状态停止，与迭代上限一样计为失败；已有的对话与结果保留，发送新消息即可继续。
-
-### 修复
-
-- 网页读取与搜索结果不再包含隐藏元素（`hidden` 属性，或 `display:none`、`visibility:hidden`、`opacity:0`、`font-size:0` 等内联样式）及其内容。这些文字人眼看不到，过去却会进入模型上下文，可被用来注入指令。
-
 ## [0.1.1-beta.1](https://github.com/fongap-labs/delta/releases/tag/delta-v0.1.1-beta.1) - 2026-10-23
 
 ### 新增
