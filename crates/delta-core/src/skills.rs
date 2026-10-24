@@ -41,7 +41,7 @@ pub enum SideEffectClass {
 }
 
 impl SideEffectClass {
-    fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "none" => Some(Self::None),
             "read" | "read_only" | "read-only" => Some(Self::Read),
@@ -52,7 +52,7 @@ impl SideEffectClass {
         }
     }
 
-    fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::None => "none",
             Self::Read => "read",

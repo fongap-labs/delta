@@ -61,6 +61,20 @@ pub struct CapabilityRegistry {
     by_tool: HashMap<String, CapabilityRegistration>,
 }
 
+/// The metadata a model-visible contract carries: the registration's own metadata plus the side
+/// effect it declared, so the Runtime policy can judge the call (A2).
+fn contract_metadata(registration: &CapabilityRegistration) -> Value {
+    let mut metadata = match &registration.metadata {
+        Value::Object(map) => map.clone(),
+        _ => serde_json::Map::new(),
+    };
+    metadata.insert(
+        "side_effect".to_string(),
+        Value::String(registration.side_effect.as_str().to_string()),
+    );
+    Value::Object(metadata)
+}
+
 impl CapabilityRegistry {
     pub fn register(&mut self, registration: CapabilityRegistration) -> Result<(), String> {
         if registration.capability_id.trim().is_empty() || registration.tool_name.trim().is_empty()
@@ -116,7 +130,7 @@ impl CapabilityRegistry {
                             "name": registration.tool_name,
                             "description": registration.description,
                             "parameters": registration.parameters,
-                            "metadata": registration.metadata,
+                            "metadata": contract_metadata(registration),
                         }
                     })
                 })
