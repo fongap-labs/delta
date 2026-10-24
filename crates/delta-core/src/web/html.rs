@@ -94,14 +94,14 @@ const BLOCKS: [&str; 24] = [
 
 fn tag_name(tag: &str) -> (String, bool) {
     let inner = tag.trim_start_matches('<').trim_end_matches('>');
-    let closing = inner.starts_with('/');
+    let is_closing = inner.starts_with('/');
     let name: String = inner
         .trim_start_matches('/')
         .chars()
         .take_while(|c| c.is_ascii_alphanumeric())
         .collect::<String>()
         .to_ascii_lowercase();
-    (name, closing)
+    (name, is_closing)
 }
 
 /// The page title, if there is one.
@@ -164,12 +164,12 @@ fn has_bare_hidden_attribute(open_tag: &str) -> bool {
 /// Follows element nesting inside a hidden subtree. The subtree ends at the closing tag of the
 /// element that opened it; an element that is never closed hides the rest of the page, as a
 /// browser would show it.
-fn track_hidden(open: &mut Vec<String>, name: &str, closing: bool, self_closing: bool) {
-    if closing {
+fn track_hidden(open: &mut Vec<String>, name: &str, is_closing: bool, is_self_closing: bool) {
+    if is_closing {
         if let Some(at) = open.iter().rposition(|open_name| open_name == name) {
             open.truncate(at);
         }
-    } else if !self_closing && !VOID.contains(&name) {
+    } else if !is_self_closing && !VOID.contains(&name) {
         open.push(name.to_owned());
     }
 }
@@ -200,7 +200,7 @@ pub fn html_to_text(html: &str) -> String {
             break;
         };
         let tag = &at_lt[..=gt];
-        let (name, closing) = tag_name(tag);
+        let (name, is_closing) = tag_name(tag);
         if name.is_empty() {
             // `<` that was just a less-than sign: keep the text after it.
             if visible {
@@ -210,22 +210,22 @@ pub fn html_to_text(html: &str) -> String {
             continue;
         }
         rest = &at_lt[gt + 1..];
-        let self_closing = tag.ends_with("/>");
+        let is_self_closing = tag.ends_with("/>");
         if !hidden.is_empty() {
-            track_hidden(&mut hidden, &name, closing, self_closing);
+            track_hidden(&mut hidden, &name, is_closing, is_self_closing);
             continue;
         }
         if SKIPPED.contains(&name.as_str()) {
-            if closing {
+            if is_closing {
                 skip_depth = skip_depth.saturating_sub(1);
-            } else if !self_closing {
+            } else if !is_self_closing {
                 skip_depth += 1;
             }
             continue;
         }
         if skip_depth == 0
-            && !closing
-            && !self_closing
+            && !is_closing
+            && !is_self_closing
             && !VOID.contains(&name.as_str())
             && hides_element(tag)
         {
