@@ -18,6 +18,11 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::egress::{
+    decide_outbound, DestinationClass, EgressLevel, OutboundDecision, OutboundTarget,
+};
+use crate::skills::SideEffectClass;
+
 use crate::ShadowReadError;
 
 /// Current policy schema version.
@@ -579,6 +584,53 @@ pub fn enforce_scope(
 }
 
 /// Main policy evaluation entry point.
+/// The verdict for one tool call from its side effect (A2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SideEffectVerdict {
+    Allow,
+    Ask,
+    Deny,
+}
+
+/// Judge a tool call from what it does (`side_effect`) and where its content goes (`destination`;
+/// `None` when nothing leaves the machine) under the workspace's egress `level`.
+///
+/// Nothing to do is always allowed. A read follows the outbound rule. A write or a destructive
+/// action asks at least once, and an outbound refusal wins over the ask.
+pub fn judge(
+    side_effect: SideEffectClass,
+    destination: Option<DestinationClass>,
+    level: EgressLevel,
+) -> SideEffectVerdict {
+    let outbound = match destination {
+        None => SideEffectVerdict::Allow,
+        Some(class) => match decide_outbound(
+            Some(level),
+            &OutboundTarget {
+                class,
+                host: String::new(),
+                mark: None,
+                local_only: false,
+                path: String::new(),
+            },
+        ) {
+            OutboundDecision::Allow => SideEffectVerdict::Allow,
+            OutboundDecision::Ask => SideEffectVerdict::Ask,
+            OutboundDecision::Deny(_) | OutboundDecision::NotChosen => SideEffectVerdict::Deny,
+        },
+    };
+    match side_effect {
+        SideEffectClass::None => SideEffectVerdict::Allow,
+        SideEffectClass::Read => outbound,
+        SideEffectClass::LocalWrite
+        | SideEffectClass::ExternalWrite
+        | SideEffectClass::Destructive => match outbound {
+            SideEffectVerdict::Deny => SideEffectVerdict::Deny,
+            _ => SideEffectVerdict::Ask,
+        },
+    }
+}
+
 pub fn evaluate(input: PolicyEvaluateInput) -> Result<PolicyEvaluateOutput, ShadowReadError> {
     let mut decision = input.decision;
 
@@ -621,6 +673,62 @@ pub fn evaluate(input: PolicyEvaluateInput) -> Result<PolicyEvaluateOutput, Shad
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn judge_matrix_covers_every_side_effect_destination_and_level() {
+        use crate::egress::{DestinationClass as Dest, EgressLevel};
+        use crate::skills::SideEffectClass as Effect;
+        // Columns: fixed_public, any_public, private, local_process, nothing leaves the machine.
+        // A allows, Q asks, D denies.
+        let rows = [
+            (
+                EgressLevel::Open,
+                ["AAAAA", "AAAAA", "QQQQQ", "QQQQQ", "QQQQQ"],
+            ),
+            (
+                EgressLevel::ApprovedEndpoints,
+                ["AAAAA", "DQADA", "DQQDQ", "DQQDQ", "DQQDQ"],
+            ),
+            (
+                EgressLevel::PrivateOnly,
+                ["AAAAA", "DDADA", "DDQDQ", "DDQDQ", "DDQDQ"],
+            ),
+            (
+                EgressLevel::AskEachTime,
+                ["AAAAA", "QQQQA", "QQQQQ", "QQQQQ", "QQQQQ"],
+            ),
+        ];
+        let effects = [
+            Effect::None,
+            Effect::Read,
+            Effect::LocalWrite,
+            Effect::ExternalWrite,
+            Effect::Destructive,
+        ];
+        let destinations = [
+            Some(Dest::FixedPublic),
+            Some(Dest::AnyPublic),
+            Some(Dest::Private),
+            Some(Dest::LocalProcess),
+            None,
+        ];
+        for (level, expected) in rows {
+            for (effect, letters) in effects.iter().zip(expected) {
+                for (destination, letter) in destinations.iter().zip(letters.chars()) {
+                    let want = match letter {
+                        'A' => SideEffectVerdict::Allow,
+                        'Q' => SideEffectVerdict::Ask,
+                        _ => SideEffectVerdict::Deny,
+                    };
+                    assert_eq!(
+                        judge(*effect, *destination, level),
+                        want,
+                        "{effect:?} to {destination:?} under {level:?}"
+                    );
+                }
+            }
+        }
+    }
 
     fn sample_metadata() -> ToolMetadata {
         ToolMetadata {

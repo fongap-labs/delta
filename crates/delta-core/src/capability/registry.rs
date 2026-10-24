@@ -7,6 +7,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use super::abi::{CapabilityGrants, CapabilityJob, CapabilityProgress, CapabilityResult};
+use crate::skills::SideEffectClass;
 
 pub trait CapabilityRunner: Send + Sync {
     fn run(&self, job: &CapabilityJob, control: &CapabilityControl) -> CapabilityResult;
@@ -45,6 +46,8 @@ pub struct CapabilityRegistration {
     pub description: String,
     pub parameters: Value,
     pub metadata: Value,
+    /// What the tool does outside the model's view. Required: a registration cannot omit it.
+    pub side_effect: SideEffectClass,
     pub grants: CapabilityGrants,
     pub workspace_write: bool,
     pub runner: Arc<dyn CapabilityRunner>,

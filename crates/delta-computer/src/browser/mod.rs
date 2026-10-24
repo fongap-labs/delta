@@ -517,6 +517,7 @@ fn tool(
     CapabilityRegistration {
         capability_id: format!("computer.{name}"),
         tool_name: name.to_owned(),
+        side_effect: browser_side_effect(name),
         description: description.to_owned(),
         parameters,
         metadata: metadata(&format!("computer.{name}"), should_ask),
@@ -557,6 +558,18 @@ fn element_schema(extra: Value) -> Value {
         }
     }
     json!({"type": "object", "required": required, "properties": properties})
+}
+
+/// What a browser tool does outside the page it reads: observing is a read, anything that acts on
+/// the page or navigates is an external write (the page may send data or change state).
+fn browser_side_effect(name: &str) -> delta_core::skills::SideEffectClass {
+    use delta_core::skills::SideEffectClass;
+    match name {
+        "browser_snapshot" | "browser_scroll" | "browser_back" | "browser_screenshot" => {
+            SideEffectClass::Read
+        }
+        _ => SideEffectClass::ExternalWrite,
+    }
 }
 
 pub fn registrations(host: &Arc<BrowserHost>) -> Vec<CapabilityRegistration> {
@@ -858,6 +871,7 @@ pub fn registrations(host: &Arc<BrowserHost>) -> Vec<CapabilityRegistration> {
     tools.push(CapabilityRegistration {
         capability_id: "computer.browser_close".to_owned(),
         tool_name: "browser_close".to_owned(),
+        side_effect: delta_core::skills::SideEffectClass::None,
         description:
             "Close this task's tab in the controlled browser (and the browser window when \
             no other task is using it). Do this when the browsing is finished."

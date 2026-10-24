@@ -48,6 +48,8 @@ mod tool_execution;
 use human_control::InteractionController;
 
 const DEFAULT_MAX_ITERATIONS: usize = 12;
+/// Tool calls one run may make in total, across all of its model iterations.
+const DEFAULT_MAX_TOOL_CALLS: usize = 100;
 /// Automatic retries of one model call after a transient failure (so up to 5 attempts).
 pub(crate) const DEFAULT_MAX_RETRIES: u32 = 4;
 /// Screenshots from tools that are still sent to the model (the newest ones).
@@ -628,6 +630,8 @@ pub struct RuntimeConfig {
     pub api_key: String,
     pub base_url: String,
     pub max_iterations: usize,
+    /// Tool calls one run may make; the call past the limit is refused and the run stops.
+    pub max_tool_calls: usize,
     pub max_retries: u32,
     /// Wait before the first automatic retry; it doubles for each further one (capped).
     pub retry_base_delay_ms: u64,
@@ -654,6 +658,7 @@ impl Default for RuntimeConfig {
             api_key: String::new(),
             base_url: "https://api.openai.com/v1".to_string(),
             max_iterations: DEFAULT_MAX_ITERATIONS,
+            max_tool_calls: DEFAULT_MAX_TOOL_CALLS,
             max_retries: DEFAULT_MAX_RETRIES,
             retry_base_delay_ms: 1000,
             ttft_timeout: None,
@@ -690,6 +695,9 @@ pub struct RuntimeHost {
     /// per turn: if the reduced body is refused too, the failure is reported instead of stripping
     /// the request down to nothing.
     reduced_request: bool,
+    /// Tool calls the current turn has attempted, counted against `max_tool_calls`. Reset at the
+    /// start of each turn, like the iteration count.
+    tool_calls_this_turn: usize,
     /// The model that refused the request's tool definitions. While it remains the session's
     /// model, requests go without tools; web search is then asked for in text and run by the
     /// runtime (see `model_turn.rs`). Keyed by model so a switch to another model tries tools again.
@@ -1194,6 +1202,7 @@ impl RuntimeHost {
             sink: Arc::new(NullSink),
             event_error: Arc::new(Mutex::new(None)),
             reduced_request: false,
+            tool_calls_this_turn: 0,
             refused_tools_model: None,
             // Test hosts carry no authorities and never reach the product doors, so
             // they stay direct; a test that needs a proxy sets it explicitly.
@@ -1310,6 +1319,7 @@ impl RuntimeHost {
         self.config.base_url = config.base_url;
         self.config.model_settings = config.model_settings;
         self.config.max_iterations = config.max_iterations;
+        self.config.max_tool_calls = config.max_tool_calls;
         self.config.max_retries = config.max_retries;
         self.config.retry_base_delay_ms = config.retry_base_delay_ms;
         self.config.ttft_timeout = config.ttft_timeout;

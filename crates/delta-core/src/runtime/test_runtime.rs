@@ -1354,6 +1354,68 @@ fn native_e2e_model_tool_policy_capability_and_model_continue() {
 }
 
 #[test]
+fn native_e2e_tool_call_past_the_run_budget_is_refused_and_the_run_stops() {
+    // Two scripted replies only: a third model request would have no reply to read, so the
+    // request count below also proves the run stopped instead of asking again.
+    let provider = RetryMockProvider::start(vec![RetryReply::ToolCall, RetryReply::ToolCall]);
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let sink = Arc::new(CaptureSink::default());
+    let host = RuntimeHost::new(
+        "session-tool-budget",
+        RuntimeConfig {
+            model: "test-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "test-key".to_string(),
+            base_url: provider.base_url.clone(),
+            max_iterations: 5,
+            max_tool_calls: 1,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(tool_contract("low", false))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }))
+    .with_event_sink(sink.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+    let run_id = handle.run("write the report".to_string(), None).unwrap();
+    wait_for_terminal(&handle);
+
+    assert_eq!(handle.state(), RuntimeState::Failed);
+    assert_eq!(provider.finish(), 2);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "only the call within budget runs"
+    );
+    let frames = sink.frames.lock().unwrap();
+    let turn_ends: Vec<&Value> = frames
+        .iter()
+        .filter(|frame| frame["type"] == "turn_end")
+        .collect();
+    assert_eq!(turn_ends.len(), 1, "{frames:?}");
+    assert_eq!(turn_ends[0]["payload"]["status"], "tool_budget_exceeded");
+    let events = authorities
+        .ledger()
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events(&run_id)
+        .unwrap();
+    for expected in ["tool.failed", "run.failed"] {
+        assert!(
+            events.iter().any(|event| event.r#type == expected),
+            "missing ledger event {expected}"
+        );
+    }
+}
+
+#[test]
 fn native_e2e_retries_all_transient_provider_failures_before_output() {
     for status in [429, 502, 503, 504] {
         let provider = RetryMockProvider::start(vec![

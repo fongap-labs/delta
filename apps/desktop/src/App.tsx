@@ -779,6 +779,8 @@ export function App() {
         case "turn_end":
           if (d.status === "max_iterations_exceeded")
             setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Stopped: max iterations reached." }]);
+          if (d.status === "tool_budget_exceeded")
+            setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Stopped: tool call limit for this run reached." }]);
           break;
         case "model_changed":
           // Mid-session switch (server-applied): update the header fact and drop the

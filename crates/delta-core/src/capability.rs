@@ -846,6 +846,7 @@ mod tests {
         host.register(CapabilityRegistration {
             capability_id: "test.future".to_string(),
             tool_name: "test_future".to_string(),
+            side_effect: crate::skills::SideEffectClass::None,
             description: "test".to_string(),
             parameters: serde_json::json!({"type": "object"}),
             metadata: serde_json::json!({}),
@@ -886,6 +887,7 @@ mod tests {
         host.register(CapabilityRegistration {
             capability_id: "test.expired".to_string(),
             tool_name: "test_expired".to_string(),
+            side_effect: crate::skills::SideEffectClass::None,
             description: "test".to_string(),
             parameters: serde_json::json!({"type": "object"}),
             metadata: serde_json::json!({}),
@@ -923,6 +925,7 @@ mod tests {
         host.register(CapabilityRegistration {
             capability_id: "test.cancel".to_string(),
             tool_name: "test_cancel".to_string(),
+            side_effect: crate::skills::SideEffectClass::None,
             description: "test".to_string(),
             parameters: serde_json::json!({"type": "object"}),
             metadata: serde_json::json!({}),
@@ -1037,6 +1040,7 @@ mod tests {
         host.register(CapabilityRegistration {
             capability_id: "test.secret".to_string(),
             tool_name: "test_secret".to_string(),
+            side_effect: crate::skills::SideEffectClass::None,
             description: "test".to_string(),
             parameters: serde_json::json!({"type": "object"}),
             metadata: serde_json::json!({}),
@@ -1094,6 +1098,7 @@ mod tests {
         host.register(CapabilityRegistration {
             capability_id: "test.nosecret".to_string(),
             tool_name: "test_nosecret".to_string(),
+            side_effect: crate::skills::SideEffectClass::None,
             description: "test".to_string(),
             parameters: serde_json::json!({"type": "object"}),
             metadata: serde_json::json!({}),

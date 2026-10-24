@@ -53,6 +53,7 @@ pub fn describe_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "statistics.describe".to_owned(),
         tool_name: "statistics_describe".to_owned(),
+        side_effect: crate::skills::SideEffectClass::Read,
         description: "Describe one numeric column of a CSV file in the workspace: n, mean, sample \
             standard deviation, min, max and median. The figures are computed by R; the result \
             records the R version and the hashes of the program and the input."
