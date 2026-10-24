@@ -390,6 +390,7 @@ impl RuntimeHost {
         // would let a settings change land halfway through an answer.
         self.turn_proxy = self.resolve_turn_proxy();
         self.reduced_request = false;
+        self.tool_calls_this_turn = 0;
         loop {
             self.ensure_event_delivery()?;
             if iterations >= self.config.max_iterations {
@@ -637,7 +638,20 @@ impl RuntimeHost {
                 if self.cancel.load(Ordering::Relaxed) {
                     break;
                 }
-                let result = self.execute_tool_call(tc);
+                // Every call the model asked for gets a result, refused or not, so the transcript
+                // stays valid for a later message in the same session.
+                self.tool_calls_this_turn += 1;
+                let result = if self.tool_calls_this_turn > self.config.max_tool_calls {
+                    self.fail_after_ledger(
+                        tc,
+                        "tool.failed",
+                        "runtime",
+                        json!({"tool_call_id": tc.id, "tool": tc.name, "stage": "budget"}),
+                        "tool call budget for this run is used up",
+                    )
+                } else {
+                    self.execute_tool_call(tc)
+                };
                 let mut tool_message = json!({
                     "role": "tool",
                     "tool_call_id": &tc.id,
@@ -665,6 +679,15 @@ impl RuntimeHost {
                 iteration: iterations,
             });
             self.ensure_event_delivery()?;
+
+            if self.tool_calls_this_turn > self.config.max_tool_calls {
+                self.emit_event(RuntimeEvent::TurnEnd {
+                    status: "tool_budget_exceeded".to_string(),
+                    iterations,
+                });
+                self.ensure_event_delivery()?;
+                return Ok("tool_budget_exceeded".to_string());
+            }
 
             if self.cancel.load(Ordering::Relaxed) {
                 self.messages

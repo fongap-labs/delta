@@ -419,7 +419,10 @@ fn state_from_result(result: &Result<Value, String>) -> RuntimeState {
             RuntimeState::Interrupted
         }
         Ok(value)
-            if value.get("status").and_then(Value::as_str) == Some("max_iterations_exceeded") =>
+            if matches!(
+                value.get("status").and_then(Value::as_str),
+                Some("max_iterations_exceeded" | "tool_budget_exceeded")
+            ) =>
         {
             RuntimeState::Failed
         }
