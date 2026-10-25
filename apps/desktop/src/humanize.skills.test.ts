@@ -81,3 +81,11 @@ describe("humanize browser tools", () => {
     expect(scopeNote(t, "browser_click", { label: "Next" }, "computer").text).toBe("approval.scope.browser");
   });
 });
+
+describe("humanize statistics tools", () => {
+  it("names the analysis rather than the tool", () => {
+    expect(humanizeTool("statistics_ttest", { path: "a.csv" })).toMatchObject({ pre: "Ran a statistical analysis — ", obj: "ttest" });
+    expect(humanizeTool("statistics_regression", {})).toMatchObject({ obj: "regression" });
+    expect(humanizeTool("statistics_doe", {})).toMatchObject({ pre: "Laid out an experiment design" });
+  });
+});

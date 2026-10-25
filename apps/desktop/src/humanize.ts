@@ -184,6 +184,19 @@ export function humanizeTool(name: string, args: any): HumanLine {
       };
     case "find_skill":
       return { pre: "Looked up your saved skills", preKey: "humanize.findSkill" };
+    case "statistics_describe":
+    case "statistics_ttest":
+    case "statistics_anova":
+    case "statistics_chisq":
+    case "statistics_correlation":
+    case "statistics_regression":
+      return {
+        pre: "Ran a statistical analysis — ",
+        preKey: "humanize.statistics",
+        obj: name.slice("statistics_".length),
+      };
+    case "statistics_doe":
+      return { pre: "Laid out an experiment design", preKey: "humanize.statisticsDoe" };
     case "read_skill":
     case "load_skill":
       // SKILLS-SPEC §4.1 #4 — the trust line: the transcript always shows the moment a

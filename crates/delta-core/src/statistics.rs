@@ -6,6 +6,9 @@
 //! `key: value` lines in base R only; each number is printed with `%.17g`, so the double reads
 //! back exactly.
 
+mod methods;
+pub use methods::registrations as method_registrations;
+
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;

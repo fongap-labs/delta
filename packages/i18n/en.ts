@@ -717,6 +717,8 @@ export const en = {
   "humanize.explored": "Sent a sub-agent to explore — ",
   "humanize.usedSkill": "Used skill: ",
   "humanize.findSkill": "Looked up your saved skills",
+  "humanize.statistics": "Ran a statistical analysis — ",
+  "humanize.statisticsDoe": "Laid out an experiment design",
   "humanize.askedQuestion": "Asked you a question",
   "humanize.proposedPlan": "Proposed a plan",
   "humanize.usedTool": "Used {name}",

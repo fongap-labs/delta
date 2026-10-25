@@ -213,7 +213,13 @@ mod tests {
                 "read_document",
                 "read_file",
                 "request_directory",
+                "statistics_anova",
+                "statistics_chisq",
+                "statistics_correlation",
                 "statistics_describe",
+                "statistics_doe",
+                "statistics_regression",
+                "statistics_ttest",
                 "web_fetch",
                 "web_search",
                 "write_file"
