@@ -536,6 +536,11 @@ function fakeAgentSources(): Record<string, string> {
 
     // No-op shells so foreground callers never throw when a feature isn't part of a given test.
     pick_folder: `(args) => "/tmp/picked-folder"`,
+    library_info: `(args) => ({ ok: true, folder: "/tmp/delta-library", sources: [] })`,
+    library_set_folder: `(args) => ({ ok: true, folder: args.path })`,
+    library_read: `(args) => ({ ok: true, name: args.name, content: "" })`,
+    library_write: `(args) => ({ ok: true, name: args.name })`,
+    library_remove: `(args) => ({ ok: true, deleted: true })`,
     get_autostart: `(args) => false`,
     set_autostart: `(args) => !!args.isEnabled`,
     get_keep_awake: `(args) => false`,

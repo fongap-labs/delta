@@ -131,10 +131,12 @@ interface Props {
   onOpenIntegrations: () => void;
   onOpenAudit: () => void;
   onOpenInbox: () => void;
+  onOpenLibrary?: () => void;
   scheduledActive: boolean;
   integrationsActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
+  libraryActive?: boolean;
   conversationActive?: boolean;
   onOpenConversations?: () => void;
   collapsed?: boolean;
@@ -441,6 +443,7 @@ export function Sidebar(props: Props) {
       <nav className="px-2.5 mt-2 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
         <NavItem icon="chat" label={t("nav.conversations")} active={props.conversationActive} onClick={() => props.onOpenConversations?.()} testid="nav-conversations" />
         <NavItem icon="clock" label={t("nav.scheduled", undefined, "Automations")} active={props.scheduledActive} onClick={props.onOpenScheduled} testid="nav-automations" />
+        <NavItem icon="book" label={t("nav.library", undefined, "Library")} active={props.libraryActive} onClick={() => props.onOpenLibrary?.()} testid="nav-library" />
       </nav>
 
       <div className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">

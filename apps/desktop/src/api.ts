@@ -15,6 +15,11 @@ import {
   directApproval,
   directCreateAutomation,
   directDeleteAutomation,
+  directLibraryInfo,
+  directReadSource,
+  directRemoveSource,
+  directSetFolder,
+  directWriteSource,
   fetchProviderModels,
   directFollowUp,
   directGetProtocols,
@@ -1558,6 +1563,37 @@ export interface AutomationRun {
 
 export async function getAutomations(): Promise<Automation[]> {
   return throwOnError(await directListAutomations()).tasks ?? [];
+}
+
+/** A source file in the corpus library (资料库): a Markdown or text file. */
+export interface LibrarySource {
+  name: string;
+  size: number;
+  modified: number | null;
+}
+
+export async function getLibrary(): Promise<{ folder: string; sources: LibrarySource[] }> {
+  const out = throwOnError(await directLibraryInfo());
+  return {
+    folder: typeof out.folder === "string" ? out.folder : "",
+    sources: Array.isArray(out.sources) ? (out.sources as LibrarySource[]) : [],
+  };
+}
+
+export async function setLibraryFolder(path: string): Promise<{ ok: boolean; folder?: string; error?: string }> {
+  return await directSetFolder(path);
+}
+
+export async function readLibrarySource(name: string): Promise<{ ok: boolean; name?: string; content?: string; error?: string }> {
+  return await directReadSource(name);
+}
+
+export async function writeLibrarySource(name: string, content: string): Promise<{ ok: boolean; name?: string; error?: string }> {
+  return await directWriteSource(name, content);
+}
+
+export async function removeLibrarySource(name: string): Promise<{ ok: boolean; deleted?: boolean; error?: string }> {
+  return await directRemoveSource(name);
 }
 
 // Fired after any automation mutation the sidebar should reflect immediately

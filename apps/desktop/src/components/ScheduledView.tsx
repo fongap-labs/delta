@@ -99,6 +99,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
   // could not load; a later failed poll keeps the list already on screen.
   const [isLoading, setLoading] = useState(true);
   const [hasFailed, setFailed] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const refresh = () =>
     getAutomations()
       .then((list) => {
@@ -122,6 +123,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
     permissions?: { tool: string; target: string; access: "read" | "write" }[];
   }) => {
     setBusy(payload.title);
+    setCreateError(null);
     try {
       const res = await createAutomation(payload);
       announceAutomationsChanged(); // new entry shows in the sidebar band right away
@@ -129,8 +131,14 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
       if (res.ok && res.task) {
         setShowForm(false);
         setOpenId(res.task.id);
-      } else if (res.error) {
-        alert(res.error);
+      } else {
+        setCreateError(
+          t(
+            "scheduled.createFailed",
+            { error: res.error || "" },
+            "Automation could not be created",
+          ),
+        );
       }
     } finally {
       setBusy(null);
@@ -169,6 +177,8 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
         <span aria-hidden>ⓘ</span>
         <span>{t("scheduled.serverUpNote")}</span>
       </div>
+
+      {createError && <p className="text-[11.5px] text-warn mt-2">{createError}</p>}
 
       {shouldShowForm && (
         <NewAutomationForm

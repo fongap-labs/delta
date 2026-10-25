@@ -64,6 +64,7 @@ import { SessionIntro } from "./components/SessionIntro";
 import { Onboarding } from "./components/Onboarding";
 import { UPDATER_FEED_PUBLISHED, UpdateBanner } from "./components/UpdateBanner";
 import { ScheduledView } from "./components/ScheduledView";
+import { LibraryView } from "./components/LibraryView";
 import { RightRail } from "./components/RightRail";
 import { TraceLogsPanel } from "./components/TraceLogsPanel";
 import { parseArtifactUpdate, upsertArtifactTrace, type ArtifactTrace } from "./artifactTrace";
@@ -258,7 +259,7 @@ export function App() {
   // load; corrected by loadSettings.
   const [isModelReady, setModelReady] = useState(true);
   const [surface, setSurface] = useState<
-    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "settings"
+    "session" | "scheduled" | "library" | "integrations" | "audit" | "inbox" | "settings"
   >("session");
   // Approval dialog inputs: the default egress level (re-read when Settings closes) and the preference.
   const egressLevel = useEgressLevel(surface);
@@ -1543,9 +1544,11 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
+        onOpenLibrary={() => setSurface("library")}
         onOpenConversations={() => setSurface("session")}
         conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
+        libraryActive={surface === "library"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
         inboxActive={surface === "inbox"}
@@ -1561,6 +1564,8 @@ export function App() {
           onRunNow={runTaskNow}
           initialOpenId={scheduledOpenId}
         />
+      ) : surface === "library" ? (
+        <LibraryView />
       ) : surface === "integrations" ? (
         <IntegrationsView />
       ) : surface === "settings" ? (
@@ -1850,7 +1855,6 @@ export function App() {
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
             approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
-            onOpenAudit={() => setSurface("audit")}
             onResize={(width) => (isArtifactOpen ? setArtifactRailWidth(width) : setRailWidth(width))}
             resizeMaxWidth={maxRailWidth}
           />

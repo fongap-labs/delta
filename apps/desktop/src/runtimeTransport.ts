@@ -507,6 +507,15 @@ export const clearMemory = () => invokeAuthority("clear_memory");
 export const fetchMemorySettings = () => invokeAuthority("memory_settings");
 export const updateMemorySettings = (patch: Record<string, unknown>) =>
   invokeAuthority("update_memory_settings", { patch });
+export const directLibraryInfo = () => invokeAuthority("library_info");
+export const directSetFolder = (path: string) =>
+  invokeAuthority("library_set_folder", { path });
+export const directReadSource = (name: string) =>
+  invokeAuthority("library_read", { name });
+export const directWriteSource = (name: string, content: string) =>
+  invokeAuthority("library_write", { name, content });
+export const directRemoveSource = (name: string) =>
+  invokeAuthority("library_remove", { name });
 export const directListAutomations = () => invokeAuthority("automations_list");
 export const directCreateAutomation = (payload: Record<string, unknown>) =>
   invokeAuthority("automation_create", { payload });
