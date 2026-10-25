@@ -27,6 +27,8 @@ pub enum ApprovalDecision {
     AlwaysTool,
     AlwaysCommand,
     AlwaysTask,
+    /// Allow this call, or this command, in the workspace from now on (A3, third rung).
+    AlwaysWorkspace,
     Deny,
 }
 
@@ -37,6 +39,7 @@ impl ApprovalDecision {
             "always_tool" => Ok(Self::AlwaysTool),
             "always_command" => Ok(Self::AlwaysCommand),
             "always_task" => Ok(Self::AlwaysTask),
+            "always_workspace" => Ok(Self::AlwaysWorkspace),
             "deny" => Ok(Self::Deny),
             _ => Err(format!("unknown approval decision: {value}")),
         }
@@ -52,6 +55,7 @@ impl ApprovalDecision {
             Self::AlwaysTool => "always_tool",
             Self::AlwaysCommand => "always_command",
             Self::AlwaysTask => "always_task",
+            Self::AlwaysWorkspace => "always_workspace",
             Self::Deny => "deny",
         }
     }
@@ -60,6 +64,13 @@ impl ApprovalDecision {
 struct PendingApproval {
     tool_call_id: String,
     sender: mpsc::Sender<ApprovalDecision>,
+}
+
+/// A standing grant of the current session: a whole tool, or one command of a command tool.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionGrant {
+    pub tool: String,
+    pub command: Option<String>,
 }
 
 /// Thread-safe approval rendezvous shared by a session's runtime worker and
@@ -155,7 +166,50 @@ impl ApprovalController {
                         .insert(format!("{tool}\0{command}"));
                 }
             }
-            ApprovalDecision::Once | ApprovalDecision::Deny => {}
+            // A workspace rule is persisted by the runtime, which knows the tool's contract.
+            ApprovalDecision::Once | ApprovalDecision::AlwaysWorkspace | ApprovalDecision::Deny => {
+            }
+        }
+    }
+
+    /// The session's standing grants, for the app to show. Tool grants first, then commands.
+    pub fn grants(&self) -> Vec<SessionGrant> {
+        let mut tools: Vec<SessionGrant> = self
+            .tool_grants
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|tool| SessionGrant {
+                tool: tool.clone(),
+                command: None,
+            })
+            .collect();
+        tools.sort_by(|a, b| a.tool.cmp(&b.tool));
+        let mut commands: Vec<SessionGrant> = self
+            .command_grants
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|key| key.split_once('\0'))
+            .map(|(tool, command)| SessionGrant {
+                tool: tool.to_owned(),
+                command: Some(command.to_owned()),
+            })
+            .collect();
+        commands.sort_by(|a, b| (&a.tool, &a.command).cmp(&(&b.tool, &b.command)));
+        tools.extend(commands);
+        tools
+    }
+
+    /// Take back a session grant. Returns whether one was removed. The next matching call asks.
+    pub fn revoke_grant(&self, tool: &str, command: Option<&str>) -> bool {
+        match command {
+            None => self.tool_grants.lock().unwrap().remove(tool),
+            Some(command) => self
+                .command_grants
+                .lock()
+                .unwrap()
+                .remove(&format!("{tool}\0{command}")),
         }
     }
 

@@ -1,5 +1,5 @@
 // §35 (UX-018): approval cards speak the transcript's language. Routine workspace writes
-// are a compact ROW (humanized title, inline args-preview, short "Always allow" with the
+// are a compact ROW (humanized title, inline args-preview, short "Allow for this session" with the
 // full rule on hover); everything else is a full card — shell titles with the model's
 // description, external actions wear the leaves-this-Mac note. No "PERMISSION REQUIRED"
 // kicker, no raw args dump, no solid-fill buttons.
@@ -17,7 +17,7 @@ test("routine write → compact row: humanized title, inline preview, Allow reso
   const row = page.getByTestId("approval-row");
   await expect(row).toContainText("Write fetch_data.py");
   await expect(row).not.toContainText(/permission required/i);
-  await expect(row.getByRole("button", { name: "Always allow", exact: true })).toHaveAttribute(
+  await expect(row.getByRole("button", { name: "Allow for this session", exact: true })).toHaveAttribute(
     "title",
     /for this session/,
   );

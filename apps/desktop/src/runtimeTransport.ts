@@ -459,6 +459,16 @@ export const directReadSearch = () => invokeAuthority("read_search_settings", {}
 // Egress levels (ADR-0057): where a workspace's content may be sent. Only these settings commands change them.
 export const directEgressSettings = () => invokeAuthority("get_egress_settings", {});
 // The completion webhook (B5): saved URL, the change, and a test post judged by the egress level.
+// What the user has allowed without being asked (A3): session grants and workspace rules.
+export const directApprovalRules = (sessionId: string, workspace: string) =>
+  invokeAuthority("approval_rules", { sessionId, workspace });
+export const directRevokeApprovalRule = (
+  scope: string,
+  sessionId: string,
+  workspace: string,
+  tool: string,
+  command: string | null,
+) => invokeAuthority("revoke_approval_rule", { scope, sessionId, workspace, tool, command });
 export const directWebhookSettings = () => invokeAuthority("get_webhook_settings", {});
 export const directSetWebhookSettings = (url: string | null, isEnabled: boolean, isDetailed: boolean) =>
   invokeAuthority("set_webhook_settings", { url, isEnabled, isDetailed });

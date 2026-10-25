@@ -761,6 +761,61 @@ impl CoreControlPlane {
         }
     }
 
+    /// What the user has allowed without being asked (A3): this session's standing grants, and the
+    /// rules of the workspace. Both are shown in the app and revoked there.
+    pub fn approval_rules(&self, session_id: &str, workspace: &str) -> Value {
+        let session: Vec<Value> = self
+            .runtime_handle(session_id)
+            .map(|handle| {
+                handle
+                    .approval_grants()
+                    .into_iter()
+                    .map(|grant| json!({"tool": grant.tool, "command": grant.command}))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let (rules, error) = if workspace.trim().is_empty() {
+            (Vec::new(), None)
+        } else {
+            match crate::workspace_rules::list(&self.state_dir, workspace) {
+                Ok(rules) => (rules, None),
+                Err(error) => (Vec::new(), Some(error.to_string())),
+            }
+        };
+        json!({
+            "ok": true,
+            "session": session,
+            "workspace": rules.iter().map(crate::workspace_rules::Rule::to_json).collect::<Vec<_>>(),
+            "workspace_error": error,
+        })
+    }
+
+    /// Take back one allowance. `scope` is `session` or `workspace`; afterwards the call asks again.
+    pub fn revoke_approval_rule(
+        &self,
+        scope: &str,
+        session_id: &str,
+        workspace: &str,
+        tool: &str,
+        command: Option<&str>,
+    ) -> Value {
+        let revoked = match scope {
+            "session" => match self.runtime_handle(session_id) {
+                Some(handle) => Ok(handle.revoke_approval_grant(tool, command)),
+                None => Ok(false),
+            },
+            "workspace" => {
+                crate::workspace_rules::revoke(&self.state_dir, workspace, tool, command)
+                    .map_err(|error| error.to_string())
+            }
+            other => Err(format!("unknown scope: {other}")),
+        };
+        match revoked {
+            Ok(was_revoked) => json!({"ok": true, "revoked": was_revoked}),
+            Err(error) => json!({"ok": false, "error": error}),
+        }
+    }
+
     pub fn runtime_resolve_interaction(
         &self,
         session_id: &str,

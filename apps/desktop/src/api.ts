@@ -35,6 +35,8 @@ import {
   directPickFolder,
   directEgressSettings,
   directWebhookSettings,
+  directApprovalRules,
+  directRevokeApprovalRule,
   directSetWebhookSettings,
   directTestWebhook,
   updateEgressDefault,
@@ -344,6 +346,37 @@ export type PathRule = "allow" | "ask" | "deny";
 export type EgressChange =
   | ({ ok: true } & EgressSettings)
   | { ok: false; needs_confirmation?: boolean; error?: string };
+
+/** One thing the user allowed without being asked: a tool, or one command of a command tool. */
+export interface ApprovalRule {
+  tool: string;
+  command: string | null;
+  created_at?: string;
+}
+
+export interface ApprovalRules {
+  session: ApprovalRule[];
+  workspace: ApprovalRule[];
+  workspace_error?: string | null;
+}
+
+export async function getApprovalRules(sessionId: string, workspace: string): Promise<ApprovalRules> {
+  const out = await directApprovalRules(sessionId, workspace);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the approval rules");
+  return out as ApprovalRules;
+}
+
+/** Take back an allowance; the next matching call asks again. */
+export async function revokeApprovalRule(
+  scope: "session" | "workspace",
+  sessionId: string,
+  workspace: string,
+  rule: ApprovalRule,
+): Promise<boolean> {
+  const out = await directRevokeApprovalRule(scope, sessionId, workspace, rule.tool, rule.command);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not revoke the rule");
+  return !!out.revoked;
+}
 
 /** The completion webhook: one URL that gets a short post when a turn finishes. */
 export interface WebhookSettings {

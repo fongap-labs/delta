@@ -1,3 +1,4 @@
+import { useWorkspace } from "../workspaceContext";
 import { useState } from "react";
 import type { ApprovalDecision, Item } from "../types";
 import { humanizeApprovalTitle, resolveHumanLine, type HumanLine } from "../humanize";
@@ -217,6 +218,7 @@ function Buttons({
   const { t } = useI18n();
   const [isConfirmed, setConfirmed] = useState(false);
   const locked = external && !isConfirmed;
+  const workspace = useWorkspace();
   const connector = item.category === "connector";
   const offerStanding = !!(runTask && item.standingTarget);
   const denyText = denyLabel ?? t("approval.deny");
@@ -263,6 +265,18 @@ function Buttons({
       {item.name === "run_shell" && (
         <button className="btn" onClick={() => onApprove("always_command")}>
           {t("approval.alwaysAllowCommand")}
+        </button>
+      )}
+      {/* The third rung of the ladder: this workspace, kept until the user takes it back from the
+          permissions list. Offered only where a session rule is, and only with a workspace. */}
+      {workspace && !connector && !external && !offerStanding && item.name !== "save_skill" && (
+        <button
+          className="btn"
+          data-testid="approval-always-workspace"
+          title={t("approval.alwaysAllowWorkspaceHelp")}
+          onClick={() => onApprove("always_workspace")}
+        >
+          {t("approval.alwaysAllowWorkspace")}
         </button>
       )}
       <span className="spacer" />

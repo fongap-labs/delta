@@ -929,6 +929,265 @@ fn native_e2e_a_stricter_egress_level_keeps_the_webhook_from_posting() {
 }
 
 #[test]
+fn native_e2e_a_standing_grant_does_not_override_a_hard_refusal() {
+    // The user allowed the tool earlier; the session has since moved to Plan mode, which refuses
+    // every mutation outright. A grant answers a question; it can not overrule a refusal.
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let authorities = authorities_at(temp.path());
+    let mut host = RuntimeHost::new(
+        "session-plan-grant",
+        RuntimeConfig {
+            mode: crate::policy::ExecutionMode::Plan,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities)
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id("run-plan-grant".to_string());
+    host.approvals.remember(
+        ApprovalDecision::AlwaysTool,
+        "write_report",
+        &json!({"path": "report.md"}),
+    );
+
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-plan-grant".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("plan mode")),
+        "{:?}",
+        result.error
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "the tool must not run");
+}
+
+/// A host in `workspace` for the approval-ladder tests: `write_report` needs approval.
+fn ladder_host(
+    state: &Path,
+    workspace: &Path,
+    session_id: &str,
+    contract: Value,
+) -> (Arc<RuntimeHost>, Arc<AtomicUsize>) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut host = RuntimeHost::new(
+        session_id,
+        RuntimeConfig {
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities_at(state))
+    .with_tools(contract)
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id(format!("run-{session_id}"));
+    (Arc::new(host), calls)
+}
+
+/// Call `write_report`. `Some(decision)` answers the question it asks; `None` expects no question.
+/// Returns whether a question was asked.
+fn ladder_call(host: &Arc<RuntimeHost>, id: &str, answer: Option<ApprovalDecision>) -> bool {
+    let worker = {
+        let host = host.clone();
+        let id = id.to_string();
+        std::thread::spawn(move || {
+            host.execute_tool_call(&ToolCall {
+                id,
+                name: "write_report".to_string(),
+                arguments: json!({"path": "report.md"}),
+            })
+        })
+    };
+    let mut asked = false;
+    for _ in 0..100 {
+        if host.approvals.pending_ids() == [id] {
+            asked = true;
+            break;
+        }
+        if worker.is_finished() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    if asked {
+        host.approvals
+            .resolve(Some(id), answer.unwrap_or(ApprovalDecision::Deny))
+            .unwrap();
+    }
+    let result = worker.join().unwrap();
+    if answer.is_some() || !asked {
+        assert!(result.error.is_none(), "{id}: {:?}", result.error);
+    }
+    asked
+}
+
+#[test]
+fn native_e2e_session_grant_then_revoke_restores_the_question() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (host, calls) = ladder_host(
+        state.path(),
+        workspace.path(),
+        "s-ladder",
+        tool_contract("medium", true),
+    );
+
+    assert!(
+        ladder_call(&host, "c1", Some(ApprovalDecision::AlwaysTool)),
+        "the first call asks"
+    );
+    assert!(
+        !ladder_call(&host, "c2", None),
+        "the session grant answers the second"
+    );
+    assert_eq!(
+        host.approvals.grants(),
+        vec![crate::approval::SessionGrant {
+            tool: "write_report".into(),
+            command: None
+        }]
+    );
+
+    assert!(host.approvals.revoke_grant("write_report", None));
+    assert!(host.approvals.grants().is_empty());
+    assert!(
+        ladder_call(&host, "c3", Some(ApprovalDecision::Once)),
+        "after revoking, it asks again"
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn native_e2e_workspace_rule_outlives_the_session_until_it_is_revoked() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let ws = workspace.path().to_string_lossy().to_string();
+    let (first, _) = ladder_host(
+        state.path(),
+        workspace.path(),
+        "s-one",
+        tool_contract("medium", true),
+    );
+
+    assert!(ladder_call(
+        &first,
+        "c1",
+        Some(ApprovalDecision::AlwaysWorkspace)
+    ));
+    let rules = crate::workspace_rules::list(state.path(), &ws).unwrap();
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].tool, "write_report");
+    assert!(
+        !ladder_call(&first, "c2", None),
+        "the rule answers a later call"
+    );
+
+    // A different session in the same workspace is covered too.
+    let (second, calls) = ladder_host(
+        state.path(),
+        workspace.path(),
+        "s-two",
+        tool_contract("medium", true),
+    );
+    assert!(!ladder_call(&second, "c3", None));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    // Another workspace is not.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let (other, _) = ladder_host(
+        state.path(),
+        elsewhere.path(),
+        "s-three",
+        tool_contract("medium", true),
+    );
+    assert!(ladder_call(&other, "c4", Some(ApprovalDecision::Once)));
+
+    assert!(crate::workspace_rules::revoke(state.path(), &ws, "write_report", None).unwrap());
+    assert!(
+        ladder_call(&second, "c5", Some(ApprovalDecision::Once)),
+        "after revoking, it asks again"
+    );
+}
+
+#[test]
+fn native_e2e_a_call_that_deletes_is_never_made_a_workspace_rule() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let ws = workspace.path().to_string_lossy().to_string();
+    let mut contract = tool_contract("medium", true);
+    contract[0]["function"]["metadata"]["side_effect"] = json!("destructive");
+    let (host, _) = ladder_host(state.path(), workspace.path(), "s-destroy", contract);
+
+    assert!(
+        ladder_call(&host, "c1", Some(ApprovalDecision::AlwaysWorkspace)),
+        "the call itself is allowed once"
+    );
+    assert!(crate::workspace_rules::list(state.path(), &ws)
+        .unwrap()
+        .is_empty());
+    assert!(
+        ladder_call(&host, "c2", Some(ApprovalDecision::Once)),
+        "and the next one asks"
+    );
+}
+
+#[test]
+fn native_e2e_a_workspace_rule_does_not_overrule_plan_mode() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    crate::workspace_rules::add(
+        state.path(),
+        &workspace.path().to_string_lossy(),
+        "write_report",
+        &json!({}),
+    )
+    .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut host = RuntimeHost::new(
+        "s-plan-rule",
+        RuntimeConfig {
+            workspace: Some(workspace.path().to_string_lossy().to_string()),
+            mode: crate::policy::ExecutionMode::Plan,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities_at(state.path()))
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id("run-plan-rule".to_string());
+    let result = host.execute_tool_call(&ToolCall {
+        id: "c1".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("plan mode")),
+        "{:?}",
+        result.error
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn native_e2e_cancel_while_approval_pending_is_terminal() {
     let temp = tempfile::tempdir().unwrap();
     let calls = Arc::new(AtomicUsize::new(0));

@@ -58,6 +58,51 @@ impl RuntimeHost {
         Ok(())
     }
 
+    /// Whether a workspace rule (A3) already covers this call.
+    fn workspace_rule_covers(&self, call: &ToolCall) -> bool {
+        let Some(authorities) = &self.authorities else {
+            return false;
+        };
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        crate::workspace_rules::covers(
+            authorities.state_dir(),
+            &workspace,
+            &call.name,
+            &call.arguments,
+        )
+    }
+
+    /// The user chose "always allow in this workspace" for this call. The call itself was approved;
+    /// the rule is made only when the call is one a rule may cover. A rule that can not be made
+    /// leaves the call allowed once, and says so in the ledger.
+    fn remember_workspace_rule(&self, call: &ToolCall, can_make_rule: bool) {
+        let Some(authorities) = &self.authorities else {
+            return;
+        };
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        let outcome = if can_make_rule {
+            crate::workspace_rules::add(
+                authorities.state_dir(),
+                &workspace,
+                &call.name,
+                &call.arguments,
+            )
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+        } else {
+            Err("this kind of call is asked every time".to_owned())
+        };
+        let (kind, detail) = match outcome {
+            Ok(()) => ("approval.rule_created", Value::Null),
+            Err(error) => ("approval.rule_refused", json!(error)),
+        };
+        let _ = self.ledger_append(
+            kind,
+            "user",
+            json!({"tool_call_id": call.id, "tool": call.name, "scope": "workspace", "detail": detail}),
+        );
+    }
+
     /// Tell the automation circuit breaker how the user answered an approval (A3). The answer is
     /// already given and recorded, so a failure here goes to the ledger and never changes it.
     fn note_automation_outcome(&self, call: &ToolCall, is_approved: bool) {
@@ -457,6 +502,12 @@ impl RuntimeHost {
             Ok(outbound) => outbound,
             Err(error) => return ToolResult::failure(&call.id, error),
         };
+        // Whether this call may become a workspace rule: not one that sends content out, not one
+        // that deletes or sends, and not a skill proposal (each of those is asked every time).
+        let can_make_rule = outbound.is_none()
+            && metadata
+                .as_ref()
+                .is_some_and(|metadata| workspace_rule_eligible(&call.name, metadata));
         let (level, decision) = match self.policy_for(call, metadata) {
             Ok(outcome) => outcome,
             Err(error) => return ToolResult::failure(&call.id, error),
@@ -497,18 +548,27 @@ impl RuntimeHost {
             .is_some_and(|gate| gate.requires_call_approval());
         let ask_reason = outbound.as_ref().map(|gate| gate.ask_reason.clone());
 
-        if !decision.allowed
-            && !asks_for_call
-            && self
-                .approvals
-                .has_standing_grant(&call.name, &call.arguments)
+        // A grant answers a question. It can not overrule a refusal (`needs_user` is false for one:
+        // Plan mode, the side-effect check), nor stand in for the approval an outbound call needs.
+        let standing = if decision.allowed || !decision.needs_user || asks_for_call {
+            None
+        } else if self
+            .approvals
+            .has_standing_grant(&call.name, &call.arguments)
         {
+            Some("approved by a session-scoped standing grant")
+        } else if self.workspace_rule_covers(call) {
+            Some("approved by a workspace rule")
+        } else {
+            None
+        };
+        if let Some(basis) = standing {
             if let Err(error) = self.record_approval(
                 call,
                 "standing_policy_resolved",
                 "auto_approved",
                 Some("standing"),
-                "approved by a session-scoped standing grant",
+                basis,
                 level,
             ) {
                 return ToolResult::failure(&call.id, error);
@@ -544,7 +604,11 @@ impl RuntimeHost {
                 _ => decision.reason.as_str(),
             };
             match self.require_approval(call, reason, level) {
-                Ok(approval) if approval.is_approved() => {}
+                Ok(approval) if approval.is_approved() => {
+                    if approval == ApprovalDecision::AlwaysWorkspace {
+                        self.remember_workspace_rule(call, can_make_rule);
+                    }
+                }
                 Ok(_) => {
                     return self.fail_after_ledger(
                         call,
@@ -901,4 +965,24 @@ impl RuntimeHost {
         }
         result
     }
+}
+
+/// Whether a call of `name` may be remembered as a workspace rule. Calls that send content off the
+/// machine, delete, or propose a skill are asked every time.
+fn workspace_rule_eligible(name: &str, metadata: &crate::policy::ToolMetadata) -> bool {
+    if name == "save_skill" {
+        return false;
+    }
+    let category = metadata
+        .category
+        .as_deref()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if matches!(category.as_str(), "web" | "mcp" | "connector") {
+        return false;
+    }
+    !matches!(
+        metadata.side_effect.as_deref(),
+        Some("external_write" | "destructive")
+    )
 }

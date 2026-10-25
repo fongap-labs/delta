@@ -43,6 +43,7 @@ import type {
   WsEvent,
 } from "./types";
 import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
+import { WorkspaceContext } from "./workspaceContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
@@ -1455,6 +1456,7 @@ export function App() {
 
   return (
     <I18nProvider locale={locale} onLocaleChange={setLocale}>
+      <WorkspaceContext.Provider value={workspace}>
     <div
       className={
         "app" +
@@ -1898,6 +1900,7 @@ export function App() {
         />
       )}
     </div>
+      </WorkspaceContext.Provider>
     </I18nProvider>
   );
 }

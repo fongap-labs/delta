@@ -78,6 +78,16 @@ impl RuntimeHandle {
         self.approvals.resolve(tool_call_id, decision)
     }
 
+    /// The session's standing grants (allow-for-this-session choices), for the app to list.
+    pub fn approval_grants(&self) -> Vec<crate::approval::SessionGrant> {
+        self.approvals.grants()
+    }
+
+    /// Take back one of them; the next matching call asks again.
+    pub fn revoke_approval_grant(&self, tool: &str, command: Option<&str>) -> bool {
+        self.approvals.revoke_grant(tool, command)
+    }
+
     pub fn pending_approvals(&self) -> Vec<String> {
         self.approvals.pending_ids()
     }

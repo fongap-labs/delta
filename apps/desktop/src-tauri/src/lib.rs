@@ -658,6 +658,8 @@ pub fn run() {
             runtime_ipc::runtime_cancel,
             runtime_ipc::runtime_state,
             runtime_ipc::runtime_approval,
+            runtime_ipc::approval_rules,
+            runtime_ipc::revoke_approval_rule,
             runtime_ipc::resolve_directory_request,
             runtime_ipc::resolve_plan_request,
             runtime_ipc::resolve_question_request,

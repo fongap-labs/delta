@@ -300,6 +300,8 @@ function commandSources(): Record<string, string> {
     // cover every test; a test that needs the chooser overrides get_egress_settings.
     get_egress_settings: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: [] })`,
     set_egress_default: `(args) => ({ ok: true, default_level: args.level, is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: [] })`,
+    approval_rules: `(args) => ({ ok: true, session: $state.rulesSession || [], workspace: $state.rulesWorkspace || [], workspace_error: null })`,
+    revoke_approval_rule: `(args) => { const key = args.scope === "session" ? "rulesSession" : "rulesWorkspace"; const before = ($state[key] || []).length; $state[key] = ($state[key] || []).filter((r) => !(r.tool === args.tool && (r.command || null) === (args.command || null))); $state.revoked = [...($state.revoked || []), { scope: args.scope, tool: args.tool, command: args.command || null }]; return { ok: true, revoked: before !== $state[key].length }; }`,
     get_webhook_settings: `(args) => ({ ok: true, ...($state.webhook || { url: null, is_enabled: false, include_details: false }) })`,
     set_webhook_settings: `(args) => { if (args.url && !/^https?:[/][/]/.test(args.url)) return { ok: false, error: "the URL must start with http:// or https://" }; $state.webhook = { url: args.url, is_enabled: args.isEnabled, include_details: args.isDetailed }; return { ok: true, ...$state.webhook }; }`,
     test_webhook: `(args) => ({ result: "sent", host: "hooks.example", status: 200 })`,

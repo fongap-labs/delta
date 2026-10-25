@@ -229,6 +229,29 @@ pub fn runtime_approval(
     state.runtime_resolve_approval(&session_id, tool_call_id.as_deref(), &decision)
 }
 
+/// What the user has allowed without being asked: this session's grants and the workspace's rules.
+#[tauri::command]
+pub fn approval_rules(
+    state: State<'_, RuntimeRegistry>,
+    session_id: String,
+    workspace: String,
+) -> Value {
+    state.approval_rules(&session_id, &workspace)
+}
+
+/// Take back one allowance, so the next matching call asks again.
+#[tauri::command]
+pub fn revoke_approval_rule(
+    state: State<'_, RuntimeRegistry>,
+    scope: String,
+    session_id: String,
+    workspace: String,
+    tool: String,
+    command: Option<String>,
+) -> Value {
+    state.revoke_approval_rule(&scope, &session_id, &workspace, &tool, command.as_deref())
+}
+
 #[tauri::command]
 pub fn resolve_directory_request(
     state: State<'_, RuntimeRegistry>,

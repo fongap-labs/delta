@@ -53,6 +53,7 @@ pub mod validation;
 pub mod web;
 pub mod webhook;
 pub mod wire;
+pub mod workspace_rules;
 
 pub use agent::{AgentDefinition, WorkspacePolicy, DELTA_AGENT};
 pub use application::ApplicationStore;
