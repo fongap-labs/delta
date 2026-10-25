@@ -2,7 +2,7 @@
 
 状态：**已接受**（所有者，2026-10-11）。依赖 [ADR-0054](0054-statistics-engine.md)。
 
-**部分实现**：步骤 1 已实现（绑定的语法解析与按格式渲染，即 `numeric_trace` 模块）。绑定清单、`numeric_trace` 校验规则与 `forbid_unbound_numbers` 尚未实现（见 CHANGELOG）。
+**部分实现**：绑定的语法解析与按格式渲染（`numeric_trace` 模块）已实现；2026-10-25 增加了结果产出物的写出（`statistics_record`，见文末"实现记录"）。绑定清单、`numeric_trace` 校验规则与 `forbid_unbound_numbers` 尚未实现（见 CHANGELOG）。
 
 ## 背景
 
@@ -84,3 +84,19 @@
 ## 未验证事项
 
 - DOCX 文本位置规则假设报告由 Delta 模板渲染生成。渲染之后由用户手工编辑的 DOCX 文件不在本检查范围内；此后的编辑会改变 SHA-256，届时校验将不再适用于被编辑的文件。
+
+## 实现记录（2026-10-25）：结果产出物
+
+决定第 1 点（计算型能力写出结构化结果产出物）已由 `statistics_record` 实现：
+
+- 对 `ttest`、`anova`、`chisq`、`correlation`、`regression`，由 R **重新计算**同一份结果，并把其中每一个有限数字写入工作区里的一个 JSON 文件（经审批；副作用 `local_write`；按产出物登记，记录路径与 SHA-256）。数字不来自模型。
+- 文件结构：`{"format": "delta.result", "version": 1, "method", "values": {键: {"value": 数字}}, "warnings", "provenance"}`。`provenance` 是该方法本来就返回的来源证明（R 版本、程序与输入文件的 SHA-256、方法、参数）。
+- 键是数字在方法结果中的路径，用点连接：`p_value`、`conf_low`、`groups.1.mean`、`coefficients.2.estimate`（数组从 1 编号）。同一个方法每次给出同样的键。
+- 研究记录的轮次（ADR-0056）可以用文件路径、SHA-256 和键指向这些数字，`study_evaluate` 会核对它们。
+
+**未实现 / 未验证**
+
+- 这一步没有 `kind`（`estimate`、`ci_lower` 等）和 `unit` 字段；键名本身表达含义。
+- 绑定清单、渲染器、`numeric_trace` 校验规则和 `forbid_unbound_numbers`（决定第 2、3 点）仍然没有做，所以报告里的 `{{result:…}}` 还没有东西去渲染和检查。
+- `statistics_describe` 与 `statistics_doe` 不写结果文件。
+- 在本次开发环境的 R 4.3.3 上，通过能力宿主调用会因 R 版本锁定而拒绝，所以文件的生成逻辑是绕过版本锁定直接测试的；锁定本身另有测试。

@@ -267,6 +267,7 @@ pub fn registrations() -> Vec<CapabilityRegistration> {
         correlation_registration(),
         regression_registration(),
         doe_registration(),
+        record::registration(),
     ]
 }
 
@@ -1153,6 +1154,8 @@ fn shape_doe(values: &BTreeMap<String, String>, prepared: &Prepared) -> Result<V
     );
     Ok(Value::Object(result))
 }
+
+mod record;
 
 #[cfg(test)]
 mod tests;

@@ -115,7 +115,7 @@
 
 **未验证事项**
 
-- `statistics_*` 工具目前把结果直接返回给模型，并不写 ADR-0055 所说的 JSON 结果产出物；所以 `source` 要指向的文件，现在需要有别的办法产生。这是 ADR-0055 步骤 2 之后的工作，不在本次范围。
+- `source` 要指向的结果文件现在可以由 `statistics_record` 产生（见 ADR-0055 的实现记录）；其余 `statistics_*` 工具（`describe`、`doe`）仍不写结果文件。
 - 校验规则 `study_schema` 仍未接入产出物校验流程，`study.amend`、历史查询也未做；本次的合规检查只通过 `study_evaluate` 提供。
 - 发布的 JSON Schema 与 Rust 类型的一致性，只用一个测试检查字段名与锁定集合，没有用 JSON Schema 校验器逐条验证（仓库没有该依赖）。
 - 研究报告模板与 `{{result:…}}` 渲染（路线图中"Skill 封装"一项）没有做：渲染器和绑定清单（ADR-0055 步骤 2、3）还不存在。

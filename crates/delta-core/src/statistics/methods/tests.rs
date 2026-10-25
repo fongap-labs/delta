@@ -80,6 +80,10 @@ fn every_method_is_registered_as_a_tool_the_product_offers() {
 #[test]
 fn methods_that_read_a_file_are_reads_and_the_design_generator_has_no_side_effect() {
     for registration in registrations() {
+        // statistics_record writes a result file, so it is the one that asks (see record.rs).
+        if registration.tool_name == "statistics_record" {
+            continue;
+        }
         let expected = if registration.tool_name == "statistics_doe" {
             SideEffectClass::None
         } else {
@@ -807,4 +811,213 @@ fn r_that_runs_past_the_limit_is_stopped() {
     )
     .unwrap_err();
     assert!(error.contains("time limit"), "{error}");
+}
+
+// --- statistics_record ---
+
+#[test]
+fn the_record_tool_writes_to_the_workspace_so_it_asks_first() {
+    let registration = record::registration();
+    assert_eq!(registration.side_effect, SideEffectClass::LocalWrite);
+    assert_eq!(registration.metadata["requires_approval"], true);
+    assert!(registration.workspace_write);
+}
+
+#[test]
+fn every_finite_number_of_a_result_gets_a_dotted_key_and_the_rest_is_left_out() {
+    let result = json!({
+        "p_value": 0.02, "df": 11, "method": "Welch", "missing": null,
+        "groups": [{"label": "a", "mean": 1.5}, {"label": "b", "mean": 2.5}],
+        "coefficients": [{"term": "(Intercept)", "estimate": 4.0, "p_value": null}],
+        "warnings": ["a warning with 3 in it"],
+        "provenance": {"r_version": "4.6.0", "parameters": {"mu": 5.0}}
+    });
+    let values = record::flatten(&result);
+    let keys: Vec<&str> = values.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        [
+            "coefficients.1.estimate",
+            "df",
+            "groups.1.mean",
+            "groups.2.mean",
+            "p_value"
+        ]
+    );
+    assert_eq!(values["groups.2.mean"]["value"], 2.5);
+}
+
+#[test]
+fn a_result_path_must_be_a_relative_json_file_inside_the_workspace() {
+    for good in ["result.json", "out/t.json", "out/deep/T.JSON"] {
+        assert!(record::valid_result_path(good).is_ok(), "{good}");
+    }
+    for bad in [
+        "",
+        "result.csv",
+        "/etc/x.json",
+        "../x.json",
+        "out/../../x.json",
+        "noextension",
+        "out/",
+    ] {
+        assert!(record::valid_result_path(bad).is_err(), "{bad}");
+    }
+}
+
+fn record_call(workspace: &Path, arguments: Value) -> crate::runtime::ToolResult {
+    use crate::runtime::{ToolCall, ToolExecutionContext, ToolExecutor};
+    let host = crate::capability::CapabilityHost::product_defaults().unwrap();
+    host.execute(
+        &ToolCall {
+            id: "c".into(),
+            name: "statistics_record".into(),
+            arguments,
+        },
+        &ToolExecutionContext {
+            session_id: "s".into(),
+            run_id: "r".into(),
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            timeout: Duration::from_secs(60),
+            cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            progress: Arc::new(|_| {}),
+            secrets: Default::default(),
+            proxy: None,
+        },
+    )
+}
+
+#[test]
+fn the_record_tool_stages_a_result_file_with_the_numbers_r_computed() {
+    if !rscript_available() {
+        eprintln!("skipped: Rscript is not installed");
+        return;
+    }
+    let workspace = tempfile::tempdir().unwrap();
+    let input = workspace.path().join("data.csv");
+    std::fs::write(&input, STUDY).unwrap();
+    // The R release pin is the product's rule and is tested on its own; the figures do not depend on it.
+    let (output, bytes) = record::build(
+        &TTEST,
+        Path::new("Rscript"),
+        &input,
+        &json!({"path": "data.csv", "kind": "one_sample", "column": "y", "mu": 5}),
+    )
+    .unwrap();
+    let file: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(file["format"], "delta.result");
+    assert_eq!(file["method"], "ttest");
+    // The same figures the plain tool reports (SciPy: t = 4.8736…, p = 0.00049…).
+    close(
+        &file["values"]["statistic"]["value"],
+        4.873617552725215,
+        1e-9,
+    );
+    close(
+        &file["values"]["p_value"]["value"],
+        0.0004918624151844586,
+        1e-7,
+    );
+    close(
+        &file["values"]["conf_low"]["value"],
+        6.3572597973079095,
+        1e-9,
+    );
+    assert_eq!(file["provenance"]["method"], "ttest");
+    assert_eq!(
+        file["provenance"]["input_sha256"],
+        sha256_hex(STUDY.as_bytes())
+    );
+    // What the model is told is the result itself plus the keys it can cite.
+    close(&output["p_value"], 0.0004918624151844586, 1e-7);
+    assert!(output["keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|key| key == "p_value"));
+}
+
+#[test]
+fn through_the_host_the_record_tool_holds_to_the_pinned_r_release() {
+    if !rscript_available() {
+        return;
+    }
+    let workspace = tempfile::tempdir().unwrap();
+    std::fs::write(workspace.path().join("data.csv"), STUDY).unwrap();
+    let result = record_call(
+        workspace.path(),
+        json!({
+            "method": "ttest", "path": "data.csv", "result_path": "out/t.json",
+            "options": {"kind": "one_sample", "column": "y"}
+        }),
+    );
+    // Either the pinned R is installed and a file is staged, or nothing is computed and nothing is written.
+    match result.error {
+        None => assert_eq!(result.staged_artifacts[0].relative_path, "out/t.json"),
+        Some(error) => {
+            assert!(error.contains("R 4.6.0"), "{error}");
+            assert!(result.staged_artifacts.is_empty());
+        }
+    }
+}
+
+#[test]
+fn a_recorded_result_file_is_what_a_study_round_can_point_at() {
+    if !rscript_available() {
+        eprintln!("skipped: Rscript is not installed");
+        return;
+    }
+    let workspace = tempfile::tempdir().unwrap();
+    let input = workspace.path().join("data.csv");
+    std::fs::write(&input, STUDY).unwrap();
+    let (output, bytes) = record::build(
+        &CORRELATION,
+        Path::new("Rscript"),
+        &input,
+        &json!({"path": "data.csv", "column_a": "x1", "column_b": "y"}),
+    )
+    .unwrap();
+    let estimate = output["estimate"].as_f64().unwrap();
+    let sha = sha256_hex(&bytes);
+    let study: crate::study::Study = serde_json::from_value(json!({
+        "schema_version": 1, "objective": "o",
+        "responses": [{"name": "r", "criterion": "c"}],
+        "factors": [{"name": "f", "low": 1.0, "high": 2.0}],
+        "allowed_adjustments": {"factors": [{"name": "f", "min": 0.0, "max": 3.0}]},
+        "stopping_rule": "s",
+        "analysis_plan": {"model": "m", "significance_level": 0.05, "confidence_level": 0.95},
+        "sequential": {"rule": {"response": "r", "direction": "at_least", "threshold": 0.9, "consecutive_rounds": 1, "max_rounds": 3}},
+        "rounds": [{
+            "number": 1, "factors": [{"name": "f", "low": 1.0, "high": 2.0}],
+            "results": {"r": {"value": estimate, "source": {"artifact": "round1.json", "sha256": sha, "key": "estimate"}}}
+        }]
+    }))
+    .unwrap();
+    let checks = crate::study::verify::verify_sources(&study, &|_: &str| Ok(bytes.clone()));
+    assert!(checks[0].is_verified, "{:?}", checks[0]);
+    assert_eq!(
+        crate::study::sequential::evaluate(&study).unwrap().status,
+        crate::study::sequential::Status::StoppedMet
+    );
+}
+
+#[test]
+fn the_record_tool_refuses_what_it_cannot_do_before_it_runs_anything() {
+    let workspace = tempfile::tempdir().unwrap();
+    std::fs::write(workspace.path().join("data.csv"), STUDY).unwrap();
+    let call = |arguments: Value| record_call(workspace.path(), arguments).error;
+    let ok_options = json!({"kind": "one_sample", "column": "y"});
+    assert!(call(json!({"path": "data.csv", "result_path": "a.json"}))
+        .unwrap()
+        .contains("method"));
+    assert!(
+        call(json!({"method": "doe", "path": "data.csv", "result_path": "a.json"}))
+            .unwrap()
+            .contains("must be one of")
+    );
+    assert!(call(json!({"method": "ttest", "path": "data.csv", "result_path": "a.csv", "options": ok_options})).unwrap().contains("result_path"));
+    assert!(call(json!({"method": "ttest", "path": "data.csv", "result_path": "../a.json", "options": ok_options})).unwrap().contains("result_path"));
+    assert!(call(json!({"method": "ttest", "path": "../data.csv", "result_path": "a.json", "options": ok_options})).is_some());
+    // The method's own argument checks still apply.
+    assert!(call(json!({"method": "ttest", "path": "data.csv", "result_path": "a.json", "options": {"kind": "one_sample"}})).unwrap().contains("column"));
 }

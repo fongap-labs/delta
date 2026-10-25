@@ -190,6 +190,7 @@ export function humanizeTool(name: string, args: any): HumanLine {
     case "statistics_chisq":
     case "statistics_correlation":
     case "statistics_regression":
+    case "statistics_record":
       return {
         pre: "Ran a statistical analysis — ",
         preKey: "humanize.statistics",
@@ -251,6 +252,8 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
     case "library_index":
       return { pre: "Read the files in a folder to update the library index", preKey: "humanize.apLibraryIndex" };
+    case "statistics_record":
+      return { pre: "Run an analysis and save its numbers to ", preKey: "humanize.apStatisticsRecord", obj: baseName(String(a.result_path ?? "a result file")) };
     case "model.request":
       return { pre: "Send this task to ", preKey: "humanize.apModelRequest", obj: String(a.endpoint ?? "the model") };
     case "screenshot":

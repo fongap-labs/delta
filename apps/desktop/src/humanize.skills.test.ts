@@ -86,6 +86,8 @@ describe("humanize statistics tools", () => {
   it("names the analysis rather than the tool", () => {
     expect(humanizeTool("statistics_ttest", { path: "a.csv" })).toMatchObject({ pre: "Ran a statistical analysis — ", obj: "ttest" });
     expect(humanizeTool("statistics_regression", {})).toMatchObject({ obj: "regression" });
+    expect(humanizeTool("statistics_record", {})).toMatchObject({ obj: "record" });
+    expect(humanizeApprovalTitle("statistics_record", { result_path: "out/t.json" })).toMatchObject({ obj: "t.json" });
     expect(humanizeTool("statistics_doe", {})).toMatchObject({ pre: "Laid out an experiment design" });
   });
 });

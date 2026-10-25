@@ -735,6 +735,7 @@ export const zh: Record<TranslationKey, string> = {
   "humanize.explored": "派遣了子代理去探索 — ",
   "humanize.usedSkill": "使用了技能：",
   "humanize.findSkill": "查找了已保存的技能",
+  "humanize.apStatisticsRecord": "运行分析并把数字保存到 ",
   "humanize.studyEvaluate": "检查了研究记录和停止规则",
   "humanize.librarySearch": "在资料库中搜索了 ",
   "humanize.libraryIndex": "更新了资料库索引",
