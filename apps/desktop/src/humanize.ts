@@ -196,6 +196,10 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.statistics",
         obj: name.slice("statistics_".length),
       };
+    case "report_render":
+      return { pre: "Built the report from its bound numbers", preKey: "humanize.reportRender" };
+    case "report_check":
+      return { pre: "Checked the report's numbers against their sources", preKey: "humanize.reportCheck" };
     case "study_evaluate":
       return { pre: "Checked the study and its stopping rule", preKey: "humanize.studyEvaluate" };
     case "library_search":
@@ -252,6 +256,8 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
     case "library_index":
       return { pre: "Read the files in a folder to update the library index", preKey: "humanize.apLibraryIndex" };
+    case "report_render":
+      return { pre: "Build a report from its bound numbers: ", preKey: "humanize.apReportRender", obj: baseName(String(a.report_path ?? "a report")) };
     case "statistics_record":
       return { pre: "Run an analysis and save its numbers to ", preKey: "humanize.apStatisticsRecord", obj: baseName(String(a.result_path ?? "a result file")) };
     case "model.request":

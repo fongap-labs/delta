@@ -1021,3 +1021,59 @@ fn the_record_tool_refuses_what_it_cannot_do_before_it_runs_anything() {
     // The method's own argument checks still apply.
     assert!(call(json!({"method": "ttest", "path": "data.csv", "result_path": "a.json", "options": {"kind": "one_sample"}})).unwrap().contains("column"));
 }
+
+#[test]
+fn a_recorded_result_file_renders_into_a_report_that_checks_clean() {
+    if !rscript_available() {
+        eprintln!("skipped: Rscript is not installed");
+        return;
+    }
+    let workspace = tempfile::tempdir().unwrap();
+    let input = workspace.path().join("data.csv");
+    std::fs::write(&input, STUDY).unwrap();
+    let (_, bytes) = record::build(
+        &TTEST,
+        Path::new("Rscript"),
+        &input,
+        &json!({"path": "data.csv", "kind": "one_sample", "column": "y", "mu": 5}),
+    )
+    .unwrap();
+    let read = |path: &str| -> Result<Vec<u8>, String> {
+        if path == "out/t.json" {
+            Ok(bytes.clone())
+        } else {
+            Err(format!("{path} was not found"))
+        }
+    };
+    let template = "# Results\n\nThe mean exceeded 5 (t = {{result:out/t.json#statistic|%.2f}}, p = {{result:out/t.json#p_value|%.4f}}).\n";
+    let rendered = crate::numeric_trace::report::render_template(template, &read).unwrap();
+    assert_eq!(
+        rendered.text,
+        "# Results\n\nThe mean exceeded 5 (t = 4.87, p = 0.0005).\n"
+    );
+    let manifest = rendered.manifest("report.md", "template.md");
+    // "5" is a number the report states itself, so a formal check names it; allowing it passes.
+    let strict =
+        crate::numeric_trace::report::check_report(&rendered.text, &manifest, &read, true, &[]);
+    assert_eq!(
+        strict
+            .unbound
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>(),
+        ["5"]
+    );
+    let allowed = crate::numeric_trace::report::check_report(
+        &rendered.text,
+        &manifest,
+        &read,
+        true,
+        &["exceeded 5".to_owned()],
+    );
+    assert!(
+        allowed.passed(),
+        "{:?} {:?}",
+        allowed.problems,
+        allowed.unbound
+    );
+}

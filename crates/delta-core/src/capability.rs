@@ -212,6 +212,8 @@ mod tests {
                 "propose_plan",
                 "read_document",
                 "read_file",
+                "report_check",
+                "report_render",
                 "request_directory",
                 "statistics_anova",
                 "statistics_chisq",

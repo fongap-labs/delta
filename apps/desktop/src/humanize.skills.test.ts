@@ -102,3 +102,11 @@ describe("humanize library tools", () => {
     expect(humanizeApprovalTitle("library_index", {}).pre).toContain("library index");
   });
 });
+
+describe("humanize report tools", () => {
+  it("says a report was built from bound numbers and checked against its sources", () => {
+    expect(humanizeTool("report_render", {}).pre).toBe("Built the report from its bound numbers");
+    expect(humanizeTool("report_check", {}).pre).toContain("Checked the report");
+    expect(humanizeApprovalTitle("report_render", { report_path: "out/report.md" })).toMatchObject({ obj: "report.md" });
+  });
+});
