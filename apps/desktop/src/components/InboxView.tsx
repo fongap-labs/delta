@@ -46,8 +46,10 @@ const TAB = (isActive: boolean) =>
 // editor and is gone.
 export function InboxView({
   onOpenSession,
+  onOpenArtifact,
 }: {
   onOpenSession: (sessionId: string, workspace: string) => void;
+  onOpenArtifact: (sessionId: string, workspace: string, path: string) => void;
 }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<"pending" | "configure">("pending");
@@ -271,7 +273,13 @@ export function InboxView({
                         </div>
                       )}
                       {group.items.map((it) => (
-                        <InboxItemCard key={it.id} item={it} onResolve={resolve} chip={sessionChip(it)} />
+                        <InboxItemCard
+                          key={it.id}
+                          item={it}
+                          onResolve={resolve}
+                          chip={sessionChip(it)}
+                          onOpenArtifact={(path) => onOpenArtifact(it.session_id, it.session_workspace || "", path)}
+                        />
                       ))}
                     </div>
                   );

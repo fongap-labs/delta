@@ -18,6 +18,7 @@ import {
 } from "../api";
 import { useI18n } from "@delta/i18n/I18nContext";
 import { LoadError } from "./ViewStates";
+import { WebhookCard } from "./WebhookCard";
 
 const CARD = "rounded-xl2 border border-line bg-panel p-4 mb-4";
 const BTN = "text-[12.5px] px-3 py-1.5 rounded-lg border border-line bg-bg hover:border-line-strong shrink-0";
@@ -348,6 +349,7 @@ export function PrivacySection() {
           ))
         )}
       </section>
+      <WebhookCard />
     </div>
   );
 }

@@ -16,6 +16,15 @@ pub const DEFAULT_DENIAL_THRESHOLD: u32 = 3;
 /// The most denials a user may allow before the pause (A3).
 const MAX_DENIAL_THRESHOLD: u32 = 20;
 
+/// What the runtime needs to know about the automation a finished run belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionContext {
+    pub run_id: String,
+    pub title: String,
+    /// The automation's `notify_on_completion` setting.
+    pub wants_notice: bool,
+}
+
 pub struct AutomationStore {
     tasks: TaskStore,
     db_path: PathBuf,
@@ -363,6 +372,37 @@ impl AutomationStore {
             params![threshold.to_string()],
         )?;
         Ok(json!({"ok": true, "denial_threshold": threshold}))
+    }
+
+    /// Which automation a session belongs to, and whether it wants a notice when a run finishes.
+    /// `None` for a session that is not an automation run.
+    pub fn completion_context(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<CompletionContext>, ShadowReadError> {
+        let Some(run_id) = session_id.strip_prefix("__run__") else {
+            return Ok(None);
+        };
+        let Some(run) = self.tasks.find_run(run_id)? else {
+            return Ok(None);
+        };
+        let Some(task) = self.tasks.get_task(&run.task_id)? else {
+            return Ok(None);
+        };
+        Ok(Some(CompletionContext {
+            run_id: run_id.to_owned(),
+            title: task
+                .data
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or("Automation")
+                .to_owned(),
+            wants_notice: task
+                .data
+                .get("notify_on_completion")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+        }))
     }
 
     /// Feed the user's answer to an approval into the circuit breaker (A3). A denial counts against

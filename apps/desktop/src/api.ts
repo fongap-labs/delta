@@ -34,6 +34,9 @@ import {
   directOpenWorkspace,
   directPickFolder,
   directEgressSettings,
+  directWebhookSettings,
+  directSetWebhookSettings,
+  directTestWebhook,
   updateEgressDefault,
   updateWorkspaceEgress,
   updateEndpointMark,
@@ -341,6 +344,41 @@ export type PathRule = "allow" | "ask" | "deny";
 export type EgressChange =
   | ({ ok: true } & EgressSettings)
   | { ok: false; needs_confirmation?: boolean; error?: string };
+
+/** The completion webhook: one URL that gets a short post when a turn finishes. */
+export interface WebhookSettings {
+  url: string | null;
+  is_enabled: boolean;
+  include_details: boolean;
+}
+
+/** What a test post did: `sent`, `skipped` (the egress level refused it) or `failed`. */
+export type WebhookTest =
+  | { result: "sent"; host: string; status: number }
+  | { result: "skipped"; host: string; reason: string }
+  | { result: "failed"; host: string; error: string }
+  | { result: "off" };
+
+export async function getWebhookSettings(): Promise<WebhookSettings> {
+  const out = await directWebhookSettings();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the webhook setting");
+  return out as WebhookSettings;
+}
+
+export async function saveWebhookSettings(settings: WebhookSettings): Promise<WebhookSettings> {
+  const out = await directSetWebhookSettings(settings.url, settings.is_enabled, settings.include_details);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not save the webhook setting");
+  return out as WebhookSettings;
+}
+
+export async function testWebhook(): Promise<WebhookTest> {
+  // The test uses the default egress level: it is not tied to one workspace.
+  const out = await directTestWebhook("");
+  if (!out || out.ok === false || typeof out.result !== "string") {
+    throw new Error(out?.error || "the webhook test did not run");
+  }
+  return out as WebhookTest;
+}
 
 export async function getEgressSettings(): Promise<EgressSettings> {
   const out = await directEgressSettings();

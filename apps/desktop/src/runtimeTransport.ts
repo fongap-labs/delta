@@ -458,6 +458,11 @@ export const directRestoreVersion = (sessionId: string, backup: string, target: 
 export const directReadSearch = () => invokeAuthority("read_search_settings", {});
 // Egress levels (ADR-0057): where a workspace's content may be sent. Only these settings commands change them.
 export const directEgressSettings = () => invokeAuthority("get_egress_settings", {});
+// The completion webhook (B5): saved URL, the change, and a test post judged by the egress level.
+export const directWebhookSettings = () => invokeAuthority("get_webhook_settings", {});
+export const directSetWebhookSettings = (url: string | null, isEnabled: boolean, isDetailed: boolean) =>
+  invokeAuthority("set_webhook_settings", { url, isEnabled, isDetailed });
+export const directTestWebhook = (workspace: string) => invokeAuthority("test_webhook", { workspace });
 export const updateEgressDefault = (level: string, isConfirmed: boolean) =>
   invokeAuthority("set_egress_default", { level, isConfirmed });
 export const updateWorkspaceEgress = (workspace: string, level: string | null, isConfirmed: boolean) =>

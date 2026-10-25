@@ -301,11 +301,14 @@ export function InboxItemCard({
   onResolve,
   chip,
   compact,
+  onOpenArtifact,
 }: {
   item: InboxItem;
   onResolve: (id: string, resolution: string) => void;
   chip?: ReactNode; // optional "go to session" affordance (shown in the Inbox list, not inline)
   compact?: boolean;
+  /** A finished run's notice links to the files it made; a click opens one in its session. */
+  onOpenArtifact?: (path: string) => void;
 }) {
   const { t } = useI18n();
   const isQuestion = item.kind === "question";
@@ -392,7 +395,21 @@ export function InboxItemCard({
         </div>
         </>
       ) : item.kind === "notice" ? (
-        <div className="flex items-center gap-2 mt-2.5">
+        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+          {onOpenArtifact &&
+            (Array.isArray(item.data?.artifacts) ? (item.data!.artifacts as { path: string; name: string }[]) : [])
+              .slice(0, 5)
+              .map((file) => (
+                <button
+                  key={file.path}
+                  className={BTN_PRIMARY}
+                  data-testid="inbox-artifact"
+                  title={file.path}
+                  onClick={() => onOpenArtifact(file.path)}
+                >
+                  {t("inbox.notice.openFile", { name: file.name })}
+                </button>
+              ))}
           <button className={BTN_BORDERED} onClick={() => onResolve(item.id, "dismissed")}>
             {t("inbox.notice.dismiss")}
           </button>

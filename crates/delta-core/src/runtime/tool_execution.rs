@@ -337,6 +337,11 @@ impl RuntimeHost {
                 tool_call_id: tool_call_id.to_string(),
                 artifact: payload.clone(),
             });
+            if !candidate.incomplete {
+                let mut finished = self.turn_artifacts.lock().unwrap();
+                finished.retain(|(path, _)| *path != relative_path);
+                finished.push((relative_path.clone(), artifact.name.clone()));
+            }
             formalized.push(payload);
         }
         Ok(formalized)

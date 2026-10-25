@@ -556,6 +556,41 @@ pub fn set_egress_default(
     }
 }
 
+/// The completion webhook (B5): the saved setting, its change, and a test post.
+#[tauri::command]
+pub fn get_webhook_settings(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.webhook_settings() {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
+pub fn set_webhook_settings(
+    state: State<'_, RuntimeRegistry>,
+    url: Option<String>,
+    is_enabled: bool,
+    is_detailed: bool,
+) -> Value {
+    match state.set_webhook_settings(url.as_deref(), is_enabled, is_detailed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+/// Post a test message to the saved URL, under the workspace's egress level. Runs off the UI
+/// thread: a dead server can take several seconds to give up.
+#[tauri::command]
+pub async fn test_webhook(
+    state: State<'_, RuntimeRegistry>,
+    workspace: String,
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || registry.test_webhook(&workspace))
+        .await
+        .map_err(|error| format!("the webhook test stopped unexpectedly: {error}"))
+}
+
 #[tauri::command]
 pub fn set_workspace_egress(
     state: State<'_, RuntimeRegistry>,

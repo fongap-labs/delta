@@ -770,6 +770,164 @@ fn native_e2e_edit_document_asks_first_then_replaces_the_file_and_keeps_the_orig
     );
 }
 
+/// A host for a session, with one finished file staged for `write_report` to deliver.
+fn completion_host(
+    state: &Path,
+    workspace: &Path,
+    session_id: &str,
+    run_id: &str,
+) -> (RuntimeHost, RuntimeAuthorities) {
+    let staging = workspace.join(".delta/staging").join(run_id);
+    fs::create_dir_all(&staging).unwrap();
+    let staged_path = staging.join("candidate.md");
+    fs::write(&staged_path, "the report").unwrap();
+    let authorities = authorities_at(state);
+    let mut host = RuntimeHost::new(
+        session_id,
+        RuntimeConfig {
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            unattended: true,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(tool_contract("low", false))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: Arc::new(AtomicUsize::new(0)),
+        staged: Some(StagedArtifact {
+            staging_path: staged_path,
+            relative_path: "reports/final.md".to_string(),
+            kind: "markdown".to_string(),
+            incomplete: false,
+        }),
+    }));
+    host.set_run_id(run_id.to_string());
+    (host, authorities)
+}
+
+fn deliver_report(host: &RuntimeHost) {
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-report".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "reports/final.md"}),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+}
+
+fn notices(authorities: &RuntimeAuthorities) -> Vec<crate::inbox::InboxItem> {
+    authorities
+        .inbox
+        .list(None, Some("pending"))
+        .into_iter()
+        .filter(|item| item.kind == "notice")
+        .collect()
+}
+
+#[test]
+fn native_e2e_a_finished_automation_run_leaves_a_notice_that_names_its_files() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let automations = crate::automation::AutomationStore::open(state.path()).unwrap();
+    let created = automations
+        .create(&json!({"title": "Weekly report", "instructions": "Write it", "cron": "0 9 * * 1"}))
+        .unwrap();
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
+    let session_id = automations.prepare_run(&task_id).unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (host, authorities) =
+        completion_host(state.path(), workspace.path(), &session_id, "run-done");
+    deliver_report(&host);
+
+    host.announce_completion("All done.\n\nThe   report is ready.");
+
+    let found = notices(&authorities);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].title, "Finished: Weekly report");
+    assert_eq!(found[0].body, "All done. The report is ready.");
+    assert_eq!(found[0].data["completion"], true);
+    assert_eq!(
+        found[0].data["artifacts"],
+        json!([{"path": "reports/final.md", "name": "final.md"}])
+    );
+    // Announcing the same run again does not pile up a second notice.
+    host.announce_completion("All done.");
+    assert_eq!(notices(&authorities).len(), 1);
+}
+
+#[test]
+fn native_e2e_an_automation_that_wants_no_notice_leaves_none() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let automations = crate::automation::AutomationStore::open(state.path()).unwrap();
+    let created = automations
+        .create(&json!({
+            "title": "Quiet", "instructions": "Write it", "cron": "0 9 * * 1",
+            "notify_on_completion": false
+        }))
+        .unwrap();
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
+    let session_id = automations.prepare_run(&task_id).unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (host, authorities) =
+        completion_host(state.path(), workspace.path(), &session_id, "run-quiet");
+    host.announce_completion("Done.");
+    assert!(notices(&authorities).is_empty());
+}
+
+#[test]
+fn native_e2e_a_chat_turn_leaves_no_inbox_notice() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (host, authorities) =
+        completion_host(state.path(), workspace.path(), "session-chat", "run-chat");
+    deliver_report(&host);
+    host.announce_completion("Done.");
+    assert!(notices(&authorities).is_empty());
+}
+
+#[test]
+fn native_e2e_a_finished_turn_posts_to_the_webhook_the_egress_level_allows() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (url, received) = crate::webhook::tests::serve_once("HTTP/1.1 200 OK");
+    crate::egress::set_default_level(state.path(), crate::egress::EgressLevel::PrivateOnly, true)
+        .unwrap();
+    crate::webhook::set_settings(state.path(), Some(&url), true, false).unwrap();
+    let (host, _authorities) =
+        completion_host(state.path(), workspace.path(), "session-hook", "run-hook");
+    deliver_report(&host);
+
+    host.announce_completion("Done.");
+
+    let raw = received
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the webhook was posted to");
+    let body: Value = serde_json::from_str(raw.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(body["event"], "turn_completed");
+    assert_eq!(body["session_id"], "session-hook");
+    assert_eq!(body["source"], "chat");
+    assert_eq!(body["artifact_count"], 1);
+    assert!(body.get("summary").is_none(), "no details unless asked for");
+}
+
+#[test]
+fn native_e2e_a_stricter_egress_level_keeps_the_webhook_from_posting() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (url, received) = crate::webhook::tests::serve_once("HTTP/1.1 200 OK");
+    crate::egress::set_default_level(state.path(), crate::egress::EgressLevel::AskEachTime, true)
+        .unwrap();
+    crate::webhook::set_settings(state.path(), Some(&url), true, false).unwrap();
+    let (host, _authorities) =
+        completion_host(state.path(), workspace.path(), "session-hook2", "run-hook2");
+    host.announce_completion("Done.");
+    assert!(received.recv_timeout(Duration::from_millis(500)).is_err());
+}
+
 #[test]
 fn native_e2e_cancel_while_approval_pending_is_terminal() {
     let temp = tempfile::tempdir().unwrap();

@@ -968,6 +968,26 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    /// The completion webhook (roadmap B5): its setting, the change, and a test post. The post is
+    /// judged by the workspace's egress level like every other route out.
+    pub fn webhook_settings(&self) -> Result<Value, String> {
+        crate::webhook::settings(&self.state_dir).map_err(|error| error.to_string())
+    }
+
+    pub fn set_webhook_settings(
+        &self,
+        url: Option<&str>,
+        is_enabled: bool,
+        is_detailed: bool,
+    ) -> Result<Value, String> {
+        crate::webhook::set_settings(&self.state_dir, url, is_enabled, is_detailed)
+    }
+
+    /// Blocking: up to 15 seconds. Callers keep it off the UI thread.
+    pub fn test_webhook(&self, workspace: &str) -> Value {
+        crate::webhook::test(&self.state_dir, workspace).to_json()
+    }
+
     /// `level` is `None` to make the workspace follow the default again.
     pub fn set_workspace_egress(
         &self,

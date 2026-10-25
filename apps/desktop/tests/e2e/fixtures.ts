@@ -300,6 +300,9 @@ function commandSources(): Record<string, string> {
     // cover every test; a test that needs the chooser overrides get_egress_settings.
     get_egress_settings: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: [] })`,
     set_egress_default: `(args) => ({ ok: true, default_level: args.level, is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: [] })`,
+    get_webhook_settings: `(args) => ({ ok: true, ...($state.webhook || { url: null, is_enabled: false, include_details: false }) })`,
+    set_webhook_settings: `(args) => { if (args.url && !/^https?:[/][/]/.test(args.url)) return { ok: false, error: "the URL must start with http:// or https://" }; $state.webhook = { url: args.url, is_enabled: args.isEnabled, include_details: args.isDetailed }; return { ok: true, ...$state.webhook }; }`,
+    test_webhook: `(args) => ({ result: "sent", host: "hooks.example", status: 200 })`,
     set_workspace_egress: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: args.level ? [{ workspace: args.workspace, level: args.level }] : [], endpoint_marks: [], local_only_servers: [], path_overrides: [] })`,
     set_endpoint_mark: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: args.mark ? [{ host: args.host, mark: args.mark }] : [], local_only_servers: [], path_overrides: [] })`,
     set_path_rule: `(args) => ({ ok: true, default_level: "open", is_chosen: true, workspaces: [], endpoint_marks: [], local_only_servers: [], path_overrides: args.rule ? [{ workspace: args.workspace, path: args.path, rule: args.rule }] : [] })`,
