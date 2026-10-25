@@ -77,7 +77,7 @@ fn check(
         text,
         &manifest_of(rendered),
         &|path| files.read(path),
-        formal,
+        is_formal,
         &allow,
     )
 }
