@@ -156,7 +156,7 @@ describe("Delta sidebar layout", () => {
     const search = screen.getByTestId("nav-search");
     const nav = screen.getByRole("navigation", { name: "Primary" });
     const names = within(nav).getAllByRole("button").map((b) => b.textContent);
-    expect(names).toEqual(["Conversations", "Automations"]);
+    expect(names).toEqual(["New conversation", "Automations"]);
     expect(search.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

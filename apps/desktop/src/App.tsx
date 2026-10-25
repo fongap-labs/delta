@@ -1881,7 +1881,6 @@ export function App() {
             openAccessKey={accessKey}
             onOpenIntegrations={() => setSurface("integrations")}
             approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
-            onOpenAudit={() => setSurface("audit")}
             onResize={(width) => (isArtifactOpen ? setArtifactRailWidth(width) : setRailWidth(width))}
             resizeMaxWidth={maxRailWidth}
           />
