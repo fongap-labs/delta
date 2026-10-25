@@ -168,6 +168,32 @@ mod tests {
     }
 
     #[test]
+    fn every_product_tool_contract_declares_its_side_effect() {
+        let host = CapabilityHost::product_defaults().unwrap();
+        let schemas = host.tool_schemas();
+        let schemas = schemas.as_array().unwrap();
+        assert!(!schemas.is_empty());
+        for schema in schemas {
+            let name = schema["function"]["name"].as_str().unwrap();
+            assert!(
+                schema["function"]["metadata"]["side_effect"].is_string(),
+                "{name} declares no side_effect"
+            );
+        }
+        let effect_of = |tool: &str| {
+            schemas
+                .iter()
+                .find(|schema| schema["function"]["name"] == tool)
+                .map(|schema| schema["function"]["metadata"]["side_effect"].clone())
+        };
+        assert_eq!(effect_of("read_file"), Some(serde_json::json!("read")));
+        assert_eq!(
+            effect_of("write_file"),
+            Some(serde_json::json!("local_write"))
+        );
+    }
+
+    #[test]
     fn product_registry_owns_stable_model_tool_schemas() {
         let host = CapabilityHost::product_defaults().unwrap();
         let schemas = host.tool_schemas();

@@ -1540,6 +1540,19 @@ impl RuntimeHost {
         metadata: Option<ToolMetadata>,
     ) -> Result<(RiskLevel, Decision), String> {
         let level = policy::classify(&call.name, Some(&call.arguments), metadata.as_ref());
+        // A declared side effect is judged on top of the policy decision (A2). A value this build
+        // does not know is treated as an external write, the strictest class.
+        let side_effect = metadata
+            .as_ref()
+            .and_then(|item| item.side_effect.as_deref())
+            .map(|value| {
+                crate::skills::SideEffectClass::parse(value)
+                    .unwrap_or(crate::skills::SideEffectClass::ExternalWrite)
+            });
+        let side_effect_context = match side_effect {
+            Some(_) => Some(self.side_effect_context(call, metadata.as_ref())?),
+            None => None,
+        };
         let explicitly_gated = metadata
             .as_ref()
             .and_then(|item| item.requires_approval)
@@ -1585,7 +1598,13 @@ impl RuntimeHost {
         .map_err(|error| error.to_string())?;
         let evaluated_level = RiskLevel::from_i64(evaluated.level)
             .ok_or_else(|| "policy returned an invalid risk level".to_string())?;
-        Ok((evaluated_level, evaluated.decision))
+        let decision = match (side_effect, side_effect_context) {
+            (Some(side_effect), Some((destination, level))) => {
+                policy::apply_side_effect(evaluated.decision, side_effect, destination, level)
+            }
+            _ => evaluated.decision,
+        };
+        Ok((evaluated_level, decision))
     }
 
     fn set_runtime_state(&self, state: RuntimeState) {

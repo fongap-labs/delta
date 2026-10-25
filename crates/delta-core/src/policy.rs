@@ -100,6 +100,10 @@ pub struct ToolMetadata {
     /// The connector a tool belongs to (ADR-0061): a connector path is named after it.
     #[serde(default)]
     pub connector: Option<String>,
+    /// The side effect the tool declared at registration (`none`, `read`, `local_write`,
+    /// `external_write`, `destructive`). Absent for contracts that predate the declaration.
+    #[serde(default)]
+    pub side_effect: Option<String>,
 }
 
 /// A permission decision from the PermissionEngine.
@@ -600,12 +604,12 @@ pub enum SideEffectVerdict {
 pub fn judge(
     side_effect: SideEffectClass,
     destination: Option<DestinationClass>,
-    level: EgressLevel,
+    level: Option<EgressLevel>,
 ) -> SideEffectVerdict {
     let outbound = match destination {
         None => SideEffectVerdict::Allow,
         Some(class) => match decide_outbound(
-            Some(level),
+            level,
             &OutboundTarget {
                 class,
                 host: String::new(),
@@ -628,6 +632,40 @@ pub fn judge(
             SideEffectVerdict::Deny => SideEffectVerdict::Deny,
             _ => SideEffectVerdict::Ask,
         },
+    }
+}
+
+/// Apply a tool's declared side effect to the decision the policy reached. The verdict only
+/// tightens: an allowed call can become a question or a refusal, and a call that was not allowed
+/// stays that way. A refusal never turns into a question.
+pub fn apply_side_effect(
+    decision: Decision,
+    side_effect: SideEffectClass,
+    destination: Option<DestinationClass>,
+    level: Option<EgressLevel>,
+) -> Decision {
+    if !decision.allowed && !decision.needs_user {
+        return decision;
+    }
+    let tightened = |allowed: bool, needs_user: bool, reason: String| Decision {
+        allowed,
+        needs_user,
+        reason,
+        rule: "policy.side_effect".to_string(),
+        grant: String::new(),
+    };
+    match judge(side_effect, destination, level) {
+        SideEffectVerdict::Deny => tightened(
+            false,
+            false,
+            format!("{} is refused at this egress level", side_effect.as_str()),
+        ),
+        SideEffectVerdict::Ask if decision.allowed => tightened(
+            false,
+            true,
+            format!("{} needs your approval", side_effect.as_str()),
+        ),
+        _ => decision,
     }
 }
 
@@ -721,10 +759,88 @@ mod tests {
                         _ => SideEffectVerdict::Deny,
                     };
                     assert_eq!(
-                        judge(*effect, *destination, level),
+                        judge(*effect, *destination, Some(level)),
                         want,
                         "{effect:?} to {destination:?} under {level:?}"
                     );
+                }
+            }
+        }
+    }
+
+    fn decision_with(allowed: bool, needs_user: bool) -> Decision {
+        Decision {
+            allowed,
+            reason: String::new(),
+            needs_user,
+            rule: String::new(),
+            grant: String::new(),
+        }
+    }
+
+    #[test]
+    fn side_effect_judgment_asks_or_refuses_and_never_loosens() {
+        use crate::egress::{DestinationClass as Dest, EgressLevel};
+        use crate::skills::SideEffectClass as Effect;
+        let allowed = || decision_with(true, false);
+        let asks = || decision_with(false, true);
+        let refused = || decision_with(false, false);
+        let effect_ask =
+            apply_side_effect(allowed(), Effect::LocalWrite, None, Some(EgressLevel::Open));
+        assert!(!effect_ask.allowed && effect_ask.needs_user);
+        let read_nothing = apply_side_effect(allowed(), Effect::Read, None, None);
+        assert!(read_nothing.allowed);
+        let refuse = apply_side_effect(
+            allowed(),
+            Effect::ExternalWrite,
+            Some(Dest::AnyPublic),
+            Some(EgressLevel::PrivateOnly),
+        );
+        assert!(!refuse.allowed && !refuse.needs_user);
+        let asks_then_refused = apply_side_effect(
+            asks(),
+            Effect::ExternalWrite,
+            Some(Dest::AnyPublic),
+            Some(EgressLevel::PrivateOnly),
+        );
+        assert!(!asks_then_refused.allowed && !asks_then_refused.needs_user);
+        let stays_refused = apply_side_effect(refused(), Effect::Read, None, None);
+        assert!(!stays_refused.allowed && !stays_refused.needs_user);
+
+        let effects = [
+            Effect::None,
+            Effect::Read,
+            Effect::LocalWrite,
+            Effect::ExternalWrite,
+            Effect::Destructive,
+        ];
+        let destinations = [
+            Some(Dest::FixedPublic),
+            Some(Dest::AnyPublic),
+            Some(Dest::Private),
+            Some(Dest::LocalProcess),
+            None,
+        ];
+        let levels = [
+            Some(EgressLevel::Open),
+            Some(EgressLevel::ApprovedEndpoints),
+            Some(EgressLevel::PrivateOnly),
+            Some(EgressLevel::AskEachTime),
+            None,
+        ];
+        for original in [allowed(), asks(), refused()] {
+            for effect in effects {
+                for destination in destinations {
+                    for level in levels {
+                        let result =
+                            apply_side_effect(original.clone(), effect, destination, level);
+                        let case = format!("{effect:?} {destination:?} {level:?}");
+                        assert!(!result.allowed || original.allowed, "loosened: {case}");
+                        assert!(
+                            !result.needs_user || original.needs_user || original.allowed,
+                            "asked where nothing was allowed: {case}"
+                        );
+                    }
                 }
             }
         }
@@ -740,6 +856,7 @@ mod tests {
             destination_url: None,
             server: None,
             connector: None,
+            side_effect: None,
         }
     }
 
@@ -1036,6 +1153,7 @@ mod tests {
             destination_url: None,
             server: None,
             connector: None,
+            side_effect: None,
         }
     }
 
@@ -1049,6 +1167,7 @@ mod tests {
             destination_url: None,
             server: None,
             connector: None,
+            side_effect: None,
         }
     }
 
@@ -1062,6 +1181,7 @@ mod tests {
             destination_url: None,
             server: None,
             connector: None,
+            side_effect: None,
         }
     }
 

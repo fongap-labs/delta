@@ -93,6 +93,34 @@ impl RuntimeHost {
     }
 }
 
+impl RuntimeHost {
+    /// The destination class and egress level a declared side effect is judged against. The
+    /// destination is `None` when the call sends nothing off the machine.
+    pub(super) fn side_effect_context(
+        &self,
+        call: &ToolCall,
+        metadata: Option<&ToolMetadata>,
+    ) -> Result<(Option<egress::DestinationClass>, Option<EgressLevel>), String> {
+        // Hosts built without authorities are test hosts; the product always has them.
+        let Some(authorities) = self.authorities.clone() else {
+            return Ok((None, None));
+        };
+        let state_dir = authorities.state_dir().to_path_buf();
+        let destination = match metadata {
+            Some(metadata) => {
+                egress::outbound_target(&state_dir, metadata, &call.name, Some(&call.arguments))?
+                    .map(|target| egress::effective_class(&target))
+            }
+            None => None,
+        };
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        let level = egress::level_for(&state_dir, &workspace).map_err(|error| {
+            format!("The egress settings could not be read, so nothing was sent: {error}")
+        })?;
+        Ok((destination, level))
+    }
+}
+
 fn decision_label(decision: &OutboundDecision) -> &'static str {
     match decision {
         OutboundDecision::Allow => "allowed",

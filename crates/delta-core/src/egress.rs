@@ -990,6 +990,7 @@ mod tests {
             destination_url: None,
             server: Some("notes".to_owned()),
             connector: None,
+            side_effect: None,
         }
     }
 
