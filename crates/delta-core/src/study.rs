@@ -4,9 +4,19 @@
 //! the locked fields between two registrations. Locked fields are the objective, the responses,
 //! the outer adjustment bounds, the stopping rule and the analysis plan. Factor ranges inside
 //! the bounds, rounds, decisions and recommendations are not locked.
+//!
+//! A study may also carry a machine-checkable stopping rule (`sequential`), which is locked with
+//! the rest. From it, the rounds' results and the bounds, [`sequential`] decides, without any
+//! model in the loop, whether the study continues or stops, and what range the next round could
+//! use. Every number in a round points at the result artifact it came from (ADR-0055), and
+//! [`verify`] checks that it does.
+
+pub mod sequential;
+pub mod verify;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 /// The only study schema version this build reads.
 pub const STUDY_SCHEMA_VERSION: u32 = 1;
@@ -18,6 +28,7 @@ pub const LOCKED_FIELDS: &[&str] = &[
     "allowed_adjustments",
     "stopping_rule",
     "analysis_plan",
+    "sequential",
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -30,6 +41,13 @@ pub struct Study {
     pub allowed_adjustments: Adjustments,
     pub stopping_rule: String,
     pub analysis_plan: AnalysisPlan,
+    /// The stopping rule in a form a program can evaluate. Locked with `stopping_rule`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequential: Option<Sequential>,
+    /// What the rule says about the rounds so far. Derived: a record that disagrees with the
+    /// evaluation of its own rounds is refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interim: Option<sequential::Interim>,
     #[serde(default)]
     pub rounds: Vec<Value>,
     #[serde(default)]
@@ -80,6 +98,105 @@ pub struct AnalysisPlan {
     pub model: String,
     pub significance_level: f64,
     pub confidence_level: f64,
+}
+
+/// Which side of the threshold counts as meeting the response.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    AtLeast,
+    AtMost,
+}
+
+/// What of a round's result is compared with the threshold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Basis {
+    /// The estimate itself.
+    #[default]
+    Estimate,
+    /// The confidence bound on the safe side: the lower bound for `at_least`, the upper for `at_most`.
+    ConservativeBound,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Sequential {
+    pub rule: StopRule,
+}
+
+/// Stop when `response` meets `threshold` in `consecutive_rounds` rounds in a row, or give up
+/// after `max_rounds` analysed rounds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StopRule {
+    pub response: String,
+    pub direction: Direction,
+    pub threshold: f64,
+    #[serde(default)]
+    pub basis: Basis,
+    pub consecutive_rounds: u32,
+    pub max_rounds: u32,
+}
+
+/// Where a number in a round came from: a result artifact (ADR-0055), its SHA-256 and the keys of
+/// its `values`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Source {
+    pub artifact: String,
+    pub sha256: String,
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci_lower_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci_upper_key: Option<String>,
+}
+
+/// One response's result in one round.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResponseResult {
+    pub value: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci_lower: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci_upper: Option<f64>,
+    pub source: Source,
+}
+
+/// A round, as the sequential rule reads it. A round in `study.rounds` may carry more than this;
+/// the rest is the study's own business.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Round {
+    pub number: u32,
+    /// The factor ranges the round was run over.
+    pub factors: Vec<Factor>,
+    /// Results by response name; empty until the round has been analysed.
+    #[serde(default)]
+    pub results: BTreeMap<String, ResponseResult>,
+    /// The factor settings of the best run of the round, when the round recorded one.
+    #[serde(default)]
+    pub best_point: Option<BTreeMap<String, f64>>,
+}
+
+impl Study {
+    /// The rounds as the sequential rule reads them, with every problem found listed.
+    pub fn typed_rounds(&self) -> Result<Vec<Round>, Vec<String>> {
+        let mut problems = Vec::new();
+        let mut rounds = Vec::with_capacity(self.rounds.len());
+        for (index, value) in self.rounds.iter().enumerate() {
+            match serde_json::from_value::<Round>(value.clone()) {
+                Ok(round) => rounds.push(round),
+                Err(error) => problems.push(format!("round {}: {error}", index + 1)),
+            }
+        }
+        if problems.is_empty() {
+            Ok(rounds)
+        } else {
+            Err(problems)
+        }
+    }
 }
 
 /// Read a study from its JSON text and check it. Every problem found is reported, not only the
@@ -157,6 +274,7 @@ pub fn validate_study(study: &Study) -> Vec<String> {
             }
         }
     }
+    problems.extend(sequential::validate(study));
     problems
 }
 
@@ -181,7 +299,27 @@ fn locked_values(study: &Study) -> Vec<Value> {
         serde_json::to_value(&study.allowed_adjustments).unwrap_or(Value::Null),
         Value::String(study.stopping_rule.clone()),
         serde_json::to_value(&study.analysis_plan).unwrap_or(Value::Null),
+        serde_json::to_value(&study.sequential).unwrap_or(Value::Null),
     ]
+}
+
+#[cfg(test)]
+mod sequential_tests;
+
+/// Test support: a copy of `study` whose every source records the SHA-256 of `bytes`.
+#[cfg(test)]
+fn tests_support_hash(study: &Study, bytes: &[u8]) -> Study {
+    use sha2::{Digest, Sha256};
+    let hash = format!("{:x}", Sha256::digest(bytes));
+    let mut copy = study.clone();
+    for round in &mut copy.rounds {
+        if let Some(results) = round.get_mut("results").and_then(Value::as_object_mut) {
+            for result in results.values_mut() {
+                result["source"]["sha256"] = Value::String(hash.clone());
+            }
+        }
+    }
+    copy
 }
 
 #[cfg(test)]

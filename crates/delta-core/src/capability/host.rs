@@ -56,6 +56,7 @@ impl CapabilityHost {
         host.register(crate::web::fetch_registration())?;
         host.register(crate::web::search_registration())?;
         host.register(crate::statistics::describe_registration())?;
+        host.register(crate::study::verify::evaluate_registration())?;
         for registration in crate::statistics::method_registrations() {
             host.register(registration)?;
         }

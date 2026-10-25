@@ -220,6 +220,7 @@ mod tests {
                 "statistics_doe",
                 "statistics_regression",
                 "statistics_ttest",
+                "study_evaluate",
                 "web_fetch",
                 "web_search",
                 "write_file"

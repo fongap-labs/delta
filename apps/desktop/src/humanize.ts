@@ -195,6 +195,8 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.statistics",
         obj: name.slice("statistics_".length),
       };
+    case "study_evaluate":
+      return { pre: "Checked the study and its stopping rule", preKey: "humanize.studyEvaluate" };
     case "library_search":
       return { pre: "Searched your library for ", preKey: "humanize.librarySearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
     case "library_index":
