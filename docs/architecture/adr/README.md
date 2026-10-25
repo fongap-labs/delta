@@ -21,6 +21,11 @@
 | [0060](0060-controlled-browser.md) | 供 Agent 使用的受控浏览器（经 DevTools 驱动 Edge 或 Chrome；独立配置文件；与 `web_fetch` 相同的网络守卫） |
 | [0061](0061-egress-level-outbound-tools.md) | 工作区出境档位同样约束对外工具 |
 | [0062](0062-desktop-input-control.md) | 桌面输入控制的同意机制（提议；按程序授权、敏感动作逐次确认；取代 ADR-0059 第三步的设计部分） |
+| [0063](0063-edit-existing-office-files.md) | 编辑已有的 Office 文件（有边界的原地编辑；修订 ADR-0058 的范围一条） |
+| [0064](0064-completion-notices-and-webhook.md) | 任务完成通知与可选 Webhook（出站判定与模型请求相同；默认只发最少内容） |
+| [0065](0065-approval-ladder.md) | 渐进授权阶梯（单次、会话、工作区；授权不推翻拒绝；可见可撤销） |
+| [0066](0066-builtin-content-skills.md) | 随产品发布的内容创作技能（公众号文章、五图图文笔记、短视频素材包；只读，可复制） |
+| [0067](0067-local-library.md) | 本地资料库与全文检索（FTS5、三元组分词；命中带位置与 SHA-256；不含向量层） |
 
 ## 代码中引用但本仓库未保存的编号
 

@@ -41,6 +41,7 @@ pub mod private_fs;
 mod product_settings;
 pub mod provider;
 pub mod redact;
+pub mod retrieval;
 pub mod retry;
 pub mod runtime;
 pub mod skills;
@@ -51,7 +52,9 @@ pub mod taskstore;
 pub mod tool_lifecycle;
 pub mod validation;
 pub mod web;
+pub mod webhook;
 pub mod wire;
+pub mod workspace_rules;
 
 pub use agent::{AgentDefinition, WorkspacePolicy, DELTA_AGENT};
 pub use application::ApplicationStore;

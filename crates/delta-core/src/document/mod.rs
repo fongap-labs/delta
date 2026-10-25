@@ -4,9 +4,12 @@
 //! the model can look at the whole thing first and then ask for the part it needs. Reading is
 //! read-only and runs under the same workspace grant as `read_file`; a read counts as a source read.
 
+mod edit;
 mod ooxml;
 mod pdf;
 mod write;
+
+pub use edit::edit_registration;
 
 use std::path::Path;
 use std::sync::Arc;

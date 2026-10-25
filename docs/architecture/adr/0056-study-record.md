@@ -2,7 +2,7 @@
 
 状态：**已接受**（所有者，2026-10-11）。
 
-**部分实现**：`study.json` 的读取、检查与锁定字段比较（`crates/delta-core/src/study.rs`），以及 `schemas/study.schema.json`，已经实现。尚未实现的有：`study_schema` 校验规则（未接入校验流程）、`study.amend` 能力，以及按路径查询历史的只读接口（见 CHANGELOG）。
+**部分实现**：`study.json` 的读取、检查与锁定字段比较（`crates/delta-core/src/study.rs`），以及 `schemas/study.schema.json`，已经实现；2026-10-25 增加了序贯设计（见文末"实现记录（2026-10-25）"）。尚未实现的有：`study_schema` 校验规则（未接入校验流程）、`study.amend` 能力，以及按路径查询历史的只读接口（见 CHANGELOG）。
 
 ## 背景
 
@@ -92,3 +92,31 @@
 2. 决定第 2 点中的锁定集合已确认：
    - 锁定：目标、带目标的响应、外部调整边界、停止规则与分析计划；
    - 可移动：边界之内的因素范围，每次变更记录为一次用户决定。
+
+## 实现记录（2026-10-25）：序贯设计
+
+按所有者对路线图 B2 的批准，`study.json` 增加可执行的停止规则，其判定、范围建议与数字溯源由 Rust 确定性计算，不依赖 R 软件包，也不由模型判断。
+
+**新增字段（加法，`schema_version` 仍为 1）**
+
+- `sequential.rule`（**锁定**，并入 `LOCKED_FIELDS`）：`response`、`direction`（`at_least`/`at_most`）、`threshold`、`basis`（`estimate`，或 `conservative_bound`：`at_least` 用置信下限、`at_most` 用置信上限）、`consecutive_rounds`、`max_rounds`。文字版的 `stopping_rule` 仍保留且锁定。
+- `rounds[i]`：声明了 `sequential` 之后，每一轮必须是 `{number, factors, results, best_point?}`，`number` 从 1 起依次编号；`results[响应]` 是 `{value, ci_lower?, ci_upper?, source}`，`source` 是 `{artifact, sha256, key, ci_lower_key?, ci_upper_key?}`——**每一个数字都指向产生它的结果产出物**（ADR-0055 的 `values` 结构）。没有声明 `sequential` 的研究，`rounds` 仍然自由。
+- `interim`：`{rounds_analysed, status}`，是**派生值**。记录里写的 `interim` 与各轮算出来的不一致就被拒绝，所以模型不能在记录里宣布"已达成"。
+
+**判定（`study::sequential::evaluate`）**：对有该响应结果的轮次，最近 `consecutive_rounds` 个**编号连续**的轮次都达标（阈值本身算达标）即 `stopped_met`；否则分析过的轮次达到 `max_rounds` 即 `stopped_exhausted`；否则 `continue`。同时满足时"达成"优先。中间有一轮没达标，或有一轮没有结果，都会打断连续。
+
+**下一轮建议（`recommend_next`）**：已停止则不建议。没有任何结果时建议沿用当前范围。否则选最好的一轮（`at_least` 取最大、`at_most` 取最小，按规则所用的数值），以它记录的最佳点（没有则取范围中点）为中心，把每个因素的范围宽度减半，再在不收窄的前提下移入允许边界之内。不会新增因素，不会越界。**建议不是决定**，不会开始新一轮（本 ADR 决定第 3 点）。
+
+**溯源核对（`study::verify::verify_sources`）**：对每个数字，读取它所指的产出物，核对 SHA-256 未变、键存在、数值一致。同一产出物只读一次。
+
+**工具 `study_evaluate`**（只读，不需要批准）：读取 `study.json`，返回是否合规及全部问题、每个数字的核对结果、`numbers_trusted`、判定、应写入的 `interim`、下一轮建议。数字核对失败时提示不要依赖判定。
+
+**测试**：对判定的各种情形（一轮不够、连续达标、被打断、编号不连续、用尽、达成优先于用尽、保守置信限、`at_most`）、范围建议（居中减半、取最优轮、靠边平移、不越界）、`interim` 不一致被拒、锁定字段变化、溯源核对（散列变化、键缺失、数值不同、读不到、只读一次），以及工具本身（含篡改产出物后 `numbers_trusted` 变为 false）。
+
+**未验证事项**
+
+- `source` 要指向的结果文件现在可以由 `statistics_record` 产生（见 ADR-0055 的实现记录）；其余 `statistics_*` 工具（`describe`、`doe`）仍不写结果文件。
+- 校验规则 `study_schema` 仍未接入产出物校验流程，`study.amend`、历史查询也未做；本次的合规检查只通过 `study_evaluate` 提供。
+- 发布的 JSON Schema 与 Rust 类型的一致性，只用一个测试检查字段名与锁定集合，没有用 JSON Schema 校验器逐条验证（仓库没有该依赖）。
+- 研究报告模板与 `{{result:…}}` 渲染（路线图中"Skill 封装"一项）没有做：渲染器和绑定清单（ADR-0055 步骤 2、3）还不存在。
+- 建议的"减半并居中"是一种简单的收缩策略，不是最优设计；它是否适合某个具体研究，需要用户判断。

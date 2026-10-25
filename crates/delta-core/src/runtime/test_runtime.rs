@@ -615,6 +615,579 @@ fn native_e2e_approval_rejection_never_enters_capability() {
 }
 
 #[test]
+fn native_e2e_repeated_denials_in_an_automation_run_pause_it_and_leave_a_notice() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let automations = crate::automation::AutomationStore::open(temp.path()).unwrap();
+    let created = automations
+        .create(&json!({"title": "Weekly report", "instructions": "Write it", "cron": "0 9 * * 1"}))
+        .unwrap();
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
+    let session_id = automations.prepare_run(&task_id).unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut host = RuntimeHost::new(
+        &session_id,
+        RuntimeConfig {
+            unattended: true,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id("run-breaker-e2e".to_string());
+    let host = Arc::new(host);
+
+    for attempt in 1..=3 {
+        let id = format!("call-breaker-{attempt}");
+        let worker = {
+            let host = host.clone();
+            let id = id.clone();
+            std::thread::spawn(move || {
+                host.execute_tool_call(&ToolCall {
+                    id,
+                    name: "write_report".to_string(),
+                    arguments: json!({"path": "report.md"}),
+                })
+            })
+        };
+        for _ in 0..200 {
+            if host.approvals.pending_ids() == [id.as_str()] {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        host.approvals
+            .resolve(Some(&id), ApprovalDecision::Deny)
+            .unwrap();
+        let result = worker.join().unwrap();
+        assert_eq!(result.error.as_deref(), Some("tool call denied by user"));
+        let enabled = automations.get(&task_id).unwrap()["task"]["enabled"].clone();
+        assert_eq!(enabled, attempt < 3, "after denial {attempt}");
+    }
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let task = automations.get(&task_id).unwrap()["task"].clone();
+    assert_eq!(task["paused_reason"], "approval_denied");
+    let notices: Vec<_> = authorities
+        .inbox
+        .list(None, Some("pending"))
+        .into_iter()
+        .filter(|item| item.kind == "notice")
+        .collect();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].title, "Paused: Weekly report");
+    assert!(notices[0].body.contains("write_report"));
+    let events = authorities
+        .ledger()
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events("run-breaker-e2e")
+        .unwrap();
+    assert!(events
+        .iter()
+        .any(|event| event.r#type == "automation.paused"));
+}
+
+#[test]
+fn native_e2e_edit_document_asks_first_then_replaces_the_file_and_keeps_the_original() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(state.path());
+    let (_, original, _) = crate::document::create(
+        "report.docx",
+        &json!({"title": "Report", "blocks": [{"type": "paragraph", "text": "Revenue grew in Q3."}]}),
+    )
+    .unwrap();
+    std::fs::write(workspace.path().join("report.docx"), &original).unwrap();
+    let capabilities = crate::capability::CapabilityHost::product_defaults().unwrap();
+    let tools = capabilities.tool_schemas();
+    let mut host = RuntimeHost::new(
+        "session-edit-doc",
+        RuntimeConfig {
+            workspace: Some(workspace.path().to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities)
+    .with_tools(tools)
+    .with_tool_executor(Arc::new(capabilities));
+    host.set_run_id("run-edit-doc".to_string());
+    let host = Arc::new(host);
+    let worker = {
+        let host = host.clone();
+        std::thread::spawn(move || {
+            host.execute_tool_call(&ToolCall {
+                id: "call-edit-doc".to_string(),
+                name: "edit_document".to_string(),
+                arguments: json!({"path": "report.docx", "edits": [{"find": "Q3", "replace": "Q4"}]}),
+            })
+        })
+    };
+    for _ in 0..400 {
+        if host.approvals.pending_ids() == ["call-edit-doc"] {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(
+        host.approvals.pending_ids(),
+        ["call-edit-doc"],
+        "an edit must ask first"
+    );
+    assert_eq!(
+        std::fs::read(workspace.path().join("report.docx")).unwrap(),
+        original,
+        "nothing changes before the approval"
+    );
+    host.approvals
+        .resolve(Some("call-edit-doc"), ApprovalDecision::Once)
+        .unwrap();
+    let result = worker.join().unwrap();
+    assert!(result.error.is_none(), "{:?}", result.error);
+
+    let edited = std::fs::read(workspace.path().join("report.docx")).unwrap();
+    let text = &crate::document::parse(crate::document::Kind::Docx, &edited)
+        .unwrap()
+        .blocks[0]
+        .text;
+    assert!(text.contains("Q4") && !text.contains("Q3"), "{text}");
+    let kept = workspace
+        .path()
+        .join(".delta/versions/run-edit-doc/report.docx");
+    assert_eq!(
+        std::fs::read(kept).unwrap(),
+        original,
+        "the original is kept as a version"
+    );
+}
+
+/// A host for a session, with one finished file staged for `write_report` to deliver.
+fn completion_host(
+    state: &Path,
+    workspace: &Path,
+    session_id: &str,
+    run_id: &str,
+) -> (RuntimeHost, RuntimeAuthorities) {
+    let staging = workspace.join(".delta/staging").join(run_id);
+    fs::create_dir_all(&staging).unwrap();
+    let staged_path = staging.join("candidate.md");
+    fs::write(&staged_path, "the report").unwrap();
+    let authorities = authorities_at(state);
+    let mut host = RuntimeHost::new(
+        session_id,
+        RuntimeConfig {
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            unattended: true,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(tool_contract("low", false))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: Arc::new(AtomicUsize::new(0)),
+        staged: Some(StagedArtifact {
+            staging_path: staged_path,
+            relative_path: "reports/final.md".to_string(),
+            kind: "markdown".to_string(),
+            incomplete: false,
+        }),
+    }));
+    host.set_run_id(run_id.to_string());
+    (host, authorities)
+}
+
+fn deliver_report(host: &RuntimeHost) {
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-report".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "reports/final.md"}),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+}
+
+fn notices(authorities: &RuntimeAuthorities) -> Vec<crate::inbox::InboxItem> {
+    authorities
+        .inbox
+        .list(None, Some("pending"))
+        .into_iter()
+        .filter(|item| item.kind == "notice")
+        .collect()
+}
+
+#[test]
+fn native_e2e_a_finished_automation_run_leaves_a_notice_that_names_its_files() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let automations = crate::automation::AutomationStore::open(state.path()).unwrap();
+    let created = automations
+        .create(&json!({"title": "Weekly report", "instructions": "Write it", "cron": "0 9 * * 1"}))
+        .unwrap();
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
+    let session_id = automations.prepare_run(&task_id).unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (host, authorities) =
+        completion_host(state.path(), workspace.path(), &session_id, "run-done");
+    deliver_report(&host);
+
+    host.announce_completion("All done.\n\nThe   report is ready.");
+
+    let found = notices(&authorities);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].title, "Finished: Weekly report");
+    assert_eq!(found[0].body, "All done. The report is ready.");
+    assert_eq!(found[0].data["completion"], true);
+    assert_eq!(
+        found[0].data["artifacts"],
+        json!([{"path": "reports/final.md", "name": "final.md"}])
+    );
+    // Announcing the same run again does not pile up a second notice.
+    host.announce_completion("All done.");
+    assert_eq!(notices(&authorities).len(), 1);
+}
+
+#[test]
+fn native_e2e_an_automation_that_wants_no_notice_leaves_none() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let automations = crate::automation::AutomationStore::open(state.path()).unwrap();
+    let created = automations
+        .create(&json!({
+            "title": "Quiet", "instructions": "Write it", "cron": "0 9 * * 1",
+            "notify_on_completion": false
+        }))
+        .unwrap();
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
+    let session_id = automations.prepare_run(&task_id).unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (host, authorities) =
+        completion_host(state.path(), workspace.path(), &session_id, "run-quiet");
+    host.announce_completion("Done.");
+    assert!(notices(&authorities).is_empty());
+}
+
+#[test]
+fn native_e2e_a_chat_turn_leaves_no_inbox_notice() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (host, authorities) =
+        completion_host(state.path(), workspace.path(), "session-chat", "run-chat");
+    deliver_report(&host);
+    host.announce_completion("Done.");
+    assert!(notices(&authorities).is_empty());
+}
+
+#[test]
+fn native_e2e_a_finished_turn_posts_to_the_webhook_the_egress_level_allows() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (url, received) = crate::webhook::tests::serve_once("HTTP/1.1 200 OK");
+    crate::egress::set_default_level(state.path(), crate::egress::EgressLevel::PrivateOnly, true)
+        .unwrap();
+    crate::webhook::set_settings(state.path(), Some(&url), true, false).unwrap();
+    let (host, _authorities) =
+        completion_host(state.path(), workspace.path(), "session-hook", "run-hook");
+    deliver_report(&host);
+
+    host.announce_completion("Done.");
+
+    let raw = received
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the webhook was posted to");
+    let body: Value = serde_json::from_str(raw.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(body["event"], "turn_completed");
+    assert_eq!(body["session_id"], "session-hook");
+    assert_eq!(body["source"], "chat");
+    assert_eq!(body["artifact_count"], 1);
+    assert!(body.get("summary").is_none(), "no details unless asked for");
+}
+
+#[test]
+fn native_e2e_a_stricter_egress_level_keeps_the_webhook_from_posting() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (url, received) = crate::webhook::tests::serve_once("HTTP/1.1 200 OK");
+    crate::egress::set_default_level(state.path(), crate::egress::EgressLevel::AskEachTime, true)
+        .unwrap();
+    crate::webhook::set_settings(state.path(), Some(&url), true, false).unwrap();
+    let (host, _authorities) =
+        completion_host(state.path(), workspace.path(), "session-hook2", "run-hook2");
+    host.announce_completion("Done.");
+    assert!(received.recv_timeout(Duration::from_millis(500)).is_err());
+}
+
+#[test]
+fn native_e2e_a_standing_grant_does_not_override_a_hard_refusal() {
+    // The user allowed the tool earlier; the session has since moved to Plan mode, which refuses
+    // every mutation outright. A grant answers a question; it can not overrule a refusal.
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let authorities = authorities_at(temp.path());
+    let mut host = RuntimeHost::new(
+        "session-plan-grant",
+        RuntimeConfig {
+            mode: crate::policy::ExecutionMode::Plan,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities)
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id("run-plan-grant".to_string());
+    host.approvals.remember(
+        ApprovalDecision::AlwaysTool,
+        "write_report",
+        &json!({"path": "report.md"}),
+    );
+
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-plan-grant".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("plan mode")),
+        "{:?}",
+        result.error
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "the tool must not run");
+}
+
+/// A host in `workspace` for the approval-ladder tests: `write_report` needs approval.
+fn ladder_host(
+    state: &Path,
+    workspace: &Path,
+    session_id: &str,
+    contract: Value,
+) -> (Arc<RuntimeHost>, Arc<AtomicUsize>) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut host = RuntimeHost::new(
+        session_id,
+        RuntimeConfig {
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities_at(state))
+    .with_tools(contract)
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id(format!("run-{session_id}"));
+    (Arc::new(host), calls)
+}
+
+/// Call `write_report`. `Some(decision)` answers the question it asks; `None` expects no question.
+/// Returns whether a question was asked.
+fn ladder_call(host: &Arc<RuntimeHost>, id: &str, answer: Option<ApprovalDecision>) -> bool {
+    let worker = {
+        let host = host.clone();
+        let id = id.to_string();
+        std::thread::spawn(move || {
+            host.execute_tool_call(&ToolCall {
+                id,
+                name: "write_report".to_string(),
+                arguments: json!({"path": "report.md"}),
+            })
+        })
+    };
+    let mut asked = false;
+    for _ in 0..100 {
+        if host.approvals.pending_ids() == [id] {
+            asked = true;
+            break;
+        }
+        if worker.is_finished() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    if asked {
+        host.approvals
+            .resolve(Some(id), answer.unwrap_or(ApprovalDecision::Deny))
+            .unwrap();
+    }
+    let result = worker.join().unwrap();
+    if answer.is_some() || !asked {
+        assert!(result.error.is_none(), "{id}: {:?}", result.error);
+    }
+    asked
+}
+
+#[test]
+fn native_e2e_session_grant_then_revoke_restores_the_question() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let (host, calls) = ladder_host(
+        state.path(),
+        workspace.path(),
+        "s-ladder",
+        tool_contract("medium", true),
+    );
+
+    assert!(
+        ladder_call(&host, "c1", Some(ApprovalDecision::AlwaysTool)),
+        "the first call asks"
+    );
+    assert!(
+        !ladder_call(&host, "c2", None),
+        "the session grant answers the second"
+    );
+    assert_eq!(
+        host.approvals.grants(),
+        vec![crate::approval::SessionGrant {
+            tool: "write_report".into(),
+            command: None
+        }]
+    );
+
+    assert!(host.approvals.revoke_grant("write_report", None));
+    assert!(host.approvals.grants().is_empty());
+    assert!(
+        ladder_call(&host, "c3", Some(ApprovalDecision::Once)),
+        "after revoking, it asks again"
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn native_e2e_workspace_rule_outlives_the_session_until_it_is_revoked() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let ws = workspace.path().to_string_lossy().to_string();
+    let (first, _) = ladder_host(
+        state.path(),
+        workspace.path(),
+        "s-one",
+        tool_contract("medium", true),
+    );
+
+    assert!(ladder_call(
+        &first,
+        "c1",
+        Some(ApprovalDecision::AlwaysWorkspace)
+    ));
+    let rules = crate::workspace_rules::list(state.path(), &ws).unwrap();
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].tool, "write_report");
+    assert!(
+        !ladder_call(&first, "c2", None),
+        "the rule answers a later call"
+    );
+
+    // A different session in the same workspace is covered too.
+    let (second, calls) = ladder_host(
+        state.path(),
+        workspace.path(),
+        "s-two",
+        tool_contract("medium", true),
+    );
+    assert!(!ladder_call(&second, "c3", None));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    // Another workspace is not.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let (other, _) = ladder_host(
+        state.path(),
+        elsewhere.path(),
+        "s-three",
+        tool_contract("medium", true),
+    );
+    assert!(ladder_call(&other, "c4", Some(ApprovalDecision::Once)));
+
+    assert!(crate::workspace_rules::revoke(state.path(), &ws, "write_report", None).unwrap());
+    assert!(
+        ladder_call(&second, "c5", Some(ApprovalDecision::Once)),
+        "after revoking, it asks again"
+    );
+}
+
+#[test]
+fn native_e2e_a_call_that_deletes_is_never_made_a_workspace_rule() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let ws = workspace.path().to_string_lossy().to_string();
+    let mut contract = tool_contract("medium", true);
+    contract[0]["function"]["metadata"]["side_effect"] = json!("destructive");
+    let (host, _) = ladder_host(state.path(), workspace.path(), "s-destroy", contract);
+
+    assert!(
+        ladder_call(&host, "c1", Some(ApprovalDecision::AlwaysWorkspace)),
+        "the call itself is allowed once"
+    );
+    assert!(crate::workspace_rules::list(state.path(), &ws)
+        .unwrap()
+        .is_empty());
+    assert!(
+        ladder_call(&host, "c2", Some(ApprovalDecision::Once)),
+        "and the next one asks"
+    );
+}
+
+#[test]
+fn native_e2e_a_workspace_rule_does_not_overrule_plan_mode() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    crate::workspace_rules::add(
+        state.path(),
+        &workspace.path().to_string_lossy(),
+        "write_report",
+        &json!({}),
+    )
+    .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut host = RuntimeHost::new(
+        "s-plan-rule",
+        RuntimeConfig {
+            workspace: Some(workspace.path().to_string_lossy().to_string()),
+            mode: crate::policy::ExecutionMode::Plan,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities_at(state.path()))
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id("run-plan-rule".to_string());
+    let result = host.execute_tool_call(&ToolCall {
+        id: "c1".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("plan mode")),
+        "{:?}",
+        result.error
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn native_e2e_cancel_while_approval_pending_is_terminal() {
     let temp = tempfile::tempdir().unwrap();
     let calls = Arc::new(AtomicUsize::new(0));

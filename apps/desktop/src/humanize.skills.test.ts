@@ -31,6 +31,19 @@ describe("humanize document and web tools", () => {
   });
 });
 
+describe("humanize editing and skill lookup tools", () => {
+  it("says edit_document edited a named file, in the step, the approval and the ask", () => {
+    expect(humanizeTool("edit_document", { path: "out/plan.docx" })).toMatchObject({ pre: "Edited ", obj: "plan.docx" });
+    expect(humanizeApprovalTitle("edit_document", { path: "out/plan.docx" })).toMatchObject({ pre: "Edit ", obj: "plan.docx" });
+    expect(humanizeAsk("edit_document", { path: "out/plan.docx" })).toMatchObject({ pre: "Wanted to edit ", obj: "plan.docx" });
+  });
+
+  it("shows a skill lookup and a skill read as plain steps", () => {
+    expect(humanizeTool("find_skill", { query: "weekly report" })).toMatchObject({ pre: "Looked up your saved skills" });
+    expect(humanizeTool("read_skill", { name: "weekly-report" })).toMatchObject({ pre: "Used skill: ", obj: "weekly-report" });
+  });
+});
+
 describe("humanize computer tools", () => {
   it("says what the screen, clipboard and open tools do in plain words", () => {
     expect(humanizeApprovalTitle("screenshot", {})).toMatchObject({ pre: "Take a picture of your screen" });
@@ -66,5 +79,34 @@ describe("humanize browser tools", () => {
   it("explains in the scope note where browser actions happen", () => {
     const t = (key: string) => key;
     expect(scopeNote(t, "browser_click", { label: "Next" }, "computer").text).toBe("approval.scope.browser");
+  });
+});
+
+describe("humanize statistics tools", () => {
+  it("names the analysis rather than the tool", () => {
+    expect(humanizeTool("statistics_ttest", { path: "a.csv" })).toMatchObject({ pre: "Ran a statistical analysis — ", obj: "ttest" });
+    expect(humanizeTool("statistics_regression", {})).toMatchObject({ obj: "regression" });
+    expect(humanizeTool("statistics_record", {})).toMatchObject({ obj: "record" });
+    expect(humanizeApprovalTitle("statistics_record", { result_path: "out/t.json" })).toMatchObject({ obj: "t.json" });
+    expect(humanizeTool("statistics_doe", {})).toMatchObject({ pre: "Laid out an experiment design" });
+  });
+});
+
+describe("humanize library tools", () => {
+  it("shows what was searched and says an index update reads files", () => {
+    expect(humanizeTool("library_search", { query: "supplier audit" })).toMatchObject({
+      pre: "Searched your library for ",
+      obj: "“supplier audit”",
+    });
+    expect(humanizeTool("library_index", {})).toMatchObject({ pre: "Updated the library index" });
+    expect(humanizeApprovalTitle("library_index", {}).pre).toContain("library index");
+  });
+});
+
+describe("humanize report tools", () => {
+  it("says a report was built from bound numbers and checked against its sources", () => {
+    expect(humanizeTool("report_render", {}).pre).toBe("Built the report from its bound numbers");
+    expect(humanizeTool("report_check", {}).pre).toContain("Checked the report");
+    expect(humanizeApprovalTitle("report_render", { report_path: "out/report.md" })).toMatchObject({ obj: "report.md" });
   });
 });

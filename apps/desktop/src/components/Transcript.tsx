@@ -1053,6 +1053,7 @@ export const filesSinceUser = (items: Item[]): string[] =>
 const DELIVERY_TOOLS = new Set([
   "write_file",
   "create_document",
+  "edit_document",
   "apply_patch",
   "apply_unified_diff",
   "replace_in_file",

@@ -37,6 +37,7 @@ use crate::policy::{self, Decision, PolicyEvaluateInput, RiskLevel, RootEntry, T
 use crate::provider::{self, ProviderRequest};
 use crate::LedgerWriter;
 
+mod completion;
 mod handle;
 pub(crate) use handle::interrupted_run_of;
 mod egress_gate;
@@ -698,6 +699,9 @@ pub struct RuntimeHost {
     /// Tool calls the current turn has attempted, counted against `max_tool_calls`. Reset at the
     /// start of each turn, like the iteration count.
     tool_calls_this_turn: usize,
+    /// (path, name) of the finished files this turn registered, for the completion notice. Reset
+    /// at the start of each turn.
+    turn_artifacts: Mutex<Vec<(String, String)>>,
     /// The model that refused the request's tool definitions. While it remains the session's
     /// model, requests go without tools; web search is then asked for in text and run by the
     /// runtime (see `model_turn.rs`). Keyed by model so a switch to another model tries tools again.
@@ -1203,6 +1207,7 @@ impl RuntimeHost {
             event_error: Arc::new(Mutex::new(None)),
             reduced_request: false,
             tool_calls_this_turn: 0,
+            turn_artifacts: Mutex::new(Vec::new()),
             refused_tools_model: None,
             // Test hosts carry no authorities and never reach the product doors, so
             // they stay direct; a test that needs a proxy sets it explicitly.

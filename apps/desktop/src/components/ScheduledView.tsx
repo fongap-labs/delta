@@ -4,7 +4,9 @@ import {
   deleteAutomation,
   getAutomation,
   getAutomations,
+  getDenialThreshold,
   markAutomationSeen,
+  setDenialThreshold,
   announceAutomationsChanged,
   updateAutomation,
   type Automation,
@@ -18,6 +20,45 @@ import { useI18n } from "@delta/i18n/I18nContext";
 
 // Shared utility strings (the §28 page shell — mirrors IntegrationsView's constants).
 const CARD = "rounded-xl2 border border-line bg-panel";
+
+type Translate = ReturnType<typeof useI18n>["t"];
+
+// Why an automation is off: the circuit breaker pauses it after repeated denials of one rule.
+function pausedText(task: Pick<Automation, "paused_reason" | "paused_rule">, t: Translate): string {
+  return task.paused_reason === "approval_denied"
+    ? t("scheduled.pausedDenied", { rule: task.paused_rule ?? "" })
+    : t("scheduled.paused");
+}
+
+// The denial limit is one setting for every automation, so it sits above the list.
+function DenialLimit() {
+  const { t } = useI18n();
+  const [limit, setLimit] = useState<number | null>(null);
+  useEffect(() => {
+    getDenialThreshold().then(setLimit).catch(() => setLimit(null));
+  }, []);
+  if (limit === null) return null;
+  const choices = Array.from(new Set([1, 2, 3, 4, 5, 10, 20, limit])).sort((a, b) => a - b);
+  return (
+    <label className="text-[12px] text-muted flex items-center gap-2 mb-4" data-testid="denial-limit">
+      <span>{t("scheduled.denialLimit")}</span>
+      <select
+        className="tmpl-input tmpl-select"
+        value={limit}
+        onChange={async (event) => {
+          await setDenialThreshold(Number(event.target.value));
+          getDenialThreshold().then(setLimit).catch(() => undefined);
+        }}
+      >
+        {choices.map((choice) => (
+          <option key={choice} value={choice}>
+            {choice}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 // Parse a simple "min hour * * dow" cron back into the time + frequency the editor uses.
 // Falls back to 09:00 / daily for anything it doesn't recognize (e.g. agent-written crons).
@@ -170,6 +211,8 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
         <span>{t("scheduled.serverUpNote")}</span>
       </div>
 
+      <DenialLimit />
+
       {shouldShowForm && (
         <NewAutomationForm
           busy={busy !== null}
@@ -227,7 +270,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
               </div>
               <div className="flex items-center gap-1.5 text-[12px] text-muted">
                 <Icon name="clock" size={13} className="text-faint shrink-0" />
-                {task.enabled ? task.schedule : t("scheduled.paused")} · {t("scheduled.next")} {fmt(task.next_run)} · {t("scheduled.runCount", { n: task.run_count, s: task.run_count === 1 ? "" : "s" })}
+                {task.enabled ? task.schedule : pausedText(task, t)} · {t("scheduled.next")} {fmt(task.next_run)} · {t("scheduled.runCount", { n: task.run_count, s: task.run_count === 1 ? "" : "s" })}
                 {task.last_status ? ` · ${t("scheduled.last")} ${runStatus(task.last_status, t)}` : ""}
               </div>
             </div>
@@ -467,7 +510,13 @@ function TaskDetail({
               <input type="checkbox" checked={task.enabled} onChange={toggle} />
               <span className="slider" />
             </label>{" "}
-            {task.enabled ? `${t("scheduled.activeNext")} ${fmt(task.next_run)}` : t("scheduled.paused")} · {task.schedule}
+            {task.enabled ? `${t("scheduled.activeNext")} ${fmt(task.next_run)}` : pausedText(task, t)} · {task.schedule}
+          </div>
+        )}
+
+        {!task.enabled && task.paused_reason === "approval_denied" && (
+          <div className="dim" data-testid="task-paused-denied" style={{ margin: "8px 0", fontSize: 12.5 }}>
+            {t("scheduled.pausedDeniedHelp", { rule: task.paused_rule ?? "" })}
           </div>
         )}
 

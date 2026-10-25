@@ -52,9 +52,17 @@ impl CapabilityHost {
         host.register(native_write_registration())?;
         host.register(crate::document::read_registration())?;
         host.register(crate::document::create_registration())?;
+        host.register(crate::document::edit_registration())?;
         host.register(crate::web::fetch_registration())?;
         host.register(crate::web::search_registration())?;
         host.register(crate::statistics::describe_registration())?;
+        host.register(crate::study::verify::evaluate_registration())?;
+        for registration in crate::numeric_trace::tools::registrations() {
+            host.register(registration)?;
+        }
+        for registration in crate::statistics::method_registrations() {
+            host.register(registration)?;
+        }
         host.register(interaction_registration(
             "request_directory",
             "Request access to an additional directory.",

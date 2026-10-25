@@ -5,6 +5,15 @@
 //! first dropped digit rounds away from zero), applied to the shortest decimal form that reads
 //! back as the same double, so 2.675 renders as 2.68 at two decimals. Binary floating-point
 //! artefacts and banker's rounding are not used.
+//!
+//! [`report`] renders a Markdown template into a report and a binding manifest, and checks a
+//! report against its manifest; [`tools`] are the model's two tools for that.
+
+pub mod report;
+pub mod tools;
+
+#[cfg(test)]
+mod report_tests;
 
 /// The formats a binding may declare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

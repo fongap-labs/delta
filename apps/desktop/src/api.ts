@@ -34,6 +34,14 @@ import {
   directOpenWorkspace,
   directPickFolder,
   directEgressSettings,
+  directWebhookSettings,
+  directLibraryRoots,
+  directLibraryIndex,
+  directLibraryRemove,
+  directApprovalRules,
+  directRevokeApprovalRule,
+  directSetWebhookSettings,
+  directTestWebhook,
   updateEgressDefault,
   updateWorkspaceEgress,
   updateEndpointMark,
@@ -43,6 +51,8 @@ import {
   directRemoveModel,
   directRemoveProvider,
   directDeleteMemory,
+  directExportMemory,
+  directImportMemory,
   clearMemory,
   directResolveInbox,
   directReadArtifact,
@@ -86,6 +96,8 @@ import {
   directTrustedWorkspaces,
   directUpdateMemory,
   directUpdateAutomation,
+  directGetDenialThreshold,
+  directSetDenialThreshold,
   finalizeAutomationRun as finalizeAutomationRuntime,
   directListAudit,
   directListSources,
@@ -337,6 +349,114 @@ export type PathRule = "allow" | "ask" | "deny";
 export type EgressChange =
   | ({ ok: true } & EgressSettings)
   | { ok: false; needs_confirmation?: boolean; error?: string };
+
+/** One folder of the local library. */
+export interface LibraryRoot {
+  root: string;
+  version: number;
+  indexed_at: string | null;
+  files: number;
+  chunks: number;
+  skipped: number;
+}
+
+/** What an indexing run did. `is_complete` is false when it stopped early; run it again to carry on. */
+export interface LibraryIndexReport {
+  root: string;
+  version: number;
+  files_seen: number;
+  files_indexed: number;
+  files_unchanged: number;
+  files_skipped: number;
+  files_removed: number;
+  chunks: number;
+  is_complete: boolean;
+  seconds: number;
+}
+
+export async function getLibraryRoots(): Promise<LibraryRoot[]> {
+  const out = await directLibraryRoots();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the library");
+  return out.roots as LibraryRoot[];
+}
+
+export async function indexLibraryRoot(root: string): Promise<LibraryIndexReport> {
+  const out = await directLibraryIndex(root);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not index that folder");
+  return out as LibraryIndexReport;
+}
+
+export async function removeLibraryRoot(root: string): Promise<boolean> {
+  const out = await directLibraryRemove(root);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not remove that folder");
+  return !!out.removed;
+}
+
+/** One thing the user allowed without being asked: a tool, or one command of a command tool. */
+export interface ApprovalRule {
+  tool: string;
+  command: string | null;
+  created_at?: string;
+}
+
+export interface ApprovalRules {
+  session: ApprovalRule[];
+  workspace: ApprovalRule[];
+  workspace_error?: string | null;
+}
+
+export async function getApprovalRules(sessionId: string, workspace: string): Promise<ApprovalRules> {
+  const out = await directApprovalRules(sessionId, workspace);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the approval rules");
+  return out as ApprovalRules;
+}
+
+/** Take back an allowance; the next matching call asks again. */
+export async function revokeApprovalRule(
+  scope: "session" | "workspace",
+  sessionId: string,
+  workspace: string,
+  rule: ApprovalRule,
+): Promise<boolean> {
+  const out = await directRevokeApprovalRule(scope, sessionId, workspace, rule.tool, rule.command);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not revoke the rule");
+  return !!out.revoked;
+}
+
+/** The completion webhook: one URL that gets a short post when a turn finishes. */
+export interface WebhookSettings {
+  url: string | null;
+  is_enabled: boolean;
+  include_details: boolean;
+}
+
+/** What a test post did: `sent`, `skipped` (the egress level refused it) or `failed`. */
+export type WebhookTest =
+  | { result: "sent"; host: string; status: number }
+  | { result: "skipped"; host: string; reason: string }
+  | { result: "failed"; host: string; error: string }
+  | { result: "off" };
+
+export async function getWebhookSettings(): Promise<WebhookSettings> {
+  const out = await directWebhookSettings();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the webhook setting");
+  return out as WebhookSettings;
+}
+
+export async function saveWebhookSettings(settings: WebhookSettings): Promise<WebhookSettings> {
+  const out = await directSetWebhookSettings(settings.url, settings.is_enabled, settings.include_details);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not save the webhook setting");
+  return out as WebhookSettings;
+}
+
+export async function testWebhook(): Promise<WebhookTest> {
+  // The test uses the default egress level: it is not tied to one workspace.
+  const out = await directTestWebhook("");
+  if (!out || out.ok === false || typeof out.result !== "string") {
+    throw new Error(out?.error || "the webhook test did not run");
+  }
+  return out as WebhookTest;
+}
 
 export async function getEgressSettings(): Promise<EgressSettings> {
   const out = await directEgressSettings();
@@ -1030,8 +1150,9 @@ export interface SkillRow {
   name: string;
   description: string;
   instructions: string;
-  scope: "global" | "project";
-  source: string; // "local" | "uploaded"
+  // "builtin" skills ship with Delta: read-only, they can be turned off or copied.
+  scope: "global" | "project" | "builtin";
+  source: string; // "local" | "uploaded" | "builtin"
   enabled: boolean;
   path: string;
   files?: number; // bundled resources beyond SKILL.md (§6 — rich skills are visible)
@@ -1040,7 +1161,7 @@ export interface SkillRow {
 export interface SessionSkillRow {
   name: string;
   description: string;
-  scope: "global" | "project";
+  scope: "global" | "project" | "builtin";
   enabled: boolean; // false = muted for this session only
 }
 
@@ -1355,6 +1476,23 @@ export async function deleteMemory(id: number): Promise<{ ok: boolean; error?: s
   return await directDeleteMemory(id);
 }
 
+// The portable file the memory screen exports and imports (`delta.memory`, version 1).
+export interface MemoryExport {
+  format: string;
+  version: number;
+  memories: { scope: string; content: string; created_at: string }[];
+}
+
+export async function exportMemory(): Promise<MemoryExport> {
+  return throwOnError(await directExportMemory());
+}
+
+export async function importMemory(
+  document: unknown,
+): Promise<{ ok: boolean; imported?: number; skipped?: number; error?: string }> {
+  return await directImportMemory(document);
+}
+
 export async function deleteAllMemory(): Promise<{ ok: boolean; deleted: number }> {
   return await clearMemory();
 }
@@ -1527,6 +1665,9 @@ export interface Automation {
   schedule_raw?: { kind: string; cron?: string | null; fire_at?: string | null; timezone?: string };
   workspace: string;
   enabled: boolean;
+  // Set when the circuit breaker paused this automation after repeated denials of one rule.
+  paused_reason?: string;
+  paused_rule?: string;
   next_run: number | null;
   last_run: number | null;
   last_status: string | null;
@@ -1554,6 +1695,17 @@ export interface AutomationRun {
   artifacts: string[];
   error: string | null;
   trigger: string;
+}
+
+// How many denials in a row of one rule pause an automation (the circuit breaker, A3).
+export async function getDenialThreshold(): Promise<number> {
+  return throwOnError(await directGetDenialThreshold()).denial_threshold;
+}
+
+export async function setDenialThreshold(
+  threshold: number,
+): Promise<{ ok: boolean; error?: string }> {
+  return await directSetDenialThreshold(threshold);
 }
 
 export async function getAutomations(): Promise<Automation[]> {

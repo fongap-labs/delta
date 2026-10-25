@@ -391,6 +391,7 @@ impl RuntimeHost {
         self.turn_proxy = self.resolve_turn_proxy();
         self.reduced_request = false;
         self.tool_calls_this_turn = 0;
+        self.turn_artifacts.lock().unwrap().clear();
         loop {
             self.ensure_event_delivery()?;
             if iterations >= self.config.max_iterations {
@@ -632,6 +633,7 @@ impl RuntimeHost {
                     iterations,
                 });
                 self.ensure_event_delivery()?;
+                self.announce_completion(turn.text.as_deref().unwrap_or_default());
                 return Ok("completed".to_string());
             }
             for tc in &turn.tool_calls {

@@ -43,6 +43,7 @@ import type {
   WsEvent,
 } from "./types";
 import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
+import { WorkspaceContext } from "./workspaceContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
@@ -59,7 +60,8 @@ import { Sidebar } from "./components/Sidebar";
 import { Composer } from "./components/Composer";
 import { RunStatusBar } from "./components/RunStatusBar";
 import { interruptedAnchor, Transcript } from "./components/Transcript";
-import { Markdown } from "./components/Markdown";
+import { Markdown, OPEN_ARTIFACT_EVENT } from "./components/Markdown";
+import { buildCompletionNotice, showCompletionNotice, type CompletionFile } from "./completionNotice";
 import { SessionIntro } from "./components/SessionIntro";
 import { Onboarding } from "./components/Onboarding";
 import { UPDATER_FEED_PUBLISHED, UpdateBanner } from "./components/UpdateBanner";
@@ -144,12 +146,16 @@ export function App() {
     return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
   };
   // A finished task is easy to miss when the window is in the background: say so, once.
+  // What the turn just produced, for the notification: its last answer and the finished files.
+  const lastAnswerRef = useRef("");
+  const turnFilesRef = useRef<CompletionFile[]>([]);
   const notifyTurnDone = () => {
     try {
       if (typeof Notification === "undefined" || !document.hidden) return;
-      const show = () => new Notification("Delta", { body: tr("notify.taskDone") });
-      if (Notification.permission === "granted") show();
-      else if (Notification.permission === "default") void Notification.requestPermission().then((p) => p === "granted" && show());
+      showCompletionNotice(
+        buildCompletionNotice({ answer: lastAnswerRef.current, files: turnFilesRef.current, t: (key, vars) => tr(key as TranslationKey, vars) }),
+        (path) => window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path } })),
+      );
     } catch {
       // Notifications are a convenience; never let them break the run.
     }
@@ -629,6 +635,8 @@ export function App() {
           break;
         case "turn_start":
           setRunning(true);
+          lastAnswerRef.current = "";
+          turnFilesRef.current = [];
           stepCountRef.current = 0;
           setStepInfo(null);
           setStreaming("");
@@ -673,6 +681,7 @@ export function App() {
           setReasoningStream(reasoningRef.current + (d.text || ""));
           break;
         case "assistant_message": {
+          if (d.text) lastAnswerRef.current = String(d.text);
           if (d.usage) setUsage((u) => addTurnUsage(u, d.usage));
           // The event's reasoning is authoritative (covers background-delivered turns);
           // the local buffer is the fallback for older servers.
@@ -749,6 +758,12 @@ export function App() {
           break;
         case "artifact_updated": {
           const trace = parseArtifactUpdate(d);
+          if (trace && trace.status !== "drafting") {
+            turnFilesRef.current = [
+              ...turnFilesRef.current.filter((file) => file.path !== trace.path),
+              { path: trace.path, name: trace.name },
+            ];
+          }
           if (trace) {
             setArtifactTraces((prev) => ({
               ...prev,
@@ -1255,6 +1270,21 @@ export function App() {
   };
 
   const openInboxSession = (sid: string, ws: string) => selectSession(sid, ws);
+  // A finished automation's notice links to a file: open the run's session, then the file in it.
+  const [pendingArtifact, setPendingArtifact] = useState<{ sessionId: string; path: string } | null>(null);
+  const openInboxArtifact = (sid: string, ws: string, path: string) => {
+    setPendingArtifact({ sessionId: sid, path });
+    setRailHidden(false);
+    void selectSession(sid, ws);
+  };
+  useEffect(() => {
+    if (!pendingArtifact || surface !== "session" || sessionId !== pendingArtifact.sessionId || isRailHidden) return;
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path: pendingArtifact.path } }));
+      setPendingArtifact(null);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [pendingArtifact, surface, sessionId, isRailHidden]);
   const selectSession = async (id: string, ws: string) => {
     setSurface("session"); // selecting a conversation always returns to the conversation view
     setTodo([]);
@@ -1426,6 +1456,7 @@ export function App() {
 
   return (
     <I18nProvider locale={locale} onLocaleChange={setLocale}>
+      <WorkspaceContext.Provider value={workspace}>
     <div
       className={
         "app" +
@@ -1581,7 +1612,7 @@ export function App() {
       ) : surface === "audit" ? (
         <AuditView onOpenSession={(sid) => selectSession(sid, sessions.find((s) => s.session_id === sid)?.workspace ?? "")} />
       ) : surface === "inbox" ? (
-        <InboxView onOpenSession={openInboxSession} />
+        <InboxView onOpenSession={openInboxSession} onOpenArtifact={openInboxArtifact} />
       ) : (
       <div className={"main" + (surface === "session" && !isRailHidden ? " rail-open" : "")}>
         <div className="main-topbar">
@@ -1869,6 +1900,7 @@ export function App() {
         />
       )}
     </div>
+      </WorkspaceContext.Provider>
     </I18nProvider>
   );
 }

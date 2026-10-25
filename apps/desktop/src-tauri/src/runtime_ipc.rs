@@ -229,6 +229,29 @@ pub fn runtime_approval(
     state.runtime_resolve_approval(&session_id, tool_call_id.as_deref(), &decision)
 }
 
+/// What the user has allowed without being asked: this session's grants and the workspace's rules.
+#[tauri::command]
+pub fn approval_rules(
+    state: State<'_, RuntimeRegistry>,
+    session_id: String,
+    workspace: String,
+) -> Value {
+    state.approval_rules(&session_id, &workspace)
+}
+
+/// Take back one allowance, so the next matching call asks again.
+#[tauri::command]
+pub fn revoke_approval_rule(
+    state: State<'_, RuntimeRegistry>,
+    scope: String,
+    session_id: String,
+    workspace: String,
+    tool: String,
+    command: Option<String>,
+) -> Value {
+    state.revoke_approval_rule(&scope, &session_id, &workspace, &tool, command.as_deref())
+}
+
 #[tauri::command]
 pub fn resolve_directory_request(
     state: State<'_, RuntimeRegistry>,
@@ -556,6 +579,64 @@ pub fn set_egress_default(
     }
 }
 
+/// The local library (B1): the folders in it, adding or refreshing one (which reads the files and
+/// can take minutes, so it runs off the UI thread), and taking one out.
+#[tauri::command]
+pub fn library_roots(state: State<'_, RuntimeRegistry>) -> Value {
+    state.library_roots()
+}
+
+#[tauri::command]
+pub async fn library_index(
+    state: State<'_, RuntimeRegistry>,
+    root: String,
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || registry.library_index(&root))
+        .await
+        .map_err(|error| format!("the indexing stopped unexpectedly: {error}"))
+}
+
+#[tauri::command]
+pub fn library_remove(state: State<'_, RuntimeRegistry>, root: String) -> Value {
+    state.library_remove(&root)
+}
+
+/// The completion webhook (B5): the saved setting, its change, and a test post.
+#[tauri::command]
+pub fn get_webhook_settings(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.webhook_settings() {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+#[tauri::command]
+pub fn set_webhook_settings(
+    state: State<'_, RuntimeRegistry>,
+    url: Option<String>,
+    is_enabled: bool,
+    is_detailed: bool,
+) -> Value {
+    match state.set_webhook_settings(url.as_deref(), is_enabled, is_detailed) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error}),
+    }
+}
+
+/// Post a test message to the saved URL, under the workspace's egress level. Runs off the UI
+/// thread: a dead server can take several seconds to give up.
+#[tauri::command]
+pub async fn test_webhook(
+    state: State<'_, RuntimeRegistry>,
+    workspace: String,
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || registry.test_webhook(&workspace))
+        .await
+        .map_err(|error| format!("the webhook test stopped unexpectedly: {error}"))
+}
+
 #[tauri::command]
 pub fn set_workspace_egress(
     state: State<'_, RuntimeRegistry>,
@@ -746,6 +827,16 @@ pub fn memory_delete(state: State<'_, RuntimeRegistry>, id: i64) -> Value {
 }
 
 #[tauri::command]
+pub fn memory_export(state: State<'_, RuntimeRegistry>) -> Value {
+    authority_result(state.memory().export())
+}
+
+#[tauri::command]
+pub fn memory_import(state: State<'_, RuntimeRegistry>, document: Value) -> Value {
+    authority_result(state.memory().import(&document))
+}
+
+#[tauri::command]
 pub fn clear_memory(state: State<'_, RuntimeRegistry>) -> Value {
     authority_result(state.memory().delete_all())
 }
@@ -786,6 +877,25 @@ pub fn automation_update(state: State<'_, RuntimeRegistry>, id: String, changes:
 #[tauri::command]
 pub fn automation_delete(state: State<'_, RuntimeRegistry>, id: String) -> Value {
     authority_result(state.automations().lock().unwrap().delete(&id))
+}
+
+#[tauri::command]
+pub fn automation_denial_threshold(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.automations().lock().unwrap().denial_threshold() {
+        Ok(threshold) => json!({"denial_threshold": threshold}),
+        Err(error) => json!({"ok": false, "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn set_automation_denial_threshold(state: State<'_, RuntimeRegistry>, threshold: u32) -> Value {
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap()
+            .set_denial_threshold(threshold),
+    )
 }
 
 #[tauri::command]

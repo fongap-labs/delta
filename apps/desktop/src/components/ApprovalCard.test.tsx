@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { ApprovalCard, scopeNote } from "./ApprovalCard";
+import { WorkspaceContext } from "../workspaceContext";
 import { InboxItemCard } from "./InboxItemCard";
 import { I18nProvider } from "@delta/i18n/I18nContext";
 import type { Item } from "../types";
@@ -40,7 +41,7 @@ describe("ApprovalCard — standing scoped approvals (§25)", () => {
     fireEvent.click(screen.getByLabelText(CONFIRM));
     fireEvent.click(screen.getByText("Allow every time"));
     expect(onApprove).toHaveBeenCalledWith("always_task");
-    expect(screen.queryByText("Always allow")).toBeNull();
+    expect(screen.queryByText("Allow for this session")).toBeNull();
     cleanup();
 
     // No run context (a plain session) → never offered.
@@ -262,7 +263,7 @@ describe("ApprovalCard — save_skill (SKILLS-SPEC §5.2)", () => {
   it("uses the §7 button copy and never offers a session-wide always", () => {
     const onApprove = vi.fn();
     render(<ApprovalCard item={skillApproval()} onApprove={onApprove} />);
-    expect(screen.queryByText("Always allow")).toBeNull(); // every proposal gets its own review
+    expect(screen.queryByText("Allow for this session")).toBeNull(); // every proposal gets its own review
     expect(screen.queryByText("Deny")).toBeNull();
     fireEvent.click(screen.getByText("Add to my skills"));
     expect(onApprove).toHaveBeenCalledWith("once");
@@ -328,7 +329,7 @@ describe("ApprovalCard — outbound actions are confirmed every time", () => {
 
   it("never offers a session-wide Always allow for an outbound action", () => {
     render(<ApprovalCard item={sendApproval()} onApprove={vi.fn()} />);
-    expect(screen.queryByText("Always allow")).toBeNull();
+    expect(screen.queryByText("Allow for this session")).toBeNull();
   });
 
   it("denies in one click without confirming", () => {
@@ -364,5 +365,56 @@ describe("scopeNote for web and computer tools", () => {
     expect(scopeNote(t as any, "open_url", {}, "computer")).toEqual({ text: "approval.scope.actsOnComputer", external: false });
     // Unchanged for ordinary file work.
     expect(scopeNote(t as any, "write_file", {}, "filesystem").text).toBe("approval.scope.staysOnComputer");
+  });
+});
+
+describe("ApprovalCard — the workspace rung of the approval ladder (A3)", () => {
+  const writeApproval = () => ({
+    kind: "approval" as const,
+    name: "write_file",
+    args: { path: "notes.md", content: "x" },
+    reason: "requires approval",
+    category: "filesystem",
+  });
+
+  it("offers Always allow in this workspace only where there is a workspace", () => {
+    const onApprove = vi.fn();
+    render(<ApprovalCard item={writeApproval() as never} onApprove={onApprove} />);
+    expect(screen.queryByTestId("approval-always-workspace")).toBeNull();
+    cleanup();
+
+    render(
+      <WorkspaceContext.Provider value="/work/project">
+        <ApprovalCard item={writeApproval() as never} onApprove={onApprove} />
+      </WorkspaceContext.Provider>,
+    );
+    fireEvent.click(screen.getByTestId("approval-always-workspace"));
+    expect(onApprove).toHaveBeenCalledWith("always_workspace");
+  });
+
+  it("never offers it for an outbound action, a connector action or a skill proposal", () => {
+    for (const item of [
+      sendApproval(),
+      { ...writeApproval(), category: "connector" },
+      { ...writeApproval(), name: "save_skill" },
+    ]) {
+      render(
+        <WorkspaceContext.Provider value="/work/project">
+          <ApprovalCard item={item as never} onApprove={vi.fn()} />
+        </WorkspaceContext.Provider>,
+      );
+      expect(screen.queryByTestId("approval-always-workspace")).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("names the session rung as for this session, so the two are never confused", () => {
+    render(
+      <WorkspaceContext.Provider value="/work/project">
+        <ApprovalCard item={writeApproval() as never} onApprove={vi.fn()} />
+      </WorkspaceContext.Provider>,
+    );
+    expect(screen.getByText("Allow for this session")).toBeTruthy();
+    expect(screen.getByText("Always allow in this workspace")).toBeTruthy();
   });
 });

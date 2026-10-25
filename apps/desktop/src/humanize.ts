@@ -122,6 +122,7 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Created ", preKey: "humanize.created", obj: baseName(String(a.path ?? "a document")) };
     case "replace_in_file":
     case "apply_patch":
+    case "edit_document":
     case "apply_unified_diff":
       return {
         pre: "Edited ",
@@ -181,6 +182,33 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.explored",
         obj: `“${trunc(String(a.task ?? a.prompt ?? ""), 60)}”`,
       };
+    case "find_skill":
+      return { pre: "Looked up your saved skills", preKey: "humanize.findSkill" };
+    case "statistics_describe":
+    case "statistics_ttest":
+    case "statistics_anova":
+    case "statistics_chisq":
+    case "statistics_correlation":
+    case "statistics_regression":
+    case "statistics_record":
+      return {
+        pre: "Ran a statistical analysis — ",
+        preKey: "humanize.statistics",
+        obj: name.slice("statistics_".length),
+      };
+    case "report_render":
+      return { pre: "Built the report from its bound numbers", preKey: "humanize.reportRender" };
+    case "report_check":
+      return { pre: "Checked the report's numbers against their sources", preKey: "humanize.reportCheck" };
+    case "study_evaluate":
+      return { pre: "Checked the study and its stopping rule", preKey: "humanize.studyEvaluate" };
+    case "library_search":
+      return { pre: "Searched your library for ", preKey: "humanize.librarySearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "library_index":
+      return { pre: "Updated the library index", preKey: "humanize.libraryIndex" };
+    case "statistics_doe":
+      return { pre: "Laid out an experiment design", preKey: "humanize.statisticsDoe" };
+    case "read_skill":
     case "load_skill":
       // SKILLS-SPEC §4.1 #4 — the trust line: the transcript always shows the moment a
       // skill's instructions were picked up, model-invoked or forced via /skill.
@@ -216,6 +244,7 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       return { pre: "Write ", preKey: "humanize.apWrite", obj: baseName(String(a.path ?? "a file")) };
     case "replace_in_file":
     case "apply_patch":
+    case "edit_document":
     case "apply_unified_diff":
       return {
         pre: "Edit ",
@@ -225,6 +254,12 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       };
     case "create_document":
       return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "library_index":
+      return { pre: "Read the files in a folder to update the library index", preKey: "humanize.apLibraryIndex" };
+    case "report_render":
+      return { pre: "Build a report from its bound numbers: ", preKey: "humanize.apReportRender", obj: baseName(String(a.report_path ?? "a report")) };
+    case "statistics_record":
+      return { pre: "Run an analysis and save its numbers to ", preKey: "humanize.apStatisticsRecord", obj: baseName(String(a.result_path ?? "a result file")) };
     case "model.request":
       return { pre: "Send this task to ", preKey: "humanize.apModelRequest", obj: String(a.endpoint ?? "the model") };
     case "screenshot":
@@ -317,6 +352,7 @@ export function humanizeAsk(name: string, args: any): HumanLine {
       return { pre: "Wanted to write ", preKey: "humanize.askWrite", obj: baseName(String(a.path ?? "a file")) };
     case "replace_in_file":
     case "apply_patch":
+    case "edit_document":
     case "apply_unified_diff":
       return {
         pre: "Wanted to edit ",

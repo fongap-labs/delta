@@ -16,6 +16,8 @@ import { humanizeApprovalTitle } from "../humanize";
 import { useEscapeDismiss } from "../useEscapeDismiss";
 import type { Item, TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
+import { ApprovalRulesList } from "./ApprovalRulesList";
+import { useWorkspace } from "../workspaceContext";
 import { ColumnResizer, RAIL_MIN_WIDTH } from "./ColumnResizer";
 import { Icon } from "./Icon";
 import { TitleText } from "./ApprovalCard";
@@ -101,6 +103,7 @@ export function RightRail({
   const [content, setContent] = useState<ArtifactContent | null>(null);
   const { t } = useI18n();
   const accessRef = useRef<HTMLDivElement>(null);
+  const workspace = useWorkspace();
 
   // Deep link into Access (intro "Configure ›", onboarding "Start working"): open the Permissions
   // section, where Access lives, and bring it into view.
@@ -213,6 +216,7 @@ export function RightRail({
 
           <RailSection title={t("rail.permissions")} open={open.permissions} onToggle={() => setOpen({ ...open, permissions: !open.permissions })}>
             <PermissionsSummary sessionId={sessionId} approvals={approvals as ApprovalItem[]} />
+            <ApprovalRulesList sessionId={sessionId} workspace={workspace} refreshKey={approvals.length * 1000 + approvals.filter((item) => !(item as ApprovalItem).resolved).length} />
             {/* Access is part of the permissions: the sources and folders this session can touch.
                 key: its data ownership resets with the conversation, like the old row did. */}
             <AccessSection

@@ -458,6 +458,25 @@ export const directRestoreVersion = (sessionId: string, backup: string, target: 
 export const directReadSearch = () => invokeAuthority("read_search_settings", {});
 // Egress levels (ADR-0057): where a workspace's content may be sent. Only these settings commands change them.
 export const directEgressSettings = () => invokeAuthority("get_egress_settings", {});
+// The completion webhook (B5): saved URL, the change, and a test post judged by the egress level.
+// The local library (B1): folders in it, indexing one, taking one out.
+export const directLibraryRoots = () => invokeAuthority("library_roots", {});
+export const directLibraryIndex = (root: string) => invokeAuthority("library_index", { root });
+export const directLibraryRemove = (root: string) => invokeAuthority("library_remove", { root });
+// What the user has allowed without being asked (A3): session grants and workspace rules.
+export const directApprovalRules = (sessionId: string, workspace: string) =>
+  invokeAuthority("approval_rules", { sessionId, workspace });
+export const directRevokeApprovalRule = (
+  scope: string,
+  sessionId: string,
+  workspace: string,
+  tool: string,
+  command: string | null,
+) => invokeAuthority("revoke_approval_rule", { scope, sessionId, workspace, tool, command });
+export const directWebhookSettings = () => invokeAuthority("get_webhook_settings", {});
+export const directSetWebhookSettings = (url: string | null, isEnabled: boolean, isDetailed: boolean) =>
+  invokeAuthority("set_webhook_settings", { url, isEnabled, isDetailed });
+export const directTestWebhook = (workspace: string) => invokeAuthority("test_webhook", { workspace });
 export const updateEgressDefault = (level: string, isConfirmed: boolean) =>
   invokeAuthority("set_egress_default", { level, isConfirmed });
 export const updateWorkspaceEgress = (workspace: string, level: string | null, isConfirmed: boolean) =>
@@ -503,11 +522,17 @@ export const directUpdateMemory = (id: number, content: string) =>
   invokeAuthority("memory_update", { id, content });
 export const directDeleteMemory = (id: number) =>
   invokeAuthority("memory_delete", { id });
+export const directExportMemory = () => invokeAuthority("memory_export");
+export const directImportMemory = (document: unknown) =>
+  invokeAuthority("memory_import", { document });
 export const clearMemory = () => invokeAuthority("clear_memory");
 export const fetchMemorySettings = () => invokeAuthority("memory_settings");
 export const updateMemorySettings = (patch: Record<string, unknown>) =>
   invokeAuthority("update_memory_settings", { patch });
 export const directListAutomations = () => invokeAuthority("automations_list");
+export const directGetDenialThreshold = () => invokeAuthority("automation_denial_threshold");
+export const directSetDenialThreshold = (threshold: number) =>
+  invokeAuthority("set_automation_denial_threshold", { threshold });
 export const directCreateAutomation = (payload: Record<string, unknown>) =>
   invokeAuthority("automation_create", { payload });
 export const directGetAutomation = (id: string) =>

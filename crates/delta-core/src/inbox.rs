@@ -228,6 +228,19 @@ impl InboxStore {
         title: &str,
         body: &str,
     ) -> Result<InboxItem, ShadowReadError> {
+        self.add_notice_with_data(session_id, key, title, body, Value::Null)
+    }
+
+    /// A notice that also carries structured data the Inbox shows, such as the files a finished
+    /// run produced.
+    pub fn add_notice_with_data(
+        &self,
+        session_id: &str,
+        key: &str,
+        title: &str,
+        body: &str,
+        data: Value,
+    ) -> Result<InboxItem, ShadowReadError> {
         let mut items = self.items.lock().unwrap();
         if let Some(existing) = items.iter().find(|item| {
             item.session_id == session_id
@@ -257,7 +270,7 @@ impl InboxStore {
             multi: false,
             header: String::new(),
             questions: Vec::new(),
-            data: Value::Null,
+            data,
         };
         let mut next = items.clone();
         next.push(item.clone());

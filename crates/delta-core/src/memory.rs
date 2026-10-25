@@ -7,6 +7,14 @@ use serde_json::{json, Value};
 
 use crate::{durability::atomic_write, ShadowReadError};
 
+/// Name and version of the memory export document.
+const EXPORT_FORMAT: &str = "delta.memory";
+const EXPORT_VERSION: u64 = 1;
+/// Limits on what one import may add, so a bad file cannot flood the store.
+const MAX_IMPORT_ENTRIES: usize = 2000;
+const MAX_IMPORT_CONTENT_CHARS: usize = 4000;
+const MAX_IMPORT_SCOPE_CHARS: usize = 64;
+
 pub struct MemoryStore {
     db_path: PathBuf,
     settings_path: PathBuf,
@@ -105,6 +113,92 @@ impl MemoryStore {
     pub fn delete_all(&self) -> Result<Value, ShadowReadError> {
         let deleted = self.connection()?.execute("DELETE FROM memories", [])?;
         Ok(json!({"ok": true, "deleted": deleted}))
+    }
+
+    /// Every memory as a portable document that [`MemoryStore::import`] reads back.
+    pub fn export(&self) -> Result<Value, ShadowReadError> {
+        let memories = self
+            .list()?
+            .into_iter()
+            .map(|row| {
+                json!({
+                    "scope": row["scope"],
+                    "content": row["content"],
+                    "created_at": row["created_at"],
+                })
+            })
+            .collect::<Vec<_>>();
+        Ok(json!({"format": EXPORT_FORMAT, "version": EXPORT_VERSION, "memories": memories}))
+    }
+
+    /// Add the memories of an exported document. The whole document is checked first, so one bad
+    /// entry imports nothing. A memory already stored with the same scope and content is skipped.
+    pub fn import(&self, document: &Value) -> Result<Value, ShadowReadError> {
+        if document.get("format").and_then(Value::as_str) != Some(EXPORT_FORMAT) {
+            return Err(ShadowReadError::Parse(
+                "this file is not a Delta memory export".to_string(),
+            ));
+        }
+        if document.get("version").and_then(Value::as_u64) != Some(EXPORT_VERSION) {
+            return Err(ShadowReadError::Parse(
+                "this memory export has an unsupported version".to_string(),
+            ));
+        }
+        let entries = document
+            .get("memories")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                ShadowReadError::Parse("the memory export has no memories list".to_string())
+            })?;
+        if entries.len() > MAX_IMPORT_ENTRIES {
+            return Err(ShadowReadError::Parse(format!(
+                "a memory export may hold at most {MAX_IMPORT_ENTRIES} memories"
+            )));
+        }
+        let mut checked = Vec::with_capacity(entries.len());
+        for (index, entry) in entries.iter().enumerate() {
+            let text = |key: &str| entry.get(key).and_then(Value::as_str);
+            let scope = text("scope").filter(|scope| {
+                !scope.trim().is_empty() && scope.chars().count() <= MAX_IMPORT_SCOPE_CHARS
+            });
+            let content = text("content").filter(|content| {
+                !content.trim().is_empty() && content.chars().count() <= MAX_IMPORT_CONTENT_CHARS
+            });
+            let created_at = text("created_at").filter(|stamp| {
+                !stamp.is_empty() && stamp.chars().count() <= MAX_IMPORT_SCOPE_CHARS
+            });
+            match (scope, content) {
+                (Some(scope), Some(content)) => checked.push((scope, content, created_at)),
+                _ => {
+                    return Err(ShadowReadError::Parse(format!(
+                        "memory entry {} is invalid, so nothing was imported",
+                        index + 1
+                    )))
+                }
+            }
+        }
+        let mut conn = self.connection()?;
+        let transaction = conn.transaction()?;
+        let (mut imported, mut skipped) = (0usize, 0usize);
+        for (scope, content, created_at) in checked {
+            let exists = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM memories WHERE scope = ?1 AND content = ?2)",
+                params![scope, content],
+                |row| row.get::<_, bool>(0),
+            )?;
+            if exists {
+                skipped += 1;
+                continue;
+            }
+            transaction.execute(
+                "INSERT INTO memories (scope, content, created_at)
+                 VALUES (?1, ?2, COALESCE(?3, CURRENT_TIMESTAMP))",
+                params![scope, content, created_at],
+            )?;
+            imported += 1;
+        }
+        transaction.commit()?;
+        Ok(json!({"ok": true, "imported": imported, "skipped": skipped}))
     }
 
     pub fn settings(&self) -> Result<Value, ShadowReadError> {
@@ -212,6 +306,99 @@ mod tests {
         let settings = store.settings().unwrap();
         assert_eq!(settings["enabled"], false);
         assert_eq!(settings["user_rules"], "");
+    }
+
+    #[test]
+    fn exported_memories_import_back_into_an_empty_store() {
+        let source = tempfile::tempdir().unwrap();
+        let from = MemoryStore::open(source.path()).unwrap();
+        from.add("Prefers short answers", "global", None, None)
+            .unwrap();
+        from.add("Reports are in Chinese", "global", None, None)
+            .unwrap();
+        let document = from.export().unwrap();
+        assert_eq!(document["format"], "delta.memory");
+        assert_eq!(document["version"], 1);
+
+        let target = tempfile::tempdir().unwrap();
+        let to = MemoryStore::open(target.path()).unwrap();
+        let result = to.import(&document).unwrap();
+        assert_eq!(
+            (result["imported"].as_u64(), result["skipped"].as_u64()),
+            (Some(2), Some(0))
+        );
+        let rows = to.list().unwrap();
+        let contents: Vec<&str> = rows
+            .iter()
+            .filter_map(|row| row["content"].as_str())
+            .collect();
+        assert_eq!(
+            contents,
+            ["Prefers short answers", "Reports are in Chinese"]
+        );
+        assert_eq!(rows[0]["created_at"], from.list().unwrap()[0]["created_at"]);
+    }
+
+    #[test]
+    fn importing_the_same_export_twice_skips_what_is_already_stored() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = MemoryStore::open(temp.path()).unwrap();
+        store.add("Keep me", "global", None, None).unwrap();
+        let document = json!({
+            "format": "delta.memory", "version": 1,
+            "memories": [
+                {"scope": "global", "content": "Keep me"},
+                {"scope": "global", "content": "New one"},
+                {"scope": "global", "content": "New one"},
+            ],
+        });
+        let result = store.import(&document).unwrap();
+        assert_eq!(
+            (result["imported"].as_u64(), result["skipped"].as_u64()),
+            (Some(1), Some(2))
+        );
+        assert_eq!(store.list().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_bad_memory_export_imports_nothing() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = MemoryStore::open(temp.path()).unwrap();
+        let bad_documents = [
+            json!({"format": "other", "version": 1, "memories": []}),
+            json!({"format": "delta.memory", "version": 2, "memories": []}),
+            json!({"format": "delta.memory", "version": 1}),
+            json!({"format": "delta.memory", "version": 1, "memories": [
+                {"scope": "global", "content": "Fine"},
+                {"scope": "global", "content": "   "},
+            ]}),
+            json!({"format": "delta.memory", "version": 1, "memories": [
+                {"scope": "global", "content": "Fine"},
+                {"content": "No scope"},
+            ]}),
+            json!({"format": "delta.memory", "version": 1, "memories": [
+                {"scope": "global", "content": "x".repeat(4001)},
+            ]}),
+        ];
+        for document in &bad_documents {
+            assert!(store.import(document).is_err(), "{document}");
+        }
+        assert!(
+            store.list().unwrap().is_empty(),
+            "a rejected import must add nothing"
+        );
+    }
+
+    #[test]
+    fn an_import_over_the_entry_limit_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = MemoryStore::open(temp.path()).unwrap();
+        let entries: Vec<Value> = (0..=MAX_IMPORT_ENTRIES)
+            .map(|index| json!({"scope": "global", "content": format!("memory {index}")}))
+            .collect();
+        let document = json!({"format": "delta.memory", "version": 1, "memories": entries});
+        assert!(store.import(&document).is_err());
+        assert!(store.list().unwrap().is_empty());
     }
 
     #[test]

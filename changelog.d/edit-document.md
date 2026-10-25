@@ -1,0 +1,1 @@
+- 新增: 助手可以直接修改已有的 Word、Excel 和 PowerPoint 文件（`edit_document`）：Word 与 PowerPoint 在段落内替换文字，Excel 写入单元格或区域，其余内容、样式与公式保持原样。每次修改需要你批准，改完会读回校验，原件保存在版本记录里可以恢复。详见 ADR-0063。
