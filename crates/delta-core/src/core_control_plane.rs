@@ -101,6 +101,10 @@ impl CoreControlPlane {
         for registration in crate::retrieval::tools::registrations(library.clone()) {
             capability_host.register(registration)?;
         }
+        let automations = Arc::new(Mutex::new(
+            AutomationStore::open(&state_dir).map_err(|error| error.to_string())?,
+        ));
+        capability_host.register(crate::automation::create_registration(automations.clone()))?;
 
         // Rust ApplicationStore remains the sole product credential authority.
         // Capability jobs receive only the exact grant-scoped keys requested by
@@ -149,9 +153,7 @@ impl CoreControlPlane {
             authorities: RuntimeAuthorities::open(&state_dir)?,
             capabilities: Arc::new(capability_host),
             memory: Arc::new(MemoryStore::open(&state_dir).map_err(|error| error.to_string())?),
-            automations: Arc::new(Mutex::new(
-                AutomationStore::open(&state_dir).map_err(|error| error.to_string())?,
-            )),
+            automations,
             mcp: Arc::new(McpStore::open(&state_dir).map_err(|error| error.to_string())?),
             mcp_runtime: Arc::new(McpRuntime::new()),
             skills,
@@ -608,7 +610,7 @@ impl CoreControlPlane {
             } else {
                 ExecutionMode::Execute
             },
-            ..config
+            ..self.with_compaction_settings(&model_id, config)
         };
 
         if let Err(error) = control_plane::ensure_session(
@@ -681,11 +683,28 @@ impl CoreControlPlane {
                 .with_tools(visible_tools)
                 .with_tool_executor(self.capabilities.clone())
                 .with_event_sink(sink);
+            let mut seeded_len = 0usize;
             if let Ok(messages) = control_plane::get_session_messages(&self.state_dir, &session_id)
             {
                 if let Some(messages) = messages.get("messages").and_then(Value::as_array).cloned()
                 {
+                    seeded_len = messages.len();
                     host = host.with_messages(messages);
+                }
+            }
+            // A persisted compaction is reloaded with the transcript: the
+            // boundary indexes the append-only log, so it survives restarts.
+            // A stale index (a transcript that somehow shrank) clamps to the
+            // seeded history instead of swallowing it.
+            if let Ok(Some(compaction)) =
+                control_plane::get_session_compaction(&self.state_dir, &session_id)
+            {
+                if let (Some(summary), Some(boundary)) = (
+                    compaction.get("summary").and_then(Value::as_str),
+                    compaction.get("boundary").and_then(Value::as_u64),
+                ) {
+                    host = host
+                        .with_compaction(summary.to_string(), (boundary as usize).min(seeded_len));
                 }
             }
             let handle = match RuntimeHandle::spawn(host) {
@@ -872,7 +891,7 @@ impl CoreControlPlane {
             .map_err(|_| "model authority lock poisoned".to_string())
             .and_then(|models| models.resolve_runtime_config(model_id))
         {
-            Ok(config) => config,
+            Ok(config) => self.with_compaction_settings(model_id, config),
             Err(error) => return json!({"ok": false, "error": error}),
         };
         match self.runtime_handle(session_id) {
@@ -893,6 +912,36 @@ impl CoreControlPlane {
             },
             None => json!({"ok": false, "error": format!("session not found: {session_id}")}),
         }
+    }
+
+    /// Fill the context-compaction settings of a runtime config: the model's
+    /// catalog context window plus the persisted product preferences. The
+    /// threshold and cap were validated when they were saved, so the values
+    /// are only bounded again defensively here.
+    fn with_compaction_settings(&self, model_id: &str, mut config: RuntimeConfig) -> RuntimeConfig {
+        let prefs = crate::model_authority::prefs_at(&self.state_dir).unwrap_or_default();
+        let product = crate::product_settings::ProductSettings::snapshot(&prefs);
+        config.context_window_tokens = crate::model_catalog::MODEL_MATRIX
+            .iter()
+            .find(|(id, _, _)| *id == model_id.trim())
+            .and_then(|(_, _, window)| *window);
+        config.compaction_threshold_pct = product
+            .get("compaction_threshold_pct")
+            .and_then(Value::as_f64)
+            .filter(|value| (0.10..=0.95).contains(value))
+            .unwrap_or(0.8);
+        config.compaction_cap_tokens = product
+            .get("compaction_cap_tokens")
+            .and_then(Value::as_i64)
+            .map(|value| value.clamp(10_000, 2_000_000) as u64)
+            .unwrap_or(250_000);
+        config.compaction_model = product
+            .get("compaction_model")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        config
     }
 
     /// Read inbox state through the Core authority boundary. Product shells

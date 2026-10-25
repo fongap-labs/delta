@@ -742,6 +742,49 @@ pub fn set_unattended(
     Ok(json!({"ok": changed > 0, "unattended": unattended}))
 }
 
+/// Persist a session's context compaction state: the summary and the
+/// transcript boundary it replaces (`messages[..boundary]` collapse into the
+/// summary for outbound requests; the transcript itself is never rewritten).
+pub fn set_session_compaction(
+    state_dir: &Path,
+    session_id: &str,
+    compaction: &Value,
+) -> Result<(), ShadowReadError> {
+    if !safe_session_id(session_id) {
+        return Err(ShadowReadError::Parse("unsafe session id".to_string()));
+    }
+    let payload = serde_json::to_string(compaction).map_err(ShadowReadError::from)?;
+    let conn = open_conn(&state_dir.join("core.db"))?;
+    conn.execute(
+        "UPDATE sessions SET compaction = ?1, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?2",
+        params![payload, session_id],
+    )?;
+    Ok(())
+}
+
+pub fn get_session_compaction(
+    state_dir: &Path,
+    session_id: &str,
+) -> Result<Option<Value>, ShadowReadError> {
+    if !safe_session_id(session_id) {
+        return Err(ShadowReadError::Parse("unsafe session id".to_string()));
+    }
+    let db_path = state_dir.join("core.db");
+    if !db_path.exists() {
+        return Ok(None);
+    }
+    let conn = open_conn(&db_path)?;
+    let mut stmt = conn.prepare("SELECT compaction FROM sessions WHERE session_id = ?1")?;
+    let mut rows = stmt.query(params![session_id])?;
+    let Some(row) = rows.next()? else {
+        return Ok(None);
+    };
+    let raw: Option<String> = row.get(0)?;
+    raw.filter(|value| !value.trim().is_empty())
+        .map(|value| serde_json::from_str::<Value>(&value).map_err(ShadowReadError::from))
+        .transpose()
+}
+
 fn parse_roots(raw: Option<String>) -> Vec<Value> {
     raw.and_then(|value| serde_json::from_str::<Vec<Value>>(&value).ok())
         .unwrap_or_default()

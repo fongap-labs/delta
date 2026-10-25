@@ -63,6 +63,8 @@ impl CapabilityHost {
         for registration in crate::statistics::method_registrations() {
             host.register(registration)?;
         }
+        host.register(super::shell::shell_registration())?;
+        host.register(crate::todo::write_registration())?;
         host.register(interaction_registration(
             "request_directory",
             "Request access to an additional directory.",

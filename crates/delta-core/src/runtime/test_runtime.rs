@@ -3675,3 +3675,184 @@ fn a_connector_tool_without_a_declared_destination_is_refused_under_private_only
     assert!(result.error.is_some());
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
+
+// Compaction tests -----------------------------------------------------------
+
+/// A minimal mock provider that answers `provider::complete`'s non-streaming
+/// OpenAI Chat Completions request with a fixed message body.
+struct MockJsonProvider {
+    base_url: String,
+    /// Keeps the accept-loop thread alive until the test drops the provider.
+    _worker: std::thread::JoinHandle<()>,
+}
+
+impl MockJsonProvider {
+    fn start(body: String) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind json provider");
+        let address = listener.local_addr().expect("json provider address");
+        let served = body.clone();
+        let worker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept json request");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _ = read_http_request(&mut stream);
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
+            write!(stream, "{served}").unwrap();
+            stream.flush().unwrap();
+        });
+        Self {
+            base_url: format!("http://{address}/v1"),
+            _worker: worker,
+        }
+    }
+}
+
+#[test]
+fn a_compacted_session_replaces_the_prefix_with_the_summary() {
+    let messages = vec![
+        json!({"role": "system", "content": "you are helpful"}),
+        json!({"role": "user", "content": "part one"}),
+        json!({"role": "assistant", "content": "reply one"}),
+        json!({"role": "user", "content": "the live question"}),
+    ];
+    let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(messages);
+    host.compaction_summary = Some("SUPER".to_string());
+    host.compaction_boundary = 3; // history 0..3 -> system + summary, keep [3] (live)
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["system", "user", "user"]);
+    assert_eq!(out[0]["content"], "you are helpful");
+    assert!(out[1]["content"].as_str().unwrap().contains("SUPER"));
+    assert_eq!(out[2]["content"], "the live question");
+
+    // A stale boundary from a prior session clamps to the transcript instead of
+    // swallowing it.
+    host.compaction_boundary = 100;
+    let out = host.outbound_messages();
+    assert!(out
+        .iter()
+        .any(|m| m.get("role").and_then(|r| r.as_str()) == Some("assistant")));
+}
+
+#[test]
+fn compaction_estimate_counts_text_tokens_only() {
+    let messages = vec![
+        json!({"role": "system", "content": "s"}),
+        json!({"role": "user", "content": "a".repeat(400)}),
+        json!({"role": "assistant", "content": "b".repeat(400)}),
+    ];
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(messages);
+    let estimate = host.estimate_context_tokens();
+    assert!(estimate >= 200, "chars/4 ~ 200; got {estimate}");
+    assert!(estimate < 300, "overhead is bounded; got {estimate}");
+}
+
+#[test]
+fn a_short_context_does_not_compact() {
+    let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "system", "content": "s"}),
+        json!({"role": "user", "content": "hi"}),
+    ]);
+    let mut confirmed = false;
+    // window None, cap 250000 -> threshold 250000; estimate is tiny.
+    assert!(host.maybe_compact(&mut confirmed).is_ok());
+    assert!(!confirmed);
+    assert!(!host.compacted_in_turn);
+}
+
+#[test]
+fn a_full_context_triggers_one_compaction_per_turn() {
+    let prompt = "x".repeat(200_000);
+    let config = RuntimeConfig {
+        context_window_tokens: Some(20_000),
+        compaction_threshold_pct: 0.5, // threshold 10k tokens; estimate ~50k -> must compact.
+        ..RuntimeConfig::default()
+    };
+    let mut host = RuntimeHost::new("s", config).with_messages(vec![
+        json!({"role": "system", "content": "s"}),
+        json!({"role": "user", "content": &prompt}),
+        json!({"role": "assistant", "content": &prompt}),
+    ]);
+    let mut confirmed = false;
+    // No base_url authority: the summarizer HTTP call fails, but the trigger
+    // still fires and marks the turn as compacted so it is not retried.
+    let result = host.maybe_compact(&mut confirmed);
+    assert!(result.is_err(), "a summarizer failure is propagated");
+    assert!(host.compacted_in_turn);
+    // The second attempt in the same turn is a no-op regardless of failure.
+    let before = host.compaction_boundary;
+    let _ = host.maybe_compact(&mut confirmed);
+    assert_eq!(before, host.compaction_boundary);
+}
+
+#[test]
+fn a_successful_compaction_replaces_future_messages() {
+    let prompt = "x".repeat(200_000);
+    let provider = MockJsonProvider::start(
+        r#"{"choices":[{"message":{"content":"THE SUMMARY"}}]}"#.to_string(),
+    );
+    let config = RuntimeConfig {
+        base_url: provider.base_url.clone(),
+        api_key: "test-key".to_string(),
+        context_window_tokens: Some(20_000),
+        compaction_threshold_pct: 0.5,
+        ..RuntimeConfig::default()
+    };
+    let mut host = RuntimeHost::new("s", config).with_messages(vec![
+        json!({"role": "system", "content": "s"}),
+        json!({"role": "user", "content": &prompt}),
+        json!({"role": "assistant", "content": &prompt}),
+        json!({"role": "user", "content": "live input"}),
+    ]);
+    let mut confirmed = false;
+    assert!(host.maybe_compact(&mut confirmed).is_ok());
+    assert_eq!(
+        host.compaction_summary.as_deref(),
+        Some("THE SUMMARY"),
+        "the persisted summary is installed for outbound requests"
+    );
+    let out = host.outbound_messages();
+    let last = out.last().unwrap();
+    assert_eq!(
+        last["content"], "live input",
+        "the live user input is kept verbatim"
+    );
+    assert!(
+        out.iter()
+            .any(|m| m["content"].as_str().unwrap().contains("THE SUMMARY")),
+        "the summary replaces the collapsed history"
+    );
+    drop(provider);
+}
+
+#[test]
+fn the_registry_round_trips_a_session_compaction() {
+    let temp = tempfile::tempdir().unwrap();
+    let state_dir = temp.path();
+    crate::control_plane::ensure_session(state_dir, "session-c", None, "test-model").unwrap();
+    crate::control_plane::set_session_compaction(
+        state_dir,
+        "session-c",
+        &json!({
+            "summary": "A summary",
+            "boundary": 7,
+            "created_at": 1.0,
+        }),
+    )
+    .unwrap();
+    let persisted = crate::control_plane::get_session_compaction(state_dir, "session-c")
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted["summary"], json!("A summary"));
+    assert_eq!(persisted["boundary"], json!(7));
+    let missing = crate::control_plane::get_session_compaction(state_dir, "session-missing");
+    assert!(
+        matches!(missing, Ok(None)),
+        "missing session has no compaction"
+    );
+}

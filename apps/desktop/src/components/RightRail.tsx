@@ -68,8 +68,6 @@ interface Props {
   onOpenIntegrations?: () => void;
   // This session's approval items: the Permissions section lists their decisions.
   approvals?: Item[];
-  // The rail footer points to the full record in Audit.
-  onOpenAudit?: () => void;
   // Drag handle on the rail's left edge. The parent owns the width (see ColumnResizer).
   onResize?: (width: number) => void;
   resizeMaxWidth?: () => number;
@@ -89,7 +87,6 @@ export function RightRail({
   openAccessKey = 0,
   onOpenIntegrations,
   approvals = [],
-  onOpenAudit,
   onResize,
   resizeMaxWidth,
 }: Props) {
@@ -269,16 +266,6 @@ export function RightRail({
             )}
           </RailSection>
           )}
-
-          {/* Footer: the rail shows the live state; the full, dated record lives in Audit. */}
-          <button
-            className="rail-section flex w-full items-center gap-2 text-left text-[12px] text-muted hover:text-ink"
-            data-testid="rail-footer"
-            onClick={() => onOpenAudit?.()}
-          >
-            <Icon name="shield" size={14} className="shrink-0" />
-            <span>{t("rail.footer")}</span>
-          </button>
         </>
       )}
     </aside>

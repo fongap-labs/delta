@@ -95,11 +95,4 @@ describe("RightRail permissions section and footer", () => {
     const titles = Array.from(document.querySelectorAll(".rail-section-toggle")).map((el) => el.textContent);
     expect(titles.filter((title) => title?.startsWith("Access"))).toEqual([]);
   });
-
-  it("the footer opens Audit", async () => {
-    const onOpenAudit = vi.fn();
-    render(wrap(<RightRail {...props({ onOpenAudit })} />));
-    fireEvent.click(await screen.findByTestId("rail-footer"));
-    expect(onOpenAudit).toHaveBeenCalledTimes(1);
-  });
 });

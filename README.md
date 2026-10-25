@@ -77,7 +77,7 @@ Delta 提供两种使用方式：**便携包直接运行**（无需安装开发�
 
 ### 路径 A: 使用便携包（推荐，无需安装开发工具链）
 
-便携包已内置 Rust 运行时、Python 扩展模块（经 PyO3 编译）与前端资源，**无需预装 Python、Node.js、Rust、uv**。仅需系统满足：
+便携包已内置 Rust 运行时与前端资源，**无需预装 Node.js、Rust、uv**。仅需系统满足：
 
 - **WebView2 运行时**：Windows 10 1809+ / Windows 11 自带；若缺失，首启会提示安装（几 MB）
 - **Visual C++ Redistributable**：绝大多数 Windows 已装；缺失时会报 `VCRUNTIME140.dll` 错误，需安装 [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)

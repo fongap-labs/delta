@@ -1,4 +1,4 @@
-//! Rust Application Control Plane authority for automations, scheduler state,
+﻿//! Rust Application Control Plane authority for automations, scheduler state,
 //! and run identity.
 
 use std::path::{Path, PathBuf};
@@ -632,6 +632,122 @@ fn next_task_run(task: &Value, is_scheduled_tick: bool) -> Option<f64> {
     )
 }
 
+/// The model-facing tool that files a new automation: one approved call creates
+/// the task in the Rust authority, with its schedule validated before anything
+/// is stored. Like `save_skill`, the write itself is the approval's outcome —
+/// the tool carries no file or exec grants of its own.
+pub fn create_registration(
+    store: std::sync::Arc<std::sync::Mutex<AutomationStore>>,
+) -> crate::capability::CapabilityRegistration {
+    use crate::capability::{CapabilityControl, CapabilityGrants, CapabilityResult};
+
+    crate::capability::CapabilityRegistration {
+        capability_id: "automation.create".to_owned(),
+        tool_name: "create_scheduled_task".to_owned(),
+        description: "Create a scheduled automation from the user's request: a title, the \
+            instructions it should run with, and a schedule (a five-field cron expression, or \
+            one fire_at time in RFC 3339). The automation runs unattended later; name the \
+            permissions it needs only if the user asked for them."
+            .to_owned(),
+        parameters: json!({
+            "type": "object", "required": ["title", "instructions"],
+            "properties": {
+                "title": {"type": "string", "description": "Short task name shown in the task center."},
+                "instructions": {"type": "string", "description": "What to do on each run, written for an agent running without the user present."},
+                "cron": {"type": "string", "description": "Five-field cron expression in local time (for example 0 9 * * 1 for Mondays at 09:00). Either cron or fire_at is required."},
+                "fire_at": {"type": "string", "description": "One-off run time in RFC 3339 (for example 2026-11-01T09:00:00+08:00)."},
+                "timezone": {"type": "string", "description": "IANA time zone for the schedule; defaults to local time."},
+                "workspace": {"type": "string", "description": "Workspace the automation runs in; defaults to none."},
+                "permissions": {
+                    "type": "array",
+                    "description": "Standing permissions for unattended runs (for example [{\"tool\": \"send_message\", \"target\": \"slack:T1/C1\", \"access\": \"write\"}]).",
+                    "items": {"type": "object"}
+                }
+            }
+        }),
+        metadata: json!({
+            "risk_level": "medium", "requires_approval": true,
+            "category": "automation", "capabilities": ["automation.create"]
+        }),
+        // Files a task record in the Rust automation authority: a reversible
+        // local write the user approves in the approval card.
+        side_effect: crate::skills::SideEffectClass::LocalWrite,
+        grants: CapabilityGrants::default(),
+        workspace_write: false,
+        runner: std::sync::Arc::new(crate::capability::NativeCapabilityRunner::new(
+            move |job, control: &CapabilityControl| {
+                if control.is_cancelled() {
+                    return CapabilityResult::cancelled(&job.job_id);
+                }
+                let text = |key: &str| {
+                    job.arguments
+                        .get(key)
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string()
+                };
+                let cron = text("cron");
+                let fire_at = text("fire_at");
+                if cron.is_empty() && fire_at.is_empty() {
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        "a schedule is required: give a cron expression or a fire_at time",
+                        Some("schedule_required"),
+                    );
+                }
+                // Reuse the store's own parser: a schedule that would never fire
+                // is refused here instead of being filed as a manual task.
+                if next_run(
+                    (!cron.is_empty()).then_some(cron.as_str()),
+                    (!fire_at.is_empty()).then_some(fire_at.as_str()),
+                )
+                .is_none()
+                {
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        "the schedule could not be parsed; use a five-field cron expression or an RFC 3339 time",
+                        Some("invalid_schedule"),
+                    );
+                }
+                let payload = json!({
+                    "title": text("title"),
+                    "instructions": text("instructions"),
+                    "cron": cron,
+                    "fire_at": fire_at,
+                    "timezone": text("timezone"),
+                    "workspace": text("workspace"),
+                    "permissions": job.arguments.get("permissions").cloned().unwrap_or_else(|| json!([])),
+                });
+                let Ok(guard) = store.lock() else {
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        "the automation store is unavailable",
+                        Some("store_locked"),
+                    );
+                };
+                match guard.create(&payload) {
+                    Ok(result) if result.get("ok").and_then(Value::as_bool) == Some(true) => {
+                        CapabilityResult::completed(&job.job_id, result)
+                    }
+                    Ok(result) => {
+                        let reason = result
+                            .get("error")
+                            .and_then(Value::as_str)
+                            .unwrap_or("could not create the automation");
+                        CapabilityResult::failed(&job.job_id, reason, Some("automation_rejected"))
+                    }
+                    Err(error) => CapabilityResult::failed(
+                        &job.job_id,
+                        &error.to_string(),
+                        Some("automation_rejected"),
+                    ),
+                }
+            },
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -880,5 +996,115 @@ mod tests {
             second.get(&id).unwrap()["runs"].as_array().unwrap().len(),
             1
         );
+    }
+
+    fn tool_control() -> crate::capability::CapabilityControl {
+        use std::sync::atomic::AtomicBool;
+        let progress: std::sync::Arc<dyn Fn(crate::capability::CapabilityProgress) + Send + Sync> =
+            std::sync::Arc::new(|_| {});
+        crate::capability::CapabilityControl::new(
+            std::sync::Arc::new(AtomicBool::new(false)),
+            progress,
+        )
+    }
+
+    fn tool_job(arguments: Value) -> crate::capability::CapabilityJob {
+        crate::capability::CapabilityJob::new("automation.create", "job-automation-test", arguments)
+    }
+
+    fn run_tool(arguments: Value) -> crate::capability::CapabilityResult {
+        let store = std::sync::Arc::new(std::sync::Mutex::new(
+            AutomationStore::open(std::env::temp_dir().join("automation-tool-tests"))
+                .expect("open automation store"),
+        ));
+        let runner = create_registration(store);
+        runner.runner.run(&tool_job(arguments), &tool_control())
+    }
+
+    #[test]
+    fn the_create_tool_files_a_valid_cron_automation() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = std::sync::Arc::new(std::sync::Mutex::new(
+            AutomationStore::open(temp.path()).unwrap(),
+        ));
+        let runner = create_registration(store.clone());
+        let result = runner.runner.run(
+            &tool_job(json!({
+                "title": "Weekly digest",
+                "instructions": "Summarize the week.",
+                "cron": "0 9 * * 1",
+            })),
+            &tool_control(),
+        );
+        assert_eq!(
+            result.state,
+            crate::capability::CapabilityExitState::Completed
+        );
+        let task = result.result.unwrap()["task"].clone();
+        assert_eq!(task["title"], "Weekly digest");
+        assert!(
+            task["next_run"].as_f64().is_some(),
+            "cron yields a next run"
+        );
+        let listed = store.lock().unwrap().list().unwrap();
+        assert_eq!(listed.len(), 1);
+    }
+
+    #[test]
+    fn the_create_tool_refuses_an_automation_without_a_schedule() {
+        let result = run_tool(json!({
+            "title": "No schedule",
+            "instructions": "Run",
+        }));
+        assert_eq!(result.state, crate::capability::CapabilityExitState::Failed);
+        let diagnostics = result.diagnostics.expect("failure carries diagnostics");
+        assert_eq!(diagnostics.error_code.as_deref(), Some("schedule_required"));
+    }
+
+    #[test]
+    fn the_create_tool_refuses_an_unparsable_schedule() {
+        for arguments in [
+            json!({"title": "Bad cron", "instructions": "Run", "cron": "not a cron"}),
+            json!({"title": "Bad time", "instructions": "Run", "fire_at": "tomorrow morning"}),
+        ] {
+            let result = run_tool(arguments);
+            assert_eq!(result.state, crate::capability::CapabilityExitState::Failed);
+            let diagnostics = result.diagnostics.expect("failure carries diagnostics");
+            assert_eq!(
+                diagnostics.error_code.as_deref(),
+                Some("invalid_schedule"),
+                "{:?}",
+                diagnostics.error_message
+            );
+        }
+    }
+
+    #[test]
+    fn the_create_tool_surfaces_the_store_rejection() {
+        let result = run_tool(json!({
+            "title": "  ",
+            "instructions": "Run",
+            "cron": "0 9 * * 1",
+        }));
+        assert_eq!(result.state, crate::capability::CapabilityExitState::Failed);
+        let message = result
+            .diagnostics
+            .expect("failure carries diagnostics")
+            .error_message
+            .unwrap_or_default();
+        assert!(message.contains("title and instructions are required"));
+    }
+
+    #[test]
+    fn the_create_registration_declares_an_approvable_automation_tool() {
+        let store = std::sync::Arc::new(std::sync::Mutex::new(
+            AutomationStore::open(std::env::temp_dir().join("automation-tool-tests")).unwrap(),
+        ));
+        let registration = create_registration(store);
+        assert_eq!(registration.tool_name, "create_scheduled_task");
+        assert_eq!(registration.metadata["category"], "automation");
+        assert_eq!(registration.metadata["requires_approval"], json!(true));
+        assert!(!registration.grants.exec);
+        assert!(!registration.workspace_write);
     }
 }

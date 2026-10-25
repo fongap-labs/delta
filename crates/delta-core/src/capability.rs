@@ -22,6 +22,7 @@ mod abi;
 mod host;
 mod registry;
 mod runners;
+mod shell;
 
 pub use abi::*;
 pub(crate) use host::resolve_read_path;
@@ -30,6 +31,7 @@ pub use registry::{
     CapabilityControl, CapabilityRegistration, CapabilityRegistry, CapabilityRunner,
 };
 pub use runners::{McpCapabilityRunner, NativeCapabilityRunner, WorkerProcessRunner};
+pub use shell::shell_registration;
 
 #[cfg(test)]
 use crate::runtime::{ToolCall, ToolExecutionContext, ToolExecutor};
@@ -215,6 +217,7 @@ mod tests {
                 "report_check",
                 "report_render",
                 "request_directory",
+                "run_shell",
                 "statistics_anova",
                 "statistics_chisq",
                 "statistics_correlation",
@@ -224,6 +227,7 @@ mod tests {
                 "statistics_regression",
                 "statistics_ttest",
                 "study_evaluate",
+                "todo_write",
                 "web_fetch",
                 "web_search",
                 "write_file"
