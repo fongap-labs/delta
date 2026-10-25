@@ -100,6 +100,34 @@ export function InboxView({
 
   const visible = items.filter((it) => kind === "all" || it.kind === kind);
 
+  // Pending items grouped by the task that raised them, in the order they first appear. A task
+  // with several waiting items gets a header; with two or more approvals it also gets the batch
+  // answers.
+  const groups: { sessionId: string; title: string; items: InboxItem[] }[] = [];
+  for (const it of visible) {
+    let group = groups.find((candidate) => candidate.sessionId === it.session_id);
+    if (!group) {
+      group = {
+        sessionId: it.session_id,
+        title: it.session_title || t("nav.untitledTask", undefined, "New task"),
+        items: [],
+      };
+      groups.push(group);
+    }
+    group.items.push(it);
+  }
+
+  // One answer for every approval of a task. Allowing several at once is a bigger decision than
+  // allowing one, so it names what is being allowed and asks first; denying needs no question.
+  const resolveAll = async (approvals: InboxItem[], resolution: "allow" | "deny") => {
+    if (resolution === "allow") {
+      const tools = Array.from(new Set(approvals.map((item) => String(item.data?.tool ?? item.title)))).join(", ");
+      if (!window.confirm(t("inbox.batch.confirmAllow", { n: approvals.length, tools }))) return;
+    }
+    for (const item of approvals) await resolveInboxItem(item.id, resolution);
+    load();
+  };
+
   // The originating-session chip links back to the Delta task.
   const sessionChip = (it: InboxItem) => {
     const exists = it.session_exists !== false;
@@ -221,9 +249,33 @@ export function InboxView({
               ) : null}
 
               <div className="space-y-4">
-                {visible.map((it) => (
-                  <InboxItemCard key={it.id} item={it} onResolve={resolve} chip={sessionChip(it)} />
-                ))}
+                {groups.map((group) => {
+                  const approvals = group.items.filter((it) => it.kind === "approval");
+                  return (
+                    <div key={group.sessionId} className="space-y-4" data-testid="inbox-group">
+                      {group.items.length > 1 && (
+                        <div className="flex items-center gap-2 text-[12px] text-muted" data-testid="inbox-group-head">
+                          <span className="font-medium text-ink truncate">{group.title}</span>
+                          <span>{t("inbox.group.count", { n: group.items.length })}</span>
+                          <span className="flex-1" />
+                          {approvals.length > 1 && (
+                            <>
+                              <button className={CHIP(false)} data-testid="inbox-allow-all" onClick={() => void resolveAll(approvals, "allow")}>
+                                {t("inbox.batch.allowAll", { n: approvals.length })}
+                              </button>
+                              <button className={CHIP(false)} data-testid="inbox-deny-all" onClick={() => void resolveAll(approvals, "deny")}>
+                                {t("inbox.batch.denyAll", { n: approvals.length })}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {group.items.map((it) => (
+                        <InboxItemCard key={it.id} item={it} onResolve={resolve} chip={sessionChip(it)} />
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
