@@ -459,6 +459,10 @@ export const directReadSearch = () => invokeAuthority("read_search_settings", {}
 // Egress levels (ADR-0057): where a workspace's content may be sent. Only these settings commands change them.
 export const directEgressSettings = () => invokeAuthority("get_egress_settings", {});
 // The completion webhook (B5): saved URL, the change, and a test post judged by the egress level.
+// The local library (B1): folders in it, indexing one, taking one out.
+export const directLibraryRoots = () => invokeAuthority("library_roots", {});
+export const directLibraryIndex = (root: string) => invokeAuthority("library_index", { root });
+export const directLibraryRemove = (root: string) => invokeAuthority("library_remove", { root });
 // What the user has allowed without being asked (A3): session grants and workspace rules.
 export const directApprovalRules = (sessionId: string, workspace: string) =>
   invokeAuthority("approval_rules", { sessionId, workspace });

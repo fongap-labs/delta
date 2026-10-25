@@ -579,6 +579,29 @@ pub fn set_egress_default(
     }
 }
 
+/// The local library (B1): the folders in it, adding or refreshing one (which reads the files and
+/// can take minutes, so it runs off the UI thread), and taking one out.
+#[tauri::command]
+pub fn library_roots(state: State<'_, RuntimeRegistry>) -> Value {
+    state.library_roots()
+}
+
+#[tauri::command]
+pub async fn library_index(
+    state: State<'_, RuntimeRegistry>,
+    root: String,
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || registry.library_index(&root))
+        .await
+        .map_err(|error| format!("the indexing stopped unexpectedly: {error}"))
+}
+
+#[tauri::command]
+pub fn library_remove(state: State<'_, RuntimeRegistry>, root: String) -> Value {
+    state.library_remove(&root)
+}
+
 /// The completion webhook (B5): the saved setting, its change, and a test post.
 #[tauri::command]
 pub fn get_webhook_settings(state: State<'_, RuntimeRegistry>) -> Value {

@@ -89,3 +89,14 @@ describe("humanize statistics tools", () => {
     expect(humanizeTool("statistics_doe", {})).toMatchObject({ pre: "Laid out an experiment design" });
   });
 });
+
+describe("humanize library tools", () => {
+  it("shows what was searched and says an index update reads files", () => {
+    expect(humanizeTool("library_search", { query: "supplier audit" })).toMatchObject({
+      pre: "Searched your library for ",
+      obj: "“supplier audit”",
+    });
+    expect(humanizeTool("library_index", {})).toMatchObject({ pre: "Updated the library index" });
+    expect(humanizeApprovalTitle("library_index", {}).pre).toContain("library index");
+  });
+});

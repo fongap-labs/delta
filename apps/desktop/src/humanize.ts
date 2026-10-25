@@ -195,6 +195,10 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.statistics",
         obj: name.slice("statistics_".length),
       };
+    case "library_search":
+      return { pre: "Searched your library for ", preKey: "humanize.librarySearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "library_index":
+      return { pre: "Updated the library index", preKey: "humanize.libraryIndex" };
     case "statistics_doe":
       return { pre: "Laid out an experiment design", preKey: "humanize.statisticsDoe" };
     case "read_skill":
@@ -243,6 +247,8 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       };
     case "create_document":
       return { pre: "Create ", preKey: "humanize.apCreate", obj: baseName(String(a.path ?? "a document")) };
+    case "library_index":
+      return { pre: "Read the files in a folder to update the library index", preKey: "humanize.apLibraryIndex" };
     case "model.request":
       return { pre: "Send this task to ", preKey: "humanize.apModelRequest", obj: String(a.endpoint ?? "the model") };
     case "screenshot":

@@ -41,6 +41,7 @@ pub mod private_fs;
 mod product_settings;
 pub mod provider;
 pub mod redact;
+pub mod retrieval;
 pub mod retry;
 pub mod runtime;
 pub mod skills;

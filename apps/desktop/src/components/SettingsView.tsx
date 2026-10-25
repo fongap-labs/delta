@@ -54,6 +54,7 @@ import { PanelHead } from "./IntegrationsView";
 import { useDialogPref } from "./ApprovalModal";
 import { Toggle } from "./Toggle";
 import { PrivacySection } from "./PrivacySection";
+import { LibrarySection } from "./LibrarySection";
 import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
 import { SkillsTab } from "./SkillsTab";
@@ -65,7 +66,7 @@ import { SkillsTab } from "./SkillsTab";
 // Models + Skills host the existing tab components inside the page shell.
 // "appearance" is the General tab's stable key — callers deep-link with it, so the
 // rename (UX-021) changed only the label. "files" folded into General as a card.
-type SetTab = "appearance" | "models" | "privacy" | "skills" | "voice" | "memory";
+type SetTab = "appearance" | "models" | "privacy" | "skills" | "library" | "voice" | "memory";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
 const ZH_CN_LABEL = "简体中文";
@@ -80,12 +81,13 @@ const BTN_BORDERED =
 const SET_TABS: {
   key: SetTab;
   labelKey: TranslationKey;
-  icon: "sliders" | "code" | "shield" | "mic" | "archive" | "book";
+  icon: "sliders" | "code" | "shield" | "mic" | "archive" | "book" | "folder";
 }[] = [
   { key: "appearance", labelKey: "settings.general.title", icon: "sliders" },
   { key: "models", labelKey: "settings.models.title", icon: "code" },
   { key: "privacy", labelKey: "settings.privacy.title", icon: "shield" },
   { key: "skills", labelKey: "settings.skills.title", icon: "book" },
+  { key: "library", labelKey: "settings.library.title", icon: "folder" },
   { key: "voice", labelKey: "settings.voice.title", icon: "mic" },
   { key: "memory", labelKey: "settings.memory.title", icon: "archive" },
 ];
@@ -175,6 +177,11 @@ export function SettingsView({
             </section>
           ) : tab === "skills" ? (
             <SkillsTab onCreateSkill={onCreateSkill} />
+          ) : tab === "library" ? (
+            <section>
+              <PanelHead title={t("settings.library.title")} sub={t("settings.library.sub")} />
+              <LibrarySection />
+            </section>
           ) : tab === "voice" ? (
             <VoiceInputSection />
           ) : tab === "memory" ? (

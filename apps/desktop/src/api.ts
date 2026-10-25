@@ -35,6 +35,9 @@ import {
   directPickFolder,
   directEgressSettings,
   directWebhookSettings,
+  directLibraryRoots,
+  directLibraryIndex,
+  directLibraryRemove,
   directApprovalRules,
   directRevokeApprovalRule,
   directSetWebhookSettings,
@@ -346,6 +349,48 @@ export type PathRule = "allow" | "ask" | "deny";
 export type EgressChange =
   | ({ ok: true } & EgressSettings)
   | { ok: false; needs_confirmation?: boolean; error?: string };
+
+/** One folder of the local library. */
+export interface LibraryRoot {
+  root: string;
+  version: number;
+  indexed_at: string | null;
+  files: number;
+  chunks: number;
+  skipped: number;
+}
+
+/** What an indexing run did. `is_complete` is false when it stopped early; run it again to carry on. */
+export interface LibraryIndexReport {
+  root: string;
+  version: number;
+  files_seen: number;
+  files_indexed: number;
+  files_unchanged: number;
+  files_skipped: number;
+  files_removed: number;
+  chunks: number;
+  is_complete: boolean;
+  seconds: number;
+}
+
+export async function getLibraryRoots(): Promise<LibraryRoot[]> {
+  const out = await directLibraryRoots();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the library");
+  return out.roots as LibraryRoot[];
+}
+
+export async function indexLibraryRoot(root: string): Promise<LibraryIndexReport> {
+  const out = await directLibraryIndex(root);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not index that folder");
+  return out as LibraryIndexReport;
+}
+
+export async function removeLibraryRoot(root: string): Promise<boolean> {
+  const out = await directLibraryRemove(root);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not remove that folder");
+  return !!out.removed;
+}
 
 /** One thing the user allowed without being asked: a tool, or one command of a command tool. */
 export interface ApprovalRule {

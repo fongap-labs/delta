@@ -56,6 +56,7 @@ pub struct CoreControlPlane {
     mcp: Arc<McpStore>,
     mcp_runtime: Arc<McpRuntime>,
     skills: Arc<SkillStore>,
+    library: Arc<crate::retrieval::Library>,
     application: Arc<ApplicationStore>,
 }
 
@@ -74,6 +75,30 @@ impl CoreControlPlane {
         let skills = Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?);
         capability_host.register(crate::skills::save_registration(skills.clone()))?;
         for registration in crate::skills::lookup_registrations(skills.clone()) {
+            capability_host.register(registration)?;
+        }
+        let library_state = state_dir.clone();
+        let library = Arc::new(
+            crate::retrieval::Library::open(&state_dir)?.with_hook(Arc::new(move |report| {
+                // The library's own version is the authority; the ledger keeps a record that it moved.
+                let written =
+                    crate::ledger::LedgerWriter::open(library_state.join("run_events.db"))
+                        .and_then(|ledger| {
+                            ledger.append(
+                                "$source",
+                                "source.indexed",
+                                "runtime",
+                                crate::retrieval::now_seconds(),
+                                &report.to_json(),
+                                &report.root,
+                            )
+                        });
+                if let Err(error) = written {
+                    eprintln!("library: could not record source.indexed: {error}");
+                }
+            })),
+        );
+        for registration in crate::retrieval::tools::registrations(library.clone()) {
             capability_host.register(registration)?;
         }
 
@@ -130,6 +155,7 @@ impl CoreControlPlane {
             mcp: Arc::new(McpStore::open(&state_dir).map_err(|error| error.to_string())?),
             mcp_runtime: Arc::new(McpRuntime::new()),
             skills,
+            library,
             application,
             state_dir,
         })
@@ -1021,6 +1047,38 @@ impl CoreControlPlane {
         let level = crate::egress::EgressLevel::parse(level)?;
         crate::egress::set_default_level(&self.state_dir, level, is_confirmed)
             .map_err(|error| error.to_string())
+    }
+
+    /// The local library (B1): the folders in it, indexing one, and taking one out. Indexing runs
+    /// for as long as it needs (up to 30 minutes) and is meant for a background thread.
+    pub fn library_roots(&self) -> Value {
+        match self.library.roots() {
+            Ok(roots) => {
+                json!({"ok": true, "roots": roots.iter().map(crate::retrieval::RootInfo::to_json).collect::<Vec<_>>()})
+            }
+            Err(error) => json!({"ok": false, "error": error}),
+        }
+    }
+
+    pub fn library_index(&self, root: &str) -> Value {
+        match self
+            .library
+            .index_root(root, Duration::from_secs(1800), &|| false, &|_, _| {})
+        {
+            Ok(report) => {
+                let mut out = report.to_json();
+                out["ok"] = json!(true);
+                out
+            }
+            Err(error) => json!({"ok": false, "error": error}),
+        }
+    }
+
+    pub fn library_remove(&self, root: &str) -> Value {
+        match self.library.remove_root(root) {
+            Ok(removed) => json!({"ok": true, "removed": removed}),
+            Err(error) => json!({"ok": false, "error": error}),
+        }
     }
 
     /// The completion webhook (roadmap B5): its setting, the change, and a test post. The post is
