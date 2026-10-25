@@ -761,6 +761,46 @@ pub fn update_memory_settings(state: State<'_, RuntimeRegistry>, patch: Value) -
 }
 
 #[tauri::command]
+pub fn library_info(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.library().list() {
+        Ok(sources) => json!({"ok": true, "folder": state.library().folder().to_string_lossy(), "sources": sources}),
+        Err(error) => json!({"ok": false, "folder": state.library().folder().to_string_lossy(), "sources": [], "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn library_set_folder(state: State<'_, RuntimeRegistry>, path: String) -> Value {
+    match state.library().set_folder(&path) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn library_read(state: State<'_, RuntimeRegistry>, name: String) -> Value {
+    match state.library().read(&name) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn library_write(state: State<'_, RuntimeRegistry>, name: String, content: String) -> Value {
+    match state.library().write(&name, &content) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn library_remove(state: State<'_, RuntimeRegistry>, name: String) -> Value {
+    match state.library().remove(&name) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
 pub fn automations_list(state: State<'_, RuntimeRegistry>) -> Value {
     match state.automations().lock().unwrap().list() {
         Ok(tasks) => json!({"tasks": tasks}),

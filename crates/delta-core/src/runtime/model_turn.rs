@@ -111,10 +111,36 @@ impl RuntimeHost {
     }
 
     pub(super) fn outbound_messages(&self) -> Vec<Value> {
+        // A compacted session sends the summary instead of the replaced prefix:
+        // everything before the boundary that is not a system message collapses
+        // into one user message. The transcript itself stays intact, so the
+        // boundary keeps pointing at the same message; a stale index (a host
+        // seeded with a longer transcript) simply clamps to the whole history.
+        let compacted: Option<(&[Value], Vec<Value>)> = self
+            .compaction_summary
+            .as_deref()
+            .filter(|_| self.compaction_boundary > 0)
+            .map(|summary| {
+                let boundary = self.compaction_boundary.min(self.messages.len());
+                if boundary == 0 || boundary >= self.messages.len() {
+                    return (&self.messages[..], Vec::new());
+                }
+                let mut prefix: Vec<Value> = self.messages[..boundary]
+                    .iter()
+                    .filter(|message| message.get("role").and_then(Value::as_str) == Some("system"))
+                    .cloned()
+                    .collect();
+                prefix.push(json!({"role": "user", "content": summary_context(summary)}));
+                (&self.messages[boundary..], prefix)
+            });
+        let (history, mut out): (&[Value], Vec<Value>) = match compacted {
+            Some((history, prefix)) => (history, prefix),
+            None => (&self.messages[..], Vec::new()),
+        };
+
         // Only the newest screenshots go to the model: each costs thousands of tokens and an old
         // one is stale. Older ones stay on disk and in the transcript as text.
-        let with_images: Vec<usize> = self
-            .messages
+        let with_images: Vec<usize> = history
             .iter()
             .enumerate()
             .filter(|(_, m)| m.get("images").is_some())
@@ -123,7 +149,6 @@ impl RuntimeHost {
         let keep_from = with_images.len().saturating_sub(MAX_SCREENSHOTS_IN_CONTEXT);
         let sent_images: Vec<usize> = with_images[keep_from..].to_vec();
 
-        let mut out: Vec<Value> = Vec::new();
         let mut pending: Vec<Value> = Vec::new();
         let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>| {
             if pending.is_empty() {
@@ -139,7 +164,7 @@ impl RuntimeHost {
                 ),
             }));
         };
-        for (index, m) in self.messages.iter().enumerate() {
+        for (index, m) in history.iter().enumerate() {
             let role = m.get("role").and_then(|r| r.as_str());
             if role == Some("notice") {
                 continue;
@@ -414,6 +439,19 @@ impl RuntimeHost {
             // provider-only token and interrupts the live stream.
             self.provider_cancel.store(false, Ordering::SeqCst);
             self.drain_steering();
+            // Compaction runs before the request is built: the summary replaces
+            // the collapsed prefix in exactly this request's messages.
+            if let Err(error) = self.maybe_compact(&mut is_egress_confirmed) {
+                // A failed summary must not fail the turn: the request below may
+                // still fit, and the provider's own limit reports otherwise.
+                let notice =
+                    format!("Context compaction failed; sending the full transcript. ({error})");
+                self.messages.push(
+                    json!({"role": "notice", "kind": "compaction_failed", "text": &notice, "ts": now_ts()}),
+                );
+                self.emit_event(RuntimeEvent::Notice { text: notice });
+                self.ensure_event_delivery()?;
+            }
             let mut req = self.build_request();
             match self.gate_model_request(&req, iterations, &mut is_egress_confirmed) {
                 Ok(pinned) => req.pinned_addrs = pinned,
@@ -699,6 +737,227 @@ impl RuntimeHost {
             self.drain_steering();
         }
     }
+
+    /// Compact the context before a request when the estimate reaches the
+    /// threshold: `min(threshold_pct × context window, cap)`. A model whose
+    /// window is unknown compacts at the cap alone. At most one summarizer
+    /// call per turn keeps an agentic run's latency bounded.
+    pub(super) fn maybe_compact(&mut self, is_egress_confirmed: &mut bool) -> Result<(), String> {
+        if self.compacted_in_turn {
+            return Ok(());
+        }
+        let cap = self.config.compaction_cap_tokens.max(1);
+        let threshold = match self.config.context_window_tokens {
+            Some(window) if window > 0 => {
+                ((window as f64 * self.config.compaction_threshold_pct) as u64).min(cap)
+            }
+            _ => cap,
+        };
+        if (self.estimate_context_tokens() as u64) < threshold {
+            return Ok(());
+        }
+        let result = self.compact(is_egress_confirmed);
+        // Whether compaction succeeded or failed, we never retry it in the same
+        // turn: one summarizer call per turn is the budget.
+        self.compacted_in_turn = true;
+        result
+    }
+
+    /// Rough token count over exactly the messages the next request would
+    /// carry: characters divided by four plus a fixed per-message overhead.
+    pub(super) fn estimate_context_tokens(&self) -> usize {
+        let messages = self.outbound_messages();
+        let chars: usize = messages.iter().map(message_chars).sum();
+        chars / 4 + messages.len() * 8
+    }
+
+    /// Summarize everything but the system prompt and the newest user input,
+    /// use the summary for outbound requests from now on and persist it for
+    /// the next host. The transcript stays intact: the next compaction
+    /// summarizes the raw history again, so a summary never summarizes itself.
+    fn compact(&mut self, is_egress_confirmed: &mut bool) -> Result<(), String> {
+        if self.messages.len() < 3 {
+            return Ok(());
+        }
+        let boundary = self.messages.len() - 1;
+        if boundary < 2 {
+            return Ok(());
+        }
+        self.emit_event(RuntimeEvent::Compacting);
+        self.ensure_event_delivery()?;
+        let mut req = ProviderRequest {
+            protocol: self.config.protocol.clone(),
+            model: self.config.model.clone(),
+            messages: json!([{"role": "user", "content": compaction_prompt(&self.messages[1..boundary])}]),
+            tools: None,
+            settings: Some(json!({})),
+            api_key: self.config.api_key.clone(),
+            base_url: self.config.base_url.clone(),
+            timeout_secs: Some(self.config.ttft_timeout.unwrap_or(COMPACTION_TIMEOUT_SECS)),
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: self.turn_proxy.clone(),
+        };
+        // A dedicated summarizer model is resolved the same way the session's
+        // model was: through the model authority, falling back to the session's
+        // own route when the override is unset or cannot resolve.
+        if let Some(compaction_model) = self
+            .config
+            .compaction_model
+            .as_deref()
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+        {
+            if let Some(authorities) = &self.authorities {
+                if let Ok(authority) =
+                    crate::model_authority::ModelAuthority::open(authorities.state_dir())
+                {
+                    if let Ok(resolved) = authority.resolve_runtime_config(compaction_model) {
+                        req.protocol = resolved.protocol;
+                        req.model = resolved.model;
+                        req.api_key = resolved.api_key;
+                        req.base_url = resolved.base_url;
+                    }
+                }
+            }
+        }
+        // The summarizer is a model request like any other: it passes the
+        // egress gate and shares this run's endpoint confirmation.
+        self.gate_model_request(&req, 0, is_egress_confirmed)?;
+        let summarized = crate::provider::complete(&req).and_then(|response| {
+            response
+                .get("text")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|text| !text.is_empty())
+                .map(str::to_string)
+                .ok_or_else(|| "the summarizer returned no text".to_string())
+        });
+        match summarized {
+            Ok(summary) => {
+                self.compaction_summary = Some(summary.clone());
+                self.compaction_boundary = boundary;
+                self.persist_compaction(&summary, boundary);
+                self.emit_event(RuntimeEvent::Compacted { text: summary });
+                self.ensure_event_delivery()?;
+                Ok(())
+            }
+            Err(error) => Err(format!("summarizer request failed: {error}")),
+        }
+    }
+
+    /// Best-effort persistence of the compaction state; a session that cannot
+    /// record it still compacts for this host's lifetime.
+    fn persist_compaction(&self, summary: &str, boundary: usize) {
+        if let Some(authorities) = &self.authorities {
+            let payload = json!({
+                "summary": summary,
+                "boundary": boundary,
+                "created_at": now_ts(),
+            });
+            let _ = crate::control_plane::set_session_compaction(
+                authorities.state_dir(),
+                &self.session_id,
+                &payload,
+            );
+        }
+    }
+}
+
+/// The user message that carries the summary in outbound requests.
+fn summary_context(summary: &str) -> String {
+    format!(
+        "Earlier conversation, condensed:\n\n{summary}\n\n(This condensed version replaces the older messages; the session's full transcript is kept on disk.)"
+    )
+}
+
+/// Longest transcript handed to the summarizer, in characters. The tail is
+/// kept: the newest context matters most for continuing the work.
+const COMPACTION_INPUT_MAX_CHARS: usize = 80_000;
+/// The summarizer waits at most this long, unless the session configures a
+/// shorter time-to-first-token.
+const COMPACTION_TIMEOUT_SECS: f64 = 120.0;
+
+/// One user message asking for the running brief of the collapsed prefix.
+fn compaction_prompt(messages: &[Value]) -> String {
+    let mut transcript = String::new();
+    for message in messages {
+        let role = message
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        if let Some(calls) = message.get("tool_calls").and_then(Value::as_array) {
+            for call in calls {
+                let name = call
+                    .pointer("/function/name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("tool");
+                let arguments = call
+                    .pointer("/function/arguments")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                transcript.push_str(&format!("[tool request: {name} {arguments}]\n"));
+            }
+        }
+        let text = match message.get("content") {
+            Some(Value::String(text)) => text.clone(),
+            Some(Value::Array(parts)) => parts
+                .iter()
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            _ => String::new(),
+        };
+        if text.trim().is_empty() {
+            continue;
+        }
+        transcript.push_str(&format!("{role}: {}\n", text.trim()));
+    }
+    let transcript = if transcript.len() > COMPACTION_INPUT_MAX_CHARS {
+        let mut start = transcript.len() - COMPACTION_INPUT_MAX_CHARS;
+        while start < transcript.len() && !transcript.is_char_boundary(start) {
+            start += 1;
+        }
+        format!("[older messages omitted]\n…{}", &transcript[start..])
+    } else {
+        transcript
+    };
+    format!(
+        "Summarize this conversation so an assistant can continue the work with only your summary in context. Preserve: the user's goals and constraints; decisions made; facts learned (paths, names, versions, commands and their outcomes); open tasks and next steps. Write a compact brief under 600 words. Output only the summary.\n\nTranscript:\n{transcript}"
+    )
+}
+
+/// Characters a message contributes to the context estimate: text content,
+/// reasoning and serialized tool calls; images and attachments are ignored
+/// (they are either stripped or cost proportionally to their caption).
+fn message_chars(message: &Value) -> usize {
+    let content_chars = match message.get("content") {
+        Some(Value::String(text)) => text.len(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .map(|part| {
+                part.get("text")
+                    .and_then(Value::as_str)
+                    .map(str::len)
+                    .unwrap_or(0)
+            })
+            .sum(),
+        _ => 0,
+    };
+    let reasoning_chars = message
+        .get("reasoning")
+        .and_then(Value::as_str)
+        .map(str::len)
+        .unwrap_or(0);
+    let tool_chars = message
+        .get("tool_calls")
+        .map(|calls| {
+            serde_json::to_string(calls)
+                .map(|text| text.len())
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    content_chars + reasoning_chars + tool_chars
 }
 
 /// Backoff before retry number `retry` (1-based): the base delay doubled each time, capped.

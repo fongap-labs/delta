@@ -22,6 +22,7 @@ mod abi;
 mod host;
 mod registry;
 mod runners;
+mod shell;
 
 pub use abi::*;
 pub(crate) use host::resolve_read_path;
@@ -30,6 +31,7 @@ pub use registry::{
     CapabilityControl, CapabilityRegistration, CapabilityRegistry, CapabilityRunner,
 };
 pub use runners::{McpCapabilityRunner, NativeCapabilityRunner, WorkerProcessRunner};
+pub use shell::shell_registration;
 
 #[cfg(test)]
 use crate::runtime::{ToolCall, ToolExecutionContext, ToolExecutor};
@@ -212,7 +214,9 @@ mod tests {
                 "read_document",
                 "read_file",
                 "request_directory",
+                "run_shell",
                 "statistics_describe",
+                "todo_write",
                 "web_fetch",
                 "web_search",
                 "write_file"

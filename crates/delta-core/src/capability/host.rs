@@ -55,6 +55,8 @@ impl CapabilityHost {
         host.register(crate::web::fetch_registration())?;
         host.register(crate::web::search_registration())?;
         host.register(crate::statistics::describe_registration())?;
+        host.register(super::shell::shell_registration())?;
+        host.register(crate::todo::write_registration())?;
         host.register(interaction_registration(
             "request_directory",
             "Request access to an additional directory.",

@@ -647,6 +647,17 @@ pub struct RuntimeConfig {
     /// layer. Default is `Execute`. `Plan` hard-rejects any non-read-only
     /// capability regardless of model behavior.
     pub mode: crate::policy::ExecutionMode,
+    /// Context window of the session's model, in tokens, when the catalog
+    /// knows it. `None` compacts at the token cap alone.
+    pub context_window_tokens: Option<u64>,
+    /// Fraction of the context window at which compaction triggers (0.10–0.95
+    /// per the product settings contract).
+    pub compaction_threshold_pct: f64,
+    /// Token count that triggers compaction regardless of the window size.
+    pub compaction_cap_tokens: u64,
+    /// Optional routed model id for the summarizer request; empty means the
+    /// session's own model.
+    pub compaction_model: Option<String>,
 }
 
 impl Default for RuntimeConfig {
@@ -668,6 +679,10 @@ impl Default for RuntimeConfig {
             workspace: None,
             unattended: false,
             mode: crate::policy::ExecutionMode::Execute,
+            context_window_tokens: None,
+            compaction_threshold_pct: 0.8,
+            compaction_cap_tokens: 250_000,
+            compaction_model: None,
         }
     }
 }
@@ -707,6 +722,16 @@ pub struct RuntimeHost {
     /// direct. Frozen per turn so a settings change cannot split one answer across two
     /// routes — the same reason `reduced_request` is sticky.
     turn_proxy: Option<ureq::Proxy>,
+    /// Context compaction: a summary that replaces `messages[..compaction_boundary]`
+    /// in outbound requests. The transcript itself stays intact and append-only,
+    /// so the boundary index keeps pointing at the same message across restarts;
+    /// a host reloads the persisted state on construction (`with_compaction`).
+    compaction_summary: Option<String>,
+    compaction_boundary: usize,
+    /// One compaction per turn: a summarizer call per model iteration would
+    /// double the latency of an agentic run for marginal context savings; the
+    /// next turn re-evaluates from scratch.
+    compacted_in_turn: bool,
 }
 
 /// A queued steering/follow-up instruction: (text, optional MessageSource sidecar).
@@ -1207,6 +1232,9 @@ impl RuntimeHost {
             // Test hosts carry no authorities and never reach the product doors, so
             // they stay direct; a test that needs a proxy sets it explicitly.
             turn_proxy: None,
+            compaction_summary: None,
+            compaction_boundary: 0,
+            compacted_in_turn: false,
         }
     }
 
@@ -1229,6 +1257,16 @@ impl RuntimeHost {
     }
     pub fn with_messages(mut self, messages: Vec<Value>) -> Self {
         self.messages = messages;
+        self
+    }
+
+    /// Restore a persisted compaction state (summary + transcript boundary).
+    /// The values are taken as persisted; `outbound_messages` clamps the
+    /// boundary against the seeded transcript, so a stale index can never
+    /// swallow the whole history.
+    pub fn with_compaction(mut self, summary: String, boundary: usize) -> Self {
+        self.compaction_summary = Some(summary);
+        self.compaction_boundary = boundary;
         self
     }
     pub fn with_run_id(mut self, run_id: String) -> Self {
@@ -1326,6 +1364,10 @@ impl RuntimeHost {
         self.config.tool_timeout = config.tool_timeout;
         self.config.workspace = config.workspace;
         self.config.unattended = config.unattended;
+        self.config.context_window_tokens = config.context_window_tokens;
+        self.config.compaction_threshold_pct = config.compaction_threshold_pct;
+        self.config.compaction_cap_tokens = config.compaction_cap_tokens;
+        self.config.compaction_model = config.compaction_model;
         if self.config.system_prompt != config.system_prompt {
             self.config.system_prompt = config.system_prompt.clone();
             if let Some(prompt) = config.system_prompt {

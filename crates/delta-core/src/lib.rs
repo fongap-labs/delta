@@ -28,6 +28,7 @@ pub mod extension_manifest;
 pub mod idemlog;
 pub mod inbox;
 pub mod ledger;
+pub mod library;
 pub mod mcp;
 pub mod mcp_runtime;
 pub mod memory;
@@ -48,6 +49,7 @@ pub mod source_citation;
 pub mod statistics;
 pub mod study;
 pub mod taskstore;
+pub mod todo;
 pub mod tool_lifecycle;
 pub mod validation;
 pub mod web;
@@ -101,9 +103,6 @@ pub use policy::{
     POLICY_SCHEMA_VERSION,
 };
 pub use provider::ProviderRequest;
-pub use retry::{
-    classify_error, ErrorClass as RetryErrorClass, RetryClassifyInput, RetryClassifyOutput,
-};
 pub use skills::SkillStore;
 pub use source_citation::{
     validate_all, validate_citation, validate_source_citation, CitationValidationResult,
