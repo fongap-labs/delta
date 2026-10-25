@@ -202,7 +202,13 @@ export function Composer(props: Props) {
   // bleed from one session into another. Declared BEFORE the prefill effect: when both fire in
   // the same render (the Skills doorway starts a new session AND prefills it), effects run in
   // declaration order — clear first, then the prefill lands on the fresh session.
+  // The first run belongs to the mount, where the draft is already empty. Clearing there would
+  // also wipe a prefill that arrived with the mount (the Skills doorway opens the conversation
+  // view and prefills it in one step), and a repeated effect run would do it again.
+  const draftOwner = useRef(props.resetKey);
   useEffect(() => {
+    if (draftOwner.current === props.resetKey) return;
+    draftOwner.current = props.resetKey;
     setText("");
     setAttachments([]);
     setPendingSkill(null);

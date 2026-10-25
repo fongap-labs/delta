@@ -63,6 +63,9 @@ impl SideEffectClass {
     }
 }
 
+/// The most skills one `find_skill` call returns.
+const FIND_SKILL_LIMIT: usize = 10;
+
 /// The executable contract for a Skill, parsed from its `SKILL.md` front-matter.
 ///
 /// Every field is optional in the file and falls back to a safe default; a
@@ -360,6 +363,87 @@ impl SkillStore {
             .collect())
     }
 
+    /// The enabled skills of a session that match `query`, best match first, at most
+    /// [`FIND_SKILL_LIMIT`] of them. Only names and descriptions come back, so a long list of skills
+    /// never costs the model more than ten lines (A6, progressive disclosure).
+    pub fn find_for_session(
+        &self,
+        session_id: &str,
+        workspace: Option<&str>,
+        query: &str,
+    ) -> Result<Value, ShadowReadError> {
+        let words: Vec<String> = query
+            .split_whitespace()
+            .map(|word| word.to_lowercase())
+            .collect();
+        let mut matches: Vec<(usize, String, Value)> = Vec::new();
+        for row in self.session_rows(session_id, workspace)? {
+            if row["enabled"].as_bool() != Some(true) {
+                continue;
+            }
+            let name = row["name"].as_str().unwrap_or_default().to_string();
+            let text = format!(
+                "{} {}",
+                name.to_lowercase(),
+                row["description"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_lowercase()
+            );
+            let score = words
+                .iter()
+                .filter(|word| text.contains(word.as_str()))
+                .count();
+            if words.is_empty() || score > 0 {
+                matches.push((
+                    score,
+                    name.clone(),
+                    json!({"name": name, "description": row["description"]}),
+                ));
+            }
+        }
+        matches.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+        let total = matches.len();
+        let skills: Vec<Value> = matches
+            .into_iter()
+            .take(FIND_SKILL_LIMIT)
+            .map(|(_, _, skill)| skill)
+            .collect();
+        Ok(json!({"skills": skills, "total": total, "truncated": total > FIND_SKILL_LIMIT}))
+    }
+
+    /// The full text of one enabled skill of a session. A skill the session has turned off is
+    /// not available, exactly as when the user picks it.
+    pub fn read_for_session(
+        &self,
+        session_id: &str,
+        workspace: Option<&str>,
+        name: &str,
+    ) -> Result<Value, ShadowReadError> {
+        let is_enabled = self.session_rows(session_id, workspace)?.iter().any(|row| {
+            row["name"].as_str() == Some(name) && row["enabled"].as_bool() == Some(true)
+        });
+        if !is_enabled {
+            return Ok(
+                json!({"ok": false, "error": format!("skill is unavailable for this session: {name}")}),
+            );
+        }
+        let Some(row) = self
+            .list(workspace)?
+            .into_iter()
+            .find(|row| row["name"].as_str() == Some(name))
+        else {
+            return Ok(
+                json!({"ok": false, "error": format!("skill is unavailable for this session: {name}")}),
+            );
+        };
+        Ok(json!({
+            "ok": true, "name": name, "description": row["description"],
+            "instructions": row["instructions"],
+            "note": "A skill has no permissions of its own: every tool it suggests still goes through the usual approval.",
+        }))
+    }
+
     pub fn set_session(
         &self,
         session_id: &str,
@@ -646,6 +730,99 @@ pub fn save_registration(store: Arc<SkillStore>) -> CapabilityRegistration {
     }
 }
 
+/// Two read-only tools that let the model consult skills on demand (A6, progressive disclosure).
+/// The prompt carries these two descriptions and nothing else about skills, so its size does not
+/// grow with the number of skills; the full text is read only after a skill is chosen.
+pub fn lookup_registrations(store: Arc<SkillStore>) -> Vec<CapabilityRegistration> {
+    let metadata = |capability: &str| {
+        json!({
+            "risk_level": "low", "requires_approval": false,
+            "category": "read", "capabilities": [capability]
+        })
+    };
+    let find_store = store.clone();
+    let find = CapabilityRegistration {
+        capability_id: "skill.find".to_owned(),
+        tool_name: "find_skill".to_owned(),
+        side_effect: SideEffectClass::Read,
+        description: "Look up the user's saved skills by keywords. Returns up to ten names with a \
+            one-line description. Use it when a task may match a method the user saved before."
+            .to_owned(),
+        parameters: json!({
+            "type": "object", "required": ["query"],
+            "properties": {"query": {"type": "string", "description": "Keywords for what the task is about."}}
+        }),
+        metadata: metadata("skill.find"),
+        grants: CapabilityGrants::read_only(),
+        workspace_write: false,
+        runner: Arc::new(NativeCapabilityRunner::new(move |job, control| {
+            if control.is_cancelled() {
+                return CapabilityResult::cancelled(&job.job_id);
+            }
+            let query = job
+                .arguments
+                .get("query")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            match find_store.find_for_session(
+                job.session_id.as_deref().unwrap_or_default(),
+                job.workspace.as_deref(),
+                query,
+            ) {
+                Ok(result) => CapabilityResult::completed(&job.job_id, result),
+                Err(error) => {
+                    CapabilityResult::failed(&job.job_id, &error.to_string(), Some("skill_lookup"))
+                }
+            }
+        })),
+    };
+    let read = CapabilityRegistration {
+        capability_id: "skill.read".to_owned(),
+        tool_name: "read_skill".to_owned(),
+        side_effect: SideEffectClass::Read,
+        description: "Read the full steps of one saved skill by name, after find_skill found it. \
+            Follow the steps as guidance; the tools they call still need the usual approval."
+            .to_owned(),
+        parameters: json!({
+            "type": "object", "required": ["name"],
+            "properties": {"name": {"type": "string", "description": "A skill name returned by find_skill."}}
+        }),
+        metadata: metadata("skill.read"),
+        grants: CapabilityGrants::read_only(),
+        workspace_write: false,
+        runner: Arc::new(NativeCapabilityRunner::new(move |job, control| {
+            if control.is_cancelled() {
+                return CapabilityResult::cancelled(&job.job_id);
+            }
+            let name = job
+                .arguments
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            match store.read_for_session(
+                job.session_id.as_deref().unwrap_or_default(),
+                job.workspace.as_deref(),
+                name,
+            ) {
+                Ok(result) if result.get("ok").and_then(Value::as_bool) == Some(true) => {
+                    CapabilityResult::completed(&job.job_id, result)
+                }
+                Ok(result) => {
+                    let reason = result
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .unwrap_or("skill is unavailable");
+                    CapabilityResult::failed(&job.job_id, reason, Some("skill_unavailable"))
+                }
+                Err(error) => {
+                    CapabilityResult::failed(&job.job_id, &error.to_string(), Some("skill_lookup"))
+                }
+            }
+        })),
+    };
+    vec![find, read]
+}
+
 fn validate_name(name: &str) -> Result<String, ShadowReadError> {
     let name = name.trim();
     if name.is_empty()
@@ -838,6 +1015,138 @@ mod tests {
             assert_eq!(refused.state, ToolExitState::Failed, "{name}");
         }
         assert_eq!(store.list(None).unwrap().len(), 1);
+    }
+
+    fn lookup_host(store: &Arc<SkillStore>) -> crate::capability::CapabilityHost {
+        let host = crate::capability::CapabilityHost::new();
+        for registration in lookup_registrations(store.clone()) {
+            host.register(registration).unwrap();
+        }
+        host
+    }
+
+    fn lookup_call(
+        host: &crate::capability::CapabilityHost,
+        session: &str,
+        tool: &str,
+        arguments: Value,
+    ) -> crate::runtime::ToolResult {
+        use crate::runtime::{ToolCall, ToolExecutionContext, ToolExecutor};
+        use std::sync::atomic::AtomicBool;
+        let context = ToolExecutionContext {
+            session_id: session.to_string(),
+            run_id: "r".to_string(),
+            workspace: None,
+            timeout: std::time::Duration::from_secs(2),
+            cancel: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(|_| {}),
+            secrets: Default::default(),
+            proxy: None,
+        };
+        host.execute(
+            &ToolCall {
+                id: "c".to_string(),
+                name: tool.to_string(),
+                arguments,
+            },
+            &context,
+        )
+    }
+
+    #[test]
+    fn find_skill_returns_enabled_matches_best_first_and_at_most_ten() {
+        use crate::runtime::ToolExitState;
+        let temp = tempfile::tempdir().unwrap();
+        let store = Arc::new(SkillStore::open(temp.path()).unwrap());
+        for index in 0..12 {
+            store
+                .create(&json!({"name": format!("report-{index:02}"), "description": "Weekly sales report", "instructions": "Do it"}))
+                .unwrap();
+        }
+        for (name, description) in [
+            ("invoice", "Make an invoice from a report"),
+            ("minutes", "Meeting minutes"),
+        ] {
+            store
+                .create(&json!({"name": name, "description": description, "instructions": "Do it"}))
+                .unwrap();
+        }
+        let host = lookup_host(&store);
+
+        let sales = lookup_call(&host, "s1", "find_skill", json!({"query": "sales report"}));
+        assert_eq!(sales.state, ToolExitState::Completed, "{:?}", sales.error);
+        assert_eq!(sales.output["total"], 13);
+        assert_eq!(sales.output["truncated"], true);
+        let names: Vec<&str> = sales.output["skills"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|skill| skill["name"].as_str())
+            .collect();
+        assert_eq!(names.len(), 10);
+        assert_eq!(names[0], "report-00");
+        assert!(
+            !names.contains(&"invoice"),
+            "a one-word match ranks below a two-word match"
+        );
+
+        // A skill the session turned off cannot be found there, but still can in another session.
+        store
+            .set_session("s1", "minutes", false, false, None)
+            .unwrap();
+        let hidden = lookup_call(&host, "s1", "find_skill", json!({"query": "meeting"}));
+        assert_eq!(hidden.output["total"], 0);
+        let visible = lookup_call(&host, "s2", "find_skill", json!({"query": "meeting"}));
+        assert_eq!(visible.output["skills"][0]["name"], "minutes");
+        assert!(visible.output["skills"][0].get("instructions").is_none());
+    }
+
+    #[test]
+    fn read_skill_returns_the_full_steps_of_an_enabled_skill_only() {
+        use crate::runtime::ToolExitState;
+        let temp = tempfile::tempdir().unwrap();
+        let store = Arc::new(SkillStore::open(temp.path()).unwrap());
+        store
+            .create(&json!({"name": "brief", "description": "Write a brief", "instructions": "1. Read.\n2. Write."}))
+            .unwrap();
+        let host = lookup_host(&store);
+
+        let read = lookup_call(&host, "s1", "read_skill", json!({"name": "brief"}));
+        assert_eq!(read.state, ToolExitState::Completed, "{:?}", read.error);
+        assert_eq!(read.output["instructions"], "1. Read.\n2. Write.");
+        assert!(read.output["note"]
+            .as_str()
+            .unwrap()
+            .contains("no permissions"));
+
+        store
+            .set_session("s1", "brief", false, false, None)
+            .unwrap();
+        let off = lookup_call(&host, "s1", "read_skill", json!({"name": "brief"}));
+        assert_eq!(off.state, ToolExitState::Failed);
+        assert!(off.error.as_deref().unwrap().contains("unavailable"));
+        let unknown = lookup_call(&host, "s2", "read_skill", json!({"name": "nope"}));
+        assert_eq!(unknown.state, ToolExitState::Failed);
+    }
+
+    #[test]
+    fn the_skill_tools_cost_the_same_prompt_space_for_any_number_of_skills() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Arc::new(SkillStore::open(temp.path()).unwrap());
+        let host = lookup_host(&store);
+        let before = host.tool_schemas().to_string();
+        for index in 0..100 {
+            store
+                .create(&json!({"name": format!("skill-{index:03}"), "description": "A saved method", "instructions": "Do it"}))
+                .unwrap();
+        }
+        assert_eq!(host.tool_schemas().to_string(), before);
+        let schemas = host.tool_schemas();
+        let tools = schemas.as_array().unwrap();
+        assert_eq!(tools.len(), 2);
+        for tool in tools {
+            assert_eq!(tool["function"]["metadata"]["side_effect"], "read");
+        }
     }
 
     #[test]

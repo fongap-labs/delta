@@ -73,6 +73,9 @@ impl CoreControlPlane {
         let capability_host = CapabilityHost::product_defaults()?;
         let skills = Arc::new(SkillStore::open(&state_dir).map_err(|error| error.to_string())?);
         capability_host.register(crate::skills::save_registration(skills.clone()))?;
+        for registration in crate::skills::lookup_registrations(skills.clone()) {
+            capability_host.register(registration)?;
+        }
 
         // Rust ApplicationStore remains the sole product credential authority.
         // Capability jobs receive only the exact grant-scoped keys requested by
