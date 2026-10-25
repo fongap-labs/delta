@@ -49,7 +49,7 @@ _OPTION_SCHEMA = {
     ]
 }
 
-# Explicit schema: the string-or-object option union and the nested
+# Explicit schema (same pattern as todo.py): the string-or-object option union and the nested
 # `questions` array can't be auto-generated from the signature reliably.
 _ASK_SCHEMA = {
     "type": "function",
