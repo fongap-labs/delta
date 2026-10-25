@@ -503,6 +503,9 @@ export const directUpdateMemory = (id: number, content: string) =>
   invokeAuthority("memory_update", { id, content });
 export const directDeleteMemory = (id: number) =>
   invokeAuthority("memory_delete", { id });
+export const directExportMemory = () => invokeAuthority("memory_export");
+export const directImportMemory = (document: unknown) =>
+  invokeAuthority("memory_import", { document });
 export const clearMemory = () => invokeAuthority("clear_memory");
 export const fetchMemorySettings = () => invokeAuthority("memory_settings");
 export const updateMemorySettings = (patch: Record<string, unknown>) =>

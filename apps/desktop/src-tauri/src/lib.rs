@@ -718,6 +718,8 @@ pub fn run() {
             runtime_ipc::memory_list,
             runtime_ipc::memory_update,
             runtime_ipc::memory_delete,
+            runtime_ipc::memory_export,
+            runtime_ipc::memory_import,
             runtime_ipc::clear_memory,
             runtime_ipc::memory_settings,
             runtime_ipc::update_memory_settings,

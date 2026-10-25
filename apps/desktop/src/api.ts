@@ -43,6 +43,8 @@ import {
   directRemoveModel,
   directRemoveProvider,
   directDeleteMemory,
+  directExportMemory,
+  directImportMemory,
   clearMemory,
   directResolveInbox,
   directReadArtifact,
@@ -1353,6 +1355,23 @@ export async function updateMemory(
 
 export async function deleteMemory(id: number): Promise<{ ok: boolean; error?: string }> {
   return await directDeleteMemory(id);
+}
+
+// The portable file the memory screen exports and imports (`delta.memory`, version 1).
+export interface MemoryExport {
+  format: string;
+  version: number;
+  memories: { scope: string; content: string; created_at: string }[];
+}
+
+export async function exportMemory(): Promise<MemoryExport> {
+  return throwOnError(await directExportMemory());
+}
+
+export async function importMemory(
+  document: unknown,
+): Promise<{ ok: boolean; imported?: number; skipped?: number; error?: string }> {
+  return await directImportMemory(document);
 }
 
 export async function deleteAllMemory(): Promise<{ ok: boolean; deleted: number }> {

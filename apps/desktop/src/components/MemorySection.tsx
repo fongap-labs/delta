@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   deleteAllMemory,
   deleteMemory,
+  exportMemory,
   getMemory,
   getMemorySettings,
+  importMemory,
   setMemorySettings,
   updateMemory,
   MEMORY_CHANGED,
@@ -23,6 +25,7 @@ import { useI18n } from "@delta/i18n/I18nContext";
 const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
 const FIELD_HELP = "text-[12px] text-muted mt-1.5 leading-relaxed";
+const LINK_BTN = "text-[12px] text-muted hover:text-ink";
 const BTN_ACCENT =
   "text-[12.5px] px-3 py-2 rounded-lg bg-primary text-on-primary shrink-0 disabled:opacity-40";
 
@@ -35,6 +38,7 @@ export function MemorySection() {
   const [listMsg, setListMsg] = useState<string | null>(null);
   // A failed read is not an empty memory: it shows an error with a retry instead of "Nothing yet".
   const [hasFailed, setFailed] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
 
   const refresh = () => {
     setFailed(false);
@@ -80,6 +84,43 @@ export function MemorySection() {
     refresh();
   };
 
+  // Export hands the user a `delta.memory` file; import reads one back. The runtime checks the
+  // whole file and adds nothing when any entry is bad, so a wrong file cannot half-apply.
+  const exportAll = async () => {
+    try {
+      const exported = await exportMemory();
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" }),
+      );
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = "delta-memory.json";
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setListMsg(t("memory.exportFailed", { error: reason }, `Couldn't export your memories: ${reason}`));
+    }
+  };
+
+  const importFile = async (file: File) => {
+    try {
+      const result = await importMemory(JSON.parse(await file.text()));
+      if (!result.ok) throw new Error(result.error || "import failed");
+      const imported = result.imported ?? 0;
+      const skipped = result.skipped ?? 0;
+      setListMsg(
+        t("memory.importedMsg", { imported, skipped }, `Imported ${imported} memories; ${skipped} were already there.`),
+      );
+      refresh();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setListMsg(t("memory.importFailed", { error: reason }, `Couldn't import that file: ${reason}`));
+    }
+  };
+
   if (hasFailed && (!settings || entries === null))
     return <LoadError what={t("state.what.memory", undefined, "memory")} onRetry={refresh} />;
   if (!settings || entries === null) return <LoadingRows count={2} />;
@@ -114,6 +155,26 @@ export function MemorySection() {
       <div className={CARD + " p-4 mb-4"} data-testid="memory-list-card">
         <div className="flex items-center gap-2">
           <div className={FIELD_LABEL + " flex-1"}>{t("memory.listTitle", undefined, "What I've learned about you")}</div>
+          {entries.length > 0 && (
+            <button className={LINK_BTN} data-testid="memory-export" onClick={() => void exportAll()}>
+              {t("memory.export", undefined, "Export")}
+            </button>
+          )}
+          <button className={LINK_BTN} data-testid="memory-import" onClick={() => importInput.current?.click()}>
+            {t("memory.import", undefined, "Import")}
+          </button>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            data-testid="memory-import-input"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void importFile(file);
+            }}
+          />
           {entries.length > 0 && (
             <button
               className="text-[12px] text-danger/80 hover:text-danger"

@@ -746,6 +746,16 @@ pub fn memory_delete(state: State<'_, RuntimeRegistry>, id: i64) -> Value {
 }
 
 #[tauri::command]
+pub fn memory_export(state: State<'_, RuntimeRegistry>) -> Value {
+    authority_result(state.memory().export())
+}
+
+#[tauri::command]
+pub fn memory_import(state: State<'_, RuntimeRegistry>, document: Value) -> Value {
+    authority_result(state.memory().import(&document))
+}
+
+#[tauri::command]
 pub fn clear_memory(state: State<'_, RuntimeRegistry>) -> Value {
     authority_result(state.memory().delete_all())
 }

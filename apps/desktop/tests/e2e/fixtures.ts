@@ -351,6 +351,8 @@ function commandSources(): Record<string, string> {
     memory_list: `(args) => ({ memory: [] })`,
     memory_update: `(args) => ({ ok: true })`,
     memory_delete: `(args) => ({ ok: true })`,
+    memory_export: `(args) => ({ format: "delta.memory", version: 1, memories: [{ scope: "global", content: "Prefers short answers", created_at: "2026-10-24 09:00:00" }] })`,
+    memory_import: `(args) => { $state.memoryImports = [...($state.memoryImports || []), args.document]; return { ok: true, imported: (args.document.memories || []).length, skipped: 0 }; }`,
     clear_memory: `(args) => ({ ok: true })`,
     memory_settings: `(args) => ({ enabled: true, user_rules: "" })`,
     update_memory_settings: `(args) => ({ ok: true })`,
