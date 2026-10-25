@@ -6,7 +6,7 @@ import { patchMockState, test } from "./fixtures";
 const BUILTIN = {
   name: "wechat-article",
   description: "写公众号文章（WeChat article）",
-  instructions: "# 公众号文章\n先问清读者。",
+  instructions: "# WeChat article\nAsk the reader first.",
   scope: "builtin",
   source: "builtin",
   enabled: true,
@@ -43,7 +43,7 @@ test("a copy opens the editor with the text filled in under a new name", async (
   await page.getByTestId("skill-copy").click();
   await expect(page.getByLabel("Name")).toHaveValue("wechat-article-copy");
   await expect(page.getByLabel("Name")).toBeEnabled();
-  await expect(page.getByLabel("Instructions")).toHaveValue(/先问清读者/);
+  await expect(page.getByLabel("Instructions")).toHaveValue(/Ask the reader first/);
   await page.getByRole("button", { name: "Save skill" }).click();
   await expect(page.getByText("wechat-article-copy").first()).toBeVisible();
   // The copy is an ordinary skill and gets the edit button; the built-in one still has none.

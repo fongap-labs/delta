@@ -3,10 +3,10 @@ use super::*;
 /// 12 rows. The expected figures below were computed independently with SciPy 1.18 and
 /// statsmodels 0.15 (ADR-0054 point 6), not with R.
 const STUDY: &str = "y,post,x1,x2,g2,g3,c1,c2\n\
-5.1,5.4,1,3,控制,a,u,p\n4.9,5.0,2,1,控制,b,u,p\n6.2,6.7,3,4,控制,c,v,q\n\
-5.8,6.0,4,1,控制,a,v,q\n7.1,7.5,5,5,控制,b,u,p\n6.9,7.5,6,9,控制,c,v,q\n\
-8.3,8.4,7,2,处理,a,u,q\n7.7,8.0,8,6,处理,b,v,q\n9.2,9.4,9,5,处理,c,u,p\n\
-8.8,9.3,10,3,处理,a,v,q\n10.1,10.5,11,5,处理,b,u,p\n9.6,9.8,12,8,处理,c,v,q\n";
+5.1,5.4,1,3,\u{63a7}\u{5236},a,u,p\n4.9,5.0,2,1,\u{63a7}\u{5236},b,u,p\n6.2,6.7,3,4,\u{63a7}\u{5236},c,v,q\n\
+5.8,6.0,4,1,\u{63a7}\u{5236},a,v,q\n7.1,7.5,5,5,\u{63a7}\u{5236},b,u,p\n6.9,7.5,6,9,\u{63a7}\u{5236},c,v,q\n\
+8.3,8.4,7,2,\u{5904}\u{7406},a,u,q\n7.7,8.0,8,6,\u{5904}\u{7406},b,v,q\n9.2,9.4,9,5,\u{5904}\u{7406},c,u,p\n\
+8.8,9.3,10,3,\u{5904}\u{7406},a,v,q\n10.1,10.5,11,5,\u{5904}\u{7406},b,u,p\n9.6,9.8,12,8,\u{5904}\u{7406},c,v,q\n";
 
 fn rscript_available() -> bool {
     std::process::Command::new("Rscript")
@@ -275,7 +275,8 @@ fn two_sample_t_test_matches_scipy_and_reports_the_groups_by_their_labels() {
     close(&welch["conf_low"], 1.8038483875047215, 1e-9);
     close(&welch["conf_high"], 4.09615161249528, 1e-9);
     close(&welch["estimate"], 2.95, 1e-9);
-    // Groups are ordered by their bytes, so 处理 comes before 控制 whatever the locale.
+    // Groups are ordered by their UTF-8 bytes, so the group whose name starts with U+5904 comes
+    // before the one that starts with U+63A7, whatever the locale.
     assert_eq!(welch["groups"][0]["label"], "处理");
     assert_eq!(welch["groups"][1]["label"], "控制");
     close(&welch["groups"][0]["n"], 6.0, 1e-12);
@@ -548,7 +549,7 @@ fn regression_matches_statsmodels() {
 
 #[test]
 fn regression_with_interactions_matches_statsmodels_and_names_terms_by_column() {
-    let csv = "重量 (g),温度: ℃,产量\n\
+    let csv = "\u{91cd}\u{91cf} (g),\u{6e29}\u{5ea6}: \u{2103},\u{4ea7}\u{91cf}\n\
 1,3,5.1\n2,1,4.9\n3,4,6.2\n4,1,5.8\n5,5,7.1\n6,9,6.9\n\
 7,2,8.3\n8,6,7.7\n9,5,9.2\n10,3,8.8\n11,5,10.1\n12,8,9.6\n";
     let Some(result) = call(

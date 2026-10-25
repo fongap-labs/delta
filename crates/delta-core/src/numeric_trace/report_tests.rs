@@ -404,7 +404,7 @@ fn a_bad_or_oversized_allowed_pattern_is_a_problem_not_a_panic() {
 #[test]
 fn offsets_stay_right_when_the_report_has_chinese_text_before_and_between_numbers() {
     let files = files();
-    let rendered = render_ok("本研究共 {{result:out/t.json#n|%.0f}} 例，p 值 {{result:out/t.json#p_value|%.3f}}，结论成立。", &files);
+    let rendered = render_ok("\u{672c}\u{7814}\u{7a76}\u{5171} {{result:out/t.json#n|%.0f}} \u{4f8b}\u{ff0c}p \u{503c} {{result:out/t.json#p_value|%.3f}}\u{ff0c}\u{7ed3}\u{8bba}\u{6210}\u{7acb}\u{3002}", &files);
     assert_eq!(rendered.text, "本研究共 12 例，p 值 0.000，结论成立。");
     let outcome = check(&rendered, &rendered.text, &files, true, &[]);
     assert!(
