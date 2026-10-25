@@ -11,6 +11,11 @@ use serde_json::{json, Map, Value};
 
 use crate::{ShadowReadError, TaskStore};
 
+/// Consecutive denials of one rule after which an automation is paused.
+pub const DEFAULT_DENIAL_THRESHOLD: u32 = 3;
+/// The most denials a user may allow before the pause (A3).
+const MAX_DENIAL_THRESHOLD: u32 = 20;
+
 pub struct AutomationStore {
     tasks: TaskStore,
     db_path: PathBuf,
@@ -126,6 +131,11 @@ impl AutomationStore {
         }
         task.insert("id".to_string(), Value::String(id.to_string()));
         task.remove("agent");
+        // Turning an automation back on ends the pause the breaker put it in.
+        if changes.get("enabled").and_then(Value::as_bool) == Some(true) {
+            task.remove("paused_reason");
+            task.remove("paused_rule");
+        }
         if let Some(cron) = changes.get("cron").and_then(Value::as_str) {
             task.insert("schedule".to_string(), Value::String(cron.to_string()));
             task.insert(
@@ -304,6 +314,122 @@ impl AutomationStore {
         Ok(prepared)
     }
 
+    fn breaker_connection(&self) -> Result<Connection, ShadowReadError> {
+        let conn = Connection::open(&self.db_path)?;
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS approval_denials (
+                task_id TEXT NOT NULL,
+                rule TEXT NOT NULL,
+                count INTEGER NOT NULL,
+                PRIMARY KEY (task_id, rule)
+            );
+            CREATE TABLE IF NOT EXISTS breaker_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );",
+        )?;
+        Ok(conn)
+    }
+
+    /// How many denials in a row of one rule pause an automation.
+    pub fn denial_threshold(&self) -> Result<u32, ShadowReadError> {
+        let stored: Option<String> = self
+            .breaker_connection()?
+            .query_row(
+                "SELECT value FROM breaker_settings WHERE key = 'denial_threshold'",
+                [],
+                |row| row.get(0),
+            )
+            .map(Some)
+            .or_else(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(other),
+            })?;
+        Ok(stored
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| (1..=MAX_DENIAL_THRESHOLD).contains(value))
+            .unwrap_or(DEFAULT_DENIAL_THRESHOLD))
+    }
+
+    pub fn set_denial_threshold(&self, threshold: u32) -> Result<Value, ShadowReadError> {
+        if !(1..=MAX_DENIAL_THRESHOLD).contains(&threshold) {
+            return Err(ShadowReadError::Parse(format!(
+                "the denial threshold must be between 1 and {MAX_DENIAL_THRESHOLD}"
+            )));
+        }
+        self.breaker_connection()?.execute(
+            "INSERT INTO breaker_settings (key, value) VALUES ('denial_threshold', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![threshold.to_string()],
+        )?;
+        Ok(json!({"ok": true, "denial_threshold": threshold}))
+    }
+
+    /// Feed the user's answer to an approval into the circuit breaker (A3). A denial counts against
+    /// the automation and the rule (the tool); an approval of that rule clears the count. When the
+    /// count reaches the threshold the automation is paused and the result says so, so the caller
+    /// can leave a notice. A session that is not an automation run is not counted.
+    pub fn note_approval_outcome(
+        &self,
+        session_id: &str,
+        rule: &str,
+        is_approved: bool,
+    ) -> Result<Option<Value>, ShadowReadError> {
+        let Some(run_id) = session_id.strip_prefix("__run__") else {
+            return Ok(None);
+        };
+        let Some(run) = self.tasks.find_run(run_id)? else {
+            return Ok(None);
+        };
+        let task_id = run.task_id;
+        let conn = self.breaker_connection()?;
+        if is_approved {
+            conn.execute(
+                "DELETE FROM approval_denials WHERE task_id = ?1 AND rule = ?2",
+                params![task_id, rule],
+            )?;
+            return Ok(None);
+        }
+        conn.execute(
+            "INSERT INTO approval_denials (task_id, rule, count) VALUES (?1, ?2, 1)
+             ON CONFLICT(task_id, rule) DO UPDATE SET count = count + 1",
+            params![task_id, rule],
+        )?;
+        let count: u32 = conn.query_row(
+            "SELECT count FROM approval_denials WHERE task_id = ?1 AND rule = ?2",
+            params![task_id, rule],
+            |row| row.get(0),
+        )?;
+        let threshold = self.denial_threshold()?;
+        if count < threshold {
+            return Ok(None);
+        }
+        let title = self
+            .tasks
+            .get_task(&task_id)?
+            .and_then(|entry| {
+                entry
+                    .data
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "Automation".to_string());
+        self.update(
+            &task_id,
+            &json!({"enabled": false, "paused_reason": "approval_denied", "paused_rule": rule}),
+        )?;
+        // A fresh start after the user turns it back on.
+        conn.execute(
+            "DELETE FROM approval_denials WHERE task_id = ?1",
+            params![task_id],
+        )?;
+        Ok(Some(json!({
+            "task_id": task_id, "title": title, "rule": rule,
+            "count": count, "threshold": threshold,
+        })))
+    }
+
     pub fn finalize_run(&mut self, id: &str, run_id: &str) -> Result<Value, ShadowReadError> {
         let Some(run) = self.tasks.find_run(run_id)? else {
             return Ok(json!({"ok": false, "error": "automation run not found"}));
@@ -469,6 +595,140 @@ fn next_task_run(task: &Value, is_scheduled_tick: bool) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn automation_session(store: &AutomationStore, title: &str) -> (String, String) {
+        let created = store
+            .create(&json!({"title": title, "instructions": "Run", "cron": "0 9 * * *"}))
+            .unwrap();
+        let task_id = created["task"]["id"].as_str().unwrap().to_string();
+        let prepared = store.prepare_run(&task_id).unwrap();
+        (
+            task_id,
+            prepared["session_id"].as_str().unwrap().to_string(),
+        )
+    }
+
+    #[test]
+    fn repeated_denials_of_one_rule_pause_the_automation() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = AutomationStore::open(temp.path()).unwrap();
+        let (task_id, session) = automation_session(&store, "Digest");
+        assert!(store
+            .note_approval_outcome(&session, "write_file", false)
+            .unwrap()
+            .is_none());
+        assert!(store
+            .note_approval_outcome(&session, "write_file", false)
+            .unwrap()
+            .is_none());
+        let tripped = store
+            .note_approval_outcome(&session, "write_file", false)
+            .unwrap()
+            .expect("the third denial in a row trips the breaker");
+        assert_eq!(tripped["task_id"], task_id.as_str());
+        assert_eq!(tripped["title"], "Digest");
+        assert_eq!(tripped["rule"], "write_file");
+        assert_eq!(tripped["count"], 3);
+        let state = store.get(&task_id).unwrap();
+        assert_eq!(state["task"]["enabled"], false);
+        assert_eq!(state["task"]["paused_reason"], "approval_denied");
+        assert_eq!(state["task"]["paused_rule"], "write_file");
+    }
+
+    #[test]
+    fn an_approval_clears_the_count_and_rules_count_separately() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = AutomationStore::open(temp.path()).unwrap();
+        let (task_id, session) = automation_session(&store, "Digest");
+        for _ in 0..2 {
+            assert!(store
+                .note_approval_outcome(&session, "write_file", false)
+                .unwrap()
+                .is_none());
+        }
+        assert!(store
+            .note_approval_outcome(&session, "write_file", true)
+            .unwrap()
+            .is_none());
+        for _ in 0..2 {
+            assert!(store
+                .note_approval_outcome(&session, "write_file", false)
+                .unwrap()
+                .is_none());
+        }
+        for _ in 0..2 {
+            assert!(store
+                .note_approval_outcome(&session, "web_fetch", false)
+                .unwrap()
+                .is_none());
+        }
+        assert_eq!(store.get(&task_id).unwrap()["task"]["enabled"], true);
+    }
+
+    #[test]
+    fn a_session_that_is_not_an_automation_run_is_not_counted() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = AutomationStore::open(temp.path()).unwrap();
+        let (task_id, _) = automation_session(&store, "Digest");
+        for _ in 0..5 {
+            assert!(store
+                .note_approval_outcome("chat-session", "write_file", false)
+                .unwrap()
+                .is_none());
+            assert!(store
+                .note_approval_outcome("__run__missing", "write_file", false)
+                .unwrap()
+                .is_none());
+        }
+        assert_eq!(store.get(&task_id).unwrap()["task"]["enabled"], true);
+    }
+
+    #[test]
+    fn the_denial_threshold_is_configurable_within_bounds() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = AutomationStore::open(temp.path()).unwrap();
+        assert_eq!(store.denial_threshold().unwrap(), DEFAULT_DENIAL_THRESHOLD);
+        assert!(store.set_denial_threshold(0).is_err());
+        assert!(store.set_denial_threshold(21).is_err());
+        assert_eq!(store.denial_threshold().unwrap(), DEFAULT_DENIAL_THRESHOLD);
+        store.set_denial_threshold(1).unwrap();
+        assert_eq!(
+            AutomationStore::open(temp.path())
+                .unwrap()
+                .denial_threshold()
+                .unwrap(),
+            1
+        );
+        let (task_id, session) = automation_session(&store, "Digest");
+        assert!(store
+            .note_approval_outcome(&session, "write_file", false)
+            .unwrap()
+            .is_some());
+        assert_eq!(store.get(&task_id).unwrap()["task"]["enabled"], false);
+    }
+
+    #[test]
+    fn turning_a_paused_automation_back_on_clears_the_pause_and_the_count() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = AutomationStore::open(temp.path()).unwrap();
+        let (task_id, session) = automation_session(&store, "Digest");
+        for _ in 0..3 {
+            store
+                .note_approval_outcome(&session, "write_file", false)
+                .unwrap();
+        }
+        store.update(&task_id, &json!({"enabled": true})).unwrap();
+        let task = store.get(&task_id).unwrap()["task"].clone();
+        assert_eq!(task["enabled"], true);
+        assert!(task.get("paused_reason").is_none());
+        // The count started over: two more denials do not trip it again.
+        for _ in 0..2 {
+            assert!(store
+                .note_approval_outcome(&session, "write_file", false)
+                .unwrap()
+                .is_none());
+        }
+    }
 
     #[test]
     fn automation_crud_and_manual_run_use_rust_taskstore() {

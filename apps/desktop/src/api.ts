@@ -88,6 +88,8 @@ import {
   directTrustedWorkspaces,
   directUpdateMemory,
   directUpdateAutomation,
+  directGetDenialThreshold,
+  directSetDenialThreshold,
   finalizeAutomationRun as finalizeAutomationRuntime,
   directListAudit,
   directListSources,
@@ -1546,6 +1548,9 @@ export interface Automation {
   schedule_raw?: { kind: string; cron?: string | null; fire_at?: string | null; timezone?: string };
   workspace: string;
   enabled: boolean;
+  // Set when the circuit breaker paused this automation after repeated denials of one rule.
+  paused_reason?: string;
+  paused_rule?: string;
   next_run: number | null;
   last_run: number | null;
   last_status: string | null;
@@ -1573,6 +1578,17 @@ export interface AutomationRun {
   artifacts: string[];
   error: string | null;
   trigger: string;
+}
+
+// How many denials in a row of one rule pause an automation (the circuit breaker, A3).
+export async function getDenialThreshold(): Promise<number> {
+  return throwOnError(await directGetDenialThreshold()).denial_threshold;
+}
+
+export async function setDenialThreshold(
+  threshold: number,
+): Promise<{ ok: boolean; error?: string }> {
+  return await directSetDenialThreshold(threshold);
 }
 
 export async function getAutomations(): Promise<Automation[]> {

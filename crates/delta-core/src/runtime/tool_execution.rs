@@ -58,6 +58,43 @@ impl RuntimeHost {
         Ok(())
     }
 
+    /// Tell the automation circuit breaker how the user answered an approval (A3). The answer is
+    /// already given and recorded, so a failure here goes to the ledger and never changes it.
+    fn note_automation_outcome(&self, call: &ToolCall, is_approved: bool) {
+        let Some(authorities) = &self.authorities else {
+            return;
+        };
+        let outcome =
+            crate::automation::AutomationStore::open(authorities.state_dir()).and_then(|store| {
+                store.note_approval_outcome(&self.session_id, &call.name, is_approved)
+            });
+        match outcome {
+            Ok(Some(paused)) => {
+                let title = paused["title"].as_str().unwrap_or("Automation");
+                let body = format!(
+                    "{title} was paused because {} was denied {} times in a row. Turn it back on in Automations after reviewing what it asks for.",
+                    call.name, paused["count"]
+                );
+                let key = format!("breaker:{}", paused["task_id"].as_str().unwrap_or_default());
+                let _ = authorities.inbox.add_notice(
+                    &self.session_id,
+                    &key,
+                    &format!("Paused: {title}"),
+                    &body,
+                );
+                let _ = self.ledger_append("automation.paused", "runtime", paused);
+            }
+            Ok(None) => {}
+            Err(error) => {
+                let _ = self.ledger_append(
+                    "automation.breaker_failed",
+                    "runtime",
+                    json!({"tool": call.name, "error": error.to_string()}),
+                );
+            }
+        }
+    }
+
     pub(super) fn require_approval(
         &self,
         call: &ToolCall,
@@ -165,6 +202,7 @@ impl RuntimeHost {
                         self.approvals
                             .remember(decision, &call.name, &call.arguments);
                     }
+                    self.note_automation_outcome(call, decision.is_approved());
                     return Ok(decision);
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}

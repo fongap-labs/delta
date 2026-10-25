@@ -511,6 +511,9 @@ export const fetchMemorySettings = () => invokeAuthority("memory_settings");
 export const updateMemorySettings = (patch: Record<string, unknown>) =>
   invokeAuthority("update_memory_settings", { patch });
 export const directListAutomations = () => invokeAuthority("automations_list");
+export const directGetDenialThreshold = () => invokeAuthority("automation_denial_threshold");
+export const directSetDenialThreshold = (threshold: number) =>
+  invokeAuthority("set_automation_denial_threshold", { threshold });
 export const directCreateAutomation = (payload: Record<string, unknown>) =>
   invokeAuthority("automation_create", { payload });
 export const directGetAutomation = (id: string) =>

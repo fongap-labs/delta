@@ -615,6 +615,89 @@ fn native_e2e_approval_rejection_never_enters_capability() {
 }
 
 #[test]
+fn native_e2e_repeated_denials_in_an_automation_run_pause_it_and_leave_a_notice() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let automations = crate::automation::AutomationStore::open(temp.path()).unwrap();
+    let created = automations
+        .create(&json!({"title": "Weekly report", "instructions": "Write it", "cron": "0 9 * * 1"}))
+        .unwrap();
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
+    let session_id = automations.prepare_run(&task_id).unwrap()["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut host = RuntimeHost::new(
+        &session_id,
+        RuntimeConfig {
+            unattended: true,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls: calls.clone(),
+        staged: None,
+    }));
+    host.set_run_id("run-breaker-e2e".to_string());
+    let host = Arc::new(host);
+
+    for attempt in 1..=3 {
+        let id = format!("call-breaker-{attempt}");
+        let worker = {
+            let host = host.clone();
+            let id = id.clone();
+            std::thread::spawn(move || {
+                host.execute_tool_call(&ToolCall {
+                    id,
+                    name: "write_report".to_string(),
+                    arguments: json!({"path": "report.md"}),
+                })
+            })
+        };
+        for _ in 0..200 {
+            if host.approvals.pending_ids() == [id.as_str()] {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        host.approvals
+            .resolve(Some(&id), ApprovalDecision::Deny)
+            .unwrap();
+        let result = worker.join().unwrap();
+        assert_eq!(result.error.as_deref(), Some("tool call denied by user"));
+        let enabled = automations.get(&task_id).unwrap()["task"]["enabled"].clone();
+        assert_eq!(enabled, attempt < 3, "after denial {attempt}");
+    }
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let task = automations.get(&task_id).unwrap()["task"].clone();
+    assert_eq!(task["paused_reason"], "approval_denied");
+    let notices: Vec<_> = authorities
+        .inbox
+        .list(None, Some("pending"))
+        .into_iter()
+        .filter(|item| item.kind == "notice")
+        .collect();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].title, "Paused: Weekly report");
+    assert!(notices[0].body.contains("write_report"));
+    let events = authorities
+        .ledger()
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events("run-breaker-e2e")
+        .unwrap();
+    assert!(events
+        .iter()
+        .any(|event| event.r#type == "automation.paused"));
+}
+
+#[test]
 fn native_e2e_cancel_while_approval_pending_is_terminal() {
     let temp = tempfile::tempdir().unwrap();
     let calls = Arc::new(AtomicUsize::new(0));

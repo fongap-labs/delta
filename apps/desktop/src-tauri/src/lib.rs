@@ -728,6 +728,8 @@ pub fn run() {
             runtime_ipc::automation_get,
             runtime_ipc::automation_update,
             runtime_ipc::automation_delete,
+            runtime_ipc::automation_denial_threshold,
+            runtime_ipc::set_automation_denial_threshold,
             runtime_ipc::update_automation_seen,
             runtime_ipc::prepare_automation_run,
             runtime_ipc::finalize_automation_run,

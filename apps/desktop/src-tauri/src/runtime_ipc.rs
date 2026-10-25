@@ -799,6 +799,25 @@ pub fn automation_delete(state: State<'_, RuntimeRegistry>, id: String) -> Value
 }
 
 #[tauri::command]
+pub fn automation_denial_threshold(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.automations().lock().unwrap().denial_threshold() {
+        Ok(threshold) => json!({"denial_threshold": threshold}),
+        Err(error) => json!({"ok": false, "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn set_automation_denial_threshold(state: State<'_, RuntimeRegistry>, threshold: u32) -> Value {
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap()
+            .set_denial_threshold(threshold),
+    )
+}
+
+#[tauri::command]
 pub fn update_automation_seen(state: State<'_, RuntimeRegistry>, id: String) -> Value {
     authority_result(state.automations().lock().unwrap().mark_seen(&id))
 }
