@@ -360,7 +360,12 @@ impl SkillStore {
         let staged = self.state_dir.join("skills-staged").join(&token);
         std::fs::create_dir_all(&staged)?;
         if filename.to_ascii_lowercase().ends_with(".zip") {
-            extract_zip(&bytes, &staged)?;
+            if let Err(error) = extract_zip(&bytes, &staged) {
+                // Nothing refers to a staging folder that never got its skill; do not leave the
+                // partly extracted files of a refused archive behind.
+                let _ = std::fs::remove_dir_all(&staged);
+                return Err(error);
+            }
         } else {
             std::fs::write(staged.join("SKILL.md"), bytes)?;
         }
@@ -915,7 +920,18 @@ fn write_skill(
     Ok(())
 }
 
+/// Most bytes a skill archive may expand to.
+const MAX_EXTRACTED_BYTES: u64 = 100 * 1024 * 1024;
+
 fn extract_zip(bytes: &[u8], destination: &Path) -> Result<(), ShadowReadError> {
+    extract_zip_within(bytes, destination, MAX_EXTRACTED_BYTES)
+}
+
+fn extract_zip_within(
+    bytes: &[u8],
+    destination: &Path,
+    max_extracted: u64,
+) -> Result<(), ShadowReadError> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| ShadowReadError::Parse(error.to_string()))?;
     if archive.len() > 500 {
@@ -948,20 +964,29 @@ fn extract_zip(bytes: &[u8], destination: &Path) -> Result<(), ShadowReadError> 
             std::fs::create_dir_all(output)?;
             continue;
         }
-        extracted_size = extracted_size.saturating_add(entry.size());
-        if extracted_size > 100 * 1024 * 1024 {
-            return Err(ShadowReadError::Parse(
-                "skill archive exceeds the 100 MiB extracted limit".to_string(),
-            ));
+        // The size in the archive's headers is the author's claim; refuse early on a claim that is
+        // already too big, but count what the entry really expands to as it is written.
+        if extracted_size.saturating_add(entry.size()) > max_extracted {
+            return Err(extracted_limit_error());
         }
         if let Some(parent) = output.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let mut bytes = Vec::new();
-        entry.read_to_end(&mut bytes)?;
-        std::fs::write(output, bytes)?;
+        let room = max_extracted - extracted_size;
+        let mut file = std::fs::File::create(&output)?;
+        let written = std::io::copy(&mut (&mut entry).take(room.saturating_add(1)), &mut file)?;
+        extracted_size = extracted_size.saturating_add(written);
+        if extracted_size > max_extracted {
+            drop(file);
+            let _ = std::fs::remove_file(&output);
+            return Err(extracted_limit_error());
+        }
     }
     Ok(())
+}
+
+fn extracted_limit_error() -> ShadowReadError {
+    ShadowReadError::Parse("skill archive exceeds the 100 MiB extracted limit".to_string())
 }
 
 fn find_skill_md(root: &Path) -> Result<PathBuf, ShadowReadError> {
@@ -1014,6 +1039,68 @@ fn list_relative_files(root: &Path) -> Result<Vec<String>, ShadowReadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A one-entry deflate archive of `size` zero bytes whose central directory claims the entry
+    /// is `declared` bytes long. The declared size is the archive author's word, nothing more.
+    fn archive_declaring(size: usize, declared: u32) -> Vec<u8> {
+        use std::io::Write;
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        writer.start_file("SKILL.md", options).unwrap();
+        writer.write_all(&vec![0_u8; size]).unwrap();
+        let mut bytes = writer.finish().unwrap().into_inner();
+        let record = bytes
+            .windows(4)
+            .position(|window| window == b"PK\x01\x02")
+            .expect("central directory record");
+        // Uncompressed size: 24 bytes into the central directory file header.
+        bytes[record + 24..record + 28].copy_from_slice(&declared.to_le_bytes());
+        bytes
+    }
+
+    #[test]
+    fn an_archive_is_held_to_its_real_size_not_the_size_it_declares() {
+        let temp = tempfile::tempdir().unwrap();
+        let bomb = archive_declaring(4 * 1024 * 1024, 10);
+        let error = extract_zip_within(&bomb, temp.path(), 1024 * 1024)
+            .expect_err("4 MiB of real content must not pass a 1 MiB limit");
+        assert!(error.to_string().contains("extracted limit"), "{error}");
+        let written = std::fs::metadata(temp.path().join("SKILL.md"))
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+        assert!(
+            written <= 1024 * 1024 + 1,
+            "{written} bytes reached the disk"
+        );
+    }
+
+    #[test]
+    fn a_refused_archive_leaves_no_staging_folder_behind() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        let encoded =
+            base64::engine::general_purpose::STANDARD.encode(b"this is not a zip archive");
+        assert!(store.stage_upload(&encoded, "broken.zip").is_err());
+        let staged = temp.path().join("skills-staged");
+        let leftover = std::fs::read_dir(&staged)
+            .map(|dir| dir.count())
+            .unwrap_or(0);
+        assert_eq!(leftover, 0, "a failed upload kept its staging folder");
+    }
+
+    #[test]
+    fn an_honest_archive_within_the_limit_is_extracted() {
+        let temp = tempfile::tempdir().unwrap();
+        let archive = archive_declaring(2048, 2048);
+        extract_zip_within(&archive, temp.path(), 1024 * 1024).unwrap();
+        assert_eq!(
+            std::fs::metadata(temp.path().join("SKILL.md"))
+                .unwrap()
+                .len(),
+            2048
+        );
+    }
 
     #[test]
     fn skill_crud_and_session_override_are_rust_owned() {
