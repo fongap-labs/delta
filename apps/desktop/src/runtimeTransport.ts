@@ -466,7 +466,7 @@ export const directLibraryRemove = (root: string) => invokeAuthority("library_re
 // What the user has allowed without being asked (A3): session grants and workspace rules.
 export const directApprovalRules = (sessionId: string, workspace: string) =>
   invokeAuthority("approval_rules", { sessionId, workspace });
-export const directRevokeApprovalRule = (
+export const directRevokeRule = (
   scope: string,
   sessionId: string,
   workspace: string,
@@ -474,7 +474,7 @@ export const directRevokeApprovalRule = (
   command: string | null,
 ) => invokeAuthority("revoke_approval_rule", { scope, sessionId, workspace, tool, command });
 export const directWebhookSettings = () => invokeAuthority("get_webhook_settings", {});
-export const directSetWebhookSettings = (url: string | null, isEnabled: boolean, isDetailed: boolean) =>
+export const updateWebhookSettings = (url: string | null, isEnabled: boolean, isDetailed: boolean) =>
   invokeAuthority("set_webhook_settings", { url, isEnabled, isDetailed });
 export const directTestWebhook = (workspace: string) => invokeAuthority("test_webhook", { workspace });
 export const updateEgressDefault = (level: string, isConfirmed: boolean) =>
@@ -530,9 +530,9 @@ export const fetchMemorySettings = () => invokeAuthority("memory_settings");
 export const updateMemorySettings = (patch: Record<string, unknown>) =>
   invokeAuthority("update_memory_settings", { patch });
 export const directListAutomations = () => invokeAuthority("automations_list");
-export const directGetDenialThreshold = () => invokeAuthority("automation_denial_threshold");
-export const directSetDenialThreshold = (threshold: number) =>
-  invokeAuthority("set_automation_denial_threshold", { threshold });
+export const fetchDenialThreshold = () => invokeAuthority("automation_denial_threshold");
+export const updateDenialThreshold = (threshold: number) =>
+  invokeAuthority("set_denial_threshold", { threshold });
 export const directCreateAutomation = (payload: Record<string, unknown>) =>
   invokeAuthority("automation_create", { payload });
 export const directGetAutomation = (id: string) =>

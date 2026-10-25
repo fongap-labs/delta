@@ -888,7 +888,7 @@ pub fn automation_denial_threshold(state: State<'_, RuntimeRegistry>) -> Value {
 }
 
 #[tauri::command]
-pub fn set_automation_denial_threshold(state: State<'_, RuntimeRegistry>, threshold: u32) -> Value {
+pub fn set_denial_threshold(state: State<'_, RuntimeRegistry>, threshold: u32) -> Value {
     authority_result(
         state
             .automations()

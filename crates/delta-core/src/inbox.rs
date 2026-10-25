@@ -228,12 +228,12 @@ impl InboxStore {
         title: &str,
         body: &str,
     ) -> Result<InboxItem, ShadowReadError> {
-        self.add_notice_with_data(session_id, key, title, body, Value::Null)
+        self.add_data_notice(session_id, key, title, body, Value::Null)
     }
 
     /// A notice that also carries structured data the Inbox shows, such as the files a finished
     /// run produced.
-    pub fn add_notice_with_data(
+    pub fn add_data_notice(
         &self,
         session_id: &str,
         key: &str,
