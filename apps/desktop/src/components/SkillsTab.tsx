@@ -438,7 +438,13 @@ export function SkillsTab({
                 <span className={`text-[13px] font-medium ${row.enabled ? "" : "text-muted"}`}>
                   {row.name}
                 </span>
-                {row.source !== "local" ? <span className={BADGE}>{row.source}</span> : null}
+                {row.scope === "builtin" ? (
+                  <span className={BADGE} data-testid="skill-builtin-badge">
+                    {t("skills.builtin", undefined, "Built in")}
+                  </span>
+                ) : row.source !== "local" ? (
+                  <span className={BADGE}>{row.source}</span>
+                ) : null}
                 {/* §6: a rich skill must not look identical to a one-file one. Styled as a
                     chip with a folder icon so it READS as clickable (live drive: plain
                     text hid the affordance). */}
@@ -457,30 +463,51 @@ export function SkillsTab({
                   it mid-word hid what the skill does (live drive). */}
               <div className="text-[12px] text-muted leading-relaxed">{row.description}</div>
             </div>
-            <button
-              className={BTN_BORDERED}
-              title={t("common.edit", undefined, "Edit")}
-              onClick={() =>
-                setEditor({
-                  mode: "edit",
-                  name: row.name,
-                  description: row.description,
-                  instructions: row.instructions,
-                })
-              }
-            >
-              <Icon name="pencil" size={13} />
-            </button>
-            <button
-              className={BTN_BORDERED}
-              aria-label={t("skills.deleteWithName", { name: row.name }, "Delete {name}")}
-              onClick={() => remove(row)}
-              onBlur={() => setArmedDelete(null)}
-            >
-              {armedDelete === row.name
-                ? t("skills.confirmDelete", undefined, "Confirm delete")
-                : <Icon name="trash" size={13} />}
-            </button>
+            {row.scope === "builtin" ? (
+              // A built-in skill is read-only. A copy under another name is the way to change it.
+              <button
+                className={BTN_BORDERED}
+                data-testid="skill-copy"
+                title={t("skills.copyHelp", undefined, "Save a copy you can edit")}
+                onClick={() =>
+                  setEditor({
+                    mode: "new",
+                    name: `${row.name}-copy`,
+                    description: row.description,
+                    instructions: row.instructions,
+                  })
+                }
+              >
+                {t("skills.copy", undefined, "Make a copy")}
+              </button>
+            ) : (
+              <>
+                <button
+                  className={BTN_BORDERED}
+                  title={t("common.edit", undefined, "Edit")}
+                  onClick={() =>
+                    setEditor({
+                      mode: "edit",
+                      name: row.name,
+                      description: row.description,
+                      instructions: row.instructions,
+                    })
+                  }
+                >
+                  <Icon name="pencil" size={13} />
+                </button>
+                <button
+                  className={BTN_BORDERED}
+                  aria-label={t("skills.deleteWithName", { name: row.name }, "Delete {name}")}
+                  onClick={() => remove(row)}
+                  onBlur={() => setArmedDelete(null)}
+                >
+                  {armedDelete === row.name
+                    ? t("skills.confirmDelete", undefined, "Confirm delete")
+                    : <Icon name="trash" size={13} />}
+                </button>
+              </>
+            )}
             <label className="inline-flex items-center gap-1.5 text-[12px] text-muted">
               <input
                 type="checkbox"

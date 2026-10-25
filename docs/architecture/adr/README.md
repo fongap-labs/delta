@@ -24,6 +24,7 @@
 | [0063](0063-edit-existing-office-files.md) | 编辑已有的 Office 文件（有边界的原地编辑；修订 ADR-0058 的范围一条） |
 | [0064](0064-completion-notices-and-webhook.md) | 任务完成通知与可选 Webhook（出站判定与模型请求相同；默认只发最少内容） |
 | [0065](0065-approval-ladder.md) | 渐进授权阶梯（单次、会话、工作区；授权不推翻拒绝；可见可撤销） |
+| [0066](0066-builtin-content-skills.md) | 随产品发布的内容创作技能（公众号文章、五图图文笔记、短视频素材包；只读，可复制） |
 
 ## 代码中引用但本仓库未保存的编号
 

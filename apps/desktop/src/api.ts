@@ -1105,8 +1105,9 @@ export interface SkillRow {
   name: string;
   description: string;
   instructions: string;
-  scope: "global" | "project";
-  source: string; // "local" | "uploaded"
+  // "builtin" skills ship with Delta: read-only, they can be turned off or copied.
+  scope: "global" | "project" | "builtin";
+  source: string; // "local" | "uploaded" | "builtin"
   enabled: boolean;
   path: string;
   files?: number; // bundled resources beyond SKILL.md (§6 — rich skills are visible)
@@ -1115,7 +1116,7 @@ export interface SkillRow {
 export interface SessionSkillRow {
   name: string;
   description: string;
-  scope: "global" | "project";
+  scope: "global" | "project" | "builtin";
   enabled: boolean; // false = muted for this session only
 }
 

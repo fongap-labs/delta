@@ -63,6 +63,29 @@ impl SideEffectClass {
     }
 }
 
+/// The skills that ship with Delta (roadmap B3). They are compiled into the binary, so they need
+/// no install and no network, and they are read-only: the user can turn one off or save a copy
+/// under another name. A skill of the same name in the user's own folders replaces the built-in
+/// one. Like every skill they hold instructions only; each tool they suggest still asks.
+const BUILTIN_SKILLS: &[(&str, &str)] = &[
+    (
+        "wechat-article",
+        include_str!("../skills/wechat-article/SKILL.md"),
+    ),
+    (
+        "five-image-note",
+        include_str!("../skills/five-image-note/SKILL.md"),
+    ),
+    (
+        "short-video-pack",
+        include_str!("../skills/short-video-pack/SKILL.md"),
+    ),
+];
+
+/// What the user is told when they try to change or delete a built-in skill.
+const BUILTIN_READ_ONLY: &str =
+    "built-in skills can not be edited or deleted; turn it off, or save a copy under another name";
+
 /// The most skills one `find_skill` call returns.
 const FIND_SKILL_LIMIT: usize = 10;
 
@@ -178,7 +201,38 @@ impl SkillStore {
                 );
             }
         }
+        for (folder, text) in BUILTIN_SKILLS {
+            let contract = parse_skill(text, folder)?.contract;
+            rows.entry(contract.name.clone()).or_insert_with(|| {
+                json!({
+                    "name": contract.name,
+                    "description": contract.description,
+                    "instructions": contract.instructions,
+                    "scope": "builtin",
+                    "source": "builtin",
+                    "enabled": !disabled.contains(&contract.name),
+                    "path": Value::Null,
+                    "files": 0,
+                    "version": contract.version,
+                    "compatibility": contract.compatibility,
+                    "side_effect": contract.side_effect.as_str(),
+                    "capabilities": contract.capabilities,
+                    "permissions": contract.permissions,
+                    "timeout_secs": contract.timeout_secs,
+                    "cancellable": contract.cancellable,
+                    "worker": contract.worker,
+                    "input_schema": contract.input_schema,
+                    "output_schema": contract.output_schema,
+                })
+            });
+        }
         Ok(rows.into_values().collect())
+    }
+
+    /// Whether `name` is a built-in skill the user has not replaced with one of their own.
+    fn is_builtin_only(&self, name: &str, workspace: Option<&str>) -> bool {
+        BUILTIN_SKILLS.iter().any(|(folder, _)| *folder == name)
+            && self.find(name, workspace).is_err()
     }
 
     pub fn create(&self, body: &Value) -> Result<Value, ShadowReadError> {
@@ -223,6 +277,11 @@ impl SkillStore {
         if let Some(enabled) = patch.get("enabled").and_then(Value::as_bool) {
             self.set_enabled(&name, enabled)?;
         }
+        if (patch.get("description").is_some() || patch.get("instructions").is_some())
+            && self.is_builtin_only(&name, workspace)
+        {
+            return Ok(json!({"ok": false, "error": BUILTIN_READ_ONLY}));
+        }
         if patch.get("description").is_some() || patch.get("instructions").is_some() {
             let (folder, _) = self.find(&name, workspace)?;
             let current =
@@ -249,6 +308,9 @@ impl SkillStore {
     }
 
     pub fn delete(&self, name: &str, workspace: Option<&str>) -> Result<Value, ShadowReadError> {
+        if self.is_builtin_only(name, workspace) {
+            return Ok(json!({"ok": false, "error": BUILTIN_READ_ONLY}));
+        }
         let (folder, _) = self.find(&validate_name(name)?, workspace)?;
         std::fs::remove_dir_all(folder)?;
         Ok(json!({"ok": true}))
@@ -1002,7 +1064,15 @@ mod tests {
             &context,
         );
         assert_eq!(saved.state, ToolExitState::Completed, "{:?}", saved.error);
-        let listed = store.list(None).unwrap();
+        let own = |store: &SkillStore| -> Vec<Value> {
+            store
+                .list(None)
+                .unwrap()
+                .into_iter()
+                .filter(|row| row["scope"] != "builtin")
+                .collect()
+        };
+        let listed = own(&store);
         assert_eq!(listed[0]["name"], "weekly-report");
         // Saving never grants anything: no permissions, no side effects declared.
         assert_eq!(listed[0]["permissions"], json!([]));
@@ -1014,7 +1084,7 @@ mod tests {
             let refused = host.execute(&call(name, instructions), &context);
             assert_eq!(refused.state, ToolExitState::Failed, "{name}");
         }
-        assert_eq!(store.list(None).unwrap().len(), 1);
+        assert_eq!(own(&store).len(), 1);
     }
 
     fn lookup_host(store: &Arc<SkillStore>) -> crate::capability::CapabilityHost {
@@ -1317,5 +1387,208 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(store.list(None), Err(ShadowReadError::Parse(_))));
+    }
+
+    // --- built-in skills (B3) ---
+
+    fn builtin_rows(store: &SkillStore) -> Vec<Value> {
+        store
+            .list(None)
+            .unwrap()
+            .into_iter()
+            .filter(|row| row["scope"] == "builtin")
+            .collect()
+    }
+
+    #[test]
+    fn the_three_content_skills_ship_with_delta_and_hold_instructions_only() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        let rows = builtin_rows(&store);
+        let names: Vec<&str> = rows
+            .iter()
+            .map(|row| row["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            ["five-image-note", "short-video-pack", "wechat-article"]
+        );
+        for row in &rows {
+            let name = row["name"].as_str().unwrap();
+            assert!(validate_name(name).is_ok(), "{name}");
+            assert_eq!(row["source"], "builtin");
+            assert_eq!(
+                row["enabled"], true,
+                "{name} is on until the user turns it off"
+            );
+            assert!(!row["description"].as_str().unwrap().is_empty(), "{name}");
+            assert_eq!(row["side_effect"], "local_write", "{name}");
+            assert_eq!(
+                row["permissions"],
+                json!([]),
+                "{name} has no permissions of its own"
+            );
+            assert!(row["worker"].is_null(), "{name} runs no worker");
+        }
+    }
+
+    #[test]
+    fn find_skill_reaches_each_content_skill_in_chinese_and_english() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        let first = |query: &str| -> String {
+            let found = store.find_for_session("s1", None, query).unwrap();
+            found["skills"][0]["name"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned()
+        };
+        assert_eq!(first("公众号文章"), "wechat-article");
+        assert_eq!(first("WeChat article"), "wechat-article");
+        assert_eq!(first("五图图文笔记"), "five-image-note");
+        assert_eq!(first("小红书"), "five-image-note");
+        assert_eq!(first("短视频素材包"), "short-video-pack");
+        assert_eq!(first("video"), "short-video-pack");
+    }
+
+    #[test]
+    fn each_content_skill_names_its_files_asks_once_cites_sources_and_defers_to_the_privacy_level()
+    {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        let files = [
+            (
+                "wechat-article",
+                vec!["article.md", "article.html", "publish-notes.md"],
+            ),
+            (
+                "five-image-note",
+                vec!["cards.pptx", "note.md", "image-briefs.md"],
+            ),
+            (
+                "short-video-pack",
+                vec!["script.md", "shots.xlsx", "captions.md", "checklist.md"],
+            ),
+        ];
+        for (name, expected) in files {
+            let read = store.read_for_session("s1", None, name).unwrap();
+            assert_eq!(read["ok"], true, "{name}");
+            let text = read["instructions"].as_str().unwrap();
+            for file in expected {
+                assert!(text.contains(file), "{name} must name {file}");
+            }
+            for needle in [
+                "ask_user",
+                "来源",
+                "检查清单",
+                "隐私级别",
+                "没有来源的不要写成事实",
+            ] {
+                assert!(text.contains(needle), "{name} must mention {needle}");
+            }
+            // It says what it cannot do instead of pretending to.
+            assert!(text.contains("不能"), "{name}");
+            // A fixed rule of the skill pack: nothing here tells the model to skip an approval.
+            assert!(
+                !text.contains("无需批准") && !text.contains("不需要批准"),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_builtin_skill_can_be_turned_off_but_not_edited_or_deleted() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        let off = store
+            .update("wechat-article", &json!({"enabled": false}), None)
+            .unwrap();
+        assert_eq!(off["ok"], true);
+        let row = builtin_rows(&store)
+            .into_iter()
+            .find(|row| row["name"] == "wechat-article")
+            .unwrap();
+        assert_eq!(row["enabled"], false);
+        let found = store.find_for_session("s1", None, "公众号").unwrap();
+        assert_eq!(found["total"], 0, "a skill that is off is not offered");
+
+        let edited = store
+            .update(
+                "wechat-article",
+                &json!({"instructions": "something else"}),
+                None,
+            )
+            .unwrap();
+        assert_eq!(edited["ok"], false);
+        assert!(edited["error"].as_str().unwrap().contains("built-in"));
+        let deleted = store.delete("wechat-article", None).unwrap();
+        assert_eq!(deleted["ok"], false);
+        assert!(deleted["error"].as_str().unwrap().contains("built-in"));
+        assert_eq!(builtin_rows(&store).len(), 3, "nothing was removed");
+    }
+
+    #[test]
+    fn a_skill_of_the_users_own_with_the_same_name_replaces_the_builtin_and_can_be_edited() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        store
+            .create(&json!({"name": "wechat-article", "description": "mine", "instructions": "My way."}))
+            .unwrap();
+        let rows = store.list(None).unwrap();
+        let mine = rows
+            .iter()
+            .find(|row| row["name"] == "wechat-article")
+            .unwrap();
+        assert_eq!(mine["scope"], "global");
+        assert_eq!(mine["instructions"], "My way.");
+        assert_eq!(builtin_rows(&store).len(), 2);
+        assert_eq!(
+            store
+                .update("wechat-article", &json!({"instructions": "Changed."}), None)
+                .unwrap()["ok"],
+            true
+        );
+        assert_eq!(store.delete("wechat-article", None).unwrap()["ok"], true);
+        assert_eq!(builtin_rows(&store).len(), 3, "the built-in one is back");
+    }
+
+    #[test]
+    fn the_files_the_skills_ask_for_can_be_made_with_create_document() {
+        // five-image-note: five slides, a title and bullets each.
+        let slides: Vec<Value> = (1..=5)
+            .map(|n| json!({"title": format!("卡片 {n}"), "bullets": ["要点一", "要点二", "要点三"]}))
+            .collect();
+        let (_, bytes, _) =
+            crate::document::create("cards.pptx", &json!({"slides": slides})).unwrap();
+        let parsed = crate::document::parse(crate::document::Kind::Pptx, &bytes).unwrap();
+        assert_eq!(parsed.blocks.len(), 5);
+
+        // short-video-pack: a header row, shots, and a SUM row that must equal the target length.
+        let rows = json!([
+            [
+                "镜号",
+                "时长(秒)",
+                "景别",
+                "画面内容",
+                "口播/字幕",
+                "音效/配乐",
+                "素材来源"
+            ],
+            [1, 3, "近景", "钩子", "你知道吗", "无", "自拍"],
+            [2, 20, "中景", "要点一", "第一点", "轻音乐", "自拍"],
+            [3, 22, "全景", "要点二与结尾", "第二点", "轻音乐", "自拍"],
+            ["合计", "=SUM(B2:B4)", null, null, null, null, null]
+        ]);
+        let (_, bytes, _) = crate::document::create(
+            "shots.xlsx",
+            &json!({"sheets": [{"name": "分镜", "header": true, "rows": rows}]}),
+        )
+        .unwrap();
+        let parsed = crate::document::parse(crate::document::Kind::Xlsx, &bytes).unwrap();
+        let text = &parsed.blocks[0].text;
+        assert!(
+            text.contains("=SUM(B2:B4)") || text.contains("合计"),
+            "{text}"
+        );
     }
 }
