@@ -208,6 +208,7 @@ mod tests {
             vec![
                 "ask_user",
                 "create_document",
+                "edit_document",
                 "propose_plan",
                 "read_document",
                 "read_file",
@@ -343,6 +344,73 @@ mod tests {
         );
         assert_eq!(bad.state, crate::runtime::ToolExitState::Failed);
         assert!(bad.staged_artifacts.is_empty());
+    }
+
+    #[test]
+    fn edit_document_stages_the_edited_file_and_leaves_the_workspace_file_alone() {
+        let temp = tempfile::tempdir().unwrap();
+        let (_, original, _) = crate::document::create(
+            "report.docx",
+            &serde_json::json!({"title": "Report", "blocks": [{"type": "paragraph", "text": "Revenue grew in Q3."}]}),
+        )
+        .unwrap();
+        std::fs::write(temp.path().join("report.docx"), &original).unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let call = |path: &str, edits: serde_json::Value| ToolCall {
+            id: "call-edit".to_string(),
+            name: "edit_document".to_string(),
+            arguments: serde_json::json!({"path": path, "edits": edits}),
+        };
+        let result = host.execute(
+            &call(
+                "report.docx",
+                serde_json::json!([{"find": "Q3", "replace": "Q4"}]),
+            ),
+            &tool_context(temp.path()),
+        );
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
+        assert_eq!(result.output["kind"], "docx");
+        assert_eq!(result.output["edits"][0]["replaced"], 1);
+        assert_eq!(result.staged_artifacts.len(), 1);
+        assert_eq!(result.staged_artifacts[0].relative_path, "report.docx");
+        let staged = std::fs::read(&result.staged_artifacts[0].staging_path).unwrap();
+        let text = &crate::document::parse(crate::document::Kind::Docx, &staged)
+            .unwrap()
+            .blocks[0]
+            .text;
+        assert!(text.contains("Revenue grew in Q4."), "{text}");
+        assert_eq!(
+            std::fs::read(temp.path().join("report.docx")).unwrap(),
+            original
+        );
+
+        for bad in [
+            call(
+                "report.docx",
+                serde_json::json!([{"find": "nowhere", "replace": "x"}]),
+            ),
+            call(
+                "../escape.docx",
+                serde_json::json!([{"find": "Q3", "replace": "x"}]),
+            ),
+            call(
+                "missing.docx",
+                serde_json::json!([{"find": "Q3", "replace": "x"}]),
+            ),
+            call(
+                "notes.txt",
+                serde_json::json!([{"find": "Q3", "replace": "x"}]),
+            ),
+        ] {
+            let refused = host.execute(&bad, &tool_context(temp.path()));
+            assert_eq!(refused.state, crate::runtime::ToolExitState::Failed);
+            assert!(refused.staged_artifacts.is_empty());
+        }
     }
 
     #[test]

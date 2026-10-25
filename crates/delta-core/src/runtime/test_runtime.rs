@@ -698,6 +698,79 @@ fn native_e2e_repeated_denials_in_an_automation_run_pause_it_and_leave_a_notice(
 }
 
 #[test]
+fn native_e2e_edit_document_asks_first_then_replaces_the_file_and_keeps_the_original() {
+    let state = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(state.path());
+    let (_, original, _) = crate::document::create(
+        "report.docx",
+        &json!({"title": "Report", "blocks": [{"type": "paragraph", "text": "Revenue grew in Q3."}]}),
+    )
+    .unwrap();
+    std::fs::write(workspace.path().join("report.docx"), &original).unwrap();
+    let capabilities = crate::capability::CapabilityHost::product_defaults().unwrap();
+    let tools = capabilities.tool_schemas();
+    let mut host = RuntimeHost::new(
+        "session-edit-doc",
+        RuntimeConfig {
+            workspace: Some(workspace.path().to_string_lossy().to_string()),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities)
+    .with_tools(tools)
+    .with_tool_executor(Arc::new(capabilities));
+    host.set_run_id("run-edit-doc".to_string());
+    let host = Arc::new(host);
+    let worker = {
+        let host = host.clone();
+        std::thread::spawn(move || {
+            host.execute_tool_call(&ToolCall {
+                id: "call-edit-doc".to_string(),
+                name: "edit_document".to_string(),
+                arguments: json!({"path": "report.docx", "edits": [{"find": "Q3", "replace": "Q4"}]}),
+            })
+        })
+    };
+    for _ in 0..400 {
+        if host.approvals.pending_ids() == ["call-edit-doc"] {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(
+        host.approvals.pending_ids(),
+        ["call-edit-doc"],
+        "an edit must ask first"
+    );
+    assert_eq!(
+        std::fs::read(workspace.path().join("report.docx")).unwrap(),
+        original,
+        "nothing changes before the approval"
+    );
+    host.approvals
+        .resolve(Some("call-edit-doc"), ApprovalDecision::Once)
+        .unwrap();
+    let result = worker.join().unwrap();
+    assert!(result.error.is_none(), "{:?}", result.error);
+
+    let edited = std::fs::read(workspace.path().join("report.docx")).unwrap();
+    let text = &crate::document::parse(crate::document::Kind::Docx, &edited)
+        .unwrap()
+        .blocks[0]
+        .text;
+    assert!(text.contains("Q4") && !text.contains("Q3"), "{text}");
+    let kept = workspace
+        .path()
+        .join(".delta/versions/run-edit-doc/report.docx");
+    assert_eq!(
+        std::fs::read(kept).unwrap(),
+        original,
+        "the original is kept as a version"
+    );
+}
+
+#[test]
 fn native_e2e_cancel_while_approval_pending_is_terminal() {
     let temp = tempfile::tempdir().unwrap();
     let calls = Arc::new(AtomicUsize::new(0));

@@ -28,3 +28,6 @@ e2e/** linguist-detectable=false
 # Unioning keeps the entries of both sides, which is what an append-only changelog
 # wants anyway.
 CHANGELOG.md merge=union
+
+# Real Office files used as edit fixtures: never convert line endings.
+crates/delta-core/tests/fixtures/office/* binary

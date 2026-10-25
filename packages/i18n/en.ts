@@ -716,6 +716,7 @@ export const en = {
   "humanize.webFetch": "Read a web page — ",
   "humanize.explored": "Sent a sub-agent to explore — ",
   "humanize.usedSkill": "Used skill: ",
+  "humanize.findSkill": "Looked up your saved skills",
   "humanize.askedQuestion": "Asked you a question",
   "humanize.proposedPlan": "Proposed a plan",
   "humanize.usedTool": "Used {name}",

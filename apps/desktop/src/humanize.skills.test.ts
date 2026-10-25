@@ -31,6 +31,19 @@ describe("humanize document and web tools", () => {
   });
 });
 
+describe("humanize editing and skill lookup tools", () => {
+  it("says edit_document edited a named file, in the step, the approval and the ask", () => {
+    expect(humanizeTool("edit_document", { path: "out/plan.docx" })).toMatchObject({ pre: "Edited ", obj: "plan.docx" });
+    expect(humanizeApprovalTitle("edit_document", { path: "out/plan.docx" })).toMatchObject({ pre: "Edit ", obj: "plan.docx" });
+    expect(humanizeAsk("edit_document", { path: "out/plan.docx" })).toMatchObject({ pre: "Wanted to edit ", obj: "plan.docx" });
+  });
+
+  it("shows a skill lookup and a skill read as plain steps", () => {
+    expect(humanizeTool("find_skill", { query: "weekly report" })).toMatchObject({ pre: "Looked up your saved skills" });
+    expect(humanizeTool("read_skill", { name: "weekly-report" })).toMatchObject({ pre: "Used skill: ", obj: "weekly-report" });
+  });
+});
+
 describe("humanize computer tools", () => {
   it("says what the screen, clipboard and open tools do in plain words", () => {
     expect(humanizeApprovalTitle("screenshot", {})).toMatchObject({ pre: "Take a picture of your screen" });

@@ -122,6 +122,7 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Created ", preKey: "humanize.created", obj: baseName(String(a.path ?? "a document")) };
     case "replace_in_file":
     case "apply_patch":
+    case "edit_document":
     case "apply_unified_diff":
       return {
         pre: "Edited ",
@@ -181,6 +182,9 @@ export function humanizeTool(name: string, args: any): HumanLine {
         preKey: "humanize.explored",
         obj: `“${trunc(String(a.task ?? a.prompt ?? ""), 60)}”`,
       };
+    case "find_skill":
+      return { pre: "Looked up your saved skills", preKey: "humanize.findSkill" };
+    case "read_skill":
     case "load_skill":
       // SKILLS-SPEC §4.1 #4 — the trust line: the transcript always shows the moment a
       // skill's instructions were picked up, model-invoked or forced via /skill.
@@ -216,6 +220,7 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       return { pre: "Write ", preKey: "humanize.apWrite", obj: baseName(String(a.path ?? "a file")) };
     case "replace_in_file":
     case "apply_patch":
+    case "edit_document":
     case "apply_unified_diff":
       return {
         pre: "Edit ",
@@ -317,6 +322,7 @@ export function humanizeAsk(name: string, args: any): HumanLine {
       return { pre: "Wanted to write ", preKey: "humanize.askWrite", obj: baseName(String(a.path ?? "a file")) };
     case "replace_in_file":
     case "apply_patch":
+    case "edit_document":
     case "apply_unified_diff":
       return {
         pre: "Wanted to edit ",

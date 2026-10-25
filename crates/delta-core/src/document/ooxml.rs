@@ -11,14 +11,14 @@ use zip::ZipArchive;
 /// Largest XML part read, after decompression. Bounds a ZIP bomb.
 const MAX_PART_BYTES: u64 = 64 * 1024 * 1024;
 
-type Archive<'a> = ZipArchive<Cursor<&'a [u8]>>;
+pub(super) type Archive<'a> = ZipArchive<Cursor<&'a [u8]>>;
 
-fn open(bytes: &[u8]) -> Result<Archive<'_>, String> {
+pub(super) fn open(bytes: &[u8]) -> Result<Archive<'_>, String> {
     ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| format!("the file is not a valid Office document: {error}"))
 }
 
-fn part(archive: &mut Archive<'_>, name: &str) -> Result<Option<Vec<u8>>, String> {
+pub(super) fn part(archive: &mut Archive<'_>, name: &str) -> Result<Option<Vec<u8>>, String> {
     let file = match archive.by_name(name) {
         Ok(file) => file,
         Err(zip::result::ZipError::FileNotFound) => return Ok(None),
@@ -34,7 +34,7 @@ fn part(archive: &mut Archive<'_>, name: &str) -> Result<Option<Vec<u8>>, String
     Ok(Some(bytes))
 }
 
-fn required_part(archive: &mut Archive<'_>, name: &str) -> Result<Vec<u8>, String> {
+pub(super) fn required_part(archive: &mut Archive<'_>, name: &str) -> Result<Vec<u8>, String> {
     part(archive, name)?
         .ok_or_else(|| format!("the file has no {name}; it is not a complete document"))
 }
@@ -44,11 +44,11 @@ fn xml_reader(bytes: &[u8]) -> Reader<&[u8]> {
 }
 
 /// Local name of an element: `w:t` and `t` are both `t`.
-fn local(start: &BytesStart<'_>) -> String {
+pub(super) fn local(start: &BytesStart<'_>) -> String {
     String::from_utf8_lossy(start.local_name().as_ref()).into_owned()
 }
 
-fn local_end(end: &BytesEnd<'_>) -> String {
+pub(super) fn local_end(end: &BytesEnd<'_>) -> String {
     String::from_utf8_lossy(end.local_name().as_ref()).into_owned()
 }
 
@@ -67,7 +67,7 @@ fn attr(start: &BytesStart<'_>, name: &str) -> Option<String> {
 }
 
 /// `&amp;`, `&#x4e2d;` and friends, which quick-xml hands over as separate events.
-fn push_reference(out: &mut String, reference: &BytesRef<'_>) {
+pub(super) fn push_reference(out: &mut String, reference: &BytesRef<'_>) {
     if let Ok(Some(c)) = reference.resolve_char_ref() {
         out.push(c);
         return;
@@ -82,7 +82,7 @@ fn push_reference(out: &mut String, reference: &BytesRef<'_>) {
     }
 }
 
-fn xml_error(name: &str, error: quick_xml::Error) -> String {
+pub(super) fn xml_error(name: &str, error: quick_xml::Error) -> String {
     format!("{name} is not valid XML: {error}")
 }
 
@@ -205,7 +205,7 @@ pub struct Sheet {
 }
 
 /// Column index (A = 0) from a cell reference such as `AB12`.
-fn column_of(reference: &str) -> usize {
+pub(super) fn column_of(reference: &str) -> usize {
     reference
         .chars()
         .take_while(char::is_ascii_alphabetic)
@@ -255,7 +255,7 @@ fn shared_strings(archive: &mut Archive<'_>) -> Result<Vec<String>, String> {
 }
 
 /// Sheet names with the part each one lives in, in workbook order.
-fn sheet_parts(archive: &mut Archive<'_>) -> Result<Vec<(String, String)>, String> {
+pub(super) fn sheet_parts(archive: &mut Archive<'_>) -> Result<Vec<(String, String)>, String> {
     let workbook = required_part(archive, "xl/workbook.xml")?;
     let mut reader = xml_reader(&workbook);
     let mut sheets: Vec<(String, String)> = Vec::new();
@@ -471,7 +471,7 @@ fn drawing_text(xml: &[u8], name: &str) -> Result<Vec<String>, String> {
     Ok(lines)
 }
 
-fn numbered(names: impl Iterator<Item = String>, prefix: &str) -> Vec<(usize, String)> {
+pub(super) fn numbered(names: impl Iterator<Item = String>, prefix: &str) -> Vec<(usize, String)> {
     let mut found: Vec<(usize, String)> = names
         .filter_map(|name| {
             let number = name
