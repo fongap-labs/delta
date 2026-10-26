@@ -57,10 +57,10 @@ pub fn decode_entities(text: &str) -> String {
 }
 
 /// Tags whose content is not page text.
-const SKIPPED: [&str; 6] = ["script", "style", "noscript", "svg", "head", "template"];
+pub(super) const SKIPPED: [&str; 6] = ["script", "style", "noscript", "svg", "head", "template"];
 
 /// Elements that never have a closing tag, so they never open a subtree.
-const VOID: [&str; 13] = [
+pub(super) const VOID: [&str; 13] = [
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
     "wbr",
 ];
@@ -92,7 +92,7 @@ const BLOCKS: [&str; 24] = [
     "hr",
 ];
 
-fn tag_name(tag: &str) -> (String, bool) {
+pub(super) fn tag_name(tag: &str) -> (String, bool) {
     let inner = tag.trim_start_matches('<').trim_end_matches('>');
     let is_closing = inner.starts_with('/');
     let name: String = inner
@@ -114,7 +114,7 @@ pub fn title_of(html: &str) -> Option<String> {
     (!title.is_empty()).then_some(title)
 }
 
-fn collapse_whitespace(text: &str) -> String {
+pub(super) fn collapse_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -129,7 +129,7 @@ const HIDING_DECLARATIONS: [&str; 4] = [
 /// Whether an opening tag hides its element from a reader: the bare `hidden` attribute, or an
 /// inline style that removes it from view. Such text is invisible to a person, so it must not
 /// reach the model either.
-fn hides_element(open_tag: &str) -> bool {
+pub(super) fn hides_element(open_tag: &str) -> bool {
     let style = attribute(open_tag, "style")
         .unwrap_or_default()
         .to_ascii_lowercase();

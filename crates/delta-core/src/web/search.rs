@@ -23,6 +23,9 @@ pub struct SearchResult {
     pub title: String,
     pub url: String,
     pub snippet: String,
+    /// When the page was published or last seen, as the engine words it ("2 days ago",
+    /// "2026-10-20"), when the engine says.
+    pub date: Option<String>,
 }
 
 #[derive(Debug)]
@@ -55,6 +58,66 @@ pub struct Engine {
     pub id: String,
     pub name: String,
     pub kind: EngineKind,
+}
+
+/// How recent the results must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Recency {
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+impl Recency {
+    pub fn parse(text: &str) -> Option<Self> {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "day" | "d" | "24h" => Some(Self::Day),
+            "week" | "w" => Some(Self::Week),
+            "month" | "m" => Some(Self::Month),
+            "year" | "y" => Some(Self::Year),
+            _ => None,
+        }
+    }
+
+    fn word(self) -> &'static str {
+        match self {
+            Self::Day => "day",
+            Self::Week => "week",
+            Self::Month => "month",
+            Self::Year => "year",
+        }
+    }
+
+    fn letter(self) -> char {
+        self.word().as_bytes()[0] as char
+    }
+}
+
+/// What to narrow a search to.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Filters {
+    /// Only this site (a domain such as `docs.rs`).
+    pub site: Option<String>,
+    pub recency: Option<Recency>,
+}
+
+impl Filters {
+    /// A bare domain from whatever the caller wrote (`https://www.docs.rs/x` -> `www.docs.rs`).
+    pub fn site_from(text: &str) -> Option<String> {
+        let text = text.trim();
+        let host = Url::parse(text)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .unwrap_or_else(|| text.split('/').next().unwrap_or_default().to_owned());
+        let host = host.trim_start_matches("site:").to_ascii_lowercase();
+        let valid = !host.is_empty()
+            && host.contains('.')
+            && host
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+        valid.then_some(host)
+    }
 }
 
 /// Most results a caller may ask for.
@@ -98,6 +161,7 @@ fn json_results(
     title: &str,
     url: &str,
     snippet: &str,
+    date: &[&str],
 ) -> Vec<SearchResult> {
     let mut node = value;
     for part in list {
@@ -113,6 +177,11 @@ fn json_results(
                     let valid =
                         Url::parse(link).is_ok_and(|u| matches!(u.scheme(), "http" | "https"));
                     valid.then(|| SearchResult {
+                        date: date
+                            .iter()
+                            .map(|key| text(key))
+                            .find(|value| !value.trim().is_empty())
+                            .map(|value| value.trim().to_owned()),
                         title: inline_text(text(title)),
                         url: link.to_owned(),
                         snippet: inline_text(text(snippet)),
@@ -126,19 +195,38 @@ fn json_results(
 /// Brave Search API: `{"web": {"results": [{"title", "url", "description"}]}}`.
 pub fn parse_brave(body: &str) -> Vec<SearchResult> {
     serde_json::from_str::<Value>(body)
-        .map(|v| json_results(&v, &["web", "results"], "title", "url", "description"))
+        .map(|v| {
+            json_results(
+                &v,
+                &["web", "results"],
+                "title",
+                "url",
+                "description",
+                &["age", "page_age"],
+            )
+        })
         .unwrap_or_default()
 }
 
 /// Tavily: `{"results": [{"title", "url", "content"}]}`.
 pub fn parse_tavily(body: &str) -> Vec<SearchResult> {
     serde_json::from_str::<Value>(body)
-        .map(|v| json_results(&v, &["results"], "title", "url", "content"))
+        .map(|v| {
+            json_results(
+                &v,
+                &["results"],
+                "title",
+                "url",
+                "content",
+                &["published_date"],
+            )
+        })
         .unwrap_or_default()
 }
 
 const URL_KEYS: [&str; 4] = ["url", "link", "href", "source_url"];
 const TITLE_KEYS: [&str; 3] = ["title", "name", "headline"];
+const DATE_KEYS: [&str; 5] = ["published_date", "date", "published", "age", "page_age"];
 const SNIPPET_KEYS: [&str; 6] = [
     "content",
     "snippet",
@@ -179,6 +267,9 @@ pub fn parse_generic_json(body: &str) -> Vec<SearchResult> {
                             let valid = Url::parse(link)
                                 .is_ok_and(|u| matches!(u.scheme(), "http" | "https"));
                             (valid && !title.is_empty()).then(|| SearchResult {
+                                date: Some(first_string(item, &DATE_KEYS))
+                                    .filter(|date| !date.is_empty())
+                                    .map(str::to_owned),
                                 title: inline_text(title),
                                 url: link.to_owned(),
                                 snippet: inline_text(first_string(item, &SNIPPET_KEYS)),
@@ -268,6 +359,7 @@ pub fn parse_generic_html(html: &str, own_host: &str) -> Vec<SearchResult> {
             anchor.start,
             end,
             SearchResult {
+                date: None,
                 title,
                 url: target,
                 snippet: String::new(),
@@ -343,6 +435,7 @@ pub fn parse_duckduckgo(html: &str) -> Vec<SearchResult> {
         if is_link {
             if let Some(url) = duckduckgo_target(&href) {
                 results.push(SearchResult {
+                    date: None,
                     title: text,
                     url,
                     snippet: String::new(),
@@ -402,6 +495,7 @@ pub fn parse_bing(html: &str) -> Vec<SearchResult> {
             .find(|text| !text.is_empty())
             .unwrap_or_default();
         results.push(SearchResult {
+            date: None,
             title: inline_text(link.inner),
             url,
             snippet,
@@ -410,12 +504,76 @@ pub fn parse_bing(html: &str) -> Vec<SearchResult> {
     results
 }
 
+/// Query parameters that only say where a visitor came from.
+fn is_tracking_parameter(name: &str) -> bool {
+    name.starts_with("utm_")
+        || matches!(
+            name,
+            "fbclid"
+                | "gclid"
+                | "msclkid"
+                | "yclid"
+                | "igshid"
+                | "mc_cid"
+                | "mc_eid"
+                | "mkt_tok"
+                | "_hsenc"
+                | "_hsmi"
+                | "spm"
+        )
+}
+
+/// The address without tracking parameters and without a `#fragment`: the same page reached by
+/// two campaign links is one result.
+pub fn clean_url(url: &str) -> String {
+    let Ok(mut parsed) = Url::parse(url) else {
+        return url.to_owned();
+    };
+    parsed.set_fragment(None);
+    let all = parsed.query_pairs().count();
+    let kept: Vec<(String, String)> = parsed
+        .query_pairs()
+        .filter(|(name, _)| !is_tracking_parameter(name))
+        .map(|(name, value)| (name.into_owned(), value.into_owned()))
+        .collect();
+    if kept.len() != all {
+        if kept.is_empty() {
+            parsed.set_query(None);
+        } else {
+            parsed.query_pairs_mut().clear().extend_pairs(kept);
+        }
+    }
+    parsed.to_string()
+}
+
+/// What makes two addresses the same page for a reader: the host without `www.`, the path
+/// without a trailing slash, the query.
+fn same_page_key(url: &str) -> String {
+    let Ok(parsed) = Url::parse(url) else {
+        return url.to_owned();
+    };
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    format!(
+        "{}{}?{}",
+        host.strip_prefix("www.").unwrap_or(&host),
+        parsed.path().trim_end_matches('/'),
+        parsed.query().unwrap_or_default()
+    )
+}
+
 fn keep_valid(results: Vec<SearchResult>, max: usize) -> Vec<SearchResult> {
     let mut kept: Vec<SearchResult> = Vec::new();
-    for result in results {
-        if result.title.is_empty() || kept.iter().any(|seen| seen.url == result.url) {
+    let mut seen: Vec<String> = Vec::new();
+    for mut result in results {
+        if result.title.is_empty() {
             continue;
         }
+        result.url = clean_url(&result.url);
+        let key = same_page_key(&result.url);
+        if seen.contains(&key) {
+            continue;
+        }
+        seen.push(key);
         kept.push(result);
         if kept.len() == max {
             break;
@@ -444,71 +602,122 @@ fn host_of(url: &str) -> String {
         .unwrap_or_default()
 }
 
+/// Engines that cannot take `recency`, so the answer may include older pages.
+fn ignores_recency(kind: &EngineKind, recency: Recency) -> bool {
+    match kind {
+        EngineKind::Custom { .. } => true,
+        // Bing's page has fixed windows for a day, a week and a month only.
+        EngineKind::Bing => recency == Recency::Year,
+        _ => false,
+    }
+}
+
+/// The request an engine is asked with: address, `Accept`, extra headers and an optional JSON body.
+type Built<'a> = (String, &'static str, Vec<(&'a str, String)>, Option<String>);
+
+fn build_request<'a>(engine: &'a Engine, query: &str, max: usize, filters: &Filters) -> Built<'a> {
+    // Tavily takes the site as a field; every other engine reads the `site:` operator.
+    let operator_query;
+    let query = match (&filters.site, &engine.kind) {
+        (Some(site), kind) if !matches!(kind, EngineKind::Tavily(_)) => {
+            operator_query = format!("{query} site:{site}");
+            operator_query.as_str()
+        }
+        _ => query,
+    };
+    let q = encode(query);
+    let recency = filters.recency;
+    let html_accept = "text/html,application/xhtml+xml";
+    match &engine.kind {
+        EngineKind::Google(Some((key, cx))) => (
+            format!(
+                "https://www.googleapis.com/customsearch/v1?key={}&cx={}&q={q}&num={}{}",
+                encode(key),
+                encode(cx),
+                max.min(10),
+                recency.map_or(String::new(), |r| format!("&dateRestrict={}1", r.letter()))
+            ),
+            "application/json",
+            Vec::new(),
+            None,
+        ),
+        EngineKind::Google(None) => (
+            format!(
+                "https://www.google.com/search?q={q}&num={max}&udm=14{}",
+                recency.map_or(String::new(), |r| format!("&tbs=qdr:{}", r.letter()))
+            ),
+            html_accept,
+            Vec::new(),
+            None,
+        ),
+        EngineKind::Bing => (
+            format!(
+                "https://www.bing.com/search?q={q}&count={max}&ensearch=1{}",
+                match recency {
+                    Some(Recency::Day) => "&filters=ex1%3a%22ez1%22",
+                    Some(Recency::Week) => "&filters=ex1%3a%22ez2%22",
+                    Some(Recency::Month) => "&filters=ex1%3a%22ez3%22",
+                    _ => "",
+                }
+            ),
+            html_accept,
+            Vec::new(),
+            None,
+        ),
+        EngineKind::DuckDuckGo => (
+            format!(
+                "https://html.duckduckgo.com/html/?q={q}{}",
+                recency.map_or(String::new(), |r| format!("&df={}", r.letter()))
+            ),
+            html_accept,
+            Vec::new(),
+            None,
+        ),
+        EngineKind::Brave(key) => (
+            format!(
+                "https://api.search.brave.com/res/v1/web/search?q={q}&count={max}{}",
+                recency.map_or(String::new(), |r| format!("&freshness=p{}", r.letter()))
+            ),
+            "application/json",
+            vec![("X-Subscription-Token", key.clone())],
+            None,
+        ),
+        EngineKind::Tavily(key) => (
+            "https://api.tavily.com/search".to_owned(),
+            "application/json",
+            vec![("Authorization", format!("Bearer {key}"))],
+            Some({
+                let mut body = json!({"query": query, "max_results": max, "search_depth": "basic"});
+                if let Some(recency) = recency {
+                    body["time_range"] = json!(recency.word());
+                }
+                if let Some(site) = &filters.site {
+                    body["include_domains"] = json!([site]);
+                }
+                body.to_string()
+            }),
+        ),
+        EngineKind::Custom { template, header } => (
+            template.replacen("%s", &q, 1),
+            "application/json,text/html;q=0.9,*/*;q=0.5",
+            header
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.clone()))
+                .collect(),
+            None,
+        ),
+    }
+}
+
 fn query_engine(
     engine: &Engine,
     query: &str,
     max: usize,
+    filters: &Filters,
     limits: Limits,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<SearchResult>, String> {
-    let q = encode(query);
-    let html_accept = "text/html,application/xhtml+xml";
-    let (url, accept, headers, body): (String, &str, Vec<(&str, String)>, Option<String>) =
-        match &engine.kind {
-            EngineKind::Google(Some((key, cx))) => (
-                format!(
-                    "https://www.googleapis.com/customsearch/v1?key={}&cx={}&q={q}&num={}",
-                    encode(key),
-                    encode(cx),
-                    max.min(10)
-                ),
-                "application/json",
-                Vec::new(),
-                None,
-            ),
-            EngineKind::Google(None) => (
-                format!("https://www.google.com/search?q={q}&num={max}&udm=14"),
-                html_accept,
-                Vec::new(),
-                None,
-            ),
-            EngineKind::Bing => (
-                format!("https://www.bing.com/search?q={q}&count={max}&ensearch=1"),
-                html_accept,
-                Vec::new(),
-                None,
-            ),
-            EngineKind::DuckDuckGo => (
-                format!("https://html.duckduckgo.com/html/?q={q}"),
-                html_accept,
-                Vec::new(),
-                None,
-            ),
-            EngineKind::Brave(key) => (
-                format!("https://api.search.brave.com/res/v1/web/search?q={q}&count={max}"),
-                "application/json",
-                vec![("X-Subscription-Token", key.clone())],
-                None,
-            ),
-            EngineKind::Tavily(key) => (
-                "https://api.tavily.com/search".to_owned(),
-                "application/json",
-                vec![("Authorization", format!("Bearer {key}"))],
-                Some(
-                    json!({"query": query, "max_results": max, "search_depth": "basic"})
-                        .to_string(),
-                ),
-            ),
-            EngineKind::Custom { template, header } => (
-                template.replacen("%s", &q, 1),
-                "application/json,text/html;q=0.9,*/*;q=0.5",
-                header
-                    .iter()
-                    .map(|(name, value)| (name.as_str(), value.clone()))
-                    .collect(),
-                None,
-            ),
-        };
+    let (url, accept, headers, body) = build_request(engine, query, max, filters);
     let request = Request {
         url: &url,
         accept,
@@ -577,7 +786,14 @@ pub fn search_one(
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<SearchResult>, String> {
     let results = keep_valid(
-        query_engine(engine, query.trim(), DEFAULT_RESULTS, limits, is_cancelled)?,
+        query_engine(
+            engine,
+            query.trim(),
+            DEFAULT_RESULTS,
+            &Filters::default(),
+            limits,
+            is_cancelled,
+        )?,
         DEFAULT_RESULTS,
     );
     if results.is_empty() {
@@ -590,6 +806,25 @@ pub fn search_one(
 pub fn search(
     query: &str,
     max_results: Option<i64>,
+    engines: &[Engine],
+    limits: Limits,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<SearchOutput, String> {
+    search_with(
+        query,
+        max_results,
+        &Filters::default(),
+        engines,
+        limits,
+        is_cancelled,
+    )
+}
+
+/// Search as [`search`] does, narrowed to a site and a time window when `filters` say so.
+pub fn search_with(
+    query: &str,
+    max_results: Option<i64>,
+    filters: &Filters,
     engines: &[Engine],
     limits: Limits,
     is_cancelled: &dyn Fn() -> bool,
@@ -614,11 +849,21 @@ pub fn search(
         // Every engine in the fallback chain leaves by the same route: clone the
         // limits rather than moving them, so the second engine is not locked out
         // by the first one's attempt.
-        match query_engine(engine, query, max, limits.clone(), is_cancelled) {
+        match query_engine(engine, query, max, filters, limits.clone(), is_cancelled) {
             Ok(results) => {
                 let results = keep_valid(results, max);
                 if !results.is_empty() {
                     clear_bench(&engine.id);
+                    if let Some(recency) = filters
+                        .recency
+                        .filter(|r| ignores_recency(&engine.kind, *r))
+                    {
+                        problems.push(format!(
+                            "{} cannot limit results to the last {}, so older pages may be included",
+                            engine.name,
+                            recency.word()
+                        ));
+                    }
                     return Ok(SearchOutput {
                         provider: engine.name.clone(),
                         results,
@@ -704,12 +949,125 @@ mod tests {
         assert_eq!(results[1].url, "https://github.com/rust-lang/rust");
     }
 
+    fn engine(kind: EngineKind) -> Engine {
+        Engine {
+            id: "e".to_owned(),
+            name: "E".to_owned(),
+            kind,
+        }
+    }
+
+    #[test]
+    fn tracking_parameters_and_fragments_are_dropped_and_the_same_page_is_listed_once() {
+        assert_eq!(
+            clean_url("https://e.test/a?utm_source=x&id=7&fbclid=y#top"),
+            "https://e.test/a?id=7"
+        );
+        assert_eq!(
+            clean_url("https://e.test/a?utm_medium=m"),
+            "https://e.test/a"
+        );
+        let result = |url: &str| SearchResult {
+            title: "t".to_owned(),
+            url: url.to_owned(),
+            snippet: String::new(),
+            date: None,
+        };
+        let kept = keep_valid(
+            vec![
+                result("https://www.e.test/post/?utm_campaign=a"),
+                result("https://e.test/post#comments"),
+                result("https://e.test/other"),
+            ],
+            10,
+        );
+        let urls: Vec<&str> = kept.iter().map(|r| r.url.as_str()).collect();
+        assert_eq!(urls, ["https://www.e.test/post/", "https://e.test/other"]);
+    }
+
+    #[test]
+    fn a_site_is_read_from_a_domain_or_an_address_and_nothing_else_is_accepted() {
+        assert_eq!(Filters::site_from("docs.rs").as_deref(), Some("docs.rs"));
+        assert_eq!(
+            Filters::site_from("https://Arxiv.org/abs/1").as_deref(),
+            Some("arxiv.org")
+        );
+        assert_eq!(
+            Filters::site_from("site:docs.rs").as_deref(),
+            Some("docs.rs")
+        );
+        assert_eq!(Filters::site_from("rust lang"), None);
+        assert_eq!(Filters::site_from("localhost"), None);
+        assert_eq!(Recency::parse("Week"), Some(Recency::Week));
+        assert_eq!(Recency::parse("fortnight"), None);
+    }
+
+    #[test]
+    fn each_engine_gets_the_site_and_the_time_window_in_its_own_way() {
+        let filters = Filters {
+            site: Some("docs.rs".to_owned()),
+            recency: Some(Recency::Week),
+        };
+        let url = |kind| build_request(&engine(kind), "serde json", 5, &filters).0;
+        assert!(url(EngineKind::Google(None)).contains("q=serde+json+site%3Adocs.rs"));
+        assert!(url(EngineKind::Google(None)).contains("&tbs=qdr:w"));
+        assert!(url(EngineKind::DuckDuckGo).contains("&df=w"));
+        assert!(url(EngineKind::Bing).contains("filters=ex1%3a%22ez2%22"));
+        let brave = url(EngineKind::Brave("k".to_owned()));
+        assert!(
+            brave.contains("site%3Adocs.rs") && brave.contains("&freshness=pw"),
+            "{brave}"
+        );
+        let cse = url(EngineKind::Google(Some(("k".to_owned(), "cx".to_owned()))));
+        assert!(cse.contains("&dateRestrict=w1"), "{cse}");
+
+        // Tavily takes both as fields, and the query stays as written.
+        let (_, _, _, body) = build_request(
+            &engine(EngineKind::Tavily("k".to_owned())),
+            "serde json",
+            5,
+            &filters,
+        );
+        let body: Value = serde_json::from_str(&body.unwrap()).unwrap();
+        assert_eq!(body["query"], "serde json");
+        assert_eq!(body["time_range"], "week");
+        assert_eq!(body["include_domains"], json!(["docs.rs"]));
+
+        // Without filters nothing is added.
+        let plain = build_request(
+            &engine(EngineKind::DuckDuckGo),
+            "serde",
+            5,
+            &Filters::default(),
+        )
+        .0;
+        assert_eq!(plain, "https://html.duckduckgo.com/html/?q=serde");
+    }
+
+    #[test]
+    fn the_age_of_a_result_comes_through_when_the_engine_gives_it() {
+        let brave = parse_brave(
+            r#"{"web":{"results":[{"title":"A post","url":"https://e.test/a","description":"d","age":"2 days ago"}]}}"#,
+        );
+        assert_eq!(brave[0].date.as_deref(), Some("2 days ago"));
+        let tavily = parse_tavily(
+            r#"{"results":[{"title":"News","url":"https://e.test/n","content":"c","published_date":"2026-10-20"}]}"#,
+        );
+        assert_eq!(tavily[0].date.as_deref(), Some("2026-10-20"));
+        let generic = parse_generic_json(
+            r#"{"results":[{"title":"X","url":"https://e.test/x","content":"c","publishedDate":"ignored","date":"2026-01-02"}]}"#,
+        );
+        assert_eq!(generic[0].date.as_deref(), Some("2026-01-02"));
+        assert!(parse_duckduckgo(DDG)[0].date.is_none());
+    }
+
     #[test]
     fn a_page_with_no_results_yields_none_and_the_cap_is_applied() {
         assert!(parse_duckduckgo("<html><body>captcha</body></html>").is_empty());
         assert!(parse_bing("<html></html>").is_empty());
         let many: Vec<SearchResult> = (0..20)
             .map(|i| SearchResult {
+                date: None,
                 title: format!("t{i}"),
                 url: format!("https://e.test/{i}"),
                 snippet: String::new(),

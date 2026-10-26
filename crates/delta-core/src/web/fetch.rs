@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use super::guard::{vet, AddressPolicy};
 use super::html;
+use super::markdown;
 
 /// Most bytes read from the network, after decompression.
 pub const MAX_BODY_BYTES: usize = 5 * 1024 * 1024;
@@ -22,11 +23,22 @@ const MAX_REDIRECTS: usize = 5;
 pub const DEFAULT_MAX_CHARS: usize = 20_000;
 /// Most characters a caller may ask for.
 pub const HARD_MAX_CHARS: usize = 100_000;
-const USER_AGENT: &str = concat!("Delta/", env!("CARGO_PKG_VERSION"), " (+desktop)");
+/// Most bytes read for a document (PDF, Word, Excel, PowerPoint), which is bigger than a page.
+pub const MAX_DOCUMENT_BYTES: usize = 25 * 1024 * 1024;
+/// Many sites turn away an unknown agent, so Delta says it is a compatible browser and names
+/// itself.
+const USER_AGENT: &str = concat!(
+    "Mozilla/5.0 (compatible; Delta/",
+    env!("CARGO_PKG_VERSION"),
+    "; +desktop)"
+);
+const ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7";
 
 #[derive(Debug, Clone)]
 pub struct Limits {
     pub max_bytes: usize,
+    /// The most bytes of a document; a page is held to `max_bytes`.
+    pub max_document_bytes: usize,
     pub deadline: Duration,
     pub policy: AddressPolicy,
     /// Which proxy, if any, an outgoing request may use. `None` means direct. Carried on
@@ -39,6 +51,7 @@ pub struct Limits {
 impl Limits {
     pub const PRODUCT: Limits = Limits {
         max_bytes: MAX_BODY_BYTES,
+        max_document_bytes: MAX_DOCUMENT_BYTES,
         deadline: READ_DEADLINE,
         policy: AddressPolicy::STRICT,
         proxy: None,
@@ -69,8 +82,29 @@ pub struct Page {
     pub url: String,
     pub content_type: String,
     pub title: Option<String>,
+    /// The page as Markdown (headings, lists, links, tables, code), or the text of a document.
     pub text: String,
+    /// More of the page remains after `text`, or the page was cut short on the way in.
     pub truncated: bool,
+    /// Characters in the whole readable page.
+    pub total_chars: usize,
+    /// Where to continue reading (`offset` of the next call), when `text` stops short.
+    pub next_offset: Option<usize>,
+    /// Links in the readable part of the page. Filled only when asked for.
+    pub links: Vec<markdown::Link>,
+    /// Something the reader should know, such as a page that needs scripts to show its content.
+    pub note: Option<String>,
+}
+
+/// What to read from a page.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ReadOptions {
+    /// Cap on returned characters.
+    pub max_chars: Option<i64>,
+    /// Characters to skip from the start of the readable page, to continue a long one.
+    pub offset: Option<i64>,
+    /// Also return the page's links.
+    pub links: bool,
 }
 
 /// Makes the connection use the addresses that passed the guard instead of resolving the name
@@ -149,7 +183,8 @@ pub fn request_raw(
             Some(_) => agent.post(target.url.as_str()),
             None => agent.get(target.url.as_str()),
         }
-        .set("Accept", request.accept);
+        .set("Accept", request.accept)
+        .set("Accept-Language", ACCEPT_LANGUAGE);
         // Credentials go to the URL the caller named and nowhere a redirect might lead.
         if hop == 0 {
             for (name, value) in &request.headers {
@@ -187,7 +222,12 @@ pub fn request_raw(
             .header("content-type")
             .unwrap_or_default()
             .to_owned();
-        let (bytes, cut_short) = read_capped(response.into_reader(), limits, is_cancelled)?;
+        // A document is bigger than a page; the cap follows what the server says it is sending.
+        let mut read_limits = limits.clone();
+        if document_kind(&content_type, target.url.path()).is_some() {
+            read_limits.max_bytes = limits.max_bytes.max(limits.max_document_bytes);
+        }
+        let (bytes, cut_short) = read_capped(response.into_reader(), read_limits, is_cancelled)?;
         return Ok(RawPage {
             url: target.url.to_string(),
             content_type,
@@ -273,6 +313,64 @@ fn is_text_like(content_type: &str) -> bool {
         || ct.contains("yaml")
 }
 
+/// Which document format a response is, from its content type and then its path.
+fn document_kind(content_type: &str, path: &str) -> Option<crate::document::Kind> {
+    use crate::document::Kind;
+    let ct = content_type.to_ascii_lowercase();
+    if ct.contains("application/pdf") {
+        return Some(Kind::Pdf);
+    }
+    if ct.contains("wordprocessingml") {
+        return Some(Kind::Docx);
+    }
+    if ct.contains("spreadsheetml") {
+        return Some(Kind::Xlsx);
+    }
+    if ct.contains("presentationml") {
+        return Some(Kind::Pptx);
+    }
+    // A server that sends a document as a plain download still names it in the path.
+    if ct.is_empty() || ct.contains("octet-stream") {
+        return crate::document::kind_of(std::path::Path::new(path)).ok();
+    }
+    None
+}
+
+/// Whether an error is worth one more try: the server is busy or briefly unavailable.
+fn is_transient(error: &str) -> bool {
+    ["HTTP 429", "HTTP 502", "HTTP 503", "HTTP 504"]
+        .iter()
+        .any(|code| error.contains(code))
+        || error.contains("timed out")
+}
+
+/// The pause before the one retry of a busy server.
+const RETRY_PAUSE: Duration = Duration::from_millis(1200);
+
+fn get_with_retry(
+    url: &str,
+    limits: &Limits,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<RawPage, String> {
+    let request = Request::get(
+        url,
+        "text/html,application/xhtml+xml,application/pdf;q=0.9,text/plain;q=0.9,*/*;q=0.5",
+    );
+    match request_raw(&request, limits.clone(), is_cancelled) {
+        Err(error) if is_transient(&error) => {
+            let until = Instant::now() + RETRY_PAUSE;
+            while Instant::now() < until {
+                if is_cancelled() {
+                    return Err("cancelled".to_owned());
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            request_raw(&request, limits.clone(), is_cancelled)
+        }
+        other => other,
+    }
+}
+
 /// Fetch one page and return its readable text, at most `max_chars` characters.
 pub fn fetch_page(
     url: &str,
@@ -280,37 +378,92 @@ pub fn fetch_page(
     limits: Limits,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Page, String> {
-    let cap = match max_chars {
+    fetch_page_with(
+        url,
+        ReadOptions {
+            max_chars,
+            ..ReadOptions::default()
+        },
+        limits,
+        is_cancelled,
+    )
+}
+
+/// Fetch one page or document and return it as readable text: a web page as Markdown, a PDF or
+/// Office file as the text `read_document` would give. `options` picks the part to return.
+pub fn fetch_page_with(
+    url: &str,
+    options: ReadOptions,
+    limits: Limits,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<Page, String> {
+    let cap = match options.max_chars {
         Some(n) if n > 0 => (n as usize).min(HARD_MAX_CHARS),
         _ => DEFAULT_MAX_CHARS,
     };
-    let raw = fetch_raw(
-        url,
-        "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
-        limits,
-        is_cancelled,
-    )?;
-    if !is_text_like(&raw.content_type) {
+    let offset = options.offset.filter(|n| *n > 0).map_or(0, |n| n as usize);
+    let raw = get_with_retry(url, &limits, is_cancelled)?;
+    let final_url =
+        url::Url::parse(&raw.url).map_err(|_| "the server sent an invalid address".to_owned())?;
+
+    let mut title = None;
+    let mut links = Vec::new();
+    let mut note = None;
+    let readable = if let Some(kind) = document_kind(&raw.content_type, final_url.path()) {
+        if raw.cut_short {
+            return Err(format!(
+                "this document is larger than {} MB, so it was not read",
+                limits.max_bytes.max(limits.max_document_bytes) / (1024 * 1024)
+            ));
+        }
+        let document = crate::document::parse(kind, &raw.bytes)?;
+        document
+            .blocks
+            .iter()
+            .map(|block| format!("## {}\n\n{}", block.label, block.text.trim()))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    } else if !is_text_like(&raw.content_type) {
         return Err(format!(
-            "this is not a text page (content type {}); a document has to be downloaded and read with read_document",
+            "this is not a page or a document Delta can read (content type {})",
             raw.content_type
         ));
-    }
-    let body = decode_body(&raw.bytes, &raw.content_type);
-    let is_html = raw.content_type.to_ascii_lowercase().contains("html");
-    let title = if is_html { html::title_of(&body) } else { None };
-    let text = if is_html {
-        html::html_to_text(&body)
     } else {
-        body
+        let body = decode_body(&raw.bytes, &raw.content_type);
+        if raw.content_type.to_ascii_lowercase().contains("html") {
+            title = html::title_of(&body);
+            let extracted = markdown::html_to_markdown(&body, &final_url);
+            if extracted.needs_javascript {
+                note = Some(
+                    "This page builds its content with scripts, so almost nothing was readable \
+                     without them. If the content matters, open it with browser_navigate and \
+                     read it with browser_snapshot."
+                        .to_owned(),
+                );
+            }
+            if options.links {
+                links = extracted.links;
+            }
+            extracted.markdown
+        } else {
+            body
+        }
     };
-    let truncated = raw.cut_short || text.chars().count() > cap;
+
+    let total_chars = readable.chars().count();
+    let text: String = readable.chars().skip(offset).take(cap).collect();
+    let end = offset + text.chars().count();
+    let more = end < total_chars;
     Ok(Page {
         url: raw.url,
         content_type: raw.content_type,
         title,
-        text: text.chars().take(cap).collect(),
-        truncated,
+        text,
+        truncated: raw.cut_short || more,
+        total_chars,
+        next_offset: more.then_some(end),
+        links,
+        note,
     })
 }
 
@@ -375,6 +528,7 @@ mod tests {
 
     const LOCAL: Limits = Limits {
         max_bytes: MAX_BODY_BYTES,
+        max_document_bytes: MAX_DOCUMENT_BYTES,
         deadline: READ_DEADLINE,
         policy: AddressPolicy {
             allow_loopback: true,
@@ -474,21 +628,139 @@ mod tests {
     }
 
     #[test]
-    fn http_errors_and_non_text_content_are_reported_plainly() {
-        let (base, server) = serve(2, |path| match path {
+    fn http_errors_and_content_that_cannot_be_read_are_reported_plainly() {
+        let (base, server) = serve(3, |path| match path {
             "/missing" => response("404 Not Found", &[], b"nope"),
-            _ => response(
+            "/broken.pdf" => response(
                 "200 OK",
                 &[("Content-Type", "application/pdf")],
                 b"%PDF-1.7",
             ),
+            _ => response("200 OK", &[("Content-Type", "image/png")], b"\x89PNG"),
         });
         let missing = fetch_page(&format!("{base}/missing"), None, LOCAL, &never).unwrap_err();
         assert!(missing.contains("HTTP 404"), "{missing}");
-        let pdf = fetch_page(&format!("{base}/doc"), None, LOCAL, &never).unwrap_err();
+        let broken = fetch_page(&format!("{base}/broken.pdf"), None, LOCAL, &never).unwrap_err();
+        assert!(
+            !broken.contains("not a page"),
+            "a PDF is tried as a PDF: {broken}"
+        );
+        let image = fetch_page(&format!("{base}/pic"), None, LOCAL, &never).unwrap_err();
         server.join().unwrap();
-        assert!(pdf.contains("not a text page"), "{pdf}");
-        assert!(pdf.contains("read_document"), "{pdf}");
+        assert!(image.contains("not a page or a document"), "{image}");
+        assert!(image.contains("image/png"), "{image}");
+    }
+
+    #[test]
+    fn a_word_file_on_the_web_is_read_like_read_document_would() {
+        let (_, docx, _) = crate::document::create(
+            "report.docx",
+            &serde_json::json!({"title": "Quarterly report", "blocks": [
+                {"type": "paragraph", "text": "Revenue grew in the third quarter."}
+            ]}),
+        )
+        .unwrap();
+        let (base, server) = serve(1, move |_| {
+            response(
+                "200 OK",
+                &[(
+                    "Content-Type",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )],
+                &docx,
+            )
+        });
+        let page = fetch_page(&format!("{base}/files/report.docx"), None, LOCAL, &never).unwrap();
+        server.join().unwrap();
+        assert!(
+            page.text.contains("Revenue grew in the third quarter."),
+            "{}",
+            page.text
+        );
+        assert!(page.title.is_none());
+    }
+
+    #[test]
+    fn an_html_page_comes_back_as_markdown_with_links_and_a_place_to_continue() {
+        let body = format!(
+            "<html><head><title>Docs</title></head><body><nav>Menu</nav><main><h1>Guide</h1>\
+             <p>{} See <a href=\"/next\">the next page</a>.</p></main></body></html>",
+            "Words go here. ".repeat(40)
+        );
+        let (base, server) = serve(2, move |_| {
+            response("200 OK", &[("Content-Type", "text/html")], body.as_bytes())
+        });
+        let options = ReadOptions {
+            max_chars: Some(100),
+            offset: None,
+            links: true,
+        };
+        let first = fetch_page_with(&format!("{base}/"), options, LOCAL, &never).unwrap();
+        assert!(
+            first.text.starts_with("# Guide\n\nWords go here."),
+            "{}",
+            first.text
+        );
+        assert!(!first.text.contains("Menu"));
+        assert!(first.truncated);
+        assert_eq!(first.next_offset, Some(100));
+        assert!(first.total_chars > 100);
+        assert_eq!(first.links.len(), 1);
+        assert_eq!(first.links[0].url, format!("{base}/next"));
+
+        let second = fetch_page_with(
+            &format!("{base}/"),
+            ReadOptions {
+                offset: first.next_offset.map(|n| n as i64),
+                ..options
+            },
+            LOCAL,
+            &never,
+        )
+        .unwrap();
+        server.join().unwrap();
+        let whole: String = first.text.chars().chain(second.text.chars()).collect();
+        assert_eq!(
+            whole.chars().count(),
+            200,
+            "the second page continues where the first stopped"
+        );
+        assert!(!second.text.starts_with("# Guide"));
+    }
+
+    #[test]
+    fn a_busy_server_is_tried_once_more() {
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = calls.clone();
+        let (base, server) = serve(2, move |_| {
+            if seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                response("503 Service Unavailable", &[], b"busy")
+            } else {
+                response("200 OK", &[("Content-Type", "text/plain")], b"ready")
+            }
+        });
+        let page = fetch_page(&format!("{base}/"), None, LOCAL, &never).unwrap();
+        server.join().unwrap();
+        assert_eq!(page.text, "ready");
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_page_that_scripts_build_says_so() {
+        let (base, server) = serve(1, |_| {
+            response(
+                "200 OK",
+                &[("Content-Type", "text/html")],
+                br#"<html><body><div id="root"></div><script src="/app.js"></script></body></html>"#,
+            )
+        });
+        let page = fetch_page(&format!("{base}/"), None, LOCAL, &never).unwrap();
+        server.join().unwrap();
+        assert!(page
+            .note
+            .as_deref()
+            .unwrap_or("")
+            .contains("browser_navigate"));
     }
 
     #[test]

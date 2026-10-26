@@ -617,3 +617,81 @@ fn the_render_tool_asks_first_and_the_check_tool_does_not() {
         assert_eq!(registration.workspace_write, asks);
     }
 }
+
+// --- the data-analysis skill's claims about reports ------------------------------------------
+
+/// The result file the skill's template points at, as `statistics_record` flattens a t test.
+fn ttest_files() -> Files {
+    Files::new(&[(
+        "out/ttest.json",
+        result_file(json!({
+            "groups.1.n": 12.0, "groups.1.mean": 5.125, "groups.2.n": 11.0, "groups.2.mean": 7.8,
+            "estimate": -2.675, "conf_low": -4.1, "conf_high": -1.25, "p_value": 0.0000123,
+            "conf_level": 0.95
+        })),
+    )])
+}
+
+/// The one Markdown block of the skill: its report template.
+fn skill_template() -> &'static str {
+    let skill = include_str!("../../skills/data-analysis/SKILL.md");
+    let start = skill
+        .find("```markdown\n")
+        .expect("the skill has a template")
+        + "```markdown\n".len();
+    let end = start
+        + skill[start..]
+            .find("\n```")
+            .expect("the template is closed");
+    &skill[start..end]
+}
+
+#[test]
+fn the_template_in_the_data_analysis_skill_renders_and_passes_a_formal_check() {
+    let files = ttest_files();
+    let rendered = render_ok(skill_template(), &files);
+    let outcome = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(
+        outcome.passed(),
+        "{:?} {:?}",
+        outcome.problems,
+        outcome.unbound
+    );
+    assert_eq!(outcome.bindings, 8);
+}
+
+#[test]
+fn a_literal_threshold_or_level_fails_a_formal_check_until_it_is_allowed_or_bound() {
+    let files = ttest_files();
+    // The pitfall the skill lists: digits outside a binding are unbound numbers.
+    let rendered = render_ok("# Result\n\np below 0.05 at 95% confidence.\n", &files);
+    let outcome = check(&rendered, &rendered.text, &files, true, &[]);
+    let texts: Vec<&str> = outcome.unbound.iter().map(|n| n.text.as_str()).collect();
+    assert_eq!(texts, ["0.05", "95"]);
+
+    // An allowed pattern for fixed wording of the author's own passes it.
+    let allowed = check(
+        &rendered,
+        &rendered.text,
+        &files,
+        true,
+        &[r"0\.05", "95 ?%"],
+    );
+    assert!(allowed.passed(), "{:?}", allowed.unbound);
+
+    // The confidence level can also be bound, as the skill says.
+    let bound = render_ok(
+        "# Result\n\nConfidence level {{result:out/ttest.json#conf_level|%.2f}}.\n",
+        &files,
+    );
+    assert!(check(&bound, &bound.text, &files, true, &[]).passed());
+}
+
+#[test]
+fn a_very_small_p_value_shows_as_zero_at_four_decimals_but_not_at_six() {
+    let files = ttest_files();
+    let four = render_ok("{{result:out/ttest.json#p_value|%.4f}}", &files);
+    assert_eq!(four.text, "0.0000");
+    let six = render_ok("{{result:out/ttest.json#p_value|%.6f}}", &files);
+    assert_eq!(six.text, "0.000012");
+}
