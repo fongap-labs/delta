@@ -20,6 +20,8 @@
 
 mod abi;
 mod host;
+pub(crate) mod process_io;
+pub(crate) mod process_tree;
 mod registry;
 mod runners;
 mod shell;
@@ -452,6 +454,145 @@ mod tests {
             )
         );
         assert_eq!(result.verified_inputs[0].size, 16);
+    }
+
+    fn read_pages(
+        host: &CapabilityHost,
+        dir: &Path,
+        arguments: serde_json::Value,
+    ) -> serde_json::Value {
+        let result = host.execute(
+            &ToolCall {
+                id: "call-page".to_string(),
+                name: "read_file".to_string(),
+                arguments,
+            },
+            &tool_context(dir),
+        );
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
+        result.output
+    }
+
+    #[test]
+    fn native_read_returns_a_large_file_in_pages_that_join_back_into_the_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let original: String = (0..30_000).map(|i| format!("line {i}\n")).collect();
+        assert!(original.len() > 200_000);
+        std::fs::write(temp.path().join("big.txt"), &original).unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+
+        let first = read_pages(&host, temp.path(), serde_json::json!({"path": "big.txt"}));
+        let first_text = first["text"].as_str().unwrap();
+        assert!(
+            first_text.len() <= 64 * 1024,
+            "page was {} bytes",
+            first_text.len()
+        );
+        assert_eq!(first["truncated"], true);
+        assert_eq!(first["next_offset"], first_text.len());
+        assert_eq!(first["total_bytes"], original.len());
+
+        let mut joined = String::new();
+        let mut offset = 0_u64;
+        loop {
+            let page = read_pages(
+                &host,
+                temp.path(),
+                serde_json::json!({"path": "big.txt", "offset": offset}),
+            );
+            joined.push_str(page["text"].as_str().unwrap());
+            if page["truncated"] != true {
+                break;
+            }
+            offset = page["next_offset"].as_u64().unwrap();
+        }
+        assert_eq!(joined, original);
+    }
+
+    #[test]
+    fn native_read_never_splits_a_multibyte_character_between_pages() {
+        let temp = tempfile::tempdir().unwrap();
+        let original = "中文".repeat(40_000);
+        std::fs::write(temp.path().join("cn.txt"), &original).unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let mut joined = String::new();
+        let mut offset = 0_u64;
+        loop {
+            let page = read_pages(
+                &host,
+                temp.path(),
+                serde_json::json!({"path": "cn.txt", "offset": offset}),
+            );
+            let text = page["text"].as_str().unwrap();
+            assert!(!text.contains('\u{FFFD}'));
+            joined.push_str(text);
+            if page["truncated"] != true {
+                break;
+            }
+            offset = page["next_offset"].as_u64().unwrap();
+        }
+        assert_eq!(joined, original);
+
+        // An offset inside a character moves on to the next whole one.
+        let inside = read_pages(
+            &host,
+            temp.path(),
+            serde_json::json!({"path": "cn.txt", "offset": 1, "limit": 6}),
+        );
+        assert_eq!(inside["offset"], 3);
+        assert_eq!(inside["text"], "文中");
+    }
+
+    #[test]
+    fn native_read_honours_a_smaller_limit_and_ignores_an_offset_past_the_end() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("a.txt"), "0123456789").unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let part = read_pages(
+            &host,
+            temp.path(),
+            serde_json::json!({"path": "a.txt", "offset": 2, "limit": 4}),
+        );
+        assert_eq!(part["text"], "2345");
+        assert_eq!(part["truncated"], true);
+        assert_eq!(part["next_offset"], 6);
+        let past = read_pages(
+            &host,
+            temp.path(),
+            serde_json::json!({"path": "a.txt", "offset": 99}),
+        );
+        assert_eq!(past["text"], "");
+        assert_eq!(past["truncated"], false);
+    }
+
+    #[test]
+    fn the_source_hash_of_a_large_file_is_the_hash_of_the_whole_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let original = "x".repeat(3 * 1024 * 1024 + 17);
+        std::fs::write(temp.path().join("big.txt"), &original).unwrap();
+        let host = CapabilityHost::product_defaults().unwrap();
+        let result = host.execute(
+            &ToolCall {
+                id: "call-hash".to_string(),
+                name: "read_file".to_string(),
+                arguments: serde_json::json!({"path": "big.txt"}),
+            },
+            &tool_context(temp.path()),
+        );
+        assert_eq!(result.verified_inputs.len(), 1);
+        assert_eq!(
+            result.verified_inputs[0].sha256,
+            format!(
+                "{:x}",
+                <sha2::Sha256 as sha2::Digest>::digest(original.as_bytes())
+            )
+        );
+        assert_eq!(result.verified_inputs[0].size, original.len() as u64);
     }
 
     #[test]

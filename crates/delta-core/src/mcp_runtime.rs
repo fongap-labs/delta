@@ -5,7 +5,7 @@
 //! lifecycle. MCP tools never bypass normal Delta policy/approval execution.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{Read, Write};
 use std::net::{IpAddr, TcpStream, ToSocketAddrs};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -16,6 +16,8 @@ use std::time::{Duration, Instant};
 use base64::Engine as _;
 use serde_json::{json, Value};
 
+use crate::capability::process_io::{spawn_line_reader, DropWhenFull};
+use crate::capability::process_tree::ProcessTree;
 use crate::capability::{
     CapabilityControl, CapabilityGrants, CapabilityHost, CapabilityJob, CapabilityRegistration,
     CapabilityResult, CapabilityRunner,
@@ -339,8 +341,55 @@ fn mcp_name_of(method: &str, params: &Value) -> Option<String> {
         .map(mcp_name_header)
 }
 
+/// A server may page its tool list. A server that never stops paging, or lists far more than any
+/// agent could use, would otherwise hold this thread and its memory forever.
+const MAX_TOOL_PAGES: usize = 50;
+const MAX_MCP_TOOLS: usize = 1000;
+
+fn collect_tool_pages(
+    mut fetch_page: impl FnMut(Value) -> Result<Value, String>,
+) -> Result<Vec<Value>, String> {
+    let mut tools = Vec::new();
+    let mut cursor: Option<String> = None;
+    for _ in 0..MAX_TOOL_PAGES {
+        let params = cursor
+            .as_ref()
+            .map(|cursor| json!({"cursor": cursor}))
+            .unwrap_or_else(|| json!({}));
+        let result = fetch_page(params)?;
+        tools.extend(
+            result
+                .get("tools")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+        );
+        if tools.len() > MAX_MCP_TOOLS {
+            return Err(format!("MCP server lists more than {MAX_MCP_TOOLS} tools"));
+        }
+        cursor = result
+            .get("nextCursor")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .filter(|value| !value.is_empty());
+        if cursor.is_none() {
+            return Ok(tools);
+        }
+    }
+    Err(format!(
+        "MCP server kept paging its tool list past {MAX_TOOL_PAGES} pages"
+    ))
+}
+
+/// Lines a stdio server may have waiting before it is made to wait on its pipe (stdout) or before
+/// further diagnostics are dropped (stderr), and the longest line either keeps.
+const STDIO_QUEUED_LINES: usize = 4096;
+const STDIO_MAX_LINE_BYTES: usize = 32 * 1024 * 1024;
+
 struct StdioClient {
     child: Child,
+    /// The server and everything it started, so ending the client ends all of it.
+    tree: ProcessTree,
     stdin: ChildStdin,
     stdout: Receiver<String>,
     stderr: Receiver<String>,
@@ -413,10 +462,12 @@ impl StdioClient {
             use std::os::windows::process::CommandExt;
             process.creation_flags(0x0800_0000);
         }
+        ProcessTree::prepare(&mut process);
 
         let mut child = process
             .spawn()
             .map_err(|error| format!("start MCP server: {error}"))?;
+        let tree = ProcessTree::attach(&child);
         let stdin = child
             .stdin
             .take()
@@ -430,32 +481,29 @@ impl StdioClient {
             .take()
             .ok_or_else(|| "MCP server stderr unavailable".to_string())?;
 
-        let (stdout_tx, stdout_rx) = mpsc::channel();
-        std::thread::Builder::new()
-            .name("delta-mcp-stdio-out".to_string())
-            .spawn(move || {
-                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                    if stdout_tx.send(line).is_err() {
-                        break;
-                    }
-                }
-            })
-            .map_err(|error| format!("start MCP stdout reader: {error}"))?;
+        let (stdout_tx, stdout_rx) = mpsc::sync_channel(STDIO_QUEUED_LINES);
+        spawn_line_reader(
+            "delta-mcp-stdio-out",
+            stdout,
+            STDIO_MAX_LINE_BYTES,
+            stdout_tx,
+            |line| line,
+        )
+        .map_err(|error| format!("start MCP stdout reader: {error}"))?;
 
-        let (stderr_tx, stderr_rx) = mpsc::channel();
-        std::thread::Builder::new()
-            .name("delta-mcp-stdio-err".to_string())
-            .spawn(move || {
-                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                    if stderr_tx.send(line).is_err() {
-                        break;
-                    }
-                }
-            })
-            .map_err(|error| format!("start MCP stderr reader: {error}"))?;
+        let (stderr_tx, stderr_rx) = mpsc::sync_channel(STDIO_QUEUED_LINES);
+        spawn_line_reader(
+            "delta-mcp-stdio-err",
+            stderr,
+            STDIO_MAX_LINE_BYTES,
+            DropWhenFull(stderr_tx),
+            |line| line,
+        )
+        .map_err(|error| format!("start MCP stderr reader: {error}"))?;
 
         let mut client = Self {
             child,
+            tree,
             stdin,
             stdout: stdout_rx,
             stderr: stderr_rx,
@@ -470,7 +518,7 @@ impl StdioClient {
     }
 
     fn stop(&mut self) {
-        let _ = self.child.kill();
+        self.tree.kill(&mut self.child);
         let _ = self.child.wait();
     }
 
@@ -651,31 +699,9 @@ impl StdioClient {
     }
 
     fn list_tools(&mut self) -> Result<Vec<Value>, String> {
-        let mut tools = Vec::new();
-        let mut cursor: Option<String> = None;
-        loop {
-            let params = cursor
-                .as_ref()
-                .map(|cursor| json!({"cursor": cursor}))
-                .unwrap_or_else(|| json!({}));
-            let result = self.request("tools/list", params, Duration::from_secs(20), None)?;
-            tools.extend(
-                result
-                    .get("tools")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            cursor = result
-                .get("nextCursor")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .filter(|value| !value.is_empty());
-            if cursor.is_none() {
-                break;
-            }
-        }
-        Ok(tools)
+        collect_tool_pages(|params| {
+            self.request("tools/list", params, Duration::from_secs(20), None)
+        })
     }
 
     fn call_tool(
@@ -927,31 +953,7 @@ impl HttpClient {
     }
 
     fn list_tools(&self) -> Result<Vec<Value>, String> {
-        let mut tools = Vec::new();
-        let mut cursor: Option<String> = None;
-        loop {
-            let params = cursor
-                .as_ref()
-                .map(|cursor| json!({"cursor": cursor}))
-                .unwrap_or_else(|| json!({}));
-            let result = self.request("tools/list", params, Duration::from_secs(20))?;
-            tools.extend(
-                result
-                    .get("tools")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            cursor = result
-                .get("nextCursor")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .filter(|value| !value.is_empty());
-            if cursor.is_none() {
-                break;
-            }
-        }
-        Ok(tools)
+        collect_tool_pages(|params| self.request("tools/list", params, Duration::from_secs(20)))
     }
 
     fn call_tool(&self, name: &str, arguments: Value, timeout: Duration) -> Result<Value, String> {
@@ -1212,6 +1214,8 @@ impl McpRuntime {
 
 #[cfg(test)]
 mod tests {
+    use std::io::{BufRead, BufReader};
+
     use super::*;
 
     #[test]
@@ -1382,6 +1386,120 @@ mod tests {
             200,
             json!({"jsonrpc": "2.0", "id": request["id"], "result": result}).to_string(),
         )
+    }
+
+    /// Run `work` on a thread and fail the test if it has not finished in 20 seconds, so a client
+    /// that never returns cannot hang the suite.
+    fn within_twenty_seconds<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(work());
+        });
+        rx.recv_timeout(Duration::from_secs(20))
+            .expect("the call did not return within 20 seconds")
+    }
+
+    fn paging_server(tools_per_page: usize) -> u16 {
+        let (port, requests) = spawn_fake_server(move |request| match request["method"].as_str() {
+            Some("server/discover") => rpc_reply(
+                request,
+                json!({"resultType": "complete", "supportedVersions": [MCP_PROTOCOL_VERSION]}),
+            ),
+            _ => rpc_reply(
+                request,
+                json!({
+                    "resultType": "complete",
+                    "tools": (0..tools_per_page).map(|i| json!({"name": format!("t{i}")})).collect::<Vec<_>>(),
+                    "nextCursor": "more",
+                }),
+            ),
+        });
+        // Keep receiving so the fake server can go on answering.
+        std::thread::spawn(move || for _ in requests {});
+        port
+    }
+
+    #[test]
+    fn a_server_that_never_stops_paging_is_cut_off() {
+        let port = paging_server(1);
+        let outcome = within_twenty_seconds(move || loopback_client(port).establish());
+        let error = outcome.expect_err("an endless listing must be refused");
+        assert!(error.contains("pages"), "{error}");
+    }
+
+    #[test]
+    fn a_server_that_lists_too_many_tools_is_refused() {
+        let port = paging_server(MAX_MCP_TOOLS + 1);
+        let outcome = within_twenty_seconds(move || loopback_client(port).establish());
+        let error = outcome.expect_err("too many tools must be refused");
+        assert!(error.contains("more than"), "{error}");
+    }
+
+    #[cfg(unix)]
+    fn stdio_server(script_body: &str) -> Value {
+        let script = format!(
+            "while IFS= read -r L; do ID=$(printf '%s' \"$L\" | sed 's/.*\"id\":\\([0-9][0-9]*\\).*/\\1/'); {script_body} done"
+        );
+        json!({"command": "/bin/sh", "args": ["-c", script]})
+    }
+
+    #[cfg(unix)]
+    const STDIO_ANSWERS: &str = r#"
+        printf '\377 stderr noise\n' >&2
+        printf '\377 stdout noise\n'
+        case "$L" in
+          *server/discover*) printf '{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","supportedVersions":["VERSION"]}}\n' "$ID";;
+          *tools/list*) printf '{"jsonrpc":"2.0","id":%s,"result":{"resultType":"complete","tools":[{"name":"echo"}]}}\n' "$ID";;
+        esac"#;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stdio_server_that_prints_bytes_that_are_not_utf8_still_lists_its_tools() {
+        let config = stdio_server(&STDIO_ANSWERS.replace("VERSION", MCP_PROTOCOL_VERSION));
+        let outcome =
+            within_twenty_seconds(move || StdioClient::connect(&config).map(|(_, tools)| tools));
+        let tools = outcome.expect("the server answers after its noise");
+        assert_eq!(tools[0]["name"], "echo");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dropping_a_stdio_client_ends_the_processes_its_server_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let body = format!(
+            "[ -e {pid} ] || {{ sleep 30 & echo $! > {pid}; }}; {}",
+            STDIO_ANSWERS.replace("VERSION", MCP_PROTOCOL_VERSION),
+            pid = pid_file.display()
+        );
+        let config = stdio_server(&body);
+        let client =
+            within_twenty_seconds(move || StdioClient::connect(&config).map(|(client, _)| client))
+                .expect("connect");
+        let pid: u32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let alive = |pid: u32| {
+            std::fs::read_to_string(format!("/proc/{pid}/stat"))
+                .map(|stat| {
+                    !stat
+                        .rsplit(')')
+                        .next()
+                        .unwrap_or("")
+                        .trim_start()
+                        .starts_with('Z')
+                })
+                .unwrap_or(false)
+        };
+        assert!(
+            alive(pid),
+            "the server's background process should be running"
+        );
+        drop(client);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!alive(pid), "process {pid} outlived the client");
     }
 
     #[test]

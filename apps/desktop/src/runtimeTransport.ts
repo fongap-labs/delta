@@ -515,8 +515,8 @@ export const directListArtifacts = (sessionId: string) =>
   invokeAuthority("artifacts_list", { sessionId });
 export const directReadArtifact = (sessionId: string, path: string) =>
   invokeAuthority("artifact_read", { sessionId, path });
-export const resolveArtifactPath = (sessionId: string, path: string) =>
-  invokeAuthority("artifact_resolve_path", { sessionId, path });
+export const openArtifact = (sessionId: string, path: string, mode: "reveal" | "open") =>
+  invokeAuthority("artifact_open", { sessionId, path, mode });
 export const directListMemory = () => invokeAuthority("memory_list");
 export const directUpdateMemory = (id: number, content: string) =>
   invokeAuthority("memory_update", { id, content });

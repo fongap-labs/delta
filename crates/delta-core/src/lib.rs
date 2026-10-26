@@ -82,7 +82,7 @@ pub use checkpoint::{
 };
 pub use control_plane::{
     delete_session, get_session_messages, list_recent_workspaces, list_sessions, rename_session,
-    set_session_flags,
+    set_session_flags, ArtifactOpenAction, ArtifactOpenPlan,
 };
 pub use core_control_plane::{default_state_dir, CoreControlPlane, RuntimeStartRequest};
 pub use extension_manifest::{

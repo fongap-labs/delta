@@ -376,11 +376,13 @@ fn history_keeps_what_happened_but_not_the_credentials_in_it() {
         .iter()
         .find(|e| e.r#type == "tool.completed")
         .unwrap();
-    assert_eq!(completed.payload["result"]["path"], "report.md");
-    assert_eq!(
-        completed.payload["result"]["stdout"],
-        "Authorization: [redacted]"
-    );
+    // The ledger keeps a summary of the result (size, hash, a short preview), and the credentials
+    // in the preview are redacted like everything else in it.
+    let summary = &completed.payload["result"];
+    assert!(summary["sha256"].is_string() && summary["bytes"].as_u64().unwrap() > 0);
+    let preview = summary["preview"].as_str().unwrap();
+    assert!(preview.contains("report.md"), "{preview}");
+    assert!(preview.contains("Authorization: [redacted]"), "{preview}");
     assert!(
         history.contains("checkpoint.registered")
             || events.iter().any(|e| e.r#type == "checkpoint.registered")
@@ -3941,4 +3943,94 @@ fn a_panic_inside_a_run_fails_that_run_and_keeps_the_session_usable() {
         .run("second".to_string(), None)
         .expect("the worker accepts a run after the panic");
     wait_for_terminal(&handle);
+}
+
+struct BigOutputExecutor {
+    text: String,
+}
+
+impl ToolExecutor for BigOutputExecutor {
+    fn execute(&self, call: &ToolCall, _context: &ToolExecutionContext) -> ToolResult {
+        ToolResult::success(
+            &call.id,
+            json!({"ok": true, "text": self.text, "images": [{"path": "shot.png"}]}),
+        )
+    }
+}
+
+#[test]
+fn a_huge_tool_output_is_cut_down_before_it_reaches_the_conversation_and_the_stores() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let mut host = RuntimeHost::new("session-1", RuntimeConfig::default())
+        .with_authorities(authorities.clone())
+        .with_tools(tool_contract("low", false))
+        .with_tool_executor(Arc::new(BigOutputExecutor {
+            text: "payload ".repeat(250_000), // 2 MB
+        }));
+    host.set_run_id("run-big".to_string());
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-big".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+    assert!(result.error.is_none(), "{:?}", result.error);
+
+    // What the model, the event stream and the transcript get is bounded and says it was cut.
+    assert!(result.output.to_string().len() <= tool_execution::MAX_TOOL_OUTPUT_BYTES);
+    assert_eq!(result.output["truncated"], json!(true));
+    assert!(result.output["original_bytes"].as_u64().unwrap() > 2_000_000);
+    assert_eq!(result.output["ok"], json!(true));
+    assert_eq!(result.output["images"][0]["path"], json!("shot.png"));
+
+    // The ledger keeps what happened (size, hash, a short preview), not the content.
+    let events = authorities
+        .ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events("run-big")
+        .unwrap();
+    let completed = events
+        .iter()
+        .find(|event| event.r#type == "tool.completed")
+        .unwrap();
+    let payload = completed.payload.to_string();
+    assert!(
+        payload.len() < 4_000,
+        "the ledger kept {} bytes",
+        payload.len()
+    );
+    assert!(completed.payload["result"]["sha256"].is_string());
+    assert!(completed.payload["result"]["bytes"].as_u64().unwrap() <= 128 * 1024);
+    assert!(
+        completed.payload["result"]["original_bytes"]
+            .as_u64()
+            .unwrap()
+            > 2_000_000
+    );
+
+    // A replay needs the result; it gets the bounded one.
+    let entry = authorities
+        .idempotency
+        .lock()
+        .unwrap()
+        .get("run-big", "call-big")
+        .unwrap()
+        .unwrap();
+    assert!(entry.result.to_string().len() <= tool_execution::MAX_TOOL_OUTPUT_BYTES);
+}
+
+#[test]
+fn limiting_a_tool_output_leaves_small_ones_alone_and_cuts_on_a_character_boundary() {
+    let small = json!({"ok": true, "text": "hello"});
+    assert_eq!(tool_execution::limit_tool_output(small.clone()), small);
+
+    let chinese = json!({"text": "中".repeat(100_000)}); // 300 KB of three-byte characters
+    let limited = tool_execution::limit_tool_output(chinese);
+    assert!(limited.to_string().len() <= tool_execution::MAX_TOOL_OUTPUT_BYTES);
+    let preview = limited["preview"].as_str().unwrap();
+    assert!(!preview.contains('\u{FFFD}'));
+    assert!(limited["note"].as_str().unwrap().contains("limit"));
 }

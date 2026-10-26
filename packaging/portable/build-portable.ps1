@@ -76,6 +76,11 @@ if ($LauncherExe) {
 # ---- 2. Native Tauri application ---------------------------------------------
 if (-not $SkipAppBuild) {
     Write-Host "==> [2/5] native Tauri application with embedded Rust Runtime" -ForegroundColor Cyan
+    # sherpa-onnx-sys would download a native library unchecked while it builds. Fetch the pinned
+    # archive first; the build script then uses it and cannot fall back to an unchecked download.
+    $SherpaDir = & python (Join-Path $RepoRoot "scripts\fetch_sherpa_archive.py")
+    if ($LASTEXITCODE -ne 0) { throw "pinned sherpa-onnx archive could not be fetched (exit $LASTEXITCODE)" }
+    $env:SHERPA_ONNX_ARCHIVE_DIR = "$SherpaDir".Trim()
     Push-Location $Gui
     try {
         $savedPreference = $ErrorActionPreference

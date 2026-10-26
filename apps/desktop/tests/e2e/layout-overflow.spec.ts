@@ -116,6 +116,6 @@ test("long transcript content stays inside the chat while code and tables self-s
   await expectContainedLayout(page);
   await page.getByRole("button", { name: "Show side panel" }).click();
   await expectContainedLayout(page);
-  await page.getByRole("button", { name: "Show sidebar" }).click();
+  await page.getByRole("button", { name: "Show sidebar" }).first().click();
   await expectContainedLayout(page);
 });

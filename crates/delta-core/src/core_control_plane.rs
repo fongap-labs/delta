@@ -1266,8 +1266,13 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
-    pub fn resolve_artifact_path(&self, session_id: &str, path: &str) -> Result<PathBuf, String> {
-        control_plane::resolve_artifact_path(&self.state_dir, session_id, path)
+    pub fn plan_artifact_open(
+        &self,
+        session_id: &str,
+        path: &str,
+        should_open: bool,
+    ) -> Result<control_plane::ArtifactOpenPlan, String> {
+        control_plane::plan_artifact_open(&self.state_dir, session_id, path, should_open)
             .map_err(|error| error.to_string())
     }
 

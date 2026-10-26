@@ -1,6 +1,6 @@
-// AccessSection — the sources and folders this session can touch. It is the body of the rail's
+// AccessSection — the connectors and folders this session can touch. It is the body of the rail's
 // Permissions section (the former standalone "Access" section is folded into it):
-//   · Sources — Connected toggles (per-session mute), Recommended (connect-in-context), and the
+//   · Connectors — Connected toggles (per-session mute), Recommended (connect-in-context), and the
 //     two-way connectors' channels drill-down — the drawer's content, recut.
 //   · Folders — the session's working directories (add/remove, RO/RW gate, branch).
 // Owns its data (GET /v1/sessions/{id}/connections + the connector index). It mounts with the
@@ -201,7 +201,7 @@ export function AccessSection({
         <div className="space-y-4">
           {/* Sources — each toggle is a per-session override (mute for THIS session only). */}
           <div>
-            <div className={`${SEC_H} mb-1.5`}>{t("access.sources", undefined, "Sources")}</div>
+            <div className={`${SEC_H} mb-1.5`}>{t("access.sources", undefined, "Connectors")}</div>
             {connected.length === 0 && (
               <div className="text-[12px] text-faint py-0.5">
                 {t("access.noConnectors", undefined, "No connectors enabled for this session.")}
@@ -303,7 +303,7 @@ export function AccessSection({
                 onClick={() => setAdding(true)}
                 data-testid="access-add-source"
               >
-                {t("access.addSource", undefined, "+ Add a source…")}
+                {t("access.addSource", undefined, "+ Add a connector…")}
               </button>
             )}
             {/* Lives with its list (tester ask 2026-07-26): each group's manage link sits
@@ -423,7 +423,7 @@ function ConnectInline({
       <button
         className="inline-flex items-center gap-1 text-[12px] text-faint hover:text-ink mb-2"
         onClick={onBack}
-        aria-label={t("access.backToSources", undefined, "Back to sources")}
+        aria-label={t("access.backToSources", undefined, "Back to connectors")}
       >
         <Icon name="arrowLeft" size={13} /> {t("access.connectTitle", { name: c.title }, `Connect ${c.title}`)}
       </button>
@@ -473,7 +473,7 @@ function ChannelsInline({
       <button
         className="inline-flex items-center gap-1 text-[12px] text-faint hover:text-ink mb-2"
         onClick={onBack}
-        aria-label={t("access.backToSources", undefined, "Back to sources")}
+        aria-label={t("access.backToSources", undefined, "Back to connectors")}
       >
         <Icon name="arrowLeft" size={13} /> {t("access.channelsLabel", { label }, `${label} channels`)}
       </button>

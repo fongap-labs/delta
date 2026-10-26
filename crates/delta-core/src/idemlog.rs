@@ -488,6 +488,15 @@ impl IdempotencyWriter {
         Ok(())
     }
 
+    /// Remove every stored side effect of `run_id`, results included. Used when the conversation
+    /// the run belonged to is deleted. Returns how many rows went.
+    pub fn forget_run(&self, run_id: &str) -> Result<usize, ShadowReadError> {
+        Ok(self.conn.execute(
+            "DELETE FROM side_effects WHERE run_id = ?1",
+            params![run_id],
+        )?)
+    }
+
     /// Return one entry by its stable `(run_id, tool_call_id)` identity.
     pub fn get(
         &self,

@@ -722,7 +722,7 @@ pub fn run() {
             runtime_ipc::inbox_resolve,
             runtime_ipc::artifacts_list,
             runtime_ipc::artifact_read,
-            runtime_ipc::artifact_resolve_path,
+            runtime_ipc::artifact_open,
             runtime_ipc::memory_list,
             runtime_ipc::memory_update,
             runtime_ipc::memory_delete,

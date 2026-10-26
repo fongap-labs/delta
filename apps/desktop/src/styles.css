@@ -192,6 +192,33 @@ body {
   width: 14px;
   z-index: 55;
 }
+/* Edge tabs (EdgeTab): a slim handle on each side panel's edge, centred vertically. The left one
+   sits on the sidebar's right edge (or the window edge once collapsed); the right one on the right
+   panel's left edge (or the window edge once hidden). */
+.edge-tab {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 58;
+  width: 14px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--ink);
+  background: var(--selected);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  cursor: pointer;
+  transition: width 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.edge-tab:hover, .edge-tab:focus-visible { width: 18px; color: var(--primary); background: var(--panel); }
+.edge-tab-left { left: 0; border-left: 0; border-radius: 0 8px 8px 0; }
+.edge-tab-left.is-expanded, .app.nav-peek .edge-tab-left { left: var(--nav-w); }
+.edge-tab-right { right: 0; border-right: 0; border-radius: 8px 0 0 8px; }
+.edge-tab-right.is-expanded { right: var(--rail-w); }
+.edge-tab-flip { transform: scaleX(-1); }
+@media (prefers-reduced-motion: reduce) { .edge-tab { transition: none; } }
 /* Reveal button while collapsed. Positioned to land EXACTLY on the brand's pin button (.nav-pin-btn,
    14px/14px inside the brand row) so peeking the nav puts the pin under the cursor — no travel. */
 .nav-reveal-btn {

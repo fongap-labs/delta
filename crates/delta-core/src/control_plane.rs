@@ -80,10 +80,20 @@ fn load_messages(state_dir: &Path, session_id: &str) -> Vec<Value> {
     let Ok(file) = fs::File::open(&path) else {
         return Vec::new();
     };
+    // Read raw bytes per line: one line with bytes that are not UTF-8 (a torn write, a bad disk
+    // sector) must cost that line only, not every message after it.
     let mut out = Vec::new();
-    for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
-        if let Ok(v) = serde_json::from_str::<Value>(&line) {
-            out.push(v);
+    let mut reader = std::io::BufReader::new(file);
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        match reader.read_until(b'\n', &mut line) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                if let Ok(v) = serde_json::from_slice::<Value>(&line) {
+                    out.push(v);
+                }
+            }
         }
     }
     out
@@ -411,8 +421,19 @@ pub fn set_session_flags(
     Ok(json!({"ok": true}))
 }
 
-/// Delete a session: remove its row and its transcript file.
+/// Delete a session: remove its row and its transcript, and the content its runs left behind: the
+/// stored results of their tool calls and the Office files attached to them. What stays is the
+/// run-event ledger and the approval records, which are tamper-evident chains and audit facts.
 pub fn delete_session(state_dir: &Path, session_id: &str) -> Result<Value, ShadowReadError> {
+    if !safe_session_id(session_id) {
+        return Err(ShadowReadError::Parse("unsafe session id".to_string()));
+    }
+    // Both come from the transcript and the row, so read them before those are removed.
+    let run_ids = session_run_ids(state_dir, session_id);
+    let workspace = session_workspace(state_dir, session_id)
+        .ok()
+        .filter(|workspace| !workspace.trim().is_empty());
+
     let db_path = state_dir.join("core.db");
     let mut is_is_deleted_row = false;
     if db_path.exists() {
@@ -425,7 +446,59 @@ pub fn delete_session(state_dir: &Path, session_id: &str) -> Result<Value, Shado
     }
     let jl = conversations_dir(state_dir).join(format!("{session_id}.jsonl"));
     let _ = fs::remove_file(&jl);
-    Ok(json!({"ok": is_is_deleted_row, "session_id": session_id}))
+
+    let mut warnings = Vec::new();
+    forget_run_content(state_dir, workspace.as_deref(), &run_ids, &mut warnings);
+    Ok(json!({"ok": is_is_deleted_row, "session_id": session_id, "warnings": warnings}))
+}
+
+/// Remove the stored tool results and saved attachments of `run_ids`. Best effort: the
+/// conversation is already gone, so what cannot be removed is reported in `warnings`.
+fn forget_run_content(
+    state_dir: &Path,
+    workspace: Option<&str>,
+    run_ids: &[String],
+    warnings: &mut Vec<String>,
+) {
+    // A run id is read from a file on disk and becomes part of a path below.
+    let run_ids: Vec<&String> = run_ids
+        .iter()
+        .filter(|run_id| safe_session_id(run_id))
+        .collect();
+    let effects_path = state_dir.join("side_effects.db");
+    if effects_path.exists() && !run_ids.is_empty() {
+        match crate::IdempotencyWriter::open(&effects_path) {
+            Ok(effects) => {
+                for run_id in &run_ids {
+                    if let Err(error) = effects.forget_run(run_id) {
+                        warnings.push(format!("stored results of {run_id}: {error}"));
+                    }
+                }
+            }
+            Err(error) => warnings.push(format!("stored results: {error}")),
+        }
+    }
+    let Some(attachments) = workspace
+        .map(|workspace| Path::new(workspace).join(".delta").join("attachments"))
+        .and_then(|folder| folder.canonicalize().ok())
+        .filter(|folder| {
+            // `.delta` or `attachments` may be a link into somewhere else: stay inside the workspace.
+            Path::new(workspace.unwrap_or_default())
+                .canonicalize()
+                .is_ok_and(|workspace| folder.starts_with(workspace))
+        })
+    else {
+        return;
+    };
+    for run_id in run_ids {
+        let folder = attachments.join(run_id);
+        let is_real_folder = fs::symlink_metadata(&folder).is_ok_and(|meta| meta.is_dir());
+        if is_real_folder {
+            if let Err(error) = fs::remove_dir_all(&folder) {
+                warnings.push(format!("attachments of {run_id}: {error}"));
+            }
+        }
+    }
 }
 
 /// List recently-used workspaces (distinct workspace column from sessions).
@@ -1126,15 +1199,91 @@ pub fn resolve_artifact_path(
     Ok(canonical)
 }
 
+/// What the desktop shell does with an artifact the user asked to open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArtifactOpenAction {
+    /// Hand the file to the operating system's default application.
+    Open,
+    /// Show the file in the file manager.
+    Reveal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactOpenPlan {
+    pub path: PathBuf,
+    pub action: ArtifactOpenAction,
+    /// `Open` was asked for but only `Reveal` is safe for this file.
+    pub downgraded: bool,
+}
+
+/// Extensions "Open" may hand to the default application. An artifact's name comes from the model
+/// and from files it wrote, and opening is a launch: a crafted `report.pdf.exe`, a shortcut, a
+/// script or a file with no extension must never run, only be revealed. The list is small and
+/// positive; SVG and HTML are left out because they can carry script.
+const OPENABLE_EXTENSIONS: [&str; 12] = [
+    "pdf", "docx", "xlsx", "pptx", "txt", "md", "csv", "png", "jpg", "jpeg", "gif", "webp",
+];
+
+fn can_open_externally(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    // No extension, a dot-file such as `.bashrc`, or a trailing dot (Windows would drop it).
+    match name.rfind('.') {
+        Some(dot) if dot > 0 && dot + 1 < name.len() => {
+            let extension = name[dot + 1..].to_ascii_lowercase();
+            OPENABLE_EXTENSIONS.contains(&extension.as_str())
+        }
+        _ => false,
+    }
+}
+
+/// Decide, from a registered artifact of the session, what opening it may do. The path is resolved
+/// here, so the front end never names a file the shell will launch.
+pub fn plan_artifact_open(
+    state_dir: &Path,
+    session_id: &str,
+    path: &str,
+    should_open: bool,
+) -> Result<ArtifactOpenPlan, ShadowReadError> {
+    let resolved = resolve_artifact_path(state_dir, session_id, path)?;
+    let can_open = should_open && can_open_externally(&resolved);
+    Ok(ArtifactOpenPlan {
+        path: resolved,
+        action: if can_open {
+            ArtifactOpenAction::Open
+        } else {
+            ArtifactOpenAction::Reveal
+        },
+        downgraded: should_open && !can_open,
+    })
+}
+
 pub fn read_artifact(
     state_dir: &Path,
     session_id: &str,
     path: &str,
 ) -> Result<Value, ShadowReadError> {
     let absolute = resolve_artifact_path(state_dir, session_id, path)?;
+    preview_file(&absolute, path)
+}
+
+/// Largest picture or PDF the artifact view loads whole. It travels to the window as one Base64
+/// text, so a bigger one is opened from its folder instead.
+const MAX_MEDIA_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
+/// Most text of a file the artifact view shows.
+const MAX_TEXT_PREVIEW_BYTES: usize = 2 * 1024 * 1024;
+
+/// What the artifact view shows for the file or folder at `absolute`, which `path` names for the
+/// view. Only as much of the file as the view can show is read.
+fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
+    use std::io::Read;
     if absolute.is_dir() {
         let mut entries = Vec::new();
-        for entry in fs::read_dir(&absolute)?.flatten().take(500) {
+        for entry in fs::read_dir(absolute)?.flatten().take(500) {
             let metadata = entry.metadata().ok();
             entries.push(json!({
                 "name": entry.file_name().to_string_lossy(),
@@ -1144,7 +1293,6 @@ pub fn read_artifact(
         }
         return Ok(json!({"ok": true, "path": path, "kind": "folder", "entries": entries}));
     }
-    let bytes = fs::read(&absolute)?;
     let extension = absolute
         .extension()
         .and_then(|value| value.to_str())
@@ -1159,16 +1307,30 @@ pub fn read_artifact(
         "pdf" => Some("application/pdf"),
         _ => None,
     };
+    let size = fs::metadata(absolute)?.len();
     if let Some(mime) = mime {
-        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+        if size > MAX_MEDIA_PREVIEW_BYTES {
+            return Ok(json!({
+                "ok": false, "path": path, "kind": "unknown", "size": size,
+                "error": format!(
+                    "This file is {} MB, too large to preview here. Open it from its folder.",
+                    size / (1024 * 1024)
+                ),
+            }));
+        }
+        let encoded = base64::engine::general_purpose::STANDARD.encode(fs::read(absolute)?);
         return Ok(json!({
             "ok": true, "path": path, "kind": if extension == "pdf" { "pdf" } else { "image" },
             "data_url": format!("data:{mime};base64,{encoded}"), "truncated": false,
         }));
     }
-    let max = 2 * 1024 * 1024;
-    let truncated = bytes.len() > max;
-    let content = String::from_utf8_lossy(&bytes[..bytes.len().min(max)]).to_string();
+    let mut bytes = Vec::new();
+    fs::File::open(absolute)?
+        .take(MAX_TEXT_PREVIEW_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    let truncated = bytes.len() > MAX_TEXT_PREVIEW_BYTES;
+    let content =
+        String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_TEXT_PREVIEW_BYTES)]).to_string();
     Ok(json!({
         "ok": true, "path": path, "kind": "text", "content": content,
         "truncated": truncated,
@@ -1178,6 +1340,70 @@ pub fn read_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_documents_and_pictures_are_ever_opened() {
+        let tmp = tempfile::tempdir().unwrap();
+        let make = |name: &str| {
+            let path = tmp.path().join(name);
+            fs::write(&path, "x").unwrap();
+            path
+        };
+        for name in [
+            "report.pdf",
+            "Notes.TXT",
+            "Sheet.XLSX",
+            "deck.pptx",
+            "doc.docx",
+            "d.csv",
+            "r.md",
+            "p.png",
+            "p.JPG",
+            "p.jpeg",
+            "p.gif",
+            "p.webp",
+        ] {
+            assert!(can_open_externally(&make(name)), "{name} should open");
+        }
+        for name in [
+            "x.bat",
+            "x.lnk",
+            "x.exe",
+            "README",
+            "x.pdf.exe",
+            "x.svg",
+            "x.html",
+            ".pdf",
+            "trailing.dot.",
+        ] {
+            assert!(
+                !can_open_externally(&make(name)),
+                "{name} must only be revealed"
+            );
+        }
+        // A folder named like a document, and a file that does not exist.
+        let folder = tmp.path().join("dir.pdf");
+        fs::create_dir(&folder).unwrap();
+        assert!(!can_open_externally(&folder));
+        assert!(!can_open_externally(&tmp.path().join("missing.pdf")));
+    }
+
+    #[test]
+    fn a_damaged_line_in_a_transcript_costs_only_that_line() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = conversations_dir(tmp.path());
+        fs::create_dir_all(&dir).unwrap();
+        let mut bytes = b"{\"role\":\"user\",\"text\":\"one\"}\n".to_vec();
+        bytes.extend_from_slice(b"{\"role\":\"assistant\",\"text\":\"\xff\xfe broken\"}\n");
+        bytes.extend_from_slice(b"not json at all\n");
+        bytes.extend_from_slice(b"{\"role\":\"user\",\"text\":\"three\"}\n");
+        fs::write(dir.join("s1.jsonl"), bytes).unwrap();
+        let texts: Vec<String> = load_messages(tmp.path(), "s1")
+            .iter()
+            .map(|m| m["text"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(texts, vec!["one", "three"]);
+    }
 
     #[test]
     fn derive_title_uses_first_line_and_clips() {
@@ -1399,6 +1625,148 @@ mod tests {
         assert_eq!(d["ok"], true);
         let listed4 = list_sessions(tmp.path(), None).unwrap();
         assert_eq!(listed4["sessions"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn deleting_a_conversation_also_removes_the_content_it_left_behind() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path().join("state");
+        let workspace = tmp.path().join("work");
+        fs::create_dir_all(&state).unwrap();
+        let attachments = workspace.join(".delta/attachments");
+        fs::create_dir_all(attachments.join("run-1")).unwrap();
+        fs::create_dir_all(attachments.join("run-other")).unwrap();
+        fs::write(attachments.join("run-1/0-secret.docx"), "private").unwrap();
+        fs::write(attachments.join("run-other/0-keep.docx"), "keep").unwrap();
+        fs::write(workspace.join("report.md"), "the user's own file").unwrap();
+
+        ensure_session(&state, "s1", workspace.to_str(), "m").unwrap();
+        append_session_message(
+            &state,
+            "s1",
+            &json!({"role": "user", "content": "hi", "run_id": "run-1"}),
+        )
+        .unwrap();
+        let effects = crate::IdempotencyWriter::open(state.join("side_effects.db")).unwrap();
+        for run in ["run-1", "run-other"] {
+            effects
+                .commit(
+                    run,
+                    "call-1",
+                    "read_file",
+                    &json!({"path": "a"}),
+                    &json!({"output": "file text"}),
+                )
+                .unwrap();
+        }
+        drop(effects);
+
+        let outcome = delete_session(&state, "s1").unwrap();
+        assert_eq!(outcome["ok"], true);
+
+        assert!(!conversations_dir(&state).join("s1.jsonl").exists());
+        assert!(
+            !attachments.join("run-1").exists(),
+            "the conversation's attachments were left"
+        );
+        assert!(
+            attachments.join("run-other/0-keep.docx").exists(),
+            "another run's attachment was removed"
+        );
+        assert!(
+            workspace.join("report.md").exists(),
+            "a file of the user's was removed"
+        );
+        let effects = crate::IdempotencyReader::open(state.join("side_effects.db")).unwrap();
+        assert!(
+            effects.for_run("run-1").unwrap().is_empty(),
+            "the stored results were left"
+        );
+        assert_eq!(effects.for_run("run-other").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn deleting_a_conversation_never_follows_a_run_id_out_of_the_attachments_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path().join("state");
+        let workspace = tmp.path().join("work");
+        let victim = tmp.path().join("victim");
+        fs::create_dir_all(&state).unwrap();
+        fs::create_dir_all(workspace.join(".delta/attachments")).unwrap();
+        fs::create_dir_all(&victim).unwrap();
+        fs::write(victim.join("keep.txt"), "keep").unwrap();
+
+        ensure_session(&state, "s1", workspace.to_str(), "m").unwrap();
+        append_session_message(
+            &state,
+            "s1",
+            &json!({"role": "user", "content": "hi", "run_id": "../../../victim"}),
+        )
+        .unwrap();
+        delete_session(&state, "s1").unwrap();
+        assert!(
+            victim.join("keep.txt").exists(),
+            "a run id walked out of the attachments folder"
+        );
+    }
+
+    #[test]
+    fn delete_session_refuses_an_id_that_is_not_a_plain_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path().join("state");
+        fs::create_dir_all(conversations_dir(&state)).unwrap();
+        let inside = state.join("victim.jsonl");
+        let outside = tmp.path().join("outside.jsonl");
+        fs::write(&inside, "keep").unwrap();
+        fs::write(&outside, "keep").unwrap();
+        for id in ["../victim", "../../outside", "a/b", "..", ""] {
+            assert!(delete_session(&state, id).is_err(), "{id:?} was accepted");
+        }
+        assert!(
+            inside.exists() && outside.exists(),
+            "a file outside conversations/ was deleted"
+        );
+    }
+
+    #[test]
+    fn the_artifact_view_does_not_load_a_huge_file_whole() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // A picture over the limit is refused with a message, without being read.
+        let huge = tmp.path().join("huge.png");
+        fs::File::create(&huge)
+            .unwrap()
+            .set_len(MAX_MEDIA_PREVIEW_BYTES + 1)
+            .unwrap();
+        let refused = preview_file(&huge, "huge.png").unwrap();
+        assert_eq!(refused["ok"], false);
+        assert!(refused["error"].as_str().unwrap().contains("too large"));
+        assert!(refused.get("data_url").is_none());
+
+        // A text file far over the limit shows its start and says it was cut.
+        let text = tmp.path().join("log.txt");
+        fs::write(&text, "x".repeat(MAX_TEXT_PREVIEW_BYTES + 1000)).unwrap();
+        let shown = preview_file(&text, "log.txt").unwrap();
+        assert_eq!(shown["truncated"], true);
+        assert_eq!(
+            shown["content"].as_str().unwrap().len(),
+            MAX_TEXT_PREVIEW_BYTES
+        );
+
+        // Ordinary files are unchanged.
+        let small = tmp.path().join("a.txt");
+        fs::write(&small, "hello").unwrap();
+        let shown = preview_file(&small, "a.txt").unwrap();
+        assert_eq!(
+            (
+                shown["content"].as_str().unwrap(),
+                shown["truncated"].as_bool().unwrap()
+            ),
+            ("hello", false)
+        );
+        let pic = tmp.path().join("p.png");
+        fs::write(&pic, [1_u8, 2, 3]).unwrap();
+        assert_eq!(preview_file(&pic, "p.png").unwrap()["kind"], "image");
     }
 
     #[test]

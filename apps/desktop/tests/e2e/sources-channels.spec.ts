@@ -32,7 +32,7 @@ test("Slack channels drill-down: gating, add (auto-prefixed), remove", async ({ 
   await expect(page.getByText(/Not listening to any Slack channel yet/)).toBeVisible();
 
   // Back returns to the Sources list.
-  await page.getByRole("button", { name: "Back to sources" }).click();
+  await page.getByRole("button", { name: "Back to connectors" }).click();
   await expect(body.getByText("Slack", { exact: true })).toBeVisible();
 });
 

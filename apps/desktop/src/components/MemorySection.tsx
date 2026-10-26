@@ -129,17 +129,17 @@ export function MemorySection() {
     <section>
       <PanelHead
         title={t("memory.title", undefined, "Memory")}
-        sub={t("memory.sub", undefined, "Your Delta agents can remember useful things about you between conversations. Everything they know is listed here.")}
+        sub={t("memory.sub", undefined, "Memory isn't switched on yet. Delta doesn't save anything from your conversations, and nothing on this page is sent to a model. You can already keep, edit and delete notes here.")}
       />
 
       {/* On/off — one switch, no other setup (§5.4). */}
       <div className={CARD + " p-4 mb-4"} data-testid="memory-toggle-card">
         <div className="flex items-center gap-3">
-          <Toggle checked={settings.enabled} onChange={toggleEnabled} title={t("memory.toggleTitle", undefined, "Remember new things about you")} />
+          <Toggle checked={false} disabled onChange={toggleEnabled} title={t("memory.toggleTitle", undefined, "Remember new things about you")} />
           <div className="min-w-0 flex-1">
             <div className={FIELD_LABEL}>{t("memory.toggleLabel", undefined, "Remember new things about me")}</div>
             <div className="text-[12px] text-muted mt-0.5">
-              {t("memory.toggleHelp", undefined, "Lasting preferences you mention in chat get saved and used in future conversations — you'll see a small note each time, with one-tap Undo. Turning this off stops new saves; anything already below is still used until you delete it.")}
+              {t("memory.toggleHelp", undefined, "Not available yet. Saving things from chat hasn't been built, so this switch is off and does nothing today.")}
             </div>
           </div>
         </div>
@@ -154,7 +154,7 @@ export function MemorySection() {
           message ("what I already know is kept, delete it below") points here. */}
       <div className={CARD + " p-4 mb-4"} data-testid="memory-list-card">
         <div className="flex items-center gap-2">
-          <div className={FIELD_LABEL + " flex-1"}>{t("memory.listTitle", undefined, "What I've learned about you")}</div>
+          <div className={FIELD_LABEL + " flex-1"}>{t("memory.listTitle", undefined, "Notes about you")}</div>
           {entries.length > 0 && (
             <button className={LINK_BTN} data-testid="memory-export" onClick={() => void exportAll()}>
               {t("memory.export", undefined, "Export")}
@@ -186,7 +186,7 @@ export function MemorySection() {
           )}
         </div>
         <div className={FIELD_HELP}>
-          {t("memory.listHelp", undefined, "Saved automatically from your conversations. Fix anything that's wrong — or delete it. Edits and deletions apply to new conversations; ones you already have open keep what they knew when they started.")}
+          {t("memory.listHelp", undefined, "These notes are only stored on this computer for now, and Delta doesn't use them in conversations yet. Fix anything that's wrong — or delete it.")}
         </div>
         {listMsg && (
           <div className="text-[12.5px] text-muted mt-2.5" data-testid="memory-list-msg">
@@ -196,7 +196,7 @@ export function MemorySection() {
         {entries.length === 0 ? (
           !listMsg && (
             <div className="text-[12px] text-muted mt-3" data-testid="memory-empty">
-              {t("memory.empty", undefined, "Nothing yet. When you mention a lasting preference in chat — or say \"remember that…\" — it will show up here.")}
+              {t("memory.empty", undefined, "Nothing yet. Notes you import appear here; nothing is saved from chat yet.")}
             </div>
           )
         ) : (
@@ -237,7 +237,7 @@ function UserRulesCard({
     <div className={CARD + " p-4"} data-testid="user-rules-card">
       <div className={FIELD_LABEL}>{t("memory.rulesTitle", undefined, "Your instructions")}</div>
       <div className={FIELD_HELP}>
-        {t("memory.rulesHelp", undefined, "Your Delta agents follow these in every conversation.")}
+        {t("memory.rulesHelp", undefined, "Stored on this computer. Delta doesn't apply these to conversations yet.")}
       </div>
       <textarea
         value={draft}
@@ -258,7 +258,7 @@ function UserRulesCard({
         </button>
         {hasSavedMsg && (
           <span className="text-[12.5px] text-muted">
-            {t("memory.rulesSaved", undefined, "Saved — applies to new conversations. Ones you already have open keep the instructions they started with.")}
+            {t("memory.rulesSaved", undefined, "Saved on this computer. Not applied to conversations yet.")}
           </span>
         )}
       </div>

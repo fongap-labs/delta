@@ -56,6 +56,7 @@ import { isTauri, platformOS, startWindowDrag } from "./tauri";
 import { setThemePref } from "./theme";
 import { shouldShowOverlay } from "./overlay";
 import { Icon } from "./components/Icon";
+import { EdgeTab } from "./components/EdgeTab";
 import { Sidebar } from "./components/Sidebar";
 import { Composer } from "./components/Composer";
 import { RunStatusBar } from "./components/RunStatusBar";
@@ -1522,6 +1523,24 @@ export function App() {
           aria-hidden="true"
         />
       )}
+      {/* Edge tabs: one handle on each side panel's edge, the same spot to close and to reopen. The right tab is the single task-panel entry (§32). */}
+      <EdgeTab
+        side="left"
+        isExpanded={!navCollapsed}
+        label={navCollapsed ? tr("common.showSidebar") : tr("common.hideSidebar")}
+        onClick={toggleNav}
+        onMouseEnter={navCollapsed ? () => setNavPeek(true) : undefined}
+        testId="edge-tab-nav"
+      />
+      {surface === "session" && (
+        <EdgeTab
+          side="right"
+          isExpanded={!isRailHidden}
+          label={isRailHidden ? tr("common.showSidePanel") : tr("common.hideSidePanel")}
+          onClick={() => setRailHidden((hidden) => !hidden)}
+          testId="edge-tab-rail"
+        />
+      )}
       {/* Explicit reveal affordance while collapsed (alongside hover-peek + ⌘B) — on every
           surface EXCEPT the session view, whose topbar carries the [sidebar][+][search] cluster
           instead (§22; no duplicate reveal buttons). */}
@@ -1674,16 +1693,6 @@ export function App() {
                 <span className="topbar-artifacts-count">{artifactCount}</span>
               </button>
             )}
-            {/* §32: the panel toggle is the single task-panel entry. */}
-            <button
-              className="topbar-icon-btn"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => setRailHidden((h) => !h)}
-              aria-label={isRailHidden ? "Show side panel" : "Hide side panel"}
-              title={isRailHidden ? "Show side panel" : "Hide side panel"}
-            >
-              <Icon name="sidebarRight" size={16} />
-            </button>
           </div>
         </div>
         <div className={"main-workspace" + (isRailHidden ? " rail-hidden" : "")}>

@@ -371,7 +371,20 @@ if run_shard desktop && [ "$desktop_required" = "true" ]; then
   phase_end
 fi
 
+# sherpa-onnx-sys downloads a native library while it builds and links it into the binary without
+# checking it. Fetch the pinned archive first; the build script then uses it and cannot fall back
+# to an unchecked download.
+prepare_sherpa_archive() {
+  SHERPA_ONNX_ARCHIVE_DIR="$(python3 scripts/fetch_sherpa_archive.py)"
+  export SHERPA_ONNX_ARCHIVE_DIR
+}
+
 if [ "$rust_required" = "true" ]; then
+  if run_shard rust-app-lint || run_shard rust-app-test || run_shard rust-crates; then
+    phase_begin sherpa-archive
+    prepare_sherpa_archive
+    phase_end
+  fi
   if run_shard rust-app-lint || run_shard rust-app-test; then
     phase_begin rust-app-system-packages
     install_rust_app_system_packages

@@ -15,7 +15,6 @@
 //! - the runner passes no secrets through the environment and never shadows a
 //!   granted secret key.
 
-use std::io::{BufRead, ErrorKind};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{mpsc, Arc};
@@ -26,6 +25,8 @@ use serde_json::{json, Value};
 use super::abi::{
     CapabilityExitState, CapabilityGrants, CapabilityJob, CapabilityProgress, CapabilityResult,
 };
+use super::process_io::{join_readers_within, spawn_line_reader};
+use super::process_tree::ProcessTree;
 use super::registry::{CapabilityControl, CapabilityRegistration};
 use super::runners::NativeCapabilityRunner;
 
@@ -43,10 +44,6 @@ const POLL_MILLIS: u64 = 10;
 /// bound before the timeout fires. One byte more than a stream records, so that
 /// [`CapturedOutput::push`] still sees an over-long line and flags the stream as truncated.
 const MAX_LINE_BYTES: usize = MAX_OUTPUT_CHARS + 1;
-/// How long the supervisor waits, once the command has ended, for the readers to reach the end of
-/// the pipes. A background process the command left running keeps its end of a pipe open; it must
-/// not hold the tool call (or a timeout, or a cancel) for as long as it lives.
-const READER_GRACE: Duration = Duration::from_millis(500);
 
 pub fn shell_registration() -> CapabilityRegistration {
     CapabilityRegistration {
@@ -105,6 +102,7 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
         Ok(process) => process,
         Err(result) => return result,
     };
+    let tree = ProcessTree::attach(&process);
     let (lines_tx, lines_rx) = mpsc::channel::<(bool, String)>();
     let readers = start_readers(&mut process, lines_tx);
 
@@ -117,13 +115,13 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
     loop {
         drain_lines(&lines_rx, &mut stdout, &mut stderr);
         if control.is_cancelled() {
-            let _ = process.kill();
+            tree.kill(&mut process);
             let _ = process.wait();
             forced_state = Some(CapabilityExitState::Cancelled);
             break;
         }
         if timeout.is_some_and(|timeout| started.elapsed() >= timeout) {
-            let _ = process.kill();
+            tree.kill(&mut process);
             let _ = process.wait();
             forced_state = Some(CapabilityExitState::TimedOut);
             break;
@@ -131,13 +129,16 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
         match process.try_wait() {
             Ok(Some(status)) => {
                 exit_code = status.code();
+                tree.release();
                 break;
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(POLL_MILLIS)),
             Err(error) => {
-                let _ = process.kill();
+                tree.kill(&mut process);
                 let _ = process.wait();
-                finish_readers(readers, &lines_rx, &mut stdout, &mut stderr);
+                join_readers_within(readers, &mut || {
+                    drain_lines(&lines_rx, &mut stdout, &mut stderr)
+                });
                 return CapabilityResult::failed(
                     &job.job_id,
                     &format!("shell wait failed: {error}"),
@@ -146,7 +147,9 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
             }
         }
     }
-    finish_readers(readers, &lines_rx, &mut stdout, &mut stderr);
+    join_readers_within(readers, &mut || {
+        drain_lines(&lines_rx, &mut stdout, &mut stderr)
+    });
 
     if let Some(state) = forced_state {
         // The killed child's remaining output is gone; the runtime's own
@@ -232,6 +235,7 @@ fn spawn_shell(
         }
     }
     apply_platform_tuning(&mut process);
+    ProcessTree::prepare(&mut process);
     if let Some(workdir) = workdir {
         process.current_dir(workdir);
     }
@@ -317,90 +321,27 @@ fn start_readers(
     process: &mut std::process::Child,
     lines_tx: mpsc::Sender<(bool, String)>,
 ) -> Vec<std::thread::JoinHandle<()>> {
-    let stdout = process
-        .stdout
-        .take()
-        .map(|stream| stream_reader(stream, lines_tx.clone(), true));
-    let stderr = process
-        .stderr
-        .take()
-        .map(|stream| stream_reader(stream, lines_tx, false));
+    let stdout = process.stdout.take().and_then(|stream| {
+        spawn_line_reader(
+            "delta-shell-stdout",
+            stream,
+            MAX_LINE_BYTES,
+            lines_tx.clone(),
+            |line| (true, line),
+        )
+        .ok()
+    });
+    let stderr = process.stderr.take().and_then(|stream| {
+        spawn_line_reader(
+            "delta-shell-stderr",
+            stream,
+            MAX_LINE_BYTES,
+            lines_tx,
+            |line| (false, line),
+        )
+        .ok()
+    });
     stdout.into_iter().chain(stderr).collect()
-}
-
-fn stream_reader(
-    stream: impl std::io::Read + Send + 'static,
-    lines_tx: mpsc::Sender<(bool, String)>,
-    is_stdout: bool,
-) -> std::thread::JoinHandle<()> {
-    std::thread::spawn(move || {
-        let mut reader = std::io::BufReader::new(stream);
-        let mut line = Vec::new();
-        // Output that is not valid UTF-8 (a native tool on a GBK console, say) is decoded
-        // lossily. Stopping at the first such line would close the pipe on a child that is still
-        // writing, and the rest of its output would be lost.
-        while let Ok(true) = read_capped_line(&mut reader, &mut line) {
-            let text = String::from_utf8_lossy(&line);
-            if lines_tx
-                .send((is_stdout, text.trim_end_matches('\r').to_string()))
-                .is_err()
-            {
-                break;
-            }
-        }
-    })
-}
-
-/// Read one line into `line` without its terminator, keeping at most [`MAX_LINE_BYTES`] of it and
-/// discarding the rest of a longer line. `Ok(false)` at the end of the stream.
-fn read_capped_line(reader: &mut impl BufRead, line: &mut Vec<u8>) -> std::io::Result<bool> {
-    line.clear();
-    let mut has_data = false;
-    loop {
-        let (used, is_line_end) = {
-            let chunk = match reader.fill_buf() {
-                Ok(chunk) => chunk,
-                Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-                Err(error) => return Err(error),
-            };
-            if chunk.is_empty() {
-                return Ok(has_data);
-            }
-            has_data = true;
-            let end = chunk.iter().position(|byte| *byte == b'\n');
-            let room = MAX_LINE_BYTES.saturating_sub(line.len());
-            let kept = end.unwrap_or(chunk.len()).min(room);
-            line.extend_from_slice(&chunk[..kept]);
-            (end.map_or(chunk.len(), |at| at + 1), end.is_some())
-        };
-        reader.consume(used);
-        if is_line_end {
-            return Ok(true);
-        }
-    }
-}
-
-/// Collect what the readers still hold once the command has ended, waiting at most
-/// [`READER_GRACE`] for them to see the end of their pipes. A reader still blocked after that is
-/// held open by a process the command left behind; it is detached and stops by itself when that
-/// process lets go of the pipe or the receiver is gone.
-fn finish_readers(
-    readers: Vec<std::thread::JoinHandle<()>>,
-    lines_rx: &mpsc::Receiver<(bool, String)>,
-    stdout: &mut CapturedOutput,
-    stderr: &mut CapturedOutput,
-) {
-    let deadline = Instant::now() + READER_GRACE;
-    while Instant::now() < deadline && readers.iter().any(|reader| !reader.is_finished()) {
-        drain_lines(lines_rx, stdout, stderr);
-        std::thread::sleep(Duration::from_millis(POLL_MILLIS));
-    }
-    for reader in readers {
-        if reader.is_finished() {
-            let _ = reader.join();
-        }
-    }
-    drain_lines(lines_rx, stdout, stderr);
 }
 
 /// Pull everything the reader threads have produced so far into the captured
@@ -647,6 +588,99 @@ mod tests {
         let output = output_of(&result);
         assert_eq!(output["truncated_stdout"], json!(true));
         assert!(output["stdout"].as_str().unwrap_or_default().len() <= MAX_OUTPUT_CHARS);
+    }
+
+    /// Whether process `pid` is still alive. A zombie waiting to be reaped is dead for this purpose.
+    #[cfg(target_os = "linux")]
+    fn is_alive(pid: u32) -> bool {
+        match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => !stat
+                .rsplit(')')
+                .next()
+                .unwrap_or("")
+                .trim_start()
+                .starts_with('Z'),
+            Err(_) => false,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn pid_left_by(command_for: impl Fn(&str) -> String, timeout_secs: u64, cancel: bool) -> u32 {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let command = command_for(pid_file.to_str().unwrap());
+        let job = job_with(json!({ "command": command }), timeout_secs);
+        let flag = Arc::new(AtomicBool::new(false));
+        let progress: Arc<dyn Fn(CapabilityProgress) + Send + Sync> = Arc::new(|_| {});
+        let control = CapabilityControl::new(flag.clone(), progress);
+        let canceller = cancel.then(|| {
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(700));
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            })
+        });
+        let result = run_shell_job(&job, &control);
+        if let Some(handle) = canceller {
+            handle.join().unwrap();
+        }
+        assert!(matches!(
+            result.state,
+            CapabilityExitState::TimedOut | CapabilityExitState::Cancelled
+        ));
+        std::fs::read_to_string(&pid_file)
+            .expect("the command wrote the pid of its background process")
+            .trim()
+            .parse()
+            .unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_timeout_ends_the_background_processes_the_command_started() {
+        let pid = pid_left_by(
+            |file| format!("sleep 30 & echo $! > {file}; sleep 30"),
+            1,
+            false,
+        );
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(!is_alive(pid), "process {pid} outlived the timeout");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_cancel_ends_the_background_processes_the_command_started() {
+        let pid = pid_left_by(
+            |file| format!("sleep 30 & echo $! > {file}; sleep 30"),
+            30,
+            true,
+        );
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(!is_alive(pid), "process {pid} outlived the cancel");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_background_process_survives_a_command_that_finished_normally() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let command = format!("sleep 30 & echo $! > {}", pid_file.display());
+        let result = run_shell_job(
+            &job_with(json!({ "command": command }), 30),
+            &noop_control(),
+        );
+        assert_eq!(result.state, CapabilityExitState::Completed);
+        let pid: u32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let alive = is_alive(pid);
+        // Clean up before asserting, so a failure does not leave the sleeper behind.
+        let _ = Command::new("kill").arg(pid.to_string()).status();
+        assert!(
+            alive,
+            "a command that finished on its own had its background process killed"
+        );
     }
 
     #[cfg(unix)]

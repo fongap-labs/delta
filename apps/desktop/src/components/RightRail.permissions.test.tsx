@@ -38,6 +38,9 @@ const props = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+// An empty Permissions section starts closed; opening it is the user's choice.
+const openPermissions = () => fireEvent.click(screen.getByRole("button", { name: "Permissions" }));
+
 const wrap = (el: JSX.Element) => <I18nProvider locale="en-US">{el}</I18nProvider>;
 
 describe("RightRail permissions section and footer", () => {
@@ -57,11 +60,13 @@ describe("RightRail permissions section and footer", () => {
 
   it("shows the empty line when this session has no approval requests", async () => {
     render(wrap(<RightRail {...props()} />));
+    openPermissions();
     expect(await screen.findByText("No permission requests in this conversation yet.")).toBeTruthy();
   });
 
   it("shows the workspace egress level as the first row", async () => {
     render(wrap(<RightRail {...props()} />));
+    openPermissions();
     const row = await screen.findByTestId("rail-perm-egress");
     expect(await within(row).findByText("Ask each time")).toBeTruthy();
   });
@@ -88,11 +93,30 @@ describe("RightRail permissions section and footer", () => {
 
   it("folds Access into the Permissions section rather than a section of its own", async () => {
     render(wrap(<RightRail {...props()} />));
+    openPermissions();
     const access = await screen.findByTestId("access-section");
     const section = access.closest("section");
     expect(section?.querySelector(".rail-section-toggle")?.textContent).toBe("Permissions");
     expect(screen.queryByTestId("access-toggle")).toBeNull();
     const titles = Array.from(document.querySelectorAll(".rail-section-toggle")).map((el) => el.textContent);
     expect(titles.filter((title) => title?.startsWith("Access"))).toEqual([]);
+  });
+
+  it("keeps Progress, Permissions and Artifacts closed while they have nothing to show", async () => {
+    render(wrap(<RightRail {...props()} />));
+    const toggles = Array.from(document.querySelectorAll(".rail-section-toggle"));
+    expect(toggles).toHaveLength(3);
+    expect(document.querySelectorAll(".rail-section-body")).toHaveLength(0);
+  });
+
+  it("opens a section by itself once it has content, and leaves it to the user after a choice", async () => {
+    const { rerender } = render(wrap(<RightRail {...props()} />));
+    rerender(wrap(<RightRail {...props({ approvals: [pending], todo: [{ content: "Draft", status: "pending" }] })} />));
+    expect(await screen.findAllByTestId("rail-perm-row")).toHaveLength(1);
+    expect(screen.getByText("Draft")).toBeTruthy();
+    // Closing a section that has content sticks, even when more content arrives.
+    fireEvent.click(screen.getByRole("button", { name: "Permissions" }));
+    rerender(wrap(<RightRail {...props({ approvals: [pending, granted] })} />));
+    expect(screen.queryByTestId("rail-perm-row")).toBeNull();
   });
 });
