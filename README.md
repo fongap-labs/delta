@@ -153,7 +153,7 @@ npm run tauri dev              # 启动桌面应用（首次编译 Rust 需要�
 ```mermaid
 flowchart TB
     UI["体验层 Experience<br/>TypeScript / React：你看到的界面"] --> RT["运行时 Runtime<br/>Rust：会话、运行与规则"]
-    RT --> MOD["Trust 信任 · Work 工作 · Capability 能力<br/>Automation 自动化 · Learning 学习"]
+    RT --> MOD["Trust 信任 · Work 工作 · Capability 能力<br/>Automation 自动化 · Learning 学习（规划中）"]
     MOD --> SRC["原生工具 · Worker · MCP · Connector · 外部适配器"]
     classDef brand fill:#286F78,stroke:#1D3F45,color:#FBF9F9
     classDef soft fill:#E7F0F1,stroke:#286F78,color:#1D3F45
@@ -166,7 +166,7 @@ flowchart TB
 - **运行时（Runtime）**：Delta 的核心。它对工作状态、审批和验证拥有**权威（Authority）**，即某件事只由一个模块负责。
 - **能力（Capability）**：Delta 能调用的功能，如读取 PDF、网页搜索、统计计算。它的来源可以是原生工具、受控 Worker（独立的执行进程）、MCP（外部工具协议）或 Connector（外部服务连接器）。
 - **自动化（Automation）**：Delta 能根据预定义规则自动执行任务序列，例如：读取邮箱→生成摘要→发送到 Slack。
-- **学习（Learning）**：Delta 通过记录您的确认行为逐步改进其决策，例如：您总是拒绝发送包含敏感信息的内容，Delta 会学习到此类内容需要更严格的审批。
+- **学习（Learning）**：规划中，**尚未启用**。目前 Delta 不会从你的对话或确认行为中保存任何内容，也不会据此调整决策；设置页的“记忆”只是存放在本机的笔记，暂不参与对话。后续设计原则：只在你看得见并确认后写入，作为带来源的数据（而不是指令）提供给模型，并按工作区隔离。
 - **Skill（技能）**：可复用的工作方法，定义步骤和验证方式，但不能改写安全规则。
 - **扩展**：可选扩展只依赖公开合同；Delta 核心不依赖任何具体扩展，反向依赖是禁止的。
 
