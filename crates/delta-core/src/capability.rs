@@ -211,6 +211,7 @@ mod tests {
             names,
             vec![
                 "ask_user",
+                "chart_render",
                 "create_document",
                 "edit_document",
                 "propose_plan",

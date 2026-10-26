@@ -4,12 +4,12 @@ description: 对工作区里的 CSV 做统计分析，并写出数字可追溯�
 source: builtin
 version: 1
 side_effect: local_write
-capabilities: ["file.read", "statistics.ttest", "statistics.anova", "statistics.chisq", "statistics.correlation", "statistics.regression", "statistics.doe", "statistics.record", "report.render", "report.check"]
+capabilities: ["file.read", "statistics.ttest", "statistics.anova", "statistics.chisq", "statistics.correlation", "statistics.regression", "statistics.doe", "statistics.record", "chart.render", "report.render", "report.check"]
 ---
 
 # 统计分析与可追溯报告
 
-用于对工作区里的 CSV 做统计分析，并交付一份每个数字都能追溯到计算结果的报告。系统提示里已经规定了主流程（不自己算数、用 statistics_record、用 report_render 和 report_check）；本技能只补充选方法、报告写法和容易踩的坑。你做不了的事要直说：不能生成图表，不检验统计前提，不能处理 CSV 以外的数据文件。
+用于对工作区里的 CSV 做统计分析，并交付一份每个数字都能追溯到计算结果的报告。系统提示里已经规定了主流程（不自己算数、用 statistics_record、用 report_render 和 report_check）；本技能只补充选方法、报告写法和容易踩的坑。你做不了的事要直说：图表只能以独立的 PNG 文件交付，不能插入 Word 或 Excel；不检验统计前提；不能处理 CSV 以外的数据文件。
 
 ## 开始前先问清（一次问完，不要连环追问）
 
@@ -32,6 +32,7 @@ capabilities: ["file.read", "statistics.ttest", "statistics.anova", "statistics.
 | 一个结果由多个数值列解释 | statistics_regression，predictors 为 1 到 8 列，需要时开 interactions |
 | 设计两水平析因试验 | statistics_doe；做完试验、填好响应列后用 statistics_regression 分析 |
 | 只想看一列的概况 | statistics_describe（只在对话里用，见下面"不能绑定的数字"） |
+| 画分布、比较、相关或趋势的图 | chart_render：histogram（一列分布）、boxplot 或 bar（按组比较）、scatter（两列相关，可用 fit 画回归线）、line（日期或有序列的趋势）；图片保存为工作区内的 `.png` |
 
 数据在 Excel 里时，请用户另存为 CSV。不要把 read_document 读出的数据手工抄成 CSV：抄错了没人发现，也无法证明它和原文件一致。
 
@@ -89,7 +90,7 @@ p 值很小时，%.4f 会显示成 0.0000，读者会误解。多给几位小数
 
 - 报告只支持 Markdown。用户要 Word 或 Excel 时，不要把数字复制进 create_document：复制过去的数字不受核对。如实说明经核对的是 Markdown 版本。
 - 工具说 R 不可用，或者 R 版本不对，就如实告诉用户并停下，不要自己计算。
-- 暂时不能生成图表。可以建议适合的图（两组比较用箱线图，两个数值列用散点图）和要用的列，由用户自己绘制。
+- 图表用 chart_render 生成（直方图、箱线图、柱状图、散点图、折线图），由 R 绘制，并附带一份 `delta.figure` 记录。图表是独立的 PNG：可以在 Markdown 报告里用 `![说明](路径)` 引用，不能插入 Word 或 Excel。画图时传入的列名和标题必须来自数据，不要编造。
 - 每个结论都要说明前提没有检查，并带上置信区间或 p 值。
 
 ## 外部能力

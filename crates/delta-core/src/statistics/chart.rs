@@ -21,8 +21,6 @@ use crate::skills::SideEffectClass;
 
 /// How long R may take to draw one chart.
 const CHART_TIMEOUT: Duration = Duration::from_secs(60);
-/// Most groups a boxplot or bar chart draws; more is unreadable and usually a wrong column.
-const MAX_GROUPS: usize = 20;
 /// Most bins a histogram may ask for.
 const MAX_BINS: i64 = 200;
 /// Longest title accepted, in characters.
@@ -30,7 +28,7 @@ const MAX_TITLE_CHARS: usize = 120;
 
 /// The R program that draws the chart. Arguments: kind, input CSV, output PNG, column, group,
 /// x, y, fit (TRUE/FALSE), bins (0 for automatic), title. Missing arguments are empty strings.
-const CHART_SCRIPT: &str = r#"
+const CHART_SCRIPT: &str = r##"
 args <- commandArgs(trailingOnly = TRUE)
 kind <- args[1]; input <- args[2]; output <- args[3]
 column <- args[4]; group <- args[5]; xname <- args[6]; yname <- args[7]
@@ -78,18 +76,17 @@ if (kind == "histogram") {
   if (kind == "line") {
     xraw <- need(xname)
     as_date <- suppressWarnings(as.Date(xraw))
-    xv <- if (all(is.na(as_date) == is.na(xraw)) && !all(is.na(as_date))) {
-      as.numeric(as_date)
-    } else {
-      suppressWarnings(as.numeric(xraw))
-    }
+    non_missing <- !is.na(xraw)
+    parsed <- if (is.numeric(xraw)) NULL else tryCatch(as.Date(xraw), error = function(e) NULL)
+    is_date <- !is.null(parsed) && any(non_missing) && all(!is.na(parsed[non_missing]))
+    xv <- if (is_date) as.numeric(parsed) else suppressWarnings(as.numeric(xraw))
     yv <- numeric_column(yname)
     kept <- keep(xv, yv)
     xv <- kept[[1]]; yv <- kept[[2]]
     ord <- order(xv)
     xv <- xv[ord]; yv <- yv[ord]
     if (length(xv) < 2) stop("fewer than two points to draw")
-    if (!all(is.na(as_date)) && all(is.na(as_date) == is.na(xraw))) {
+    if (is_date) {
       plot(as.Date(xv, origin = "1970-01-01"), yv, type = "l", col = "#10b981", lwd = 2,
            main = title, xlab = xname, ylab = yname)
     } else {
@@ -114,7 +111,7 @@ if (kind == "histogram") {
 invisible(dev.off())
 cat("r_version: ", paste(R.version$major, R.version$minor, sep = "."), "\n", sep = "")
 cat("points: ", points, "\n", sep = "")
-"#;
+"##;
 
 /// The chart kinds and the arguments each one needs.
 const KINDS: [&str; 5] = ["histogram", "boxplot", "bar", "scatter", "line"];
@@ -224,7 +221,9 @@ fn valid_figure_path(path: &str) -> Result<(), String> {
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("png"));
     if !is_relative || !is_png || path.components().next().is_none() {
-        return Err("chart_path must be a relative path inside the workspace, ending in .png".to_owned());
+        return Err(
+            "chart_path must be a relative path inside the workspace, ending in .png".to_owned(),
+        );
     }
     Ok(())
 }
@@ -300,10 +299,18 @@ pub fn registration() -> CapabilityRegistration {
                 }
             };
             let Some(path) = job.arguments.get("path").and_then(Value::as_str) else {
-                return CapabilityResult::failed(&job.job_id, "path is required", Some("arguments"));
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    "path is required",
+                    Some("arguments"),
+                );
             };
             let Some(chart_path) = job.arguments.get("chart_path").and_then(Value::as_str) else {
-                return CapabilityResult::failed(&job.job_id, "chart_path is required", Some("arguments"));
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    "chart_path is required",
+                    Some("arguments"),
+                );
             };
             if let Err(message) = valid_figure_path(chart_path) {
                 return CapabilityResult::failed(&job.job_id, &message, Some("arguments"));
@@ -356,13 +363,21 @@ pub fn registration() -> CapabilityRegistration {
             let output = match run_rscript(&rscript, CHART_SCRIPT, &arguments, CHART_TIMEOUT) {
                 Ok(output) => output,
                 Err(message) => {
-                    return CapabilityResult::failed(&job.job_id, &message, Some("statistics_failed"))
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        &message,
+                        Some("statistics_failed"),
+                    )
                 }
             };
             let report = match parse_dcf(&output) {
                 Ok(report) => report,
                 Err(message) => {
-                    return CapabilityResult::failed(&job.job_id, &message, Some("statistics_failed"))
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        &message,
+                        Some("statistics_failed"),
+                    )
                 }
             };
             let png = match std::fs::read(&staged_png) {
@@ -386,12 +401,20 @@ pub fn registration() -> CapabilityRegistration {
             let record_bytes = match serde_json::to_vec_pretty(&record) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return CapabilityResult::failed(&job.job_id, &error.to_string(), Some("write_failed"))
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        &error.to_string(),
+                        Some("write_failed"),
+                    )
                 }
             };
             let staged_record = PathBuf::from(staging_dir).join("candidate.figure.json");
             if let Err(error) = std::fs::write(&staged_record, &record_bytes) {
-                return CapabilityResult::failed(&job.job_id, &error.to_string(), Some("write_failed"));
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    &error.to_string(),
+                    Some("write_failed"),
+                );
             }
             let record_path = format!("{chart_path}.figure.json");
             CapabilityResult::completed(
@@ -425,18 +448,38 @@ pub fn registration() -> CapabilityRegistration {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::{ToolExecutionContext, ToolExecutor};
+    use std::collections::BTreeMap;
+    use std::sync::atomic::AtomicBool;
 
     fn arguments(value: Value) -> Value {
         value
     }
 
+    fn chart_context(workspace: &Path) -> ToolExecutionContext {
+        ToolExecutionContext {
+            session_id: "session-1".to_owned(),
+            run_id: "run-1".to_owned(),
+            workspace: Some(workspace.to_string_lossy().into_owned()),
+            timeout: Duration::from_secs(60),
+            cancel: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(|_| {}),
+            secrets: BTreeMap::new(),
+            proxy: None,
+        }
+    }
+
     #[test]
     fn each_kind_needs_its_own_columns_and_says_which_is_missing() {
-        let histogram = parse_request(&arguments(json!({"kind": "histogram", "column": "revenue"}))).unwrap();
+        let histogram = parse_request(&arguments(
+            json!({"kind": "histogram", "column": "revenue"}),
+        ))
+        .unwrap();
         assert_eq!(histogram.kind, "histogram");
         let error = parse_request(&arguments(json!({"kind": "histogram"}))).unwrap_err();
         assert!(error.contains("column is required"), "{error}");
-        let error = parse_request(&arguments(json!({"kind": "boxplot", "column": "v"}))).unwrap_err();
+        let error =
+            parse_request(&arguments(json!({"kind": "boxplot", "column": "v"}))).unwrap_err();
         assert!(error.contains("group is required"), "{error}");
         let error = parse_request(&arguments(json!({"kind": "scatter", "x": "a"}))).unwrap_err();
         assert!(error.contains("y is required"), "{error}");
@@ -446,22 +489,37 @@ mod tests {
 
     #[test]
     fn options_are_checked_and_ignored_where_they_do_not_apply() {
-        let bad_bins = parse_request(&arguments(json!({"kind": "histogram", "column": "v", "bins": 0}))).unwrap_err();
+        let bad_bins = parse_request(&arguments(
+            json!({"kind": "histogram", "column": "v", "bins": 0}),
+        ))
+        .unwrap_err();
         assert!(bad_bins.contains("bins must be"), "{bad_bins}");
-        let bad_fit = parse_request(&arguments(json!({"kind": "scatter", "x": "a", "y": "b", "fit": "yes"}))).unwrap_err();
+        let bad_fit = parse_request(&arguments(
+            json!({"kind": "scatter", "x": "a", "y": "b", "fit": "yes"}),
+        ))
+        .unwrap_err();
         assert!(bad_fit.contains("fit must be"), "{bad_fit}");
         // A bar chart has no fitted line, so `fit` and `bins` are left out rather than passed on.
-        let bar = parse_request(&arguments(json!({"kind": "bar", "column": "v", "group": "g", "fit": true, "bins": 9}))).unwrap();
+        let bar = parse_request(&arguments(
+            json!({"kind": "bar", "column": "v", "group": "g", "fit": true, "bins": 9}),
+        ))
+        .unwrap();
         assert!(!bar.fit);
         assert_eq!(bar.bins, 0);
     }
 
     #[test]
     fn a_title_with_a_line_break_or_too_long_is_refused_before_r_is_started() {
-        let two_lines = parse_request(&arguments(json!({"kind": "histogram", "column": "v", "title": "a\nb"}))).unwrap_err();
+        let two_lines = parse_request(&arguments(
+            json!({"kind": "histogram", "column": "v", "title": "a\nb"}),
+        ))
+        .unwrap_err();
         assert!(two_lines.contains("single line"), "{two_lines}");
         let long = "x".repeat(MAX_TITLE_CHARS + 1);
-        let too_long = parse_request(&arguments(json!({"kind": "histogram", "column": "v", "title": long}))).unwrap_err();
+        let too_long = parse_request(&arguments(
+            json!({"kind": "histogram", "column": "v", "title": long}),
+        ))
+        .unwrap_err();
         assert!(too_long.contains("120 characters"), "{too_long}");
     }
 
@@ -481,12 +539,16 @@ mod tests {
         assert_eq!(registration.tool_name, "chart_render");
         assert_eq!(registration.metadata["requires_approval"], true);
         assert_eq!(registration.metadata["category"], "filesystem");
-        assert_eq!(registration.parameters["properties"]["kind"]["enum"], json!(KINDS));
+        assert_eq!(
+            registration.parameters["properties"]["kind"]["enum"],
+            json!(KINDS)
+        );
     }
 
     #[test]
     fn the_record_names_the_input_the_figure_and_the_program() {
-        let request = parse_request(&arguments(json!({"kind": "histogram", "column": "v"}))).unwrap();
+        let request =
+            parse_request(&arguments(json!({"kind": "histogram", "column": "v"}))).unwrap();
         let mut report = std::collections::BTreeMap::new();
         report.insert("r_version".to_owned(), "4.6.0".to_owned());
         report.insert("points".to_owned(), "10".to_owned());
@@ -496,14 +558,24 @@ mod tests {
         assert_eq!(record["provenance"]["input_sha256"], "in-hash");
         assert_eq!(record["provenance"]["r_version"], "4.6.0");
         assert_eq!(record["points"], 10);
-        assert_eq!(record["provenance"]["script_sha256"].as_str().unwrap().len(), 64);
+        assert_eq!(
+            record["provenance"]["script_sha256"]
+                .as_str()
+                .unwrap()
+                .len(),
+            64
+        );
     }
 
     /// The R-dependent test: the figure is a real PNG, and its record names it by hash. It is
     /// skipped where R 4.6.0 is not installed, as the other statistics tests are.
     #[test]
     fn a_histogram_is_drawn_to_a_png_with_its_record() {
-        if std::process::Command::new("Rscript").arg("--version").output().is_err() {
+        if std::process::Command::new("Rscript")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
             return;
         }
         let temp = tempfile::tempdir().unwrap();
@@ -518,11 +590,20 @@ mod tests {
             name: "chart_render".to_owned(),
             arguments: json!({"kind": "histogram", "path": "sales.csv", "column": "revenue", "chart_path": "out/revenue.png", "title": "Revenue"}),
         };
-        let result = host.execute(&call, &crate::capability::test_context(temp.path()));
-        if result.error.as_deref().is_some_and(|e| e.contains("not installed") || e.contains("R 4.")) {
+        let result = host.execute(&call, &chart_context(temp.path()));
+        if result
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("not installed") || e.contains("R 4."))
+        {
             return;
         }
-        assert_eq!(result.state, crate::runtime::ToolExitState::Completed, "{:?}", result.error);
+        assert_eq!(
+            result.state,
+            crate::runtime::ToolExitState::Completed,
+            "{:?}",
+            result.error
+        );
         assert_eq!(result.staged_artifacts.len(), 2);
         let png = std::fs::read(&result.staged_artifacts[0].staging_path).unwrap();
         assert!(png.starts_with(b"\x89PNG"));

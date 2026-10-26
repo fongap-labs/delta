@@ -1579,6 +1579,7 @@ mod tests {
                         | "ask_user"
                         | "web_search"
                         | "web_fetch"
+                        | "chart_render"
                 )
             {
                 named += 1;
@@ -1600,7 +1601,7 @@ mod tests {
             assert!(text.contains(needle), "must mention {needle}");
         }
         // It says what it cannot do instead of pretending to.
-        for needle in ["不能生成图表", "不检验统计前提", "R 不可用"] {
+        for needle in ["不能插入 Word 或 Excel", "不检验统计前提", "R 不可用"] {
             assert!(text.contains(needle), "must say {needle}");
         }
         assert!(
