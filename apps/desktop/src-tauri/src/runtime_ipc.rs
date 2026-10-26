@@ -63,56 +63,72 @@ pub fn portable_self_test() -> Result<(), String> {
 
 static APP_EVENT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// Run one step of a background loop so that a panic in it ends that step, not the thread: a
+/// scheduler that dies silently stops every automation until the app is restarted. Returns
+/// whether the step finished.
+fn run_guarded(label: &str, step: impl FnOnce()) -> bool {
+    let finished = std::panic::catch_unwind(std::panic::AssertUnwindSafe(step)).is_ok();
+    if !finished {
+        eprintln!("{label} stopped on an internal error; it will try again");
+    }
+    finished
+}
+
+/// Claim the automation runs that are due and start each one.
+fn scheduler_tick(app: &AppHandle) {
+    let state = app.state::<RuntimeRegistry>();
+    let runs = match state.claim_due_runs() {
+        Ok(runs) => runs,
+        Err(error) => {
+            eprintln!("automation scheduler claim failed: {error}");
+            Vec::new()
+        }
+    };
+    for run in runs {
+        let session_id = run
+            .get("session_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let accepted = state.start_claimed_automation(
+            &run,
+            Arc::new(TauriEventSink {
+                app: app.clone(),
+                core: state.inner().clone(),
+            }),
+        );
+        if accepted.get("ok").and_then(Value::as_bool) == Some(true) {
+            let sequence = APP_EVENT_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
+            let _ = app.emit(
+                "delta-runtime-event",
+                json!({
+                    "type": "automation_run_started", "version": 1,
+                    "sessionId": Value::Null, "sequence": sequence,
+                    "payload": {
+                        "task_id": run.get("task_id"),
+                        "task_title": run.get("task_title"),
+                        "session_id": session_id,
+                        "workspace": run.get("workspace"),
+                    }
+                }),
+            );
+        } else {
+            eprintln!(
+                "automation runtime start failed: {}",
+                accepted
+                    .get("error")
+                    .map(Value::to_string)
+                    .unwrap_or_else(|| "unknown error".to_string())
+            );
+        }
+    }
+}
+
 pub fn start_scheduler(app: AppHandle) {
     std::thread::Builder::new()
         .name("delta-rust-scheduler".to_string())
         .spawn(move || loop {
-            let state = app.state::<RuntimeRegistry>();
-            let runs = match state.claim_due_runs() {
-                Ok(runs) => runs,
-                Err(error) => {
-                    eprintln!("automation scheduler claim failed: {error}");
-                    Vec::new()
-                }
-            };
-            for run in runs {
-                let session_id = run
-                    .get("session_id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-                let accepted = state.start_claimed_automation(
-                    &run,
-                    Arc::new(TauriEventSink {
-                        app: app.clone(),
-                        core: state.inner().clone(),
-                    }),
-                );
-                if accepted.get("ok").and_then(Value::as_bool) == Some(true) {
-                    let sequence = APP_EVENT_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
-                    let _ = app.emit(
-                        "delta-runtime-event",
-                        json!({
-                            "type": "automation_run_started", "version": 1,
-                            "sessionId": Value::Null, "sequence": sequence,
-                            "payload": {
-                                "task_id": run.get("task_id"),
-                                "task_title": run.get("task_title"),
-                                "session_id": session_id,
-                                "workspace": run.get("workspace"),
-                            }
-                        }),
-                    );
-                } else {
-                    eprintln!(
-                        "automation runtime start failed: {}",
-                        accepted
-                            .get("error")
-                            .map(Value::to_string)
-                            .unwrap_or_else(|| "unknown error".to_string())
-                    );
-                }
-            }
+            run_guarded("automation scheduler", || scheduler_tick(&app));
             std::thread::sleep(Duration::from_secs(15));
         })
         .expect("start Rust automation scheduler");
@@ -1389,4 +1405,24 @@ pub fn browser_screenshot(state: State<'_, RuntimeRegistry>) -> Value {
 #[tauri::command]
 pub fn browser_close(state: State<'_, RuntimeRegistry>) -> Value {
     browser_capability(state.inner(), "browser_close")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_guarded;
+
+    #[test]
+    fn a_panic_in_one_step_of_a_background_loop_does_not_end_the_loop() {
+        let mut ran = Vec::new();
+        for step in 0..3 {
+            let finished = run_guarded("test loop", || {
+                if step == 1 {
+                    panic!("a step failed");
+                }
+                ran.push(step);
+            });
+            assert_eq!(finished, step != 1);
+        }
+        assert_eq!(ran, [0, 2], "the steps after the panic still ran");
+    }
 }
