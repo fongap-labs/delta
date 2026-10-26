@@ -114,6 +114,11 @@ impl CapabilityHost {
         self.registry.read().unwrap().tool_schemas()
     }
 
+    /// The registration of one tool, for product paths that run a tool without a model turn.
+    pub fn registration(&self, tool_name: &str) -> Option<CapabilityRegistration> {
+        self.registry.read().unwrap().get(tool_name)
+    }
+
     pub fn tool_schemas_filtered<F>(&self, include: F) -> Value
     where
         F: FnMut(&CapabilityRegistration) -> bool,

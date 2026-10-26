@@ -615,6 +615,22 @@ pub fn conversations_search(
     }
 }
 
+/// The statistics tools that run without a model (ADR-0078): read-only, local, no gateway needed.
+#[tauri::command]
+pub fn statistics_tools(state: State<'_, RuntimeRegistry>) -> Value {
+    json!({"tools": state.statistics_tools()})
+}
+
+#[tauri::command]
+pub fn statistics_run(
+    state: State<'_, RuntimeRegistry>,
+    tool: String,
+    arguments: Value,
+    workspace: String,
+) -> Value {
+    state.run_statistics_tool(&tool, arguments, &workspace)
+}
+
 #[tauri::command]
 pub fn session_rename(
     state: State<'_, RuntimeRegistry>,

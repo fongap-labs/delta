@@ -689,6 +689,8 @@ pub fn run() {
             runtime_ipc::sessions_list,
             runtime_ipc::session_messages,
             runtime_ipc::conversations_search,
+            runtime_ipc::statistics_tools,
+            runtime_ipc::statistics_run,
             runtime_ipc::session_rename,
             runtime_ipc::update_session_flags,
             runtime_ipc::session_delete,
