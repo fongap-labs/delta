@@ -23,7 +23,7 @@
 //! Contract: ADR-005 (reliable task runtime); see ``docs/architecture/adr/README.md``.
 //! See `docs/architecture/runtime-public-contract.md` for the authority boundary.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -385,26 +385,48 @@ impl<'a> ArtifactRegistryWriter<'a> {
     }
 }
 
-fn sha256_file(path: &PathBuf) -> std::io::Result<String> {
+fn sha256_file(path: &std::path::Path) -> std::io::Result<String> {
+    file_digest(path).map(|(sha256, _)| sha256)
+}
+
+/// SHA-256 and byte length of a file, read in blocks so that a large file is never held in
+/// memory whole.
+pub(crate) fn file_digest(path: &std::path::Path) -> std::io::Result<(String, u64)> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
     let mut f = std::fs::File::open(path)?;
     let mut h = Sha256::new();
-    let mut buf = [0u8; 8192];
+    let mut buf = [0u8; 64 * 1024];
+    let mut size = 0u64;
     loop {
         let n = f.read(&mut buf)?;
         if n == 0 {
             break;
         }
         h.update(&buf[..n]);
+        size += n as u64;
     }
-    Ok(format!("{:x}", h.finalize()))
+    Ok((format!("{:x}", h.finalize()), size))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::{params, Connection};
+
+    #[test]
+    fn a_file_digest_matches_the_whole_file_digest_and_counts_its_bytes() {
+        use sha2::{Digest, Sha256};
+        let temp = tempfile::tempdir().unwrap();
+        // Longer than one read block, and not a multiple of it.
+        let content: Vec<u8> = (0..200_003u32).map(|n| (n % 251) as u8).collect();
+        let path = temp.path().join("big.bin");
+        std::fs::write(&path, &content).unwrap();
+        let (sha256, size) = file_digest(&path).unwrap();
+        assert_eq!(sha256, format!("{:x}", Sha256::digest(&content)));
+        assert_eq!(size, 200_003);
+        assert!(file_digest(&temp.path().join("missing")).is_err());
+    }
 
     /// Build an in-memory ledger with the same schema as `run_events.db`.
     fn new_test_ledger() -> Connection {
