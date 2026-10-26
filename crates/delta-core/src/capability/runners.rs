@@ -5,7 +5,7 @@
 //! subprocess workers, and MCP worker bridging.
 
 use std::collections::{BTreeMap, HashSet};
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{mpsc, Arc};
@@ -17,7 +17,17 @@ use super::abi::{
     CapabilityExitState, CapabilityJob, CapabilityProgress, CapabilityResult, CapturedLines,
     CAPABILITY_ABI_VERSION,
 };
+use super::process_io::{join_readers_within, spawn_line_reader};
+use super::process_tree::ProcessTree;
 use super::registry::{CapabilityControl, CapabilityRunner};
+
+/// Longest line of a worker's output that is kept. A typed result is one line, so this is also the
+/// largest result a worker can return; a longer line is cut and the call fails as untyped output
+/// instead of growing memory without bound.
+const MAX_WORKER_LINE_BYTES: usize = 32 * 1024 * 1024;
+
+/// How long a worker that stopped reading its input may keep running before the call is failed.
+const INPUT_FAILURE_GRACE: Duration = Duration::from_secs(1);
 
 type NativeHandler =
     dyn Fn(&CapabilityJob, &CapabilityControl) -> CapabilityResult + Send + Sync + 'static;
@@ -161,6 +171,7 @@ impl CapabilityRunner for WorkerProcessRunner {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x0800_0000);
         }
+        ProcessTree::prepare(&mut command);
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(error) => {
@@ -171,67 +182,70 @@ impl CapabilityRunner for WorkerProcessRunner {
                 )
             }
         };
-        if let Some(mut stdin) = child.stdin.take() {
-            match serde_json::to_vec(job) {
-                Ok(payload) => {
-                    if stdin.write_all(&payload).is_err() || stdin.write_all(b"\n").is_err() {
-                        let _ = child.kill();
-                        return CapabilityResult::failed(
-                            &job.job_id,
-                            "worker input failed",
-                            Some("worker_stdin"),
-                        );
-                    }
-                    // Deliver ephemeral secret values as a separate
-                    // stdin payload after the job JSON. Secrets are never
-                    // in the serialized job (serde(skip)), never in
-                    // environment variables, never persisted. Workers read
-                    // the job line first, then the secrets line. The pipe
-                    // closes after delivery, revoking access.
-                    let secret_payload =
-                        serde_json::to_vec(&job.secret_values).unwrap_or_else(|_| b"{}".to_vec());
-                    if stdin.write_all(&secret_payload).is_err() || stdin.write_all(b"\n").is_err()
-                    {
-                        let _ = child.kill();
-                        return CapabilityResult::failed(
-                            &job.job_id,
-                            "worker secret delivery failed",
-                            Some("worker_stdin"),
-                        );
-                    }
-                }
-                Err(error) => {
-                    let _ = child.kill();
-                    return CapabilityResult::failed(
-                        &job.job_id,
-                        &error.to_string(),
-                        Some("job_serialize"),
-                    );
-                }
+        let tree = ProcessTree::attach(&child);
+
+        // The job is written on a thread of its own: a worker that has not started reading yet, or
+        // never will, must not hold this call past its timeout or a cancel. Ephemeral secret values
+        // follow the job as a second line, never in the serialized job (serde(skip)), never in
+        // environment variables, never persisted; the pipe closes after delivery, revoking access.
+        let payload = match serde_json::to_vec(job) {
+            Ok(payload) => payload,
+            Err(error) => {
+                tree.kill(&mut child);
+                let _ = child.wait();
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    &error.to_string(),
+                    Some("job_serialize"),
+                );
             }
+        };
+        let secret_payload =
+            serde_json::to_vec(&job.secret_values).unwrap_or_else(|_| b"{}".to_vec());
+        let (input_tx, input_rx) = mpsc::channel::<std::io::Result<()>>();
+        if let Some(mut stdin) = child.stdin.take() {
+            std::thread::spawn(move || {
+                let outcome = stdin
+                    .write_all(&payload)
+                    .and_then(|()| stdin.write_all(b"\n"))
+                    .and_then(|()| stdin.write_all(&secret_payload))
+                    .and_then(|()| stdin.write_all(b"\n"));
+                let _ = input_tx.send(outcome);
+            });
         }
+
         let (lines_tx, lines_rx) = mpsc::channel();
-        let stdout_worker = child.stdout.take().map(|stdout| {
-            let sender = lines_tx.clone();
-            std::thread::spawn(move || {
-                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                    let _ = sender.send(WorkerLine::Stdout(line));
-                }
-            })
-        });
-        let stderr_worker = child.stderr.take().map(|stderr| {
-            let sender = lines_tx;
-            std::thread::spawn(move || {
-                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                    let _ = sender.send(WorkerLine::Stderr(line));
-                }
-            })
-        });
+        let readers: Vec<_> = [
+            child.stdout.take().and_then(|stdout| {
+                spawn_line_reader(
+                    "delta-worker-stdout",
+                    stdout,
+                    MAX_WORKER_LINE_BYTES,
+                    lines_tx.clone(),
+                    WorkerLine::Stdout,
+                )
+                .ok()
+            }),
+            child.stderr.take().and_then(|stderr| {
+                spawn_line_reader(
+                    "delta-worker-stderr",
+                    stderr,
+                    MAX_WORKER_LINE_BYTES,
+                    lines_tx,
+                    WorkerLine::Stderr,
+                )
+                .ok()
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         let started = Instant::now();
         let timeout = (job.timeout_secs > 0).then(|| Duration::from_secs(job.timeout_secs));
         let mut stdout_lines = CapturedLines::new();
         let mut stderr_lines = CapturedLines::new();
         let mut result = None;
+        let mut input_error = None;
         let forced_state = loop {
             drain_worker_lines(
                 &lines_rx,
@@ -240,18 +254,38 @@ impl CapabilityRunner for WorkerProcessRunner {
                 &mut stderr_lines,
                 &mut result,
             );
+            if input_error.is_none() {
+                if let Ok(Err(error)) = input_rx.try_recv() {
+                    input_error = Some((error.to_string(), Instant::now()));
+                }
+            }
+            // A worker that stopped reading its input but did not exit has a second to finish what
+            // it is doing (it may be about to leave a diagnosis on stderr), then it is ended.
+            if let Some((error, at)) = &input_error {
+                if at.elapsed() >= INPUT_FAILURE_GRACE && result.is_none() {
+                    tree.kill(&mut child);
+                    let _ = child.wait();
+                    result = Some(CapabilityResult::failed(
+                        &job.job_id,
+                        &format!("worker input failed: {error}"),
+                        Some("worker_stdin"),
+                    ));
+                    break None;
+                }
+            }
             if control.is_cancelled() {
-                let _ = child.kill();
+                tree.kill(&mut child);
                 let _ = child.wait();
                 break Some(CapabilityExitState::Cancelled);
             }
             if timeout.is_some_and(|timeout| started.elapsed() >= timeout) {
-                let _ = child.kill();
+                tree.kill(&mut child);
                 let _ = child.wait();
                 break Some(CapabilityExitState::TimedOut);
             }
             match child.try_wait() {
                 Ok(Some(status)) => {
+                    tree.release();
                     if !status.success() && result.is_none() {
                         result = Some(CapabilityResult::failed(
                             &job.job_id,
@@ -263,7 +297,7 @@ impl CapabilityRunner for WorkerProcessRunner {
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(10)),
                 Err(error) => {
-                    let _ = child.kill();
+                    tree.kill(&mut child);
                     result = Some(CapabilityResult::failed(
                         &job.job_id,
                         &format!("worker wait failed: {error}"),
@@ -273,19 +307,24 @@ impl CapabilityRunner for WorkerProcessRunner {
                 }
             }
         };
-        if let Some(worker) = stdout_worker {
-            let _ = worker.join();
+        join_readers_within(readers, &mut || {
+            drain_worker_lines(
+                &lines_rx,
+                control,
+                &mut stdout_lines,
+                &mut stderr_lines,
+                &mut result,
+            )
+        });
+        if result.is_none() && forced_state.is_none() {
+            if let Some((error, _)) = input_error {
+                result = Some(CapabilityResult::failed(
+                    &job.job_id,
+                    &format!("worker input failed: {error}"),
+                    Some("worker_stdin"),
+                ));
+            }
         }
-        if let Some(worker) = stderr_worker {
-            let _ = worker.join();
-        }
-        drain_worker_lines(
-            &lines_rx,
-            control,
-            &mut stdout_lines,
-            &mut stderr_lines,
-            &mut result,
-        );
         let mut result = match forced_state {
             Some(CapabilityExitState::Cancelled) => CapabilityResult::cancelled(&job.job_id),
             Some(CapabilityExitState::TimedOut) => CapabilityResult::timed_out(&job.job_id),
@@ -392,5 +431,125 @@ impl CapabilityRunner for McpCapabilityRunner {
             "arguments": job.arguments,
         });
         self.worker.run(&bridge_job, control)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use std::time::Instant;
+
+    fn run_script(
+        script: &str,
+        timeout_secs: u64,
+        arguments: serde_json::Value,
+    ) -> (CapabilityResult, Duration) {
+        let dir = tempfile::tempdir().unwrap();
+        let runner =
+            WorkerProcessRunner::new("/bin/sh", vec!["-c".to_string(), script.to_string()]);
+        let mut job = CapabilityJob::new("worker.test", "job-x", arguments);
+        job.workspace = Some(dir.path().to_string_lossy().to_string());
+        job.timeout_secs = timeout_secs;
+        let control = CapabilityControl::new(Arc::new(AtomicBool::new(false)), Arc::new(|_| {}));
+        let started = Instant::now();
+        // A watchdog: a runner that never returns must fail this test, not hang the suite.
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(runner.run(&job, &control));
+        });
+        let result = rx
+            .recv_timeout(Duration::from_secs(20))
+            .expect("the runner did not return within 20 seconds");
+        (result, started.elapsed())
+    }
+
+    fn typed_result() -> String {
+        serde_json::to_string(&CapabilityResult::completed(
+            "job-x",
+            serde_json::json!({"ok": true}),
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_line_that_is_not_utf8_does_not_lose_the_result_after_it() {
+        let script = format!(
+            "IFS= read -r J; printf '\\377 noise\\n'; printf '%s\\n' '{}'",
+            typed_result()
+        );
+        let (result, _) = run_script(&script, 10, serde_json::json!({}));
+        assert_eq!(
+            result.state,
+            CapabilityExitState::Completed,
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn a_timeout_is_reported_on_time_when_a_background_process_holds_the_pipe() {
+        let (result, took) = run_script(
+            "IFS= read -r J; sleep 5 & sleep 5",
+            1,
+            serde_json::json!({}),
+        );
+        assert_eq!(result.state, CapabilityExitState::TimedOut);
+        assert!(took < Duration::from_secs(3), "the timeout took {took:?}");
+    }
+
+    #[test]
+    fn a_timeout_ends_the_processes_the_worker_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let script = format!(
+            "IFS= read -r J; sleep 30 & echo $! > {}; sleep 30",
+            pid_file.display()
+        );
+        let (result, _) = run_script(&script, 1, serde_json::json!({}));
+        assert_eq!(result.state, CapabilityExitState::TimedOut);
+        let pid: u32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        let alive = std::fs::read_to_string(format!("/proc/{pid}/stat"))
+            .map(|stat| {
+                !stat
+                    .rsplit(')')
+                    .next()
+                    .unwrap_or("")
+                    .trim_start()
+                    .starts_with('Z')
+            })
+            .unwrap_or(false);
+        assert!(!alive, "process {pid} outlived the timeout");
+    }
+
+    #[test]
+    fn a_worker_that_closes_its_input_and_carries_on_is_failed_after_a_moment() {
+        // It closes stdin without reading the big job, then just sleeps.
+        let big = serde_json::json!({"payload": "x".repeat(2 * 1024 * 1024)});
+        let (result, took) = run_script("exec 0<&-; sleep 30", 20, big);
+        assert_eq!(result.state, CapabilityExitState::Failed);
+        assert_eq!(
+            result
+                .diagnostics
+                .as_ref()
+                .and_then(|d| d.error_code.as_deref()),
+            Some("worker_stdin")
+        );
+        assert!(took < Duration::from_secs(5), "took {took:?}");
+    }
+
+    #[test]
+    fn a_worker_that_never_reads_its_input_is_still_stopped_by_the_timeout() {
+        // The job is far larger than a pipe holds, and the worker never reads it.
+        let big = serde_json::json!({"payload": "x".repeat(2 * 1024 * 1024)});
+        let (result, took) = run_script("sleep 30", 1, big);
+        assert_eq!(result.state, CapabilityExitState::TimedOut);
+        assert!(took < Duration::from_secs(5), "the timeout took {took:?}");
     }
 }
