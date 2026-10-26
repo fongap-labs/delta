@@ -23,22 +23,22 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState("");
   const [fields, setFields] = useState<Fields>({});
-  const [running, setRunning] = useState(false);
+  const [isRunning, setRunning] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
-    let alive = true;
+    let isAlive = true;
     listStatisticsTools()
       .then((list) => {
-        if (!alive) return;
+        if (!isAlive) return;
         setTools(list);
         setSelected(list[0]?.name ?? "");
       })
       .catch((error) => {
-        if (alive) setLoadError(String(error));
+        if (isAlive) setLoadError(String(error));
       });
     return () => {
-      alive = false;
+      isAlive = false;
     };
   }, []);
 
@@ -46,7 +46,7 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
   const specs = Object.entries(tool?.parameters.properties ?? {});
   const required = new Set(tool?.parameters.required ?? []);
   const missing = [...required].filter((key) => !(fields[key] ?? "").trim());
-  const canRun = Boolean(tool && workspace && missing.length === 0 && !running);
+  const canRun = Boolean(tool && workspace && missing.length === 0 && !isRunning);
 
   const choose = (name: string) => {
     setSelected(name);
@@ -144,7 +144,7 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
               disabled={!canRun}
               onClick={run}
             >
-              {running ? t("statistics.running", undefined, "Running…") : t("statistics.run", undefined, "Run")}
+              {isRunning ? t("statistics.running", undefined, "Running…") : t("statistics.run", undefined, "Run")}
             </button>
             {missing.length > 0 && (
               <span className="ml-3 text-[12px] text-faint">

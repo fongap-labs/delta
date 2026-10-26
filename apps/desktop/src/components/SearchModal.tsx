@@ -46,18 +46,18 @@ export function SearchModal({
       setHits([]);
       return;
     }
-    let stale = false;
+    let isStale = false;
     const timer = window.setTimeout(() => {
       searchConversations(workspace, trimmed)
         .then((found) => {
-          if (!stale) setHits(found);
+          if (!isStale) setHits(found);
         })
         .catch(() => {
-          if (!stale) setHits([]);
+          if (!isStale) setHits([]);
         });
     }, CONTENT_DEBOUNCE_MS);
     return () => {
-      stale = true;
+      isStale = true;
       window.clearTimeout(timer);
     };
   }, [workspace, query]);
