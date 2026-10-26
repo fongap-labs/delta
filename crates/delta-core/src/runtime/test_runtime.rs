@@ -1583,10 +1583,11 @@ fn only_the_newest_screenshots_are_sent_and_unsafe_or_missing_files_are_ignored(
     ] {
         let messages = vec![
             json!({"role": "user", "content": "x"}),
+            tool_call_message("t"),
             json!({"role": "tool", "tool_call_id": "t", "content": {}, "images": [{"path": path}]}),
         ];
         let out = host_with_messages("openai_chat", temp.path(), messages).outbound_messages();
-        assert_eq!(out.len(), 2, "{path}");
+        assert_eq!(out.len(), 3, "{path}");
     }
 }
 
@@ -3833,6 +3834,26 @@ fn tool_call_ids_are_unique_within_a_transcript() {
     let distinct: std::collections::HashSet<&&str> = ids.iter().collect();
     assert_eq!(distinct.len(), 4);
     assert!(ids.iter().all(|id| !id.is_empty() && *id != "call_0"));
+}
+
+#[test]
+fn a_tool_result_read_back_from_storage_goes_out_as_the_model_first_saw_it() {
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "user", "content": "go"}),
+        tool_call_message("call_1"),
+        // The shape the stored transcript gives a result: structured output, a name, an error slot.
+        json!({"role": "tool", "tool_call_id": "call_1", "name": "t",
+               "content": {"ok": true}, "error": null}),
+        // A result for a call the model never made (the text-search step).
+        json!({"role": "tool", "tool_call_id": "text-search-1", "name": "web_search",
+               "content": {"hits": []}, "error": null}),
+    ]);
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["user", "assistant", "tool"]);
+    assert_eq!(out[2]["content"], "{\"ok\":true}");
+    assert!(out[2].get("name").is_none() && out[2].get("error").is_none());
+    assert_eq!(out[2]["tool_call_id"], "call_1");
 }
 
 #[test]

@@ -14,7 +14,8 @@ const TEXT_SEARCH_RESULT_CHARS: usize = 12_000;
 
 /// Keys the runtime keeps for itself. They never reach a provider: gateways reject message fields
 /// they do not know, and some of these (such as `model`) mean something else to the UI.
-const SIDECAR_KEYS: [&str; 10] = [
+const SIDECAR_KEYS: [&str; 11] = [
+    "error",
     "source",
     "_display",
     "ts",
@@ -149,6 +150,16 @@ impl RuntimeHost {
         let keep_from = with_images.len().saturating_sub(MAX_SCREENSHOTS_IN_CONTEXT);
         let sent_images: Vec<usize> = with_images[keep_from..].to_vec();
 
+        // A result with no call before it in what is sent is refused by every provider. The
+        // stored transcript can hold one (the runtime's own text-search step records a tool
+        // result for a call the model never made).
+        let announced: std::collections::HashSet<&str> = history
+            .iter()
+            .filter_map(|m| m.get("tool_calls").and_then(Value::as_array))
+            .flatten()
+            .filter_map(|call| call.get("id").and_then(Value::as_str))
+            .collect();
+
         let mut pending: Vec<Value> = Vec::new();
         let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>| {
             if pending.is_empty() {
@@ -169,12 +180,30 @@ impl RuntimeHost {
             if role == Some("notice") {
                 continue;
             }
+            if role == Some("tool")
+                && !m
+                    .get("tool_call_id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| announced.contains(id))
+            {
+                continue;
+            }
             // Tool results must stay together right after the assistant turn that asked for
             // them, so the pictures follow the last of them.
             if role != Some("tool") {
                 flush(&mut out, &mut pending);
             }
             let mut message = without_sidecars(m);
+            if role == Some("tool") {
+                // A result read back from storage keeps the tool's structured output and its
+                // name; the provider takes the text the model was given the first time.
+                if let Some(object) = message.as_object_mut() {
+                    object.remove("name");
+                    if let Some(content) = m.get("content") {
+                        object.insert("content".to_string(), json!(tool_result_content(content)));
+                    }
+                }
+            }
             if role == Some("user") {
                 if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
                     if !attachments.is_empty() {
