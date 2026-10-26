@@ -11,7 +11,7 @@
 
 - `report_check` 的正式模式会检查被绑定结果文件的保证等级：显式标记为 `exploratory` 的结果失败，`validated` / `attested` 通过；没有该字段的 v1 结果按 legacy 继续接受，供迁移使用。
 - 新增 ADR-0082（Foundation 与 Suite 的干净切割）：目标是把 Suite 的依赖收敛到独立合同包，移除完整 `delta` 依赖、`delta_extension_api` 与 Foundation 提交 pin；架构检查新增 `suite-implementation-in-foundation` 规则，禁止 Foundation 源码出现 Suite 实现标识。
-- 新增 `packages/delta_contracts` 合同包第一版：Worker Manifest 模型、Manifest 版本与 Capability ABI 常量，不导入 Foundation 内部模块；合同测试随 Python 分片运行。Worker ABI 模型暂时仍在 `delta_worker_sdk`，按 ADR-0082 分阶段迁入。
+- 新增 `packages/delta_contracts` 合同包第一版（可选原型）：Worker Manifest 模型、Manifest 版本与 Capability ABI 常量，不导入 Foundation 内部模块；合同测试随 Python 分片运行。按 ADR-0082，当前 Suite 不依赖它，实际共享面是 `delta-worker-sdk` 与 JSON Manifest。
 
 ### 移除
 

@@ -176,7 +176,7 @@ JSON Schema 定义，用于跨进程合同数据结构的版本化验证。当�
 
 Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（参见 [`capability-abi.md`](capability-abi.md) 第 19 节）。
 
-`packages/delta_contracts` 是面向 Foundation 与 Suite 的稳定合同包。第一版包含 Worker Manifest（`capability-workers.json`）模型与版本常量；Worker ABI 模型暂时保留在 `delta_worker_sdk`，按 ADR-0082 分阶段迁入，不改变现有 Worker 的公开导入路径。
+`packages/delta_contracts` 是 Worker Manifest 合同包的**可选原型**（ADR-0082）。当前 Suite 不依赖它；实际共享面是 `delta_worker_sdk`、JSON Manifest 与 `delta.result` 合同。若未来出现第三方扩展生态，再评估是否把它独立发布。
 
 ## `docs/`
 

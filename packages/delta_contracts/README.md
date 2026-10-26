@@ -1,5 +1,10 @@
 # Delta Contracts
 
+**Status: deferred prototype.** ADR-0082 chose `delta-worker-sdk` plus JSON manifests as the
+shared surface for the current two-repository product. Suite does not depend on this package.
+It remains here as a starting point if a third-party extension ecosystem later needs a larger,
+independently versioned contract package.
+
 The stable, language-neutral contract surface between Delta Foundation and Delta Suite.
 
 This first package covers the installed Worker Manifest (`capability-workers.json`). The Worker ABI
