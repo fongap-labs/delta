@@ -18,3 +18,13 @@ reaches the SDK, without changing the public import path for existing workers.
 ```bash
 uv run --with pytest --with pydantic pytest packages/delta_contracts/tests
 ```
+
+## Build and publish
+
+```bash
+uv build
+# publish delta_contracts-<version>-py3-none-any.whl and .tar.gz to the internal index
+```
+
+The Worker SDK is built separately from `packages/delta_worker_sdk`. Suite installs both wheels in
+its isolated CMC test environment; it does not install the full `delta` distribution for CMC.
