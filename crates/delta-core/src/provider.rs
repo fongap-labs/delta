@@ -1072,11 +1072,62 @@ pub fn stream_anthropic(
 
 // -- OpenAI Responses (non-streaming) ---------------------------------------
 
+/// The conversation in the shape the Responses API takes as `input`. The runtime keeps chat-style
+/// messages; the Responses API wants a tool call as a `function_call` item and its result as a
+/// `function_call_output` item, joined by `call_id`, and rejects `tool_calls` and the `tool` role.
+fn responses_input(messages: &Value) -> Value {
+    let Some(messages) = messages.as_array() else {
+        return messages.clone();
+    };
+    let mut input = Vec::with_capacity(messages.len());
+    for message in messages {
+        let role = message.get("role").and_then(Value::as_str);
+        let calls = message
+            .get("tool_calls")
+            .and_then(Value::as_array)
+            .filter(|calls| !calls.is_empty());
+        match (role, calls) {
+            (Some("assistant"), Some(calls)) => {
+                if let Some(text) = message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .filter(|text| !text.is_empty())
+                {
+                    input.push(json!({"role": "assistant", "content": text}));
+                }
+                for call in calls {
+                    let function = call.get("function").unwrap_or(&Value::Null);
+                    input.push(json!({
+                        "type": "function_call",
+                        "call_id": call.get("id").cloned().unwrap_or(Value::Null),
+                        "name": function.get("name").cloned().unwrap_or(Value::Null),
+                        "arguments": function.get("arguments").cloned().unwrap_or_else(|| json!("{}")),
+                    }));
+                }
+            }
+            (Some("tool"), _) => {
+                let output = match message.get("content") {
+                    Some(Value::String(text)) => text.clone(),
+                    Some(other) => other.to_string(),
+                    None => String::new(),
+                };
+                input.push(json!({
+                    "type": "function_call_output",
+                    "call_id": message.get("tool_call_id").cloned().unwrap_or(Value::Null),
+                    "output": output,
+                }));
+            }
+            _ => input.push(message.clone()),
+        }
+    }
+    Value::Array(input)
+}
+
 fn build_openai_responses(req: &ProviderRequest, should_stream: bool) -> Value {
     let stream = should_stream;
     let mut body = json!({
         "model": req.model,
-        "input": req.messages,
+        "input": responses_input(&req.messages),
         "store": false,
         "include": ["reasoning.encrypted_content"],
         "reasoning": {"summary": "auto"},
@@ -1084,24 +1135,8 @@ fn build_openai_responses(req: &ProviderRequest, should_stream: bool) -> Value {
     if stream {
         body["stream"] = json!(true);
     }
-    if let Some(tools) = &req.tools {
-        body["tools"] = Value::Array(
-            tools
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|tool| tool.get("function"))
-                .map(|function| json!({
-                    "type": "function",
-                    "name": function.get("name").cloned().unwrap_or(Value::Null),
-                    "description": function.get("description").cloned().unwrap_or(Value::Null),
-                    "parameters": function.get("parameters").cloned().unwrap_or_else(|| json!({"type": "object"})),
-                    "strict": false,
-                }))
-                .collect(),
-        );
-    }
     merge_settings(&mut body, req);
+    // Set after the settings so that nothing a user configured can replace the tool definitions.
     if let Some(tools) = &req.tools {
         body["tools"] = Value::Array(
             tools
@@ -1199,7 +1234,15 @@ fn parse_openai_responses(resp: &Value) -> Result<Value, String> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                let arguments = item.get("arguments").cloned().unwrap_or(json!({}));
+                // The API sends the arguments as a JSON string, like the other protocols' streams.
+                let arguments = match item.get("arguments") {
+                    Some(Value::String(text)) if text.trim().is_empty() => json!({}),
+                    Some(Value::String(text)) => {
+                        serde_json::from_str(text).unwrap_or_else(|_| json!({"_raw": text}))
+                    }
+                    Some(other) => other.clone(),
+                    None => json!({}),
+                };
                 tool_calls.push(json!({"id": id, "name": name, "arguments": arguments}));
             }
             _ => {}
@@ -1488,6 +1531,65 @@ mod tests {
         let error = streamed("openai_responses", body).unwrap_err();
         assert!(error.contains("upstream broke"), "{error}");
         assert!(crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    #[test]
+    fn a_responses_request_carries_tool_calls_and_results_as_items() {
+        let request = ProviderRequest {
+            protocol: "openai_responses".to_string(),
+            model: "m".to_string(),
+            messages: json!([
+                {"role": "system", "content": "rules"},
+                {"role": "user", "content": "weather?"},
+                {"role": "assistant", "content": "checking", "tool_calls": [
+                    {"id": "call_1", "type": "function",
+                     "function": {"name": "weather", "arguments": "{\"city\":\"Oslo\"}"}}
+                ]},
+                {"role": "tool", "tool_call_id": "call_1", "content": "rain"},
+            ]),
+            tools: None,
+            settings: None,
+            api_key: "k".to_string(),
+            base_url: String::new(),
+            timeout_secs: None,
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: None,
+        };
+        let body = super::build_openai_responses(&request, false);
+        let input = body["input"].as_array().unwrap();
+        assert_eq!(input.len(), 5);
+        assert_eq!(
+            input[2],
+            json!({"role": "assistant", "content": "checking"})
+        );
+        assert_eq!(input[3]["type"], "function_call");
+        assert_eq!(input[3]["call_id"], "call_1");
+        assert_eq!(input[3]["arguments"], "{\"city\":\"Oslo\"}");
+        assert_eq!(input[4]["type"], "function_call_output");
+        assert_eq!(input[4]["call_id"], "call_1");
+        assert_eq!(input[4]["output"], "rain");
+        for item in input {
+            assert!(item.get("tool_calls").is_none());
+            assert_ne!(item["role"], "tool");
+        }
+    }
+
+    #[test]
+    fn a_responses_function_call_has_its_arguments_parsed() {
+        let parsed = parse_openai_responses(&json!({
+            "output": [
+                {"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "lookup",
+                 "arguments": "{\"q\":\"delta\"}"},
+                {"type": "function_call", "call_id": "call_2", "name": "noargs", "arguments": ""},
+                {"type": "function_call", "call_id": "call_3", "name": "broken", "arguments": "{\"q\":"}
+            ]
+        }))
+        .unwrap();
+        assert_eq!(parsed["tool_calls"][0]["id"], "call_1");
+        assert_eq!(parsed["tool_calls"][0]["arguments"]["q"], "delta");
+        assert_eq!(parsed["tool_calls"][1]["arguments"], json!({}));
+        assert_eq!(parsed["tool_calls"][2]["arguments"]["_raw"], "{\"q\":");
     }
 
     #[test]
