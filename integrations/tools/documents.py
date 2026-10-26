@@ -150,6 +150,11 @@ def _read_xlsx(target: Path) -> list[dict[str, Any]]:
 
 _DOCX_NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 
+# Largest word/document.xml read into memory. The size is the one the archive declares, and the
+# reader stops there, so a small file cannot expand into gigabytes (a zip bomb from an
+# attachment). Real documents are far below it.
+_MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
+
 
 def _read_docx(target: Path) -> list[dict[str, Any]]:
     """DOCX: stdlib zipfile + ElementTree; one block per paragraph.
@@ -162,7 +167,7 @@ def _read_docx(target: Path) -> list[dict[str, Any]]:
     try:
         with zipfile.ZipFile(target) as zf:
             try:
-                doc_xml = zf.read("word/document.xml")
+                info = zf.getinfo("word/document.xml")
             except KeyError:
                 return [
                     {
@@ -172,6 +177,16 @@ def _read_docx(target: Path) -> list[dict[str, Any]]:
                         "error": True,
                     }
                 ]
+            if info.file_size > _MAX_DOCX_XML_BYTES:
+                return [
+                    {
+                        "index": 0,
+                        "paragraph": 1,
+                        "text": "(document.xml is too large to read)",
+                        "error": True,
+                    }
+                ]
+            doc_xml = zf.read(info)
     except zipfile.BadZipFile:
         return [
             {
