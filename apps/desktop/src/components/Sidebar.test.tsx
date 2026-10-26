@@ -161,10 +161,10 @@ describe("Delta sidebar layout", () => {
   });
 
   it("routes each destination to its surface", () => {
-    const props = { ...baseProps, onOpenConversations: vi.fn(), onManage: vi.fn() };
+    const props = { ...baseProps, onNewSession: vi.fn(), onManage: vi.fn() };
     renderSidebar(props);
     fireEvent.click(screen.getByTestId("nav-conversations"));
-    expect(props.onOpenConversations).toHaveBeenCalledTimes(1);
+    expect(props.onNewSession).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("nav-automations"));
     expect(baseProps.onOpenScheduled).toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("sidebar-footer-inbox"));

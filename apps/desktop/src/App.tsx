@@ -1574,7 +1574,7 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
-        onOpenConversations={() => setSurface("session")}
+        onNewSession={startNewSession}
         conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}

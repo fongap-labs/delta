@@ -136,7 +136,7 @@ interface Props {
   auditActive: boolean;
   inboxActive: boolean;
   conversationActive?: boolean;
-  onOpenConversations?: () => void;
+  onNewSession?: () => void;
   collapsed?: boolean;
   onCollapse?: () => void;
   onPeekLeave?: () => void;
@@ -439,7 +439,7 @@ export function Sidebar(props: Props) {
       </div>
 
       <nav className="px-2.5 mt-2 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
-        <NavItem icon="chat" label={t("nav.conversations")} active={props.conversationActive} onClick={() => props.onOpenConversations?.()} testid="nav-conversations" />
+        <NavItem icon="chat" label={t("nav.conversations")} active={props.conversationActive} onClick={() => props.onNewSession?.()} testid="nav-conversations" />
         <NavItem icon="clock" label={t("nav.scheduled", undefined, "Automations")} active={props.scheduledActive} onClick={props.onOpenScheduled} testid="nav-automations" />
       </nav>
 
