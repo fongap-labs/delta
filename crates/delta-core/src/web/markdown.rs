@@ -16,7 +16,9 @@
 
 use url::Url;
 
-use super::html::{attribute, collapse_whitespace, decode_entities, hides_element, tag_name, SKIPPED, VOID};
+use super::html::{
+    attribute, collapse_whitespace, decode_entities, hides_element, tag_name, SKIPPED, VOID,
+};
 
 /// Most links returned for one page.
 pub const MAX_LINKS: usize = 100;
@@ -69,7 +71,10 @@ pub fn html_to_markdown(html: &str, base: &Url) -> Extracted {
         },
     );
     let full_len = full.markdown.chars().count();
-    let focus = if lower.contains("<main") || lower.contains("role=\"main\"") || lower.contains("role='main'") {
+    let focus = if lower.contains("<main")
+        || lower.contains("role=\"main\"")
+        || lower.contains("role='main'")
+    {
         Focus::Main
     } else if lower.contains("<article") {
         Focus::Article
@@ -78,7 +83,14 @@ pub fn html_to_markdown(html: &str, base: &Url) -> Extracted {
     };
     let mut chosen = None;
     if focus != Focus::Everything {
-        let focused = convert(html, base, Mode { focus, filter: true });
+        let focused = convert(
+            html,
+            base,
+            Mode {
+                focus,
+                filter: true,
+            },
+        );
         if focused.markdown.chars().count() >= 300.max(full_len / 5) {
             chosen = Some(focused);
         }
@@ -442,11 +454,11 @@ impl Converter<'_> {
         if attribute(tag, "aria-hidden").is_some_and(|v| v.eq_ignore_ascii_case("true")) {
             return true;
         }
-        let in_content = self.content_depth > 0;
+        let is_in_content = self.content_depth > 0;
         let by_tag = match name {
             "nav" | "dialog" | "button" | "select" | "option" | "iframe" | "canvas" | "audio"
             | "video" | "object" | "embed" | "menu" => true,
-            "footer" | "aside" | "header" => !in_content,
+            "footer" | "aside" | "header" => !is_in_content,
             _ => false,
         };
         if by_tag {
@@ -457,23 +469,48 @@ impl Converter<'_> {
             .to_ascii_lowercase();
         match role.as_str() {
             "navigation" | "dialog" | "alertdialog" | "search" => return true,
-            "contentinfo" | "complementary" | "banner" if !in_content => return true,
+            "contentinfo" | "complementary" | "banner" if !is_in_content => return true,
             _ => {}
         }
         if matches!(
             name,
-            "html" | "body" | "main" | "article" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p"
-                | "table" | "pre" | "code" | "a"
+            "html"
+                | "body"
+                | "main"
+                | "article"
+                | "h1"
+                | "h2"
+                | "h3"
+                | "h4"
+                | "h5"
+                | "h6"
+                | "p"
+                | "table"
+                | "pre"
+                | "code"
+                | "a"
         ) {
             return false;
         }
-        furniture_class(tag, in_content)
+        furniture_class(tag, is_in_content)
     }
 
     fn open(&mut self, name: &str, tag: &str) {
         match name {
             "li" => self.close_implied(&["li"], &["ul", "ol"]),
-            "p" => self.close_implied(&["p"], &["div", "section", "article", "td", "th", "li", "blockquote", "body"]),
+            "p" => self.close_implied(
+                &["p"],
+                &[
+                    "div",
+                    "section",
+                    "article",
+                    "td",
+                    "th",
+                    "li",
+                    "blockquote",
+                    "body",
+                ],
+            ),
             "td" | "th" => self.close_implied(&["td", "th"], &["tr", "table"]),
             "tr" => self.close_implied(&["td", "th", "tr"], &["table", "tbody", "thead", "tfoot"]),
             "tbody" | "thead" | "tfoot" => {
@@ -569,7 +606,11 @@ impl Converter<'_> {
                 let line = if self.in_cell() {
                     marker
                 } else {
-                    format!("{}{}{marker}", "> ".repeat(self.quote_depth), "  ".repeat(depth))
+                    format!(
+                        "{}{}{marker}",
+                        "> ".repeat(self.quote_depth),
+                        "  ".repeat(depth)
+                    )
                 };
                 self.raw(&line);
                 element.block = true;
@@ -851,23 +892,44 @@ fn code_language(tag: &str) -> Option<String> {
 
 /// Words in a class or id that mark page furniture wherever it is.
 const FURNITURE_ANYWHERE: [&str; 9] = [
-    "cookie", "consent", "gdpr", "popup", "newsletter", "adsbygoogle", "skiplink", "skip-link",
+    "cookie",
+    "consent",
+    "gdpr",
+    "popup",
+    "newsletter",
+    "adsbygoogle",
+    "skiplink",
+    "skip-link",
     "paywall-overlay",
 ];
 /// Whole class words that mark furniture wherever it is.
 const FURNITURE_WORDS: [&str; 4] = ["modal", "advert", "advertisement", "ad"];
 /// Whole class words that mark furniture outside the article.
 const FURNITURE_OUTSIDE: [&str; 13] = [
-    "sidebar", "navbar", "navigation", "menu", "footer", "breadcrumb", "breadcrumbs", "share",
-    "sharing", "social", "related", "toolbar", "topbar",
+    "sidebar",
+    "navbar",
+    "navigation",
+    "menu",
+    "footer",
+    "breadcrumb",
+    "breadcrumbs",
+    "share",
+    "sharing",
+    "social",
+    "related",
+    "toolbar",
+    "topbar",
 ];
 
-fn furniture_class(tag: &str, in_content: bool) -> bool {
+fn furniture_class(tag: &str, is_in_content: bool) -> bool {
     let mut values = attribute(tag, "class").unwrap_or_default();
     values.push(' ');
     values.push_str(&attribute(tag, "id").unwrap_or_default());
     let values = values.to_ascii_lowercase();
-    if FURNITURE_ANYWHERE.iter().any(|marker| values.contains(marker)) {
+    if FURNITURE_ANYWHERE
+        .iter()
+        .any(|marker| values.contains(marker))
+    {
         return true;
     }
     let words: Vec<&str> = values
@@ -877,7 +939,7 @@ fn furniture_class(tag: &str, in_content: bool) -> bool {
     if words.iter().any(|word| FURNITURE_WORDS.contains(word)) {
         return true;
     }
-    !in_content && words.iter().any(|word| FURNITURE_OUTSIDE.contains(word))
+    !is_in_content && words.iter().any(|word| FURNITURE_OUTSIDE.contains(word))
 }
 
 #[cfg(test)]
@@ -885,7 +947,10 @@ mod tests {
     use super::*;
 
     fn md(html: &str) -> Extracted {
-        html_to_markdown(html, &Url::parse("https://example.org/docs/page.html").unwrap())
+        html_to_markdown(
+            html,
+            &Url::parse("https://example.org/docs/page.html").unwrap(),
+        )
     }
 
     const ARTICLE: &str = r##"<!doctype html><html><head><title>T</title>
@@ -914,15 +979,39 @@ the <a href="#top">top</a>, <a href="javascript:void(0)">script</a> and <a href=
     fn an_article_keeps_its_structure_and_loses_the_page_furniture() {
         let out = md(ARTICLE);
         let text = out.markdown;
-        assert!(text.starts_with("# Guide to Widgets\n\nWidgets are small parts."), "{text}");
+        assert!(
+            text.starts_with("# Guide to Widgets\n\nWidgets are small parts."),
+            "{text}"
+        );
         assert!(text.contains("## Steps"), "{text}");
-        assert!(text.contains("1. First\n  - nested one\n  - nested two\n2. Second"), "{text}");
-        assert!(text.contains("```rust\nfn main() {\n    println!(\"hi\");\n}\n```"), "{text}");
-        assert!(text.contains("| Name | Size |\n| --- | --- |\n| a\\|b | 10 |"), "{text}");
+        assert!(
+            text.contains("1. First\n  - nested one\n  - nested two\n2. Second"),
+            "{text}"
+        );
+        assert!(
+            text.contains("```rust\nfn main() {\n    println!(\"hi\");\n}\n```"),
+            "{text}"
+        );
+        assert!(
+            text.contains("| Name | Size |\n| --- | --- |\n| a\\|b | 10 |"),
+            "{text}"
+        );
         assert!(text.contains("> Quoted words."), "{text}");
         assert!(text.contains("[Image: A diagram of a widget]"), "{text}");
-        for furniture in ["cookies", "Accept", "Home", "About", "Buy things", "Privacy", "Copyright", "color:red"] {
-            assert!(!text.contains(furniture), "{furniture} is page furniture:\n{text}");
+        for furniture in [
+            "cookies",
+            "Accept",
+            "Home",
+            "About",
+            "Buy things",
+            "Privacy",
+            "Copyright",
+            "color:red",
+        ] {
+            assert!(
+                !text.contains(furniture),
+                "{furniture} is page furniture:\n{text}"
+            );
         }
     }
 
@@ -930,11 +1019,16 @@ the <a href="#top">top</a>, <a href="javascript:void(0)">script</a> and <a href=
     fn links_are_made_absolute_and_only_real_web_links_are_kept() {
         let out = md(ARTICLE);
         assert!(
-            out.markdown.contains("[reference](https://example.org/ref/widget.html)"),
+            out.markdown
+                .contains("[reference](https://example.org/ref/widget.html)"),
             "{}",
             out.markdown
         );
-        assert!(out.markdown.contains("the top, script and mail."), "{}", out.markdown);
+        assert!(
+            out.markdown.contains("the top, script and mail."),
+            "{}",
+            out.markdown
+        );
         assert_eq!(
             out.links,
             vec![Link {
@@ -976,14 +1070,22 @@ capers, served with roasted potatoes and seasonal greens, forty dollars per pers
         let layout = r#"<body><table><tr><td><table><tr><td>Left column text</td></tr></table></td>
 <td>Right column text with a <a href="/z">link</a></td></tr></table></body>"#;
         let out = md(layout).markdown;
-        assert!(out.contains("Left column text\n\nRight column text with a [link](https://example.org/z)"), "{out}");
+        assert!(
+            out.contains(
+                "Left column text\n\nRight column text with a [link](https://example.org/z)"
+            ),
+            "{out}"
+        );
         assert!(!out.contains('|'), "{out}");
     }
 
     #[test]
     fn unclosed_list_items_paragraphs_and_cells_are_closed_for_the_page() {
         let page = "<body><ul><li>one<li>two<li>three</ul><p>first<p>second</body>";
-        assert_eq!(md(page).markdown, "- one\n- two\n- three\n\nfirst\n\nsecond");
+        assert_eq!(
+            md(page).markdown,
+            "- one\n- two\n- three\n\nfirst\n\nsecond"
+        );
         let table = "<table><tr><th>A<th>B<tr><td>1<td>2</table>";
         assert_eq!(md(table).markdown, "| A | B |\n| --- | --- |\n| 1 | 2 |");
     }
@@ -996,17 +1098,25 @@ capers, served with roasted potatoes and seasonal greens, forty dollars per pers
 
     #[test]
     fn a_heading_link_keeps_the_heading_mark_outside_the_brackets() {
-        let page = r#"<body><a href="/post"><h2>Post title</h2></a><p>Body text of the post.</p></body>"#;
+        let page =
+            r#"<body><a href="/post"><h2>Post title</h2></a><p>Body text of the post.</p></body>"#;
         let out = md(page).markdown;
-        assert!(out.starts_with("## [Post title](https://example.org/post)"), "{out}");
+        assert!(
+            out.starts_with("## [Post title](https://example.org/post)"),
+            "{out}"
+        );
     }
 
     #[test]
     fn a_script_built_shell_is_recognised() {
-        let shell = r#"<html><body><div id="root"></div><script src="/a.js"></script></body></html>"#;
+        let shell =
+            r#"<html><body><div id="root"></div><script src="/a.js"></script></body></html>"#;
         let out = md(shell);
         assert!(out.needs_javascript);
-        let real = format!("<body><p>{}</p></body>", "A sentence of real text. ".repeat(20));
+        let real = format!(
+            "<body><p>{}</p></body>",
+            "A sentence of real text. ".repeat(20)
+        );
         assert!(!md(&real).needs_javascript);
     }
 
@@ -1018,7 +1128,12 @@ capers, served with roasted potatoes and seasonal greens, forty dollars per pers
                 "Some words about the post. ".repeat(6)
             )
         };
-        let page = format!("<body><nav>Site menu</nav>{}{}{}</body>", one(1), one(2), one(3));
+        let page = format!(
+            "<body><nav>Site menu</nav>{}{}{}</body>",
+            one(1),
+            one(2),
+            one(3)
+        );
         let out = md(&page).markdown;
         for n in 1..=3 {
             assert!(out.contains(&format!("## Post {n}")), "{out}");

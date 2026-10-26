@@ -27,7 +27,11 @@ pub const HARD_MAX_CHARS: usize = 100_000;
 pub const MAX_DOCUMENT_BYTES: usize = 25 * 1024 * 1024;
 /// Many sites turn away an unknown agent, so Delta says it is a compatible browser and names
 /// itself.
-const USER_AGENT: &str = concat!("Mozilla/5.0 (compatible; Delta/", env!("CARGO_PKG_VERSION"), "; +desktop)");
+const USER_AGENT: &str = concat!(
+    "Mozilla/5.0 (compatible; Delta/",
+    env!("CARGO_PKG_VERSION"),
+    "; +desktop)"
+);
 const ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7";
 
 #[derive(Debug, Clone)]
@@ -637,7 +641,10 @@ mod tests {
         let missing = fetch_page(&format!("{base}/missing"), None, LOCAL, &never).unwrap_err();
         assert!(missing.contains("HTTP 404"), "{missing}");
         let broken = fetch_page(&format!("{base}/broken.pdf"), None, LOCAL, &never).unwrap_err();
-        assert!(!broken.contains("not a page"), "a PDF is tried as a PDF: {broken}");
+        assert!(
+            !broken.contains("not a page"),
+            "a PDF is tried as a PDF: {broken}"
+        );
         let image = fetch_page(&format!("{base}/pic"), None, LOCAL, &never).unwrap_err();
         server.join().unwrap();
         assert!(image.contains("not a page or a document"), "{image}");
@@ -665,7 +672,11 @@ mod tests {
         });
         let page = fetch_page(&format!("{base}/files/report.docx"), None, LOCAL, &never).unwrap();
         server.join().unwrap();
-        assert!(page.text.contains("Revenue grew in the third quarter."), "{}", page.text);
+        assert!(
+            page.text.contains("Revenue grew in the third quarter."),
+            "{}",
+            page.text
+        );
         assert!(page.title.is_none());
     }
 
@@ -685,7 +696,11 @@ mod tests {
             links: true,
         };
         let first = fetch_page_with(&format!("{base}/"), options, LOCAL, &never).unwrap();
-        assert!(first.text.starts_with("# Guide\n\nWords go here."), "{}", first.text);
+        assert!(
+            first.text.starts_with("# Guide\n\nWords go here."),
+            "{}",
+            first.text
+        );
         assert!(!first.text.contains("Menu"));
         assert!(first.truncated);
         assert_eq!(first.next_offset, Some(100));
@@ -705,7 +720,11 @@ mod tests {
         .unwrap();
         server.join().unwrap();
         let whole: String = first.text.chars().chain(second.text.chars()).collect();
-        assert_eq!(whole.chars().count(), 200, "the second page continues where the first stopped");
+        assert_eq!(
+            whole.chars().count(),
+            200,
+            "the second page continues where the first stopped"
+        );
         assert!(!second.text.starts_with("# Guide"));
     }
 
@@ -737,7 +756,11 @@ mod tests {
         });
         let page = fetch_page(&format!("{base}/"), None, LOCAL, &never).unwrap();
         server.join().unwrap();
-        assert!(page.note.as_deref().unwrap_or("").contains("browser_navigate"));
+        assert!(page
+            .note
+            .as_deref()
+            .unwrap_or("")
+            .contains("browser_navigate"));
     }
 
     #[test]

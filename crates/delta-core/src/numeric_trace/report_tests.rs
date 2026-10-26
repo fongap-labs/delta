@@ -635,8 +635,14 @@ fn ttest_files() -> Files {
 /// The one Markdown block of the skill: its report template.
 fn skill_template() -> &'static str {
     let skill = include_str!("../../skills/data-analysis/SKILL.md");
-    let start = skill.find("```markdown\n").expect("the skill has a template") + "```markdown\n".len();
-    let end = start + skill[start..].find("\n```").expect("the template is closed");
+    let start = skill
+        .find("```markdown\n")
+        .expect("the skill has a template")
+        + "```markdown\n".len();
+    let end = start
+        + skill[start..]
+            .find("\n```")
+            .expect("the template is closed");
     &skill[start..end]
 }
 
@@ -664,7 +670,13 @@ fn a_literal_threshold_or_level_fails_a_formal_check_until_it_is_allowed_or_boun
     assert_eq!(texts, ["0.05", "95"]);
 
     // An allowed pattern for fixed wording of the author's own passes it.
-    let allowed = check(&rendered, &rendered.text, &files, true, &[r"0\.05", "95 ?%"]);
+    let allowed = check(
+        &rendered,
+        &rendered.text,
+        &files,
+        true,
+        &[r"0\.05", "95 ?%"],
+    );
     assert!(allowed.passed(), "{:?}", allowed.unbound);
 
     // The confidence level can also be bound, as the skill says.

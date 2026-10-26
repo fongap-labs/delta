@@ -1554,9 +1554,7 @@ mod tests {
     fn the_data_analysis_skill_only_names_tools_that_exist_and_says_what_it_cannot_do() {
         let temp = tempfile::tempdir().unwrap();
         let store = SkillStore::open(temp.path()).unwrap();
-        let read = store
-            .read_for_session("s1", None, "data-analysis")
-            .unwrap();
+        let read = store.read_for_session("s1", None, "data-analysis").unwrap();
         assert_eq!(read["ok"], true);
         let text = read["instructions"].as_str().unwrap();
 
@@ -1575,12 +1573,19 @@ mod tests {
                 || word.starts_with("report_")
                 || matches!(
                     word,
-                    "read_file" | "read_document" | "create_document" | "ask_user"
-                        | "web_search" | "web_fetch"
+                    "read_file"
+                        | "read_document"
+                        | "create_document"
+                        | "ask_user"
+                        | "web_search"
+                        | "web_fetch"
                 )
             {
                 named += 1;
-                assert!(registered.contains(word), "the skill names {word}, which is not a tool");
+                assert!(
+                    registered.contains(word),
+                    "the skill names {word}, which is not a tool"
+                );
             }
         }
         assert!(named > 10, "{named}");
