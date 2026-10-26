@@ -1016,6 +1016,8 @@ export const zh: Record<TranslationKey, string> = {
   "search.noResults": "未找到聊天。",
   "search.pinned": "置顶的聊天",
   "search.recent": "最近的聊天",
+  "search.inMessages": "消息内容",
+  "search.line": "第 {n} 行",
 
   "activity.sub": "Delta 替你做过的事：联网搜索、打开网页、使用应用连接器。每条只说明发生了什么和现在的状态。",
   "activity.stat.total": "记录的动作",

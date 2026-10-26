@@ -604,6 +604,18 @@ pub fn session_messages(state: State<'_, RuntimeRegistry>, session_id: String) -
 }
 
 #[tauri::command]
+pub fn conversations_search(
+    state: State<'_, RuntimeRegistry>,
+    workspace: String,
+    query: String,
+) -> Value {
+    match state.search_conversations(&workspace, &query) {
+        Ok(value) => value,
+        Err(error) => json!({"ok": false, "hits": [], "error": error}),
+    }
+}
+
+#[tauri::command]
 pub fn session_rename(
     state: State<'_, RuntimeRegistry>,
     session_id: String,

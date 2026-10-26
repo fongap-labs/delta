@@ -1019,6 +1019,8 @@ export const en = {
   "search.noResults": "No chats found.",
   "search.pinned": "Pinned chats",
   "search.recent": "Recent chats",
+  "search.inMessages": "In messages",
+  "search.line": "line {n}",
 
   "activity.sub": "What Delta has done for you: web searches, opened pages and app connector actions. Each entry says what happened and where it stands.",
   "activity.stat.total": "Recorded actions",

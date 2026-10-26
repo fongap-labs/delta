@@ -64,6 +64,7 @@ import {
   directRun,
   directSessionDelete,
   directSessionMessages,
+  directSearchConversations,
   addSessionRoot,
   directSessionRename,
   deleteSessionRoot,
@@ -601,6 +602,21 @@ export async function getSessionMessages(sessionId: string): Promise<Conversatio
     messages?: ConversationMessage[];
   };
   return out.messages ?? [];
+}
+
+// One message that matches a conversation search (ADR-0075). `line` is the 1-based line in the
+// session's transcript file, so the UI can cite it the way the model does.
+export interface ConversationHit {
+  session_id: string;
+  title: string | null;
+  line: number;
+  role: string;
+  snippet: string;
+}
+
+export async function searchConversations(workspace: string, query: string): Promise<ConversationHit[]> {
+  const out = (await directSearchConversations(workspace, query)) as { hits?: ConversationHit[] };
+  return out.hits ?? [];
 }
 
 export async function renameSession(sessionId: string, title: string): Promise<{ ok: boolean; error?: string }> {

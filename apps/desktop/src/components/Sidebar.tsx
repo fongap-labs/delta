@@ -429,6 +429,7 @@ export function Sidebar(props: Props) {
         {isSearchOpen && (
           <SearchModal
             sessions={props.sessions}
+            workspace={props.sessions.find((s) => s.session_id === props.activeSession)?.workspace || undefined}
             onSelect={(id, workspace) => {
               setSearchOpen(false);
               props.onSelectSession(id, workspace);

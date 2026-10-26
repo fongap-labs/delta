@@ -29,6 +29,9 @@ use crate::runtime::{
 use crate::skills::SkillStore;
 use crate::{ApprovalWriter, SourceCitationReader, ValidationReader, DELTA_AGENT};
 
+/// Hits shown by the desktop search box; the model's tool asks for its own limit.
+const SEARCH_HIT_LIMIT: usize = 12;
+
 #[derive(Debug, Clone)]
 pub struct RuntimeStartRequest {
     pub session_id: String,
@@ -1073,6 +1076,11 @@ impl CoreControlPlane {
     pub fn session_messages(&self, session_id: &str) -> Result<Value, String> {
         control_plane::get_session_messages(&self.state_dir, session_id)
             .map_err(|error| error.to_string())
+    }
+
+    /// Full-text search over the conversations of one workspace, for the desktop search box.
+    pub fn search_conversations(&self, workspace: &str, query: &str) -> Result<Value, String> {
+        crate::conversation_search::search(&self.state_dir, workspace, query, SEARCH_HIT_LIMIT)
     }
 
     pub fn rename_session(&self, session_id: &str, title: &str) -> Result<Value, String> {

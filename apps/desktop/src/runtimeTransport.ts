@@ -384,6 +384,14 @@ export async function directSessionMessages(sessionId: string): Promise<unknown>
   }
 }
 
+export async function directSearchConversations(workspace: string, query: string): Promise<unknown> {
+  try {
+    return await invoke("conversations_search", { workspace, query });
+  } catch (e) {
+    return { ok: false, hits: [], error: String(e) };
+  }
+}
+
 export async function directSessionRename(
   sessionId: string,
   title: string,

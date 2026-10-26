@@ -688,6 +688,7 @@ pub fn run() {
             runtime_ipc::fetch_provider_models,
             runtime_ipc::sessions_list,
             runtime_ipc::session_messages,
+            runtime_ipc::conversations_search,
             runtime_ipc::session_rename,
             runtime_ipc::update_session_flags,
             runtime_ipc::session_delete,
