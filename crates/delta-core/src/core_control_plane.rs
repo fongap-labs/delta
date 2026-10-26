@@ -1270,9 +1270,9 @@ impl CoreControlPlane {
         &self,
         session_id: &str,
         path: &str,
-        open: bool,
+        should_open: bool,
     ) -> Result<control_plane::ArtifactOpenPlan, String> {
-        control_plane::plan_artifact_open(&self.state_dir, session_id, path, open)
+        control_plane::plan_artifact_open(&self.state_dir, session_id, path, should_open)
             .map_err(|error| error.to_string())
     }
 

@@ -1247,10 +1247,10 @@ pub fn plan_artifact_open(
     state_dir: &Path,
     session_id: &str,
     path: &str,
-    open: bool,
+    should_open: bool,
 ) -> Result<ArtifactOpenPlan, ShadowReadError> {
     let resolved = resolve_artifact_path(state_dir, session_id, path)?;
-    let can_open = open && can_open_externally(&resolved);
+    let can_open = should_open && can_open_externally(&resolved);
     Ok(ArtifactOpenPlan {
         path: resolved,
         action: if can_open {
@@ -1258,7 +1258,7 @@ pub fn plan_artifact_open(
         } else {
             ArtifactOpenAction::Reveal
         },
-        downgraded: open && !can_open,
+        downgraded: should_open && !can_open,
     })
 }
 
