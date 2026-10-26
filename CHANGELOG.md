@@ -2,21 +2,6 @@
 
 ## [Unreleased]
 
-### 新增
-
-- 分析结果新增 `exploratory`、`validated` 与 `attested` 三档保证等级，并新增对应的结果 v2 合同、分析环境、方法包与绑定清单 Schema；正式报告只接受 `validated` / `attested` 结果，探索性结果只能进入草稿。决定见 ADR-0079 与 ADR-0080。
-- 新增 Explore Pack 与 Validate Pack 的运行时边界：Foundation 的探索性分析默认使用受控 Python 运行时，Suite 的可报告方法使用固定 R 4.6.0 与版本化方法包；两者都通过签名、锁文件与环境摘要校验。
-
-### 变更
-
-- `report_check` 的正式模式会检查被绑定结果文件的保证等级：显式标记为 `exploratory` 的结果失败，`validated` / `attested` 通过；没有该字段的 v1 结果按 legacy 继续接受，供迁移使用。
-- 新增 ADR-0082（Foundation 与 Suite 的干净切割）：目标是把 Suite 的依赖收敛到独立合同包，移除完整 `delta` 依赖、`delta_extension_api` 与 Foundation 提交 pin；架构检查新增 `suite-implementation-in-foundation` 规则，禁止 Foundation 源码出现 Suite 实现标识。
-- 新增 `packages/delta_contracts` 合同包第一版（可选原型）：Worker Manifest 模型、Manifest 版本与 Capability ABI 常量，不导入 Foundation 内部模块；合同测试随 Python 分片运行。按 ADR-0082，当前 Suite 不依赖它，实际共享面是 `delta-worker-sdk` 与 JSON Manifest。
-
-### 移除
-
-- Foundation 立即移除 R 统计：`statistics_describe`、`statistics_ttest`、`statistics_anova`、`statistics_chisq`、`statistics_correlation`、`statistics_regression`、`statistics_ancova`、`statistics_shelf_life`、`statistics_doe`、`statistics_f2`、`statistics_record` 与 `chart_render` 全部删除；同时删除内置 `data-analysis` 技能、系统提示中的统计指令、CI 的 R 4.6.0 构建与 external-vault 的 R 资产。报告渲染、数值溯源与研究记录保留，旧 v1 结果文件继续可读。统计页在没有本地引擎时明确说明。决定见 ADR-0081。
-
 ## [0.1.1-beta.2](https://github.com/fongap-labs/delta/releases/tag/delta-v0.1.1-beta.2) - 2026-10-26
 
 ### 新增
