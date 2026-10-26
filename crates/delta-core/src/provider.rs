@@ -290,6 +290,44 @@ pub const NON_RETRYABLE_KINDS: &[&str] = &[
     "upstream_200_no_meaningful_output",
 ];
 
+/// The error a stream that ended without its closing event reports. Retryable: the connection
+/// was cut, the request itself was not refused.
+const STREAM_TRUNCATED: &str =
+    "connection closed before the provider stream reached a terminal event";
+
+/// Error kinds a provider reports inside a stream that a later attempt can get past.
+const RETRYABLE_STREAM_ERRORS: &[&str] = &[
+    "overloaded_error",
+    "engine_overloaded",
+    "rate_limit_error",
+    "rate_limit_exceeded",
+    "api_error",
+    "server_error",
+    "service_unavailable",
+    "timeout",
+];
+
+/// The failure a provider announces inside a stream that answered 200: Anthropic's `error`
+/// event, a Chat Completions `{"error": ...}` chunk, a Responses `error` or failed response.
+/// Ignoring it leaves a stream that just ends, and the real cause is lost.
+fn stream_error(error: &Value) -> String {
+    let field = |key: &str| {
+        error
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+    };
+    let kind = field("type").or_else(|| field("code")).unwrap_or("unknown");
+    let message = field("message")
+        .or_else(|| error.as_str())
+        .unwrap_or("no message");
+    if RETRYABLE_STREAM_ERRORS.contains(&kind) {
+        format!("stream interrupted by the provider ({kind}): {message}")
+    } else {
+        format!("provider stream error ({kind}): {message} {NO_RETRY_TAG}")
+    }
+}
+
 /// Send the request and map ureq errors (with body) to String.
 fn send_json(req_builder: ureq::Request, body: Value) -> Result<ureq::Response, String> {
     req_builder.send_json(body).map_err(http_error)
@@ -550,6 +588,9 @@ pub fn stream_openai_chat(
             Ok(v) => v,
             Err(_) => continue,
         };
+        if let Some(error) = chunk.get("error").filter(|e| !e.is_null()) {
+            return Err(stream_error(error));
+        }
         if let Some(u) = chunk.get("usage") {
             usage = Some(usage_from_json(u));
         }
@@ -607,9 +648,7 @@ pub fn stream_openai_chat(
         }
     }
     if !has_seen_done && finish_reason.is_none() {
-        return Err(
-            "connection closed before the provider stream reached a terminal event".to_string(),
-        );
+        return Err(STREAM_TRUNCATED.to_string());
     }
     let text = if text_parts.is_empty() {
         Value::Null
@@ -882,6 +921,7 @@ pub fn stream_anthropic(
     let mut block_types: Vec<String> = Vec::new();
     let mut finish_reason: Option<String> = None;
     let mut usage: Option<Value> = None;
+    let mut has_seen_stop = false;
     loop {
         let line = match lines.next(cancel)? {
             SseLine::Line(line) => line,
@@ -905,6 +945,9 @@ pub fn stream_anthropic(
         };
         let chunk_type = chunk.get("type").and_then(|t| t.as_str()).unwrap_or("");
         match chunk_type {
+            "error" => {
+                return Err(stream_error(chunk.get("error").unwrap_or(&chunk)));
+            }
             "message_start" => {
                 if let Some(msg) = chunk.get("message") {
                     if let Some(u) = msg.get("usage") {
@@ -989,10 +1032,14 @@ pub fn stream_anthropic(
                 }
             }
             "message_stop" => {
+                has_seen_stop = true;
                 break;
             }
             _ => {}
         }
+    }
+    if !has_seen_stop && finish_reason.is_none() {
+        return Err(STREAM_TRUNCATED.to_string());
     }
     let text = if text_parts.is_empty() {
         Value::Null
@@ -1090,6 +1137,12 @@ pub fn complete_openai_responses(req: &ProviderRequest) -> Result<Value, String>
 }
 
 fn parse_openai_responses(resp: &Value) -> Result<Value, String> {
+    if let Some(error) = resp.get("error").filter(|e| !e.is_null()) {
+        return Err(stream_error(error));
+    }
+    if resp.get("status").and_then(Value::as_str) == Some("failed") {
+        return Err(stream_error(&json!({"message": "the response failed"})));
+    }
     let items = resp
         .get("output")
         .and_then(|o| o.as_array())
@@ -1268,6 +1321,9 @@ pub fn stream_openai_responses(
                     }
                 }
             }
+            "error" => {
+                return Err(stream_error(chunk.get("error").unwrap_or(&chunk)));
+            }
             "response.completed" | "response.incomplete" | "response.failed" => {
                 if let Some(r) = chunk.get("response") {
                     final_response = Some(r.clone());
@@ -1276,29 +1332,9 @@ pub fn stream_openai_responses(
             _ => {}
         }
     }
-    let result = if let Some(final_resp) = final_response {
-        parse_openai_responses(&final_resp)?
-    } else {
-        let text = if text_parts.is_empty() {
-            Value::Null
-        } else {
-            Value::String(text_parts.join(""))
-        };
-        let reasoning = if reasoning_parts.is_empty() {
-            Value::Null
-        } else {
-            Value::String(reasoning_parts.join(""))
-        };
-        json!({
-            "text": text,
-            "tool_calls": [],
-            "finish_reason": Value::Null,
-            "reasoning": reasoning,
-            "usage": Value::Null,
-            "extras": {},
-        })
-    };
-    Ok(result)
+    // Without a closing response the text so far is a cut-off answer, not a finished one.
+    let final_resp = final_response.ok_or_else(|| STREAM_TRUNCATED.to_string())?;
+    parse_openai_responses(&final_resp)
 }
 
 // -- Dispatch ---------------------------------------------------------------
@@ -1335,9 +1371,130 @@ pub fn stream(
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_anthropic_response, parse_openai_chat, parse_openai_responses, versioned_endpoint,
+        parse_anthropic_response, parse_openai_chat, parse_openai_responses, stream,
+        versioned_endpoint, ProviderRequest,
     };
     use serde_json::json;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::atomic::AtomicBool;
+
+    /// Serve one SSE reply on a local port, then close the connection, and return the base URL.
+    fn serve_sse(body: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let mut seen = Vec::new();
+            let mut chunk = [0u8; 4096];
+            // Read the request head and its body so closing the socket does not reset the reply.
+            while !seen.windows(4).any(|w| w == b"\r\n\r\n") {
+                let n = conn.read(&mut chunk).unwrap();
+                if n == 0 {
+                    return;
+                }
+                seen.extend_from_slice(&chunk[..n]);
+            }
+            let head_end = seen.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+            let head = String::from_utf8_lossy(&seen[..head_end]).to_lowercase();
+            let length: usize = head
+                .lines()
+                .find_map(|l| l.strip_prefix("content-length:"))
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0);
+            let mut have = seen.len() - head_end;
+            while have < length {
+                let n = conn.read(&mut chunk).unwrap();
+                if n == 0 {
+                    break;
+                }
+                have += n;
+            }
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n{body}"
+            );
+            conn.write_all(reply.as_bytes()).unwrap();
+        });
+        format!("http://127.0.0.1:{port}")
+    }
+
+    fn streamed(protocol: &str, body: &'static str) -> Result<serde_json::Value, String> {
+        let request = ProviderRequest {
+            protocol: protocol.to_string(),
+            model: "m".to_string(),
+            messages: json!([{"role": "user", "content": "hi"}]),
+            tools: None,
+            settings: None,
+            api_key: "k".to_string(),
+            base_url: serve_sse(body),
+            timeout_secs: Some(5.0),
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: None,
+        };
+        stream(&request, &mut Vec::new(), "id", &AtomicBool::new(false))
+    }
+
+    const ANTHROPIC_CUT: &str = "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n\
+        data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}\n\n\
+        data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"half an ans\"}}\n\n";
+
+    #[test]
+    fn an_anthropic_stream_cut_before_its_end_is_an_error_not_an_answer() {
+        let error = streamed("anthropic", ANTHROPIC_CUT).unwrap_err();
+        assert!(crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    #[test]
+    fn an_anthropic_stream_that_ends_properly_is_an_answer() {
+        let done = "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n\
+            data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n\
+            data: {\"type\":\"message_stop\"}\n\n";
+        assert_eq!(streamed("anthropic", done).unwrap()["text"], "ok");
+    }
+
+    #[test]
+    fn an_anthropic_error_event_reports_its_cause_and_whether_to_retry() {
+        let overloaded = "data: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n";
+        let error = streamed("anthropic", overloaded).unwrap_err();
+        assert!(error.contains("overloaded_error") && error.contains("Overloaded"));
+        assert!(crate::retry::is_retryable_failure(&error), "{error}");
+
+        let refused = "data: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"prompt is too long\"}}\n\n";
+        let error = streamed("anthropic", refused).unwrap_err();
+        assert!(error.contains("prompt is too long"));
+        assert!(!crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    #[test]
+    fn an_openai_chat_error_chunk_reports_its_cause() {
+        let body = "data: {\"error\":{\"type\":\"invalid_request_error\",\"code\":\"context_length_exceeded\",\"message\":\"too long\"}}\n\n";
+        let error = streamed("openai_chat", body).unwrap_err();
+        assert!(error.contains("too long"), "{error}");
+        assert!(!crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    #[test]
+    fn a_responses_stream_without_a_closing_response_is_an_error() {
+        let body = "event: response.output_text.delta\ndata: {\"delta\":\"half\"}\n\n";
+        let error = streamed("openai_responses", body).unwrap_err();
+        assert!(crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    #[test]
+    fn a_failed_response_is_an_error_with_the_providers_reason() {
+        let body = "event: response.failed\ndata: {\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"server_error\",\"message\":\"upstream broke\"},\"output\":[]}}\n\n";
+        let error = streamed("openai_responses", body).unwrap_err();
+        assert!(error.contains("upstream broke"), "{error}");
+        assert!(crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    #[test]
+    fn a_responses_stream_with_its_closing_response_is_an_answer() {
+        let body = "event: response.completed\ndata: {\"response\":{\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"fine\"}]}]}}\n\n";
+        assert_eq!(streamed("openai_responses", body).unwrap()["text"], "fine");
+    }
 
     #[test]
     fn versioned_endpoint_never_duplicates_a_version_segment() {
