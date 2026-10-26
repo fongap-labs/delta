@@ -102,7 +102,7 @@ impl LedgerReader {
                 workspace TEXT
             )"#,
         )?;
-        conn.execute_batch("CREATE INDEX idx_run_events_run ON run_events(run_id, seq)")?;
+        conn.execute_batch("CREATE UNIQUE INDEX idx_run_events_run ON run_events(run_id, seq)")?;
         Ok(Self { conn, _owned: true })
     }
 
@@ -314,6 +314,17 @@ impl LedgerWriter {
         conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_run_events_workspace ON run_events(workspace, run_id, seq)",
         )?;
+        // Two events of one run must never share a sequence number: that is a forked hash chain.
+        // A ledger that already holds such a pair cannot take the index, and its rows cannot be
+        // rewritten (each hash covers the one before), so it keeps working without the guard.
+        if let Err(error) = conn.execute_batch(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_run_events_run_seq ON run_events(run_id, seq)",
+        ) {
+            eprintln!(
+                "run ledger {} keeps a repeated sequence number and runs without the uniqueness guard: {error}",
+                path.display()
+            );
+        }
         Ok(Self {
             db_path: path,
             conn,
@@ -337,7 +348,7 @@ impl LedgerWriter {
                 workspace TEXT
             )"#,
         )?;
-        conn.execute_batch("CREATE INDEX idx_run_events_run ON run_events(run_id, seq)")?;
+        conn.execute_batch("CREATE UNIQUE INDEX idx_run_events_run ON run_events(run_id, seq)")?;
         Ok(Self {
             conn,
             db_path: PathBuf::new(),
@@ -775,6 +786,44 @@ mod tests {
         // Each run is its own chain, so both start with empty prev_hash.
         assert_eq!(r1["prev_hash"], "");
         assert_eq!(r2["prev_hash"], "");
+    }
+
+    #[test]
+    fn a_ledger_refuses_a_second_event_with_the_same_run_and_sequence() {
+        let temp = tempfile::tempdir().unwrap();
+        let writer = LedgerWriter::open(temp.path().join("run_events.db")).unwrap();
+        writer
+            .append("r1", "run.started", "user", 1.0, &serde_json::json!({}), "")
+            .unwrap();
+        let again = writer.conn.execute(
+            "INSERT INTO run_events (run_id, seq, type, ts, hash) VALUES ('r1', 1, 't', 2.0, 'h')",
+            [],
+        );
+        assert!(again.is_err(), "a repeated (run_id, seq) is refused");
+    }
+
+    #[test]
+    fn a_ledger_that_already_repeats_a_sequence_still_opens_and_appends() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("run_events.db");
+        {
+            // The table as an older version made it, with a pair that shares a sequence number.
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE run_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, seq INTEGER NOT NULL,
+                    type TEXT NOT NULL, ts REAL NOT NULL, actor TEXT NOT NULL DEFAULT 'system',
+                    payload TEXT NOT NULL DEFAULT '{}', prev_hash TEXT NOT NULL DEFAULT '',
+                    hash TEXT NOT NULL, workspace TEXT);
+                 INSERT INTO run_events (run_id, seq, type, ts, hash) VALUES ('r1', 1, 'run.started', 1.0, 'a');
+                 INSERT INTO run_events (run_id, seq, type, ts, hash) VALUES ('r1', 1, 'run.started', 2.0, 'b');",
+            )
+            .unwrap();
+        }
+        let writer = LedgerWriter::open(&path).unwrap();
+        writer
+            .append("r2", "run.started", "user", 3.0, &serde_json::json!({}), "")
+            .unwrap();
     }
 
     #[test]
