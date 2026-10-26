@@ -328,15 +328,33 @@ fn collect_input_files(
         .into_iter()
         .map(|path| {
             let absolute = resolve_workspace_path(job.workspace.as_deref(), &path)?;
-            let bytes = std::fs::read(&absolute)
+            let (sha256, size) = hash_file(&absolute)
                 .map_err(|error| format!("input file is unavailable: {path}: {error}"))?;
             Ok(CapabilityInputFile {
                 path: absolute.to_string_lossy().to_string(),
-                sha256: Some(format!("{:x}", sha2::Sha256::digest(&bytes))),
-                size: Some(bytes.len() as u64),
+                sha256: Some(sha256),
+                size: Some(size),
             })
         })
         .collect()
+}
+
+/// SHA-256 and size of a file, read in blocks so a large file never sits in memory whole.
+fn hash_file(path: &Path) -> std::io::Result<(String, u64)> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = sha2::Sha256::new();
+    let mut block = vec![0_u8; 64 * 1024];
+    let mut size = 0_u64;
+    loop {
+        let count = file.read(&mut block)?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&block[..count]);
+        size += count as u64;
+    }
+    Ok((format!("{:x}", hasher.finalize()), size))
 }
 
 fn validate_input_files(job: &CapabilityJob) -> Result<(), String> {
@@ -347,12 +365,8 @@ fn validate_input_files(job: &CapabilityJob) -> Result<(), String> {
         if !is_under_roots(&path, &job.grants.read_roots) {
             return Err(format!("input path is outside read grants: {}", input.path));
         }
-        let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
-        if input
-            .sha256
-            .as_deref()
-            .is_some_and(|hash| hash != format!("{:x}", sha2::Sha256::digest(&bytes)))
-        {
+        let (current, _) = hash_file(&path).map_err(|error| error.to_string())?;
+        if input.sha256.as_deref().is_some_and(|hash| hash != current) {
             return Err(format!(
                 "input hash changed before execution: {}",
                 input.path
@@ -395,16 +409,96 @@ pub(crate) fn resolve_read_path(
     }
 }
 
+/// Most bytes one `read_file` call returns. A longer file is read in pages with `offset`, so one
+/// call can never put a whole large file into the conversation, the ledger and the model request.
+pub(crate) const MAX_READ_BYTES: usize = 64 * 1024;
+
+/// One page of a text file.
+struct ReadPage {
+    text: String,
+    /// Where the page starts, after moving forward to the next whole character.
+    start: u64,
+    end: u64,
+    total: u64,
+}
+
+impl ReadPage {
+    fn to_json(&self) -> Value {
+        let is_truncated = self.end < self.total;
+        let mut page = serde_json::json!({
+            "ok": true,
+            "text": self.text,
+            "offset": self.start,
+            "total_bytes": self.total,
+            "truncated": is_truncated,
+        });
+        if is_truncated {
+            page["next_offset"] = Value::from(self.end);
+            page["note"] = Value::from(format!(
+                "This is bytes {}-{} of {}. Call read_file again with offset {} to continue.",
+                self.start, self.end, self.total, self.end
+            ));
+        }
+        page
+    }
+}
+
+/// Read up to `limit` bytes of the UTF-8 text file at `path`, starting at `offset`. A page begins
+/// and ends on a character boundary; an offset inside a character moves on to the next one.
+fn read_page(path: &Path, offset: u64, limit: usize) -> std::io::Result<ReadPage> {
+    use std::io::{Read, Seek, SeekFrom};
+    let invalid =
+        |message: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, message.to_owned());
+    let mut file = std::fs::File::open(path)?;
+    let total = file.metadata()?.len();
+    let start = offset.min(total);
+    file.seek(SeekFrom::Start(start))?;
+    // Up to three bytes more than the page, so a character cut at the limit can be finished.
+    let mut buffer = Vec::with_capacity(limit + 3);
+    file.take(limit as u64 + 3).read_to_end(&mut buffer)?;
+
+    let is_continuation = |byte: u8| byte & 0b1100_0000 == 0b1000_0000;
+    let skip = buffer
+        .iter()
+        .take(3)
+        .take_while(|byte| is_continuation(**byte))
+        .count();
+    let mut end = buffer.len().min(skip + limit);
+    // Stop before a character that the limit cuts in two.
+    while end > skip && end < buffer.len() && is_continuation(buffer[end]) {
+        end -= 1;
+    }
+    let text = std::str::from_utf8(&buffer[skip..end])
+        .map_err(|_| invalid("stream did not contain valid UTF-8"))?
+        .to_owned();
+    Ok(ReadPage {
+        text,
+        start: start + skip as u64,
+        end: start + end as u64,
+        total,
+    })
+}
+
 fn native_read_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "file.read".to_string(),
         tool_name: "read_file".to_string(),
         side_effect: crate::skills::SideEffectClass::Read,
-        description: "Read a UTF-8 text file from the trusted workspace.".to_string(),
+        description: "Read a UTF-8 text file from the trusted workspace. A long file is returned one page at a time: when the result says truncated, call again with its next_offset.".to_string(),
         parameters: serde_json::json!({
             "type": "object",
             "required": ["path"],
-            "properties": {"path": {"type": "string"}}
+            "properties": {
+                "path": {"type": "string"},
+                "offset": {
+                    "type": "integer", "minimum": 0,
+                    "description": "Byte position to start reading at. Use the next_offset of an earlier read to continue a long file."
+                },
+                "limit": {
+                    "type": "integer", "minimum": 1,
+                    "description": "Most bytes to return. A call never returns more than 65536; a longer file is read in pages."
+                }
+            }
         }),
         metadata: serde_json::json!({
             "risk_level": "low", "requires_approval": false,
@@ -439,11 +533,20 @@ fn native_read_registration() -> CapabilityRegistration {
                     return CapabilityResult::failed(&job.job_id, &error, Some("read_failed"))
                 }
             };
-            match std::fs::read_to_string(path) {
-                Ok(text) => CapabilityResult::completed(
-                    &job.job_id,
-                    serde_json::json!({"ok": true, "text": text}),
-                ),
+            let offset = job
+                .arguments
+                .get("offset")
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
+            let limit = job
+                .arguments
+                .get("limit")
+                .and_then(Value::as_u64)
+                .map_or(MAX_READ_BYTES, |value| {
+                    usize::try_from(value).unwrap_or(MAX_READ_BYTES).clamp(1, MAX_READ_BYTES)
+                });
+            match read_page(&path, offset, limit) {
+                Ok(page) => CapabilityResult::completed(&job.job_id, page.to_json()),
                 Err(error) => {
                     CapabilityResult::failed(&job.job_id, &error.to_string(), Some("read_failed"))
                 }
