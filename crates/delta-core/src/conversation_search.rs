@@ -476,7 +476,7 @@ mod tests {
             state.path(),
             "s1",
             &[
-                r#"{"role":"user","content":"我们讨论一下 quarterly budget"}"#,
+                r#"{"role":"user","content":"\u6211\u4eec\u8ba8\u8bba\u4e00\u4e0b quarterly budget"}"#,
                 r#"{"role":"assistant","content":"Budget approved"}"#,
             ],
         );
@@ -499,7 +499,7 @@ mod tests {
         write_lines(
             state.path(),
             "s1",
-            &[r#"{"role":"user","content":"a note about 溶出 testing"}"#],
+            &[r#"{"role":"user","content":"a note about \u6eb6\u51fa testing"}"#],
         );
         let found = search(state.path(), "/w", "溶出", 8).unwrap();
         assert_eq!(hits(&found), ["s1"]);
