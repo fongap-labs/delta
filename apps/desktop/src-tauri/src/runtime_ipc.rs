@@ -356,61 +356,123 @@ pub fn runtime_truncate(
 
 #[tauri::command]
 pub fn settings_get(state: State<'_, RuntimeRegistry>) -> Value {
-    authority_result(state.models().lock().unwrap().settings())
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .settings(),
+    )
 }
 
 #[tauri::command]
 pub fn update_model_key(state: State<'_, RuntimeRegistry>, api_key: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_provider(
-        "openai",
-        None,
-        &json!({"api_key": api_key}),
-    ))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_provider("openai", None, &json!({"api_key": api_key})),
+    )
 }
 
 #[tauri::command]
 pub fn update_model_default(state: State<'_, RuntimeRegistry>, model_id: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_default_model(&model_id))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_default_model(&model_id),
+    )
 }
 
 #[tauri::command]
 pub fn settings_add_model(state: State<'_, RuntimeRegistry>, model_id: String) -> Value {
-    authority_result(state.models().lock().unwrap().add_model(&model_id))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .add_model(&model_id),
+    )
 }
 
 #[tauri::command]
 pub fn settings_remove_model(state: State<'_, RuntimeRegistry>, model_id: String) -> Value {
-    authority_result(state.models().lock().unwrap().remove_model(&model_id))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove_model(&model_id),
+    )
 }
 
 #[tauri::command]
 pub fn settings_set_onboarded(state: State<'_, RuntimeRegistry>, is_onboarded: bool) -> Value {
-    authority_result(state.models().lock().unwrap().set_onboarded(is_onboarded))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_onboarded(is_onboarded),
+    )
 }
 
 #[tauri::command]
 pub fn settings_set_language(state: State<'_, RuntimeRegistry>, language: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_language(&language))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_language(&language),
+    )
 }
 
 #[tauri::command]
 pub fn update_context_bar(state: State<'_, RuntimeRegistry>, is_shown: bool) -> Value {
-    authority_result(state.models().lock().unwrap().set_context_bar(is_shown))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_context_bar(is_shown),
+    )
 }
 
 #[tauri::command]
 pub fn update_session_peek(state: State<'_, RuntimeRegistry>, count: i64) -> Value {
-    authority_result(state.models().lock().unwrap().set_sessions_peek(count))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_sessions_peek(count),
+    )
 }
 
 #[tauri::command]
 pub fn update_scratch_base(state: State<'_, RuntimeRegistry>, path: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_scratch_base(&path))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_scratch_base(&path),
+    )
 }
 
 #[tauri::command]
 pub fn update_pdf_settings(state: State<'_, RuntimeRegistry>, patch: Value) -> Value {
-    authority_result(state.models().lock().unwrap().set_pdf_settings(&patch))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_pdf_settings(&patch),
+    )
 }
 
 #[tauri::command]
@@ -419,7 +481,7 @@ pub fn update_compaction(state: State<'_, RuntimeRegistry>, patch: Value) -> Val
         state
             .models()
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_compaction_settings(&patch),
     )
 }
@@ -431,19 +493,29 @@ pub fn update_proxy_settings(state: State<'_, RuntimeRegistry>, patch: Value) ->
     state
         .models()
         .lock()
-        .unwrap()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .set_proxy_settings(&patch)
         .unwrap_or_else(|error| json!({"ok": false, "error": error}))
 }
 
 #[tauri::command]
 pub fn providers_list(state: State<'_, RuntimeRegistry>) -> Value {
-    authority_result(state.models().lock().unwrap().providers())
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .providers(),
+    )
 }
 
 #[tauri::command]
 pub fn provider_protocols(state: State<'_, RuntimeRegistry>) -> Value {
-    state.models().lock().unwrap().protocols()
+    state
+        .models()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .protocols()
 }
 
 #[tauri::command]
@@ -453,16 +525,24 @@ pub fn provider_set(
     protocol: Option<String>,
     fields: Value,
 ) -> Value {
-    authority_result(state.models().lock().unwrap().set_provider(
-        &name,
-        protocol.as_deref(),
-        &fields,
-    ))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_provider(&name, protocol.as_deref(), &fields),
+    )
 }
 
 #[tauri::command]
 pub fn provider_remove(state: State<'_, RuntimeRegistry>, name: String) -> Value {
-    authority_result(state.models().lock().unwrap().remove_provider(&name))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove_provider(&name),
+    )
 }
 
 /// Run blocking work off the thread that serves the window: a synchronous command runs on the
@@ -902,7 +982,12 @@ pub fn update_memory_settings(state: State<'_, RuntimeRegistry>, patch: Value) -
 
 #[tauri::command]
 pub fn automations_list(state: State<'_, RuntimeRegistry>) -> Value {
-    match state.automations().lock().unwrap().list() {
+    match state
+        .automations()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .list()
+    {
         Ok(tasks) => json!({"tasks": tasks}),
         Err(error) => json!({"tasks": [], "error": error.to_string()}),
     }
@@ -910,27 +995,56 @@ pub fn automations_list(state: State<'_, RuntimeRegistry>) -> Value {
 
 #[tauri::command]
 pub fn automation_create(state: State<'_, RuntimeRegistry>, payload: Value) -> Value {
-    authority_result(state.automations().lock().unwrap().create(&payload))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .create(&payload),
+    )
 }
 
 #[tauri::command]
 pub fn automation_get(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().get(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&id),
+    )
 }
 
 #[tauri::command]
 pub fn automation_update(state: State<'_, RuntimeRegistry>, id: String, changes: Value) -> Value {
-    authority_result(state.automations().lock().unwrap().update(&id, &changes))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .update(&id, &changes),
+    )
 }
 
 #[tauri::command]
 pub fn automation_delete(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().delete(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .delete(&id),
+    )
 }
 
 #[tauri::command]
 pub fn automation_denial_threshold(state: State<'_, RuntimeRegistry>) -> Value {
-    match state.automations().lock().unwrap().denial_threshold() {
+    match state
+        .automations()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .denial_threshold()
+    {
         Ok(threshold) => json!({"denial_threshold": threshold}),
         Err(error) => json!({"ok": false, "error": error.to_string()}),
     }
@@ -942,19 +1056,31 @@ pub fn set_denial_threshold(state: State<'_, RuntimeRegistry>, threshold: u32) -
         state
             .automations()
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_denial_threshold(threshold),
     )
 }
 
 #[tauri::command]
 pub fn update_automation_seen(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().mark_seen(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .mark_seen(&id),
+    )
 }
 
 #[tauri::command]
 pub fn prepare_automation_run(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().prepare_run(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .prepare_run(&id),
+    )
 }
 
 #[tauri::command]
@@ -967,14 +1093,19 @@ pub fn finalize_automation_run(
         state
             .automations()
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .finalize_run(&id, &run_id),
     )
 }
 
 #[tauri::command]
 pub fn scheduler_due(state: State<'_, RuntimeRegistry>) -> Value {
-    match state.automations().lock().unwrap().due() {
+    match state
+        .automations()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .due()
+    {
         Ok(tasks) => json!({"tasks": tasks}),
         Err(error) => json!({"tasks": [], "error": error.to_string()}),
     }

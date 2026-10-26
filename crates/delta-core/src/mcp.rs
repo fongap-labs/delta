@@ -44,17 +44,23 @@ impl McpStore {
     }
 
     pub fn config(&self, name: &str) -> Option<Value> {
-        self.servers.lock().unwrap().get(name).cloned()
+        self.servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .cloned()
     }
 
     pub fn configs(&self) -> BTreeMap<String, Value> {
-        self.servers.lock().unwrap().clone()
+        self.servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     pub fn list(&self) -> Vec<Value> {
         self.servers
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
             .into_iter()
             .map(|(name, config)| {
@@ -100,7 +106,10 @@ impl McpStore {
         if !config.is_object() {
             return Ok(json!({"ok": false, "error": "MCP config must be an object"}));
         }
-        let mut servers = self.servers.lock().unwrap();
+        let mut servers = self
+            .servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut next = servers.clone();
         // The settings page edits a config it was shown redacted; a secret it sends back unchanged
         // keeps the value stored under this name rather than overwriting it with the placeholder.
@@ -116,7 +125,10 @@ impl McpStore {
         let Some(changes) = changes.as_object() else {
             return Ok(json!({"ok": false, "error": "MCP changes must be an object"}));
         };
-        let mut servers = self.servers.lock().unwrap();
+        let mut servers = self
+            .servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut next = servers.clone();
         let Some(existing) = next.get_mut(name).and_then(Value::as_object_mut) else {
             return Ok(json!({"ok": false, "error": "MCP server not found"}));
@@ -131,7 +143,10 @@ impl McpStore {
 
     pub fn delete(&self, name: &str) -> Result<Value, ShadowReadError> {
         validate_name(name)?;
-        let mut servers = self.servers.lock().unwrap();
+        let mut servers = self
+            .servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut next = servers.clone();
         let removed = next.remove(name).is_some();
         self.save(&next)?;
@@ -374,7 +389,11 @@ mod tests {
         let mut edited = shown;
         edited["args"] = json!(["a", "b"]);
         store.put("fs", edited).unwrap();
-        let stored = store.servers.lock().unwrap()["fs"].clone();
+        let stored = store
+            .servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)["fs"]
+            .clone();
         assert_eq!(stored["env"]["TOKEN"], "real-secret");
         assert_eq!(stored["args"], json!(["a", "b"]));
         // A secret the user actually types replaces the stored one.
@@ -384,7 +403,11 @@ mod tests {
                 json!({"command": "npx", "env": {"TOKEN": "new-secret"}}),
             )
             .unwrap();
-        let stored = store.servers.lock().unwrap()["fs"].clone();
+        let stored = store
+            .servers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)["fs"]
+            .clone();
         assert_eq!(stored["env"]["TOKEN"], "new-secret");
     }
 

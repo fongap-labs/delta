@@ -827,7 +827,10 @@ impl HttpClient {
             }),
             Duration::from_secs(20),
         )?;
-        *self.protocol_version.lock().unwrap() = init
+        *self
+            .protocol_version
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = init
             .get("protocolVersion")
             .and_then(Value::as_str)
             .map(str::to_string);
@@ -863,10 +866,20 @@ impl HttpClient {
                 request = request.set("Mcp-Name", name);
             }
         } else {
-            if let Some(value) = self.session_id.lock().unwrap().as_deref() {
+            if let Some(value) = self
+                .session_id
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .as_deref()
+            {
                 request = request.set("Mcp-Session-Id", value);
             }
-            if let Some(value) = self.protocol_version.lock().unwrap().as_deref() {
+            if let Some(value) = self
+                .protocol_version
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .as_deref()
+            {
                 request = request.set("MCP-Protocol-Version", value);
             }
         }
@@ -896,7 +909,10 @@ impl HttpClient {
         let status = response.status();
         if !is_modern {
             if let Some(value) = response.header("Mcp-Session-Id") {
-                *self.session_id.lock().unwrap() = Some(value.to_string());
+                *self
+                    .session_id
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(value.to_string());
             }
         }
         let body = response
@@ -1145,7 +1161,7 @@ impl McpRuntime {
 
         self.sessions
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(name.to_string(), session);
         json!({
             "ok": true,
@@ -1159,14 +1175,18 @@ impl McpRuntime {
 
     pub fn disconnect(&self, name: &str, host: &CapabilityHost) -> bool {
         host.unregister_prefix(&tool_prefix(name));
-        self.sessions.lock().unwrap().remove(name).is_some()
+        self.sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(name)
+            .is_some()
     }
 
     pub fn disconnect_all(&self, host: &CapabilityHost) {
         let names = self
             .sessions
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .keys()
             .cloned()
             .collect::<Vec<_>>();
@@ -1176,7 +1196,10 @@ impl McpRuntime {
     }
 
     pub fn tools(&self, name: &str) -> Value {
-        let sessions = self.sessions.lock().unwrap();
+        let sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(session) = sessions.get(name) else {
             return json!({"ok": false, "available": false, "tools": [], "error": "MCP server is not connected"});
         };
@@ -1198,7 +1221,10 @@ impl McpRuntime {
     }
 
     pub fn decorate_rows(&self, rows: &mut [Value]) {
-        let sessions = self.sessions.lock().unwrap();
+        let sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for row in rows {
             let Some(name) = row.get("name").and_then(Value::as_str) else {
                 continue;

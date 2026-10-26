@@ -79,15 +79,17 @@ fn cooling(id: &str) -> bool {
 }
 
 fn bench(id: &str, how_long: Duration) {
-    if let Ok(mut map) = cooldowns().lock() {
-        map.insert(id.to_owned(), Instant::now() + how_long);
-    }
+    cooldowns()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(id.to_owned(), Instant::now() + how_long);
 }
 
 fn clear_bench(id: &str) {
-    if let Ok(mut map) = cooldowns().lock() {
-        map.remove(id);
-    }
+    cooldowns()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(id);
 }
 
 fn json_results(

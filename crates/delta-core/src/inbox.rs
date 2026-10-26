@@ -108,7 +108,10 @@ impl InboxStore {
         arguments: &Value,
         reason: &str,
     ) -> Result<InboxItem, ShadowReadError> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self
+            .items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(existing) = items.iter().find(|item| {
             item.session_id == session_id && item.tool_call_id.as_deref() == Some(tool_call_id)
         }) {
@@ -151,7 +154,10 @@ impl InboxStore {
         kind: &str,
         arguments: &Value,
     ) -> Result<InboxItem, ShadowReadError> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self
+            .items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(existing) = items.iter().find(|item| {
             item.session_id == session_id && item.tool_call_id.as_deref() == Some(tool_call_id)
         }) {
@@ -241,7 +247,10 @@ impl InboxStore {
         body: &str,
         data: Value,
     ) -> Result<InboxItem, ShadowReadError> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self
+            .items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(existing) = items.iter().find(|item| {
             item.session_id == session_id
                 && item.state == "pending"
@@ -282,7 +291,7 @@ impl InboxStore {
     pub fn get(&self, item_id: &str) -> Option<InboxItem> {
         self.items
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .find(|item| item.id == item_id)
             .cloned()
@@ -291,7 +300,7 @@ impl InboxStore {
     pub fn list(&self, session_id: Option<&str>, state: Option<&str>) -> Vec<InboxItem> {
         self.items
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .filter(|item| item.visibility == "inbox")
             .filter(|item| session_id.is_none_or(|value| item.session_id == value))
@@ -327,7 +336,10 @@ impl InboxStore {
         item_id: &str,
         resolution: &str,
     ) -> Result<Option<InboxItem>, ShadowReadError> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self
+            .items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(position) = items.iter().position(|item| item.id == item_id) else {
             return Ok(None);
         };
@@ -365,6 +377,28 @@ mod tests {
         store.resolve(&first.id, "allow").unwrap();
         let resolved = store.resolve(&first.id, "deny").unwrap().unwrap();
         assert_eq!(resolved.resolution.as_deref(), Some("allow"));
+    }
+
+    #[test]
+    fn the_inbox_keeps_working_after_a_panic_while_it_was_locked() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = InboxStore::open(temp.path().join("inbox.json")).unwrap();
+        let item = store
+            .add_approval("s1", "call-1", "write_file", &json!({}), "write")
+            .unwrap();
+        std::thread::scope(|scope| {
+            let _ = scope
+                .spawn(|| {
+                    let _guard = store.items.lock().unwrap();
+                    panic!("a panic while the inbox is locked");
+                })
+                .join();
+        });
+        assert!(store.items.is_poisoned());
+        assert!(store.get(&item.id).is_some());
+        assert_eq!(store.list(None, Some("pending")).len(), 1);
+        store.resolve(&item.id, "allow").unwrap();
+        assert!(store.list(None, Some("pending")).is_empty());
     }
 
     #[test]
