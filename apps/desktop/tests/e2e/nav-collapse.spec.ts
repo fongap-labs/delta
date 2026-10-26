@@ -14,7 +14,7 @@ test("collapse hides the sidebar and reclaims the width; reveal button docks it 
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(app).toHaveClass(/nav-collapsed/);
   // The floating reveal affordance appears; clicking it docks the nav back.
-  const reveal = page.getByRole("button", { name: "Show sidebar" });
+  const reveal = page.getByRole("button", { name: "Show sidebar" }).first();
   await expect(reveal).toBeVisible();
   await reveal.click();
   await expect(app).not.toHaveClass(/nav-collapsed/);

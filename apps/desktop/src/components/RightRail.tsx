@@ -6,7 +6,9 @@ import {
   getSessionMessages,
   readArtifact,
   revealArtifact,
+  getApprovalRules,
   getRunSources,
+  getSessionConnections,
   type ArtifactContent,
   type ArtifactInfo,
   type RunSource,
@@ -90,15 +92,31 @@ export function RightRail({
   onResize,
   resizeMaxWidth,
 }: Props) {
-  const [open, setOpen] = useState<Record<Panel, boolean>>({
-    progress: true,
-    permissions: true,
-    artifacts: true,
+  // What the user chose per section; `null` means "not chosen": a section with nothing in it
+  // stays closed and opens by itself once it has content. A choice lasts for the conversation.
+  const [chosen, setChosen] = useState<Record<Panel, boolean | null>>({
+    progress: null,
+    permissions: null,
+    artifacts: null,
   });
   const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
   const [selected, setSelected] = useState<ArtifactInfo | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
   const { t } = useI18n();
+  // How many things this session was allowed (rules the user granted, connectors switched on),
+  // read here so a closed Permissions section can still tell whether it has anything to show.
+  const [grantCount, setGrantCount] = useState(0);
+  const hasContent: Record<Panel, boolean> = {
+    progress: todo.length > 0 || running || toolNames.length > 0,
+    permissions: approvals.length > 0 || grantCount > 0,
+    artifacts: artifacts.length > 0,
+  };
+  const open: Record<Panel, boolean> = {
+    progress: chosen.progress ?? hasContent.progress,
+    permissions: chosen.permissions ?? hasContent.permissions,
+    artifacts: chosen.artifacts ?? hasContent.artifacts,
+  };
+  const toggle = (panel: Panel) => setChosen({ ...chosen, [panel]: !open[panel] });
   const accessRef = useRef<HTMLDivElement>(null);
   const workspace = useWorkspace();
 
@@ -106,10 +124,27 @@ export function RightRail({
   // section, where Access lives, and bring it into view.
   useEffect(() => {
     if (!openAccessKey) return;
-    setOpen((current) => ({ ...current, permissions: true }));
+    setChosen((current) => ({ ...current, permissions: true }));
     const timer = setTimeout(() => accessRef.current?.scrollIntoView({ block: "nearest" }), 30);
     return () => clearTimeout(timer);
   }, [openAccessKey]);
+
+  useEffect(() => {
+    if (!active) return;
+    let isCurrent = true;
+    Promise.allSettled([getApprovalRules(sessionId, workspace ?? ""), getSessionConnections(sessionId)]).then(
+      ([rules, connections]) => {
+        if (!isCurrent) return;
+        const ruleCount =
+          rules.status === "fulfilled" ? (rules.value.session?.length ?? 0) + (rules.value.workspace?.length ?? 0) : 0;
+        const connectorCount = connections.status === "fulfilled" ? (connections.value.connected?.length ?? 0) : 0;
+        setGrantCount(ruleCount + connectorCount);
+      },
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, [active, sessionId, workspace, approvals.length]);
 
   const refreshArtifacts = () => getArtifacts(sessionId).then(setArtifacts).catch(() => setArtifacts([]));
 
@@ -123,6 +158,7 @@ export function RightRail({
   useEffect(() => {
     setSelected(null);
     setContent(null);
+    setChosen({ progress: null, permissions: null, artifacts: null });
   }, [sessionId]);
 
   useEffect(() => {
@@ -207,11 +243,11 @@ export function RightRail({
         />
       ) : (
         <>
-          <RailSection title={t("artifacts.progress")} open={open.progress} onToggle={() => setOpen({ ...open, progress: !open.progress })}>
+          <RailSection title={t("artifacts.progress")} open={open.progress} onToggle={() => toggle("progress")}>
             <ProgressSummary running={running} toolNames={toolNames} todo={todo} />
           </RailSection>
 
-          <RailSection title={t("rail.permissions")} open={open.permissions} onToggle={() => setOpen({ ...open, permissions: !open.permissions })}>
+          <RailSection title={t("rail.permissions")} open={open.permissions} onToggle={() => toggle("permissions")}>
             <PermissionsSummary sessionId={sessionId} approvals={approvals as ApprovalItem[]} />
             <ApprovalRulesList sessionId={sessionId} workspace={workspace} refreshKey={approvals.length * 1000 + approvals.filter((item) => !(item as ApprovalItem).resolved).length} />
             {/* Access is part of the permissions: the sources and folders this session can touch.
@@ -230,7 +266,7 @@ export function RightRail({
           <RailSection
             title={`${t("artifacts.title")}${artifacts.length ? ` (${artifacts.length})` : ""}`}
             open={open.artifacts}
-            onToggle={() => setOpen({ ...open, artifacts: !open.artifacts })}
+            onToggle={() => toggle("artifacts")}
             action={
               <>
                 {artifacts.length > 0 && (

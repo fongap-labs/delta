@@ -18,7 +18,7 @@ test("Access lives inside Permissions; sources and folders render inline", async
   const section = page.getByTestId("access-section");
   await expect(section.locator("xpath=ancestor::section[1]").locator(".rail-section-toggle")).toHaveText("Permissions");
   const body = page.getByRole("region", { name: "Session access" });
-  await expect(body.getByText("Sources")).toBeVisible();
+  await expect(body.getByText("Connectors", { exact: true })).toBeVisible();
   await expect(body.getByText("Slack", { exact: true })).toBeVisible();
   await expect(body.getByText("email context for morning summaries")).toBeVisible();
   await expect(body.getByTestId("drawer-directories").getByText("Temporary space")).toBeVisible();
@@ -30,7 +30,7 @@ test("Access lives inside Permissions; sources and folders render inline", async
   await expect(body.getByText("GitHub", { exact: true })).toBeVisible();
 });
 
-test("+ Add a source: full catalog on focus, filter as you type → connect-in-context; connected sources never match", async ({
+test("+ Add a connector: full catalog on focus, filter as you type → connect-in-context; connected sources never match", async ({
   page,
 }) => {
   await page.goto("/");
@@ -68,7 +68,7 @@ test("+ Add a source: full catalog on focus, filter as you type → connect-in-c
   const body = page.getByRole("region", { name: "Session access" });
   await expect(body.getByText("Connecting makes Notion available to all your Delta agents", { exact: false })).toBeVisible();
   await expect(body.getByPlaceholder("ntn_…")).toBeVisible();
-  await body.getByRole("button", { name: "Back to sources" }).click();
+  await body.getByRole("button", { name: "Back to connectors" }).click();
   await expect(body.getByText("Slack", { exact: true })).toBeVisible();
 });
 
