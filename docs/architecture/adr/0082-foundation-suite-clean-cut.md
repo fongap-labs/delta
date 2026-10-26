@@ -62,6 +62,13 @@ Suite 只允许依赖一个**独立的合同包**（暂名 `delta-contracts`）�
 - 浏览器连接与 Connector 工具的部分实现必须从 Foundation 迁到 Suite 或合同包，属于有意的代码移动。
 - 迁移完成前，`delta_extension_api` 仍是已知债务；用棘轮阻止新增使用，而不是一次硬切。
 
+## 实现记录（2026-10-27）
+
+- 新增 `packages/delta_contracts` 第一版：`WorkerManifest`、`WorkerEntry`、`CapabilityGrants`、`CAPABILITY_ABI_VERSION` 与 `WORKER_MANIFEST_VERSION`，不导入 Foundation 任何内部模块。
+- 合同包测试 5 passed；Ruff 通过。
+- Suite 尚未切换到该合同包；当前仍在 `pyproject.toml` 依赖完整 `delta`，7 个 `delta_extension_api` 导入是明确债务。
+- Worker ABI 模型仍留在 `packages/delta_worker_sdk`，下一步迁入合同包并保留兼容导入路径。
+
 ## 未验证事项与未决事项
 
 - 合同包的名称、仓库位置与发布方式尚未确定。
