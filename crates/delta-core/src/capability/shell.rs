@@ -26,6 +26,7 @@ use serde_json::{json, Value};
 use super::abi::{
     CapabilityExitState, CapabilityGrants, CapabilityJob, CapabilityProgress, CapabilityResult,
 };
+use super::process_tree::ProcessTree;
 use super::registry::{CapabilityControl, CapabilityRegistration};
 use super::runners::NativeCapabilityRunner;
 
@@ -105,6 +106,7 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
         Ok(process) => process,
         Err(result) => return result,
     };
+    let tree = ProcessTree::attach(&process);
     let (lines_tx, lines_rx) = mpsc::channel::<(bool, String)>();
     let readers = start_readers(&mut process, lines_tx);
 
@@ -117,13 +119,13 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
     loop {
         drain_lines(&lines_rx, &mut stdout, &mut stderr);
         if control.is_cancelled() {
-            let _ = process.kill();
+            tree.kill(&mut process);
             let _ = process.wait();
             forced_state = Some(CapabilityExitState::Cancelled);
             break;
         }
         if timeout.is_some_and(|timeout| started.elapsed() >= timeout) {
-            let _ = process.kill();
+            tree.kill(&mut process);
             let _ = process.wait();
             forced_state = Some(CapabilityExitState::TimedOut);
             break;
@@ -131,11 +133,12 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
         match process.try_wait() {
             Ok(Some(status)) => {
                 exit_code = status.code();
+                tree.release();
                 break;
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(POLL_MILLIS)),
             Err(error) => {
-                let _ = process.kill();
+                tree.kill(&mut process);
                 let _ = process.wait();
                 finish_readers(readers, &lines_rx, &mut stdout, &mut stderr);
                 return CapabilityResult::failed(
@@ -232,6 +235,7 @@ fn spawn_shell(
         }
     }
     apply_platform_tuning(&mut process);
+    ProcessTree::prepare(&mut process);
     if let Some(workdir) = workdir {
         process.current_dir(workdir);
     }
@@ -647,6 +651,99 @@ mod tests {
         let output = output_of(&result);
         assert_eq!(output["truncated_stdout"], json!(true));
         assert!(output["stdout"].as_str().unwrap_or_default().len() <= MAX_OUTPUT_CHARS);
+    }
+
+    /// Whether process `pid` is still alive. A zombie waiting to be reaped is dead for this purpose.
+    #[cfg(target_os = "linux")]
+    fn is_alive(pid: u32) -> bool {
+        match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => !stat
+                .rsplit(')')
+                .next()
+                .unwrap_or("")
+                .trim_start()
+                .starts_with('Z'),
+            Err(_) => false,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn pid_left_by(command_for: impl Fn(&str) -> String, timeout_secs: u64, cancel: bool) -> u32 {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let command = command_for(pid_file.to_str().unwrap());
+        let job = job_with(json!({ "command": command }), timeout_secs);
+        let flag = Arc::new(AtomicBool::new(false));
+        let progress: Arc<dyn Fn(CapabilityProgress) + Send + Sync> = Arc::new(|_| {});
+        let control = CapabilityControl::new(flag.clone(), progress);
+        let canceller = cancel.then(|| {
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(700));
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            })
+        });
+        let result = run_shell_job(&job, &control);
+        if let Some(handle) = canceller {
+            handle.join().unwrap();
+        }
+        assert!(matches!(
+            result.state,
+            CapabilityExitState::TimedOut | CapabilityExitState::Cancelled
+        ));
+        std::fs::read_to_string(&pid_file)
+            .expect("the command wrote the pid of its background process")
+            .trim()
+            .parse()
+            .unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_timeout_ends_the_background_processes_the_command_started() {
+        let pid = pid_left_by(
+            |file| format!("sleep 30 & echo $! > {file}; sleep 30"),
+            1,
+            false,
+        );
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(!is_alive(pid), "process {pid} outlived the timeout");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_cancel_ends_the_background_processes_the_command_started() {
+        let pid = pid_left_by(
+            |file| format!("sleep 30 & echo $! > {file}; sleep 30"),
+            30,
+            true,
+        );
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(!is_alive(pid), "process {pid} outlived the cancel");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_background_process_survives_a_command_that_finished_normally() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let command = format!("sleep 30 & echo $! > {}", pid_file.display());
+        let result = run_shell_job(
+            &job_with(json!({ "command": command }), 30),
+            &noop_control(),
+        );
+        assert_eq!(result.state, CapabilityExitState::Completed);
+        let pid: u32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let alive = is_alive(pid);
+        // Clean up before asserting, so a failure does not leave the sleeper behind.
+        let _ = Command::new("kill").arg(pid.to_string()).status();
+        assert!(
+            alive,
+            "a command that finished on its own had its background process killed"
+        );
     }
 
     #[cfg(unix)]
