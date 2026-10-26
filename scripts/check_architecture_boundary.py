@@ -170,6 +170,20 @@ RULES = (
         and rel != "integrations/connectors/cli.py",
     ),
     Rule(
+        "suite-implementation-in-foundation",
+        "Foundation source names Delta Suite implementation identifiers",
+        re.compile(r"delta-suite|delta_suite|delta-suite\."),
+        lambda rel: _under(
+            rel,
+            "crates",
+            "apps",
+            "core",
+            "packages",
+            "integrations",
+            "delta_extension_api",
+        ),
+    ),
+    Rule(
         "aisuite-application-runtime",
         "aisuite used outside a controlled capability definition",
         re.compile(r"^\s*(?:from\s+aisuite\b|import\s+aisuite\b)", re.M),
