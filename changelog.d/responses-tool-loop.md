@@ -1,1 +1,0 @@
-- 修复: 使用 OpenAI Responses 协议（官方 OpenAI 的默认模式）时，工具调用现在能完成往返：请求会把工具调用和结果转换成 `function_call` 与 `function_call_output` 条目，模型返回的字符串形式工具参数也会被解析为对象；此前第二轮请求带着不被接受的 `tool` 角色，参数也无法通过校验。
