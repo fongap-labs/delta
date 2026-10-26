@@ -25,3 +25,13 @@
 
 - 大量会话下的索引体积与查询延迟尚未测量。
 - 桌面端搜索框尚未实现。
+
+## 实现记录
+
+- 索引模块 `conversation_search.rs`：索引放在 `library.db` 中的独立表（`conversation_sources`、`conversation_messages` 与 `conversation_fts`），与资料库的 `roots`、`files` 表互不干扰。
+- 增量更新：每条消息追加时同步该会话的新完整行（`append_session_message` 调用 `sync_session`）；搜索前执行一次补齐（`sync_all`），覆盖迁移前已存在的会话，并清除已不存在会话的索引。只读完整的行，正在写入的半行留到下次。
+- 删除会话时同步删除索引（`delete_session` 调用 `remove_session`）；删除失败会出现在返回的警告中。
+- 工具 `conversation_search`：只读，不需要审批；范围为调用会话所在的工作区，没有工作区的会话返回空结果并说明原因；结果按时间倒序，给出会话编号、标题、行号、角色和片段。
+- 三个字以上的词使用 FTS5 trigram 索引，较短的词退化为子串扫描；多个词必须出现在同一条消息中。
+- 未实现：桌面端会话列表的搜索框。跨工作区搜索不做。
+- 未验证：大量会话下的索引体积与查询延迟未测量；未在真实会话文件上运行。

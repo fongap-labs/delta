@@ -20,6 +20,7 @@ pub mod automation;
 pub mod capability;
 pub mod checkpoint;
 pub mod control_plane;
+pub mod conversation_search;
 pub mod core_control_plane;
 pub mod document;
 pub mod durability;

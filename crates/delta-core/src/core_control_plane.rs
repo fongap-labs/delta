@@ -101,6 +101,9 @@ impl CoreControlPlane {
         for registration in crate::retrieval::tools::registrations(library.clone()) {
             capability_host.register(registration)?;
         }
+        capability_host.register(crate::conversation_search::tool_registration(
+            state_dir.clone(),
+        ))?;
         let automations = Arc::new(Mutex::new(
             AutomationStore::open(&state_dir).map_err(|error| error.to_string())?,
         ));

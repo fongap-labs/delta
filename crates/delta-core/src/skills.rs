@@ -1750,4 +1750,66 @@ mod tests {
             "{text}"
         );
     }
+
+    /// Deterministic checks on every built-in skill (ADR-0076): the result (the skill names the
+    /// tools it uses, and each is a real tool), the compliance (no wording that claims an approval
+    /// is skipped), and the process (numbered steps, and a section that says what it cannot do).
+    #[test]
+    fn every_built_in_skill_passes_the_deterministic_checks() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = SkillStore::open(temp.path()).unwrap();
+        let host = crate::capability::CapabilityHost::product_defaults().unwrap();
+        let registered: std::collections::HashSet<String> = host
+            .tool_schemas()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|schema| schema["function"]["name"].as_str().unwrap().to_owned())
+            .collect();
+        let forbidden = ["无需批准", "不需要批准", "跳过审批", "绕过审批"];
+        let rows = builtin_rows(&store);
+        assert!(rows.len() >= 4, "{}", rows.len());
+        for row in &rows {
+            let name = row["name"].as_str().unwrap();
+            let read = store.read_for_session("s1", None, name).unwrap();
+            let text = read["instructions"].as_str().unwrap();
+
+            // Result: every tool the skill names is a tool the product registers.
+            for word in text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
+                let looks_like_tool = word.contains('_')
+                    && [
+                        "statistics_",
+                        "report_",
+                        "chart_",
+                        "read_",
+                        "create_",
+                        "edit_",
+                        "web_",
+                        "ask_",
+                    ]
+                    .iter()
+                    .any(|prefix| word.starts_with(prefix));
+                if looks_like_tool {
+                    assert!(
+                        registered.contains(word),
+                        "{name} names {word}, which is not a tool"
+                    );
+                }
+            }
+
+            // Compliance: nothing says an approval can be skipped.
+            for phrase in forbidden {
+                assert!(!text.contains(phrase), "{name} says {phrase}");
+            }
+
+            // Process: numbered steps, and a statement of what the skill cannot do.
+            for number in ["1. ", "2. ", "3. "] {
+                assert!(text.contains(number), "{name} has no step {number}");
+            }
+            assert!(
+                text.contains("不能") || text.contains("做不了"),
+                "{name} says nothing it cannot do"
+            );
+        }
+    }
 }

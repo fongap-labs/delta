@@ -155,7 +155,7 @@ fn row_to_dto(row: &rusqlite::Row) -> rusqlite::Result<Value> {
     }))
 }
 
-fn safe_session_id(session_id: &str) -> bool {
+pub(crate) fn safe_session_id(session_id: &str) -> bool {
     !session_id.is_empty()
         && session_id.len() <= 128
         && session_id
@@ -221,6 +221,10 @@ pub fn append_session_message(
         "UPDATE sessions SET n_msgs = n_msgs + 1, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?1",
         params![session_id],
     )?;
+    // The search index follows the transcript (ADR-0075). A failure there must not fail the message.
+    if let Err(error) = crate::conversation_search::sync_session(state_dir, session_id) {
+        eprintln!("conversation search: could not index {session_id}: {error}");
+    }
     Ok(())
 }
 
@@ -448,6 +452,11 @@ pub fn delete_session(state_dir: &Path, session_id: &str) -> Result<Value, Shado
     let _ = fs::remove_file(&jl);
 
     let mut warnings = Vec::new();
+    if let Err(error) = crate::conversation_search::remove_session(state_dir, session_id) {
+        warnings.push(format!(
+            "the search index of this conversation was not removed: {error}"
+        ));
+    }
     forget_run_content(state_dir, workspace.as_deref(), &run_ids, &mut warnings);
     Ok(json!({"ok": is_is_deleted_row, "session_id": session_id, "warnings": warnings}))
 }
