@@ -141,11 +141,11 @@ fn hides_element(open_tag: &str) -> bool {
             .replace("!important", "");
         HIDING_DECLARATIONS.contains(&declaration.as_str())
     });
-    hidden_by_style || has_bare_hidden_attribute(open_tag)
+    hidden_by_style || has_hidden_attribute(open_tag)
 }
 
 /// Whether `hidden` appears as an attribute name, not inside a quoted value.
-fn has_bare_hidden_attribute(open_tag: &str) -> bool {
+fn has_hidden_attribute(open_tag: &str) -> bool {
     let mut quote: Option<char> = None;
     let mut outside_quotes = String::with_capacity(open_tag.len());
     for c in open_tag.to_ascii_lowercase().chars() {

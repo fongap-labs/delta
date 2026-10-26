@@ -20,7 +20,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError, RwLock};
 use std::time::Duration;
 
 use base64::Engine as _;
@@ -1044,6 +1044,14 @@ fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> V
     Value::Array(parts)
 }
 
+/// Lock `mutex` even when a thread panicked while holding it. Use it only for state that is
+/// changed in single, complete steps (a counter, an `Option`, a database handle whose truth lives
+/// on disk): a panic then leaves a valid value behind, and refusing to lock would turn one
+/// contained panic into a permanent failure of every later run.
+fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 #[derive(Clone)]
 struct RuntimeEventEmitter {
     session_id: String,
@@ -1054,14 +1062,14 @@ struct RuntimeEventEmitter {
 
 impl RuntimeEventEmitter {
     fn emit(&self, event: RuntimeEvent) {
-        if self.event_error.lock().unwrap().is_some() {
+        if lock_recovering(&self.event_error).is_some() {
             return;
         }
-        let mut sequence = self.sequence.lock().unwrap();
+        let mut sequence = lock_recovering(&self.sequence);
         let next_sequence = *sequence + 1;
         let frame = event.to_frame(&self.session_id, next_sequence);
         if let Err(error) = self.sink.emit(frame) {
-            let mut event_error = self.event_error.lock().unwrap();
+            let mut event_error = lock_recovering(&self.event_error);
             if event_error.is_none() {
                 *event_error = Some(error);
             }
@@ -1410,11 +1418,11 @@ impl RuntimeHost {
     }
 
     fn clear_event_error(&self) {
-        *self.event_error.lock().unwrap() = None;
+        *lock_recovering(&self.event_error) = None;
     }
 
     fn ensure_event_delivery(&self) -> Result<(), String> {
-        match self.event_error.lock().unwrap().clone() {
+        match lock_recovering(&self.event_error).clone() {
             Some(error) => Err(format!("runtime event persistence failed: {error}")),
             None => Ok(()),
         }
@@ -1438,10 +1446,7 @@ impl RuntimeHost {
         if let Some(authorities) = &self.authorities {
             let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
             let ws = self.config.workspace.clone().unwrap_or_default();
-            authorities
-                .ledger
-                .lock()
-                .unwrap()
+            lock_recovering(&authorities.ledger)
                 .transition(&run_id, event_type, actor, now_ts(), &payload, &ws)
                 .map_err(|error| error.to_string())?;
         }
@@ -1456,10 +1461,7 @@ impl RuntimeHost {
         if let Some(authorities) = &self.authorities {
             let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
             let workspace = self.config.workspace.clone().unwrap_or_default();
-            authorities
-                .ledger
-                .lock()
-                .unwrap()
+            lock_recovering(&authorities.ledger)
                 .append(&run_id, event_type, actor, now_ts(), &payload, &workspace)
                 .map_err(|error| error.to_string())?;
         }

@@ -47,7 +47,7 @@ import { WorkspaceContext } from "./workspaceContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
-import { currentTurnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { turnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
 import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
@@ -1574,7 +1574,7 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
-        onOpenConversations={() => setSurface("session")}
+        onNewSession={startNewSession}
         conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
@@ -1871,7 +1871,7 @@ export function App() {
             active={surface === "session" && !isRailHidden}
             sessionId={sessionId}
             refreshKey={browserRefreshKey}
-            toolNames={currentTurnToolNames(items)}
+            toolNames={turnToolNames(items)}
             todo={todo}
             running={isRunning}
             onPreviewChange={onArtifactPreview}

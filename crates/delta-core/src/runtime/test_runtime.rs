@@ -1224,6 +1224,17 @@ fn native_e2e_unattended_approval_is_durable_in_inbox() {
     let (host, authorities) = approval_test_host(temp.path(), calls.clone(), true);
     let worker = execute_approval_tool(host.clone());
     wait_for_approval(&host);
+    // The request is answerable as soon as it is registered; its Inbox item is written right after.
+    for _ in 0..200 {
+        if !authorities
+            .inbox()
+            .list(Some("session-approval-e2e"), Some("pending"))
+            .is_empty()
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
 
     let pending = authorities
         .inbox()
@@ -3855,4 +3866,79 @@ fn the_registry_round_trips_a_session_compaction() {
         matches!(missing, Ok(None)),
         "missing session has no compaction"
     );
+}
+
+/// Panics once, on the first error frame, then behaves like a capturing sink: stands for any panic
+/// inside a run (a tool, a document parser) after the run has started.
+struct PanicOnErrorSink {
+    is_armed: std::sync::atomic::AtomicBool,
+    frames: Mutex<Vec<Value>>,
+}
+
+impl EventSink for PanicOnErrorSink {
+    fn emit(&self, frame: Value) -> Result<(), String> {
+        let is_error = frame.get("type").and_then(Value::as_str) == Some("error");
+        if is_error && self.is_armed.swap(false, Ordering::SeqCst) {
+            panic!("simulated panic inside a run");
+        }
+        self.frames.lock().unwrap().push(frame);
+        Ok(())
+    }
+}
+
+#[test]
+fn a_panic_inside_a_run_fails_that_run_and_keeps_the_session_usable() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let ledger = authorities.ledger();
+    let sink = Arc::new(PanicOnErrorSink {
+        is_armed: std::sync::atomic::AtomicBool::new(true),
+        frames: Mutex::new(Vec::new()),
+    });
+    // Nothing listens on port 1, so every model request fails at once and no run waits on a network.
+    let config = RuntimeConfig {
+        model: "test-model".to_string(),
+        api_key: "test-key".to_string(),
+        base_url: "http://127.0.0.1:1".to_string(),
+        max_retries: 0,
+        ..RuntimeConfig::default()
+    };
+    let host = RuntimeHost::new("session-panic", config)
+        .with_authorities(authorities)
+        .with_event_sink(sink.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+
+    let run_id = handle.run("first".to_string(), None).unwrap();
+    wait_for_terminal(&handle);
+    assert_eq!(handle.state(), RuntimeState::Failed);
+
+    // The ledger run is closed, not left open for the next restart to call a crash.
+    let status = ledger
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .run_status(&run_id)
+        .unwrap();
+    assert_eq!(status, "error");
+
+    // The product surface is told the run ended, with the reason.
+    let frames = sink.frames.lock().unwrap().clone();
+    let last_error = frames
+        .iter()
+        .rev()
+        .find(|frame| frame["type"] == "error")
+        .expect("the failure is reported as an error frame");
+    assert_eq!(last_error["payload"]["terminal"], json!(true));
+    assert!(last_error["payload"]["error"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("simulated panic inside a run"));
+    assert!(frames.iter().any(|frame| frame["type"] == "turn_end"));
+
+    // The worker survived: another run is accepted and also reaches a terminal state.
+    handle
+        .run("second".to_string(), None)
+        .expect("the worker accepts a run after the panic");
+    wait_for_terminal(&handle);
 }

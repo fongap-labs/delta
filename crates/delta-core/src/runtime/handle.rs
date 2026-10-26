@@ -377,20 +377,7 @@ fn execute_operation_chain(
     provider_cancel: &Arc<AtomicBool>,
 ) {
     loop {
-        let result = match operation {
-            RuntimeOperation::Run(run) => {
-                host.set_run_id(run.run_id);
-                host.run_with_attachments(&run.input, &run.attachments, run.source)
-            }
-            RuntimeOperation::Resume { run_id } => {
-                host.set_run_id(run_id);
-                host.resume()
-            }
-            RuntimeOperation::Retry { run_id } => {
-                host.set_run_id(run_id);
-                host.retry()
-            }
-        };
+        let result = run_contained(host, operation);
         sync_message_snapshot(host, messages);
         let terminal_state = state_from_result(&result);
 
@@ -416,6 +403,64 @@ fn execute_operation_chain(
         *current_state = terminal_state;
         break;
     }
+}
+
+/// Run one operation to its result. A panic anywhere in the run (a tool, a document parser, an
+/// event sink) ends that run as failed instead of killing the worker thread: otherwise the session
+/// would stay `Running` for good, refuse every later run, and leave its ledger run open.
+fn run_contained(host: &mut RuntimeHost, operation: RuntimeOperation) -> Result<Value, String> {
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match operation {
+        RuntimeOperation::Run(run) => {
+            host.set_run_id(run.run_id);
+            host.run_with_attachments(&run.input, &run.attachments, run.source)
+        }
+        RuntimeOperation::Resume { run_id } => {
+            host.set_run_id(run_id);
+            host.resume()
+        }
+        RuntimeOperation::Retry { run_id } => {
+            host.set_run_id(run_id);
+            host.retry()
+        }
+    }));
+    outcome.unwrap_or_else(|payload| {
+        let error = format!(
+            "the run stopped because of an internal error: {}",
+            panic_message(payload.as_ref())
+        );
+        // Best effort: whatever panicked once may panic again while it is being reported.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            record_run_panic(host, &error)
+        }));
+        Err(error)
+    })
+}
+
+/// Tell the product surface and the ledger how a panicked run ended, the way an ordinary failure
+/// is told. A ledger run that already reached a terminal state refuses the extra transition, which
+/// is the right outcome.
+fn record_run_panic(host: &mut RuntimeHost, error: &str) {
+    host.messages
+        .push(json!({"role": "notice", "kind": "error", "text": error, "ts": now_ts()}));
+    host.emit_event(RuntimeEvent::Error {
+        error: error.to_string(),
+        error_type: "panic".to_string(),
+        terminal: true,
+        retry: None,
+    });
+    host.emit_event(RuntimeEvent::TurnEnd {
+        status: "failed".to_string(),
+        iterations: 0,
+    });
+    let _ = host.finish_run_ledger(&Err(error.to_string()));
+}
+
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|message| (*message).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic".to_string())
 }
 
 fn sync_message_snapshot(host: &RuntimeHost, messages: &Arc<RwLock<Vec<Value>>>) {

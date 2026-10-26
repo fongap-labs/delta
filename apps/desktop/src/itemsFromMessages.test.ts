@@ -3,7 +3,7 @@
 // agent-visible content string carries no trace.
 import { describe, expect, it } from "vitest";
 import type { Item } from "./types";
-import { currentTurnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { turnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
 
 describe("itemsFromMessages _display sidecar", () => {
   it("attaches hidden counts to the matching tool item", () => {
@@ -145,7 +145,7 @@ describe("itemsFromMessages retries", () => {
   });
 });
 
-describe("currentTurnToolNames", () => {
+describe("turnToolNames", () => {
   it("counts only the tool calls since the last user message", () => {
     const items: Item[] = [
       { kind: "user", text: "first" },
@@ -155,10 +155,10 @@ describe("currentTurnToolNames", () => {
       { kind: "user", text: "second" },
       { kind: "tool", id: "c", name: "web_search", args: {}, status: "…" },
     ];
-    expect(currentTurnToolNames(items)).toEqual(["web_search"]);
+    expect(turnToolNames(items)).toEqual(["web_search"]);
   });
 
   it("is empty for a request that has not called a tool yet", () => {
-    expect(currentTurnToolNames([{ kind: "user", text: "hi" }])).toEqual([]);
+    expect(turnToolNames([{ kind: "user", text: "hi" }])).toEqual([]);
   });
 });

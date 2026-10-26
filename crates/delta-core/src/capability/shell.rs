@@ -15,7 +15,7 @@
 //! - the runner passes no secrets through the environment and never shadows a
 //!   granted secret key.
 
-use std::io::BufRead;
+use std::io::{BufRead, ErrorKind};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{mpsc, Arc};
@@ -38,6 +38,15 @@ const MAX_OUTPUT_CHARS: usize = 16_000;
 /// How often the output channel, the cancellation flag and the process state
 /// are polled while the command runs.
 const POLL_MILLIS: u64 = 10;
+/// A reader keeps at most this many bytes of one line and drops the rest of a longer one, so a
+/// command that prints without ever ending a line (`cat /dev/zero`) cannot grow memory without
+/// bound before the timeout fires. One byte more than a stream records, so that
+/// [`CapturedOutput::push`] still sees an over-long line and flags the stream as truncated.
+const MAX_LINE_BYTES: usize = MAX_OUTPUT_CHARS + 1;
+/// How long the supervisor waits, once the command has ended, for the readers to reach the end of
+/// the pipes. A background process the command left running keeps its end of a pipe open; it must
+/// not hold the tool call (or a timeout, or a cancel) for as long as it lives.
+const READER_GRACE: Duration = Duration::from_millis(500);
 
 pub fn shell_registration() -> CapabilityRegistration {
     CapabilityRegistration {
@@ -128,9 +137,7 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
             Err(error) => {
                 let _ = process.kill();
                 let _ = process.wait();
-                for reader in readers {
-                    let _ = reader.join();
-                }
+                finish_readers(readers, &lines_rx, &mut stdout, &mut stderr);
                 return CapabilityResult::failed(
                     &job.job_id,
                     &format!("shell wait failed: {error}"),
@@ -139,10 +146,7 @@ fn run_shell_job(job: &CapabilityJob, control: &CapabilityControl) -> Capability
             }
         }
     }
-    for reader in readers {
-        let _ = reader.join();
-    }
-    drain_lines(&lines_rx, &mut stdout, &mut stderr);
+    finish_readers(readers, &lines_rx, &mut stdout, &mut stderr);
 
     if let Some(state) = forced_state {
         // The killed child's remaining output is gone; the runtime's own
@@ -330,15 +334,73 @@ fn stream_reader(
     is_stdout: bool,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
-        for line in std::io::BufReader::new(stream)
-            .lines()
-            .map_while(Result::ok)
-        {
-            if lines_tx.send((is_stdout, line)).is_err() {
+        let mut reader = std::io::BufReader::new(stream);
+        let mut line = Vec::new();
+        // Output that is not valid UTF-8 (a native tool on a GBK console, say) is decoded
+        // lossily. Stopping at the first such line would close the pipe on a child that is still
+        // writing, and the rest of its output would be lost.
+        while let Ok(true) = read_capped_line(&mut reader, &mut line) {
+            let text = String::from_utf8_lossy(&line);
+            if lines_tx
+                .send((is_stdout, text.trim_end_matches('\r').to_string()))
+                .is_err()
+            {
                 break;
             }
         }
     })
+}
+
+/// Read one line into `line` without its terminator, keeping at most [`MAX_LINE_BYTES`] of it and
+/// discarding the rest of a longer line. `Ok(false)` at the end of the stream.
+fn read_capped_line(reader: &mut impl BufRead, line: &mut Vec<u8>) -> std::io::Result<bool> {
+    line.clear();
+    let mut has_data = false;
+    loop {
+        let (used, is_line_end) = {
+            let chunk = match reader.fill_buf() {
+                Ok(chunk) => chunk,
+                Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error),
+            };
+            if chunk.is_empty() {
+                return Ok(has_data);
+            }
+            has_data = true;
+            let end = chunk.iter().position(|byte| *byte == b'\n');
+            let room = MAX_LINE_BYTES.saturating_sub(line.len());
+            let kept = end.unwrap_or(chunk.len()).min(room);
+            line.extend_from_slice(&chunk[..kept]);
+            (end.map_or(chunk.len(), |at| at + 1), end.is_some())
+        };
+        reader.consume(used);
+        if is_line_end {
+            return Ok(true);
+        }
+    }
+}
+
+/// Collect what the readers still hold once the command has ended, waiting at most
+/// [`READER_GRACE`] for them to see the end of their pipes. A reader still blocked after that is
+/// held open by a process the command left behind; it is detached and stops by itself when that
+/// process lets go of the pipe or the receiver is gone.
+fn finish_readers(
+    readers: Vec<std::thread::JoinHandle<()>>,
+    lines_rx: &mpsc::Receiver<(bool, String)>,
+    stdout: &mut CapturedOutput,
+    stderr: &mut CapturedOutput,
+) {
+    let deadline = Instant::now() + READER_GRACE;
+    while Instant::now() < deadline && readers.iter().any(|reader| !reader.is_finished()) {
+        drain_lines(lines_rx, stdout, stderr);
+        std::thread::sleep(Duration::from_millis(POLL_MILLIS));
+    }
+    for reader in readers {
+        if reader.is_finished() {
+            let _ = reader.join();
+        }
+    }
+    drain_lines(lines_rx, stdout, stderr);
 }
 
 /// Pull everything the reader threads have produced so far into the captured
@@ -551,6 +613,79 @@ mod tests {
             &cancelled,
         );
         assert_eq!(result.state, CapabilityExitState::Cancelled);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_after_a_non_utf8_line_is_still_captured() {
+        // A native tool on a non-UTF-8 console (GBK on Chinese Windows, for one) prints lines that
+        // are not valid UTF-8; what follows must still be read, not dropped with a broken pipe.
+        let result = run_shell_job(
+            &job_with(json!({"command": r"printf 'before\n\377\nafter\n'"}), 30),
+            &noop_control(),
+        );
+        assert_eq!(result.state, CapabilityExitState::Completed);
+        let stdout = output_of(&result)["stdout"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        assert!(stdout.contains("before"), "stdout was {stdout:?}");
+        assert!(stdout.contains("after"), "stdout was {stdout:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_huge_line_without_a_terminator_is_capped_across_buffer_reads() {
+        let result = run_shell_job(
+            &job_with(
+                json!({"command": "yes x | tr -d '\\n' | head -c 5000000; echo; echo tail"}),
+                30,
+            ),
+            &noop_control(),
+        );
+        assert_eq!(result.state, CapabilityExitState::Completed);
+        let output = output_of(&result);
+        assert_eq!(output["truncated_stdout"], json!(true));
+        assert!(output["stdout"].as_str().unwrap_or_default().len() <= MAX_OUTPUT_CHARS);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_background_process_holding_the_pipe_does_not_hang_the_tool() {
+        let started = Instant::now();
+        let result = run_shell_job(
+            &job_with(json!({"command": "sleep 5 & echo started"}), 30),
+            &noop_control(),
+        );
+        assert_eq!(result.state, CapabilityExitState::Completed);
+        assert_eq!(
+            output_of(&result)["stdout"]
+                .as_str()
+                .unwrap_or_default()
+                .trim(),
+            "started"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "the tool waited {:?} for a background process",
+            started.elapsed()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_timeout_is_honoured_while_a_background_process_holds_the_pipe() {
+        let started = Instant::now();
+        let result = run_shell_job(
+            &job_with(json!({"command": "sleep 5 & sleep 5"}), 1),
+            &noop_control(),
+        );
+        assert_eq!(result.state, CapabilityExitState::TimedOut);
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "the timeout took {:?} to be reported",
+            started.elapsed()
+        );
     }
 
     #[test]

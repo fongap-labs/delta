@@ -39,8 +39,8 @@ import {
   directLibraryIndex,
   directLibraryRemove,
   directApprovalRules,
-  directRevokeApprovalRule,
-  directSetWebhookSettings,
+  directRevokeRule,
+  updateWebhookSettings,
   directTestWebhook,
   updateEgressDefault,
   updateWorkspaceEgress,
@@ -96,8 +96,8 @@ import {
   directTrustedWorkspaces,
   directUpdateMemory,
   directUpdateAutomation,
-  directGetDenialThreshold,
-  directSetDenialThreshold,
+  fetchDenialThreshold,
+  updateDenialThreshold,
   finalizeAutomationRun as finalizeAutomationRuntime,
   directListAudit,
   directListSources,
@@ -418,7 +418,7 @@ export async function revokeApprovalRule(
   workspace: string,
   rule: ApprovalRule,
 ): Promise<boolean> {
-  const out = await directRevokeApprovalRule(scope, sessionId, workspace, rule.tool, rule.command);
+  const out = await directRevokeRule(scope, sessionId, workspace, rule.tool, rule.command);
   if (!out || out.ok === false) throw new Error(out?.error || "could not revoke the rule");
   return !!out.revoked;
 }
@@ -444,7 +444,7 @@ export async function getWebhookSettings(): Promise<WebhookSettings> {
 }
 
 export async function saveWebhookSettings(settings: WebhookSettings): Promise<WebhookSettings> {
-  const out = await directSetWebhookSettings(settings.url, settings.is_enabled, settings.include_details);
+  const out = await updateWebhookSettings(settings.url, settings.is_enabled, settings.include_details);
   if (!out || out.ok === false) throw new Error(out?.error || "could not save the webhook setting");
   return out as WebhookSettings;
 }
@@ -1699,13 +1699,13 @@ export interface AutomationRun {
 
 // How many denials in a row of one rule pause an automation (the circuit breaker, A3).
 export async function getDenialThreshold(): Promise<number> {
-  return throwOnError(await directGetDenialThreshold()).denial_threshold;
+  return throwOnError(await fetchDenialThreshold()).denial_threshold;
 }
 
 export async function setDenialThreshold(
   threshold: number,
 ): Promise<{ ok: boolean; error?: string }> {
-  return await directSetDenialThreshold(threshold);
+  return await updateDenialThreshold(threshold);
 }
 
 export async function getAutomations(): Promise<Automation[]> {

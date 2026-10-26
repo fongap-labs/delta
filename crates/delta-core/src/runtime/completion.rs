@@ -31,7 +31,7 @@ impl RuntimeHost {
                 } else {
                     summary.clone()
                 };
-                let added = authorities.inbox.add_notice_with_data(
+                let added = authorities.inbox.add_data_notice(
                     &self.session_id,
                     &format!("done:{}", context.run_id),
                     &format!("Finished: {}", context.title),
