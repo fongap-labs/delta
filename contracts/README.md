@@ -13,6 +13,7 @@
 - **Analysis Environment（分析环境）**：Explore / Validate Runtime Pack 的版本、平台、锁文件与包清单。其 JSON Schema 位于 `schemas/analysis-environment.schema.json`。决定见 [ADR-0080](../docs/architecture/adr/0080-analysis-runtime-packs.md)。
 - **Method Pack（方法包）**：Suite 中带版本、环境与验证证据的方法集合。其 JSON Schema 位于 `schemas/method-pack.schema.json`。
 - **Binding Manifest（绑定清单）**：报告渲染时写出的数字绑定记录，报告门禁据此核对结果文件与位置。其 JSON Schema 位于 `schemas/binding-manifest.schema.json`。
+- **Product Edition（产品版本标记）**：已安装扩展写在自身目录下的显示标记，Foundation 的关于界面据此显示 `Delta` 或 `Delta Pro`；它不授予功能或权益。其 JSON Schema 位于 `schemas/product-edition.schema.json`。决定见 [ADR-0083](../docs/architecture/adr/0083-product-edition-marker.md)。
 
 ## 相关文档
 
