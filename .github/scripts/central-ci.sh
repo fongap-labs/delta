@@ -270,14 +270,6 @@ if run_shard python && { [ "$python_required" = "true" ] || [ "$python_advisorie
     uv python install 3.11 3.12 3.13
     run_pool 2 run_python_version 3.11 3.12 3.13
 
-    # The contract package is installed alone, so the test fails if it starts importing
-    # Foundation internals (ADR-0082).
-    phase_begin python-contracts
-    uv run --no-project --with pytest --with pydantic \
-      --with-editable packages/delta_contracts \
-      pytest -q packages/delta_contracts/tests
-    phase_end
-
     default_python="$(tr -d '\r\n ' < .python-version)"
     UV_PYTHON="$default_python" uv sync --locked --extra dev
     UV_PYTHON="$default_python" uv run --locked ruff check     core integrations packages --select E9,F63,F7,F82

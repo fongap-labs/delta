@@ -64,8 +64,7 @@ Suite 只允许依赖一个**独立的合同包**（暂名 `delta-contracts`）�
 
 ## 实现记录（2026-10-27）
 
-- 新增 `packages/delta_contracts` 第一版：`WorkerManifest`、`WorkerEntry`、`CapabilityGrants`、`CAPABILITY_ABI_VERSION` 与 `WORKER_MANIFEST_VERSION`，不导入 Foundation 任何内部模块；合同包测试 5 passed。
-- 该合同包被定为**可选原型**：以当前两个第一方仓库的规模，Suite 只需要公开 `delta-worker-sdk` 与 JSON Manifest，不需要额外的 Python 合同包。它不作为 Suite 依赖。
+- 曾建立只含 Manifest 模型的 `delta_contracts` 原型，随后删除：以当前两个第一方仓库的规模，Suite 只需要公开 `delta-worker-sdk` 与 JSON Manifest，不需要额外的 Python 合同包。它不进入任何运行时路径。
 - Suite 已移除完整 `delta` 发行版与 `delta_extension_api`。浏览器、Connector、SecretStore、HTTP 地址守卫、邮箱校验与工具元数据改由 Suite 自己的 `advanced.extension_api` 提供。
 - Suite 现在只依赖 `delta-worker-sdk`、`httpx` 与 `playwright`；测试在未安装完整 `delta` 的环境中通过（44 passed, 2 skipped）。
 - `scripts/check_boundaries.py` 的 `CLEAN_CUT_DEBT` 为空；新的 Foundation 门面导入或完整 `delta` 依赖会失败。

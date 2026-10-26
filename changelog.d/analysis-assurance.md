@@ -1,5 +1,5 @@
 - 新增: 分析结果新增 `exploratory`、`validated` 与 `attested` 三档保证等级，并新增结果 v2、分析环境、方法包与绑定清单 Schema；正式报告只接受 `validated` / `attested` 结果。
 - 新增: 新增 ADR-0082（Foundation 与 Suite 的干净切割）及架构检查，禁止 Foundation 源码出现 Suite 实现标识。
-- 新增: 新增 `packages/delta_contracts` 可选原型与 `delta-worker-sdk` 独立构建；当前 Suite 不依赖该合同包。
+- 变更: `delta-worker-sdk` 可独立构建；Suite 只依赖该公开 SDK 与 JSON Manifest，不引入额外的 Python 合同包。
 - 变更 [breaking]: Foundation 移除 R 统计、`chart_render` 与内置 `data-analysis` 技能；旧 v1 结果文件继续可读，报告门禁、数值溯源与研究记录保留。
 - 变更 [breaking]: Foundation 的 R CI 与 external-vault R 资产迁出；新的可报告统计由 Suite 的 R Validate Pack 提供。
