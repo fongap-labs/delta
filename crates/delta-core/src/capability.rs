@@ -20,6 +20,7 @@
 
 mod abi;
 mod host;
+mod process_io;
 mod process_tree;
 mod registry;
 mod runners;
