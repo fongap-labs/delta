@@ -7,7 +7,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 
 const EDITION_FORMAT: &str = "delta.product-edition";
 const EDITION_VERSION: u32 = 1;
