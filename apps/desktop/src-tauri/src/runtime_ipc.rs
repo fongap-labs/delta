@@ -449,24 +449,37 @@ pub fn provider_remove(state: State<'_, RuntimeRegistry>, name: String) -> Value
     authority_result(state.models().lock().unwrap().remove_provider(&name))
 }
 
-#[tauri::command]
-pub fn provider_verify(state: State<'_, RuntimeRegistry>, name: String, fields: Value) -> Value {
-    authority_result(
-        state
-            .models()
-            .lock()
-            .unwrap()
-            .verify_provider(&name, &fields),
-    )
+/// Run blocking work off the thread that serves the window: a synchronous command runs on the
+/// main thread, so a request to a provider or a server that is slow to answer would freeze the UI.
+async fn off_main_thread<F>(work: F) -> Result<Value, String>
+where
+    F: FnOnce() -> Value + Send + 'static,
+{
+    Ok(tauri::async_runtime::spawn_blocking(work)
+        .await
+        .unwrap_or_else(|error| {
+            json!({"ok": false, "error": format!("the request stopped unexpectedly: {error}")})
+        }))
 }
 
 #[tauri::command]
-pub fn fetch_provider_models(
+pub async fn provider_verify(
     state: State<'_, RuntimeRegistry>,
     name: String,
     fields: Value,
-) -> Value {
-    authority_result(state.models().lock().unwrap().fetch_models(&name, &fields))
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    off_main_thread(move || authority_result(registry.verify_provider(&name, &fields))).await
+}
+
+#[tauri::command]
+pub async fn fetch_provider_models(
+    state: State<'_, RuntimeRegistry>,
+    name: String,
+    fields: Value,
+) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    off_main_thread(move || authority_result(registry.fetch_provider_models(&name, &fields))).await
 }
 
 fn authority_result<E: std::fmt::Display>(result: Result<Value, E>) -> Value {
@@ -977,13 +990,15 @@ pub fn mcp_tools(state: State<'_, RuntimeRegistry>, name: String) -> Value {
 }
 
 #[tauri::command]
-pub fn mcp_reload(state: State<'_, RuntimeRegistry>) -> Value {
-    state.mcp_reload()
+pub async fn mcp_reload(state: State<'_, RuntimeRegistry>) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    off_main_thread(move || registry.mcp_reload()).await
 }
 
 #[tauri::command]
-pub fn mcp_connect(state: State<'_, RuntimeRegistry>, name: String) -> Value {
-    state.mcp_connect(&name)
+pub async fn mcp_connect(state: State<'_, RuntimeRegistry>, name: String) -> Result<Value, String> {
+    let registry = state.inner().clone();
+    off_main_thread(move || registry.mcp_connect(&name)).await
 }
 
 #[tauri::command]

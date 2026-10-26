@@ -584,15 +584,29 @@ impl ModelAuthority {
     }
 
     pub fn fetch_models(&self, name: &str, fields: &Value) -> Result<Value, String> {
+        let probed = self.probe_models(name, fields)?;
+        self.add_fetched_models(name, &probed)
+    }
+
+    /// Ask the provider for its model list. Reads the authority and the network and changes
+    /// nothing, so a caller can run it without holding the authority's lock for the whole wait.
+    pub fn probe_models(&self, name: &str, fields: &Value) -> Result<Value, String> {
+        let file = self.read_authority()?;
+        Ok(
+            match self.probe_config(name, fields, &file.prefs, &file.secrets) {
+                Ok(config) => probe_provider(&config, true),
+                Err(error) => json!({"ok": false, "error": error}),
+            },
+        )
+    }
+
+    /// Add the models a probe returned to the user's list. The authority is read again here, so
+    /// a change made while the probe was waiting on the network is not overwritten.
+    pub fn add_fetched_models(&self, name: &str, probed: &Value) -> Result<Value, String> {
+        let Some(models) = probed.get("models").and_then(Value::as_array) else {
+            return Ok(probed.clone());
+        };
         let mut file = self.read_authority()?;
-        let config = match self.probe_config(name, fields, &file.prefs, &file.secrets) {
-            Ok(config) => config,
-            Err(error) => return Ok(json!({"ok": false, "error": error})),
-        };
-        let result = probe_provider(&config, true);
-        let Some(models) = result.get("models").and_then(Value::as_array) else {
-            return Ok(result);
-        };
         let mut added = Vec::new();
         for model in models.iter().filter_map(Value::as_str) {
             let full = format!("{name}:{model}");
@@ -1056,6 +1070,29 @@ fn join_api_path(base_url: &str, endpoint: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fetched_models_are_added_against_the_settings_as_they_are_now() {
+        let temp = tempfile::tempdir().unwrap();
+        let authority = ModelAuthority::open(temp.path()).unwrap();
+        let probed = json!({"ok": true, "models": ["alpha", "beta"]});
+        let first = authority.add_fetched_models("gateway", &probed).unwrap();
+        assert_eq!(first["added"], json!(["gateway:alpha", "gateway:beta"]));
+
+        // A change made while a probe was waiting on the network survives the update after it.
+        authority.add_model("gateway:gamma").unwrap();
+        let second = authority.add_fetched_models("gateway", &probed).unwrap();
+        assert_eq!(second["added"], json!([]));
+        let models = authority.read_authority().unwrap().prefs["models"].to_string();
+        assert!(models.contains("gateway:gamma") && models.contains("gateway:alpha"));
+
+        // A probe that found no list is passed through untouched.
+        let failed = json!({"ok": false, "error": "no list"});
+        assert_eq!(
+            authority.add_fetched_models("gateway", &failed).unwrap(),
+            failed
+        );
+    }
 
     #[test]
     fn secret_values_never_leave_the_rust_boundary() {
