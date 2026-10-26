@@ -354,7 +354,7 @@ function commandSources(): Record<string, string> {
 
     artifacts_list: `(args) => ({ artifacts: [] })`,
     artifact_read: `(args) => ({ ok: false, error: "no artifacts in mock" })`,
-    artifact_resolve_path: `(args) => ({ ok: false, error: "not found" })`,
+    artifact_open: `(args) => ({ ok: false, error: "not found" })`,
 
     memory_list: `(args) => ({ memory: [] })`,
     memory_update: `(args) => ({ ok: true })`,

@@ -14,8 +14,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
-use delta_core::{CoreControlPlane, EventSink, RuntimeStartRequest};
+use delta_core::{ArtifactOpenAction, CoreControlPlane, EventSink, RuntimeStartRequest};
 
 struct TauriEventSink {
     app: AppHandle,
@@ -796,14 +797,33 @@ pub fn artifact_read(state: State<'_, RuntimeRegistry>, session_id: String, path
     }
 }
 
+/// Open an artifact with its default application, or show it in the file manager. The path is
+/// resolved here from the session's registered artifacts, and only documents and pictures are
+/// launched: the front end never hands the shell a file name of its own.
 #[tauri::command]
-pub fn artifact_resolve_path(
+pub fn artifact_open(
+    app: AppHandle,
     state: State<'_, RuntimeRegistry>,
     session_id: String,
     path: String,
+    mode: String,
 ) -> Value {
-    match state.resolve_artifact_path(&session_id, &path) {
-        Ok(path) => json!({"ok": true, "path": path}),
+    let plan = match state.plan_artifact_open(&session_id, &path, mode == "open") {
+        Ok(plan) => plan,
+        Err(error) => return json!({"ok": false, "error": error}),
+    };
+    let opener = app.opener();
+    let outcome = match plan.action {
+        ArtifactOpenAction::Open => opener
+            .open_path(plan.path.to_string_lossy(), None::<&str>)
+            .map_err(|error| error.to_string()),
+        ArtifactOpenAction::Reveal => opener
+            .reveal_item_in_dir(&plan.path)
+            .map_err(|error| error.to_string()),
+    };
+    match outcome {
+        Ok(()) if plan.downgraded => json!({"ok": true, "downgraded": true}),
+        Ok(()) => json!({"ok": true}),
         Err(error) => json!({"ok": false, "error": error}),
     }
 }

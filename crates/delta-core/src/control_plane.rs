@@ -1139,6 +1139,69 @@ pub fn resolve_artifact_path(
     Ok(canonical)
 }
 
+/// What the desktop shell does with an artifact the user asked to open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArtifactOpenAction {
+    /// Hand the file to the operating system's default application.
+    Open,
+    /// Show the file in the file manager.
+    Reveal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactOpenPlan {
+    pub path: PathBuf,
+    pub action: ArtifactOpenAction,
+    /// `Open` was asked for but only `Reveal` is safe for this file.
+    pub downgraded: bool,
+}
+
+/// Extensions "Open" may hand to the default application. An artifact's name comes from the model
+/// and from files it wrote, and opening is a launch: a crafted `report.pdf.exe`, a shortcut, a
+/// script or a file with no extension must never run, only be revealed. The list is small and
+/// positive; SVG and HTML are left out because they can carry script.
+const OPENABLE_EXTENSIONS: [&str; 12] = [
+    "pdf", "docx", "xlsx", "pptx", "txt", "md", "csv", "png", "jpg", "jpeg", "gif", "webp",
+];
+
+fn can_open_externally(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    // No extension, a dot-file such as `.bashrc`, or a trailing dot (Windows would drop it).
+    match name.rfind('.') {
+        Some(dot) if dot > 0 && dot + 1 < name.len() => {
+            let extension = name[dot + 1..].to_ascii_lowercase();
+            OPENABLE_EXTENSIONS.contains(&extension.as_str())
+        }
+        _ => false,
+    }
+}
+
+/// Decide, from a registered artifact of the session, what opening it may do. The path is resolved
+/// here, so the front end never names a file the shell will launch.
+pub fn plan_artifact_open(
+    state_dir: &Path,
+    session_id: &str,
+    path: &str,
+    open: bool,
+) -> Result<ArtifactOpenPlan, ShadowReadError> {
+    let resolved = resolve_artifact_path(state_dir, session_id, path)?;
+    let can_open = open && can_open_externally(&resolved);
+    Ok(ArtifactOpenPlan {
+        path: resolved,
+        action: if can_open {
+            ArtifactOpenAction::Open
+        } else {
+            ArtifactOpenAction::Reveal
+        },
+        downgraded: open && !can_open,
+    })
+}
+
 pub fn read_artifact(
     state_dir: &Path,
     session_id: &str,
@@ -1217,6 +1280,53 @@ fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_documents_and_pictures_are_ever_opened() {
+        let tmp = tempfile::tempdir().unwrap();
+        let make = |name: &str| {
+            let path = tmp.path().join(name);
+            fs::write(&path, "x").unwrap();
+            path
+        };
+        for name in [
+            "report.pdf",
+            "Notes.TXT",
+            "Sheet.XLSX",
+            "deck.pptx",
+            "doc.docx",
+            "d.csv",
+            "r.md",
+            "p.png",
+            "p.JPG",
+            "p.jpeg",
+            "p.gif",
+            "p.webp",
+        ] {
+            assert!(can_open_externally(&make(name)), "{name} should open");
+        }
+        for name in [
+            "x.bat",
+            "x.lnk",
+            "x.exe",
+            "README",
+            "x.pdf.exe",
+            "x.svg",
+            "x.html",
+            ".pdf",
+            "trailing.dot.",
+        ] {
+            assert!(
+                !can_open_externally(&make(name)),
+                "{name} must only be revealed"
+            );
+        }
+        // A folder named like a document, and a file that does not exist.
+        let folder = tmp.path().join("dir.pdf");
+        fs::create_dir(&folder).unwrap();
+        assert!(!can_open_externally(&folder));
+        assert!(!can_open_externally(&tmp.path().join("missing.pdf")));
+    }
 
     #[test]
     fn a_damaged_line_in_a_transcript_costs_only_that_line() {
