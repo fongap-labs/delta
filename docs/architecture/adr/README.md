@@ -32,6 +32,7 @@
 | [0071](0071-doe-designs-and-foundation-suite-split.md) | 试验设计补齐在基础版，行业专用设计放 Suite（已接受） |
 | [0072](0072-suite-first-batch.md) | Suite 首批：稳定性货架期、溶出 f2 与报告模板；参数策略（已接受） |
 | [0073](0073-foundation-grouped-regression-and-nested-f.md) | 基础版统计引擎支持分组回归与嵌套模型 F 检验（已接受） |
+| [0074](0074-foundation-shelf-life-estimate.md) | 基础版统计引擎计算预测置信界限与有效期（已接受） |
 
 ## 代码中引用但本仓库未保存的编号
 
