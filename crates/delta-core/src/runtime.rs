@@ -1268,8 +1268,19 @@ impl RuntimeHost {
         self.authorities = Some(authorities);
         self
     }
+    /// Seed the transcript. The persisted transcript never holds the system message, so the
+    /// host's own prompt is carried over; a seeded system message is replaced by the current one.
     pub fn with_messages(mut self, messages: Vec<Value>) -> Self {
+        let is_system =
+            |message: &Value| message.get("role").and_then(Value::as_str) == Some("system");
+        let system = self.messages.iter().find(|m| is_system(m)).cloned();
         self.messages = messages;
+        if let Some(system) = system {
+            match self.messages.iter().position(is_system) {
+                Some(index) => self.messages[index] = system,
+                None => self.messages.insert(0, system),
+            }
+        }
         self
     }
 

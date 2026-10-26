@@ -125,6 +125,42 @@ fn test_outbound_strips_sidecars() {
 }
 
 #[test]
+fn a_restored_transcript_keeps_the_session_system_prompt() {
+    // The persisted transcript never carries the system message, so seeding a host from it must
+    // not drop the prompt the host was built with.
+    let config = RuntimeConfig {
+        system_prompt: Some("agent rules".to_string()),
+        ..Default::default()
+    };
+    let host = RuntimeHost::new("s1", config).with_messages(vec![
+        json!({"role": "user", "content": "hello"}),
+        json!({"role": "assistant", "content": "hi"}),
+    ]);
+    let outbound = host.outbound_messages();
+    assert_eq!(outbound.len(), 3);
+    assert_eq!(outbound[0]["role"], "system");
+    assert_eq!(outbound[0]["content"], "agent rules");
+    assert_eq!(outbound[1]["content"], "hello");
+
+    // A transcript that does carry a system message gets the current prompt, not a second one.
+    let config = RuntimeConfig {
+        system_prompt: Some("new rules".to_string()),
+        ..Default::default()
+    };
+    let host = RuntimeHost::new("s1", config).with_messages(vec![
+        json!({"role": "system", "content": "old rules"}),
+        json!({"role": "user", "content": "hello"}),
+    ]);
+    let systems: Vec<&Value> = host
+        .messages()
+        .iter()
+        .filter(|m| m["role"] == "system")
+        .collect();
+    assert_eq!(systems.len(), 1);
+    assert_eq!(systems[0]["content"], "new rules");
+}
+
+#[test]
 fn canonical_attachments_convert_only_at_provider_boundary() {
     let host = RuntimeHost::new(
         "s1",
