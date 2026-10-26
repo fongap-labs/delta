@@ -188,6 +188,7 @@ install_pinned_r() {
   local prefix="/opt/R-${version}"
   if [ -x "$prefix/bin/Rscript" ] && "$prefix/bin/Rscript" --version 2>&1 | grep -q "version ${version} "; then
     export PATH="$prefix/bin:$PATH"
+    require_r_cairo "an existing R at $prefix"
     return 0
   fi
   if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
@@ -204,10 +205,12 @@ install_pinned_r() {
   }
   tar -C "$workdir" -xJf "$workdir/$archive"
 
-  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev libcurl4-openssl-dev
+  # cairo, pango and fontconfig give R's png() device without X11; charts (chart_render) need it.
+  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev libcurl4-openssl-dev \
+    libcairo2-dev libpango1.0-dev libfontconfig1-dev libpng-dev libjpeg-dev libtiff-dev
   (
     cd "$workdir/R-${version}"
-    ./configure --prefix="$prefix" --without-x --without-readline --without-recommended-packages \
+    ./configure --prefix="$prefix" --without-x --with-cairo --without-readline --without-recommended-packages \
       >configure.log 2>&1 || { tail -n 60 configure.log >&2; exit 1; }
     make -j"$(nproc)" >make.log 2>&1 || { tail -n 80 make.log >&2; exit 1; }
     sudo make install >install.log 2>&1 || { tail -n 40 install.log >&2; exit 1; }
@@ -215,6 +218,17 @@ install_pinned_r() {
   export PATH="$prefix/bin:$PATH"
   if ! Rscript --version 2>&1 | grep -q "version ${version} "; then
     echo "central-ci: Rscript is not R ${version} after building it" >&2
+    exit 1
+  fi
+  require_r_cairo "the R built from ${archive}"
+}
+
+# chart_render draws PNG files with R's cairo device. An R without it is refused here, so the
+# statistics job cannot pass by skipping the chart test on a build that cannot draw.
+require_r_cairo() {
+  local source="$1"
+  if ! Rscript --vanilla -e 'cat(capabilities("cairo"))' 2>/dev/null | grep -qx TRUE; then
+    echo "central-ci: ${source} has no cairo support, so charts cannot be drawn" >&2
     exit 1
   fi
 }
