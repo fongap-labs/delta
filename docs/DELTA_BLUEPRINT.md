@@ -98,6 +98,8 @@ Completion / Resume / Learning
 
 最低能力范围：
 
+> 实现状态（2026-10-27）：Foundation 的 R 统计已按 ADR-0081 移除；Python Explore Pack 与 Suite Validate Pack 分阶段交付。以下仍是产品目标，不是当前已实现的能力。
+
 #### 数据准备与探索
 
 - 数据导入、字段和类型检查；
@@ -445,12 +447,12 @@ Skill
 
 通用能力放在 Delta Foundation（本仓库）；行业能力放在 `fongap-labs/delta-suite`，只通过公开契约接入。
 
-- **Foundation**：通用统计、试验设计、Office 读写、报告渲染、数值溯源、研究记录等不含行业规则的能力；
-- **Suite**：行业 Skill、行业计算方法、报告模板和校验规则集。
+- **Foundation**：Office 读写、报告渲染、数值溯源、研究记录等不含行业规则的能力；探索性分析由 Python Explore Pack 提供（待实现，ADR-0079）。
+- **Suite**：行业 Skill、可报告统计与试验设计（Validate Pack，R 4.6.0）、报告模板和校验规则集（ADR-0080、ADR-0081）。
 
 第一个行业方向是**制剂 / CMC 研究分析**（稳定性与货架期、溶出曲线比较、处方与工艺 DOE、研究报告）。行业名称、法规条款和行业流程不进入 Foundation 的 Authority 逻辑。
 
-相关决策：ADR-0054（统计引擎，已接受）、ADR-0055（数值溯源，已接受）、ADR-0056（研究记录，已接受）、ADR-0057（工作区敏感度与模型出境，已接受）、ADR-0061（出境档位覆盖网页搜索、MCP 与连接器，已接受）。
+相关决策：ADR-0054（统计引擎，已接受；其 Foundation 部分已由 ADR-0081 取代）、ADR-0055（数值溯源，已接受）、ADR-0056（研究记录，已接受）、ADR-0057（工作区敏感度与模型出境，已接受）、ADR-0061（出境档位覆盖网页搜索、MCP 与连接器，已接受）、ADR-0079（分析保证等级）、ADR-0080（分析运行时包）、ADR-0081（Foundation 移除 R 统计）。
 
 ---
 
@@ -517,7 +519,7 @@ Rust = Runtime、Trust、Work、Automation 与 Learning 的权威，以及 Capab
 
 这些是任务执行语言，不是 Delta 核心架构 Authority。
 
-R 只作为统计计算引擎，由 Rust 原生能力直接调用；正式成果中的统计数字由 R 计算（ADR-0054）。
+R 只用于 Suite 的 Validate Pack；Foundation 不包含 R 统计（ADR-0081）。正式成果中的统计数字由 Suite 的 R 方法包计算。
 
 Worker 必须满足：
 

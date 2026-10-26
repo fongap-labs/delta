@@ -37,6 +37,12 @@
 | [0076](0076-skill-deterministic-evaluation.md) | 内置 Skill 的确定性评估（已接受） |
 | [0077](0077-performance-budgets.md) | 关键路径性能预算与门禁（已接受，方案 C） |
 | [0078](0078-statistics-without-model.md) | 统计工具无需 AI 网关即可运行，并新增 f2（已接受） |
+| [0079](0079-analysis-assurance-and-report-gate.md) | 分析保证等级与报告门禁（已接受） |
+| [0080](0080-analysis-runtime-packs.md) | 分析运行时包：Explore Pack 与 Validate Pack（已接受） |
+| [0081](0081-remove-foundation-r-statistics.md) | Foundation 立即移除 R 统计（已接受；取代 ADR-0054/0068/0070/0071/0073/0074/0078 中与本决定冲突的 Foundation 部分） |
+| [0082](0082-foundation-suite-clean-cut.md) | Foundation 与 Suite 的干净切割（已接受；合同包、CI 闸门与迁移阶段） |
+
+ADR-0054、ADR-0068、ADR-0070、ADR-0071、ADR-0073、ADR-0074、ADR-0078 中与 ADR-0081 冲突的 Foundation R 统计部分已被取代；这些 ADR 作为历史决定保留，其余决定继续有效。
 
 ## 代码中引用但本仓库未保存的编号
 

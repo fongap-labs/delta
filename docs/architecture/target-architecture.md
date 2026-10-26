@@ -152,7 +152,7 @@ Rust + TypeScript
 Python / R / PowerShell / Shell
 ```
 
-R 只作为统计计算引擎，由 Rust 原生能力直接调用（ADR-0054）。
+R 只用于 Suite 的 Validate Pack；Foundation 不包含 R 统计（ADR-0081）。
 
 Worker 不得拥有 Session、Run State、core DB 权威、Policy / Approval、Secrets 权威、Artifact 的正式状态，或 Runtime 控制平面。
 

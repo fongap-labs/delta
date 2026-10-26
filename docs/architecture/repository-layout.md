@@ -168,13 +168,15 @@ Anthropic-compatible
 
 ## `schemas/`
 
-JSON Schema 定义，用于跨进程合同数据结构的版本化验证。当前包括能力清单（`capability-manifest.schema.json`）、执行授权（`execution-grant.schema.json`）以及多轮研究记录（`study.schema.json`，ADR-0056）。
+JSON Schema 定义，用于跨进程合同数据结构的版本化验证。当前包括能力清单（`capability-manifest.schema.json`）、执行授权（`execution-grant.schema.json`）、多轮研究记录（`study.schema.json`，ADR-0056），以及分析结果、分析环境、方法包与绑定清单（ADR-0079、ADR-0080）。
 
 ## `packages/`
 
 只保存真正跨模块共享、职责明确的基础能力与迁移 bridge。不得成为 `common/` / `utils/` 式的收容目录。
 
 Python Worker 的唯一权威 SDK 是 `packages/delta_worker_sdk`（参见 [`capability-abi.md`](capability-abi.md) 第 19 节）。
+
+当前共享面是 `delta_worker_sdk`、JSON Manifest 与 `delta.result` 合同。以两个第一方仓库的规模，不单独维护 Python 合同包（ADR-0082）；若未来出现第三方扩展生态，再评估是否需要。
 
 ## `docs/`
 

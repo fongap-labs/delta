@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-/// A result file as `statistics_record` writes it.
+/// A version 1 result file as the legacy R engine wrote it.
 fn result_file(values: Value) -> Vec<u8> {
     let values: serde_json::Map<String, Value> = values
         .as_object()
@@ -12,6 +12,32 @@ fn result_file(values: Value) -> Vec<u8> {
         .map(|(key, value)| (key.clone(), json!({"value": value})))
         .collect();
     serde_json::to_vec(&json!({"format": "delta.result", "version": 1, "values": values})).unwrap()
+}
+
+/// A version 2 result file with an assurance level, as an analysis engine writes it.
+fn result_file_v2(assurance: &str, values: Value) -> Vec<u8> {
+    let values: serde_json::Map<String, Value> = values
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(key, value)| (key.clone(), json!({"value": value})))
+        .collect();
+    let environment_sha256 = "a".repeat(64);
+    serde_json::to_vec(&json!({
+        "format": "delta.result",
+        "version": 2,
+        "assurance": assurance,
+        "engine": {
+            "name": if assurance == "validated" { "r" } else { "python" },
+            "version": "test",
+            "environment_sha256": environment_sha256,
+        },
+        "method": {"id": "test.method", "version": "1.0.0"},
+        "inputs": [],
+        "parameters": {},
+        "values": values,
+    }))
+    .unwrap()
 }
 
 struct Files(RefCell<HashMap<String, Vec<u8>>>, RefCell<usize>);
@@ -330,6 +356,56 @@ fn a_formal_report_may_not_hold_a_number_outside_its_bindings() {
 }
 
 #[test]
+fn a_formal_report_refuses_an_exploratory_result_but_a_draft_accepts_it() {
+    let files = Files::new(&[(
+        "out/e.json",
+        result_file_v2("exploratory", json!({"n": 12.0})),
+    )]);
+    let rendered = render_ok("The sample held {{result:out/e.json#n|%.0f}} rows.", &files);
+    let formal = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(!formal.passed());
+    assert!(
+        formal
+            .problems
+            .iter()
+            .any(|problem| problem.contains("exploratory")),
+        "{:?}",
+        formal.problems
+    );
+    let draft = check(&rendered, &rendered.text, &files, false, &[]);
+    assert!(draft.passed(), "{:?}", draft.problems);
+}
+
+#[test]
+fn a_formal_report_accepts_a_validated_result() {
+    let files = Files::new(&[(
+        "out/v.json",
+        result_file_v2("validated", json!({"n": 12.0})),
+    )]);
+    let rendered = render_ok("The sample held {{result:out/v.json#n|%.0f}} rows.", &files);
+    let formal = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(formal.passed(), "{:?}", formal.problems);
+}
+
+#[test]
+fn a_version_1_result_is_still_accepted_as_legacy_in_a_formal_report() {
+    let files = Files::new(&[("out/v1.json", result_file(json!({"n": 12.0})))]);
+    let rendered = render_ok(
+        "The sample held {{result:out/v1.json#n|%.0f}} rows.",
+        &files,
+    );
+    let formal = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(formal.passed(), "{:?}", formal.problems);
+}
+
+#[test]
+fn an_unknown_assurance_level_is_refused() {
+    let files = Files::new(&[("out/x.json", result_file_v2("maybe", json!({"n": 12.0})))]);
+    let outcome = render_template("{{result:out/x.json#n|%.0f}}", &|path| files.read(path));
+    assert!(outcome.is_err(), "{outcome:?}");
+}
+
+#[test]
 fn an_allowed_pattern_covers_a_condition_a_date_or_a_section_reference() {
     let files = files();
     let rendered = render_ok("Stored at 25 °C / 60 % RH.\nSee section 3.2 on 2026-10-25 for {{result:out/t.json#n|%.0f}} samples.\n", &files);
@@ -618,9 +694,9 @@ fn the_render_tool_asks_first_and_the_check_tool_does_not() {
     }
 }
 
-// --- the data-analysis skill's claims about reports ------------------------------------------
+// --- report binding fixtures ---------------------------------------------------------------
 
-/// The result file the skill's template points at, as `statistics_record` flattens a t test.
+/// A t test result as an analysis engine flattens it into a result file.
 fn ttest_files() -> Files {
     Files::new(&[(
         "out/ttest.json",
@@ -630,34 +706,6 @@ fn ttest_files() -> Files {
             "conf_level": 0.95
         })),
     )])
-}
-
-/// The one Markdown block of the skill: its report template.
-fn skill_template() -> &'static str {
-    let skill = include_str!("../../skills/data-analysis/SKILL.md");
-    let start = skill
-        .find("```markdown\n")
-        .expect("the skill has a template")
-        + "```markdown\n".len();
-    let end = start
-        + skill[start..]
-            .find("\n```")
-            .expect("the template is closed");
-    &skill[start..end]
-}
-
-#[test]
-fn the_template_in_the_data_analysis_skill_renders_and_passes_a_formal_check() {
-    let files = ttest_files();
-    let rendered = render_ok(skill_template(), &files);
-    let outcome = check(&rendered, &rendered.text, &files, true, &[]);
-    assert!(
-        outcome.passed(),
-        "{:?} {:?}",
-        outcome.problems,
-        outcome.unbound
-    );
-    assert_eq!(outcome.bindings, 8);
 }
 
 #[test]

@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/analysis-result.schema.json",
+  "title": "Analysis result",
+  "description": "A result file written by an analysis engine (ADR-0079). Version 2 carries the assurance level, engine and environment, method identity, inputs and, for validated or attested results, the validation evidence. Version 1 result files remain readable as legacy but are not described by this schema.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "assurance",
+    "engine",
+    "method",
+    "inputs",
+    "parameters",
+    "values"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "delta.result"
+    },
+    "version": {
+      "const": 2
+    },
+    "assurance": {
+      "enum": [
+        "exploratory",
+        "validated",
+        "attested"
+      ]
+    },
+    "engine": {
+      "$ref": "#/definitions/engine"
+    },
+    "method": {
+      "$ref": "#/definitions/method"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/input"
+      }
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "values": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/value"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "validation": {
+      "$ref": "#/definitions/validation"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "assurance": {
+            "enum": [
+              "validated",
+              "attested"
+            ]
+          }
+        },
+        "required": [
+          "assurance"
+        ]
+      },
+      "then": {
+        "required": [
+          "validation"
+        ]
+      }
+    }
+  ],
+  "definitions": {
+    "engine": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "environment_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "python",
+            "r",
+            "external"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pack": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "value": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "report_id",
+        "scope",
+        "issued_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "report_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issued_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -171,62 +171,8 @@ install_rust_crates_system_packages() {
   sudo apt-get install -y libasound2-dev pkg-config
 }
 
-# The statistics tests and the statistics_describe tool compute only with R 4.6.0 (ADR-0054). The
-# release is built from the source tarball that scripts/fetch_external_vault.py downloads from the
-# external-vault GitHub Releases. Its SHA-256 is pinned in .github/external-vault-assets.json: a
-# download that does not match, or a missing pin, fails the job instead of testing with another R.
-# Building R from source only works on Linux; on other platforms the tests must provide R
-# 4.6.0 themselves (or skip the statistics tests).
-install_pinned_r() {
-  if [ "$(uname -s)" != "Linux" ]; then
-    echo "central-ci: skipping pinned R build on non-Linux platform ($(uname -s))" >&2
-    return 0
-  fi
-  local version="4.6.0"
-  local archive="R-${version}.tar.xz"
-  local prefix="/opt/R-${version}"
-  if [ -x "$prefix/bin/Rscript" ] && "$prefix/bin/Rscript" --version 2>&1 | grep -q "version ${version} "; then
-    export PATH="$prefix/bin:$PATH"
-    require_r_cairo "an existing R at $prefix"
-    return 0
-  fi
-
-  local workdir
-  workdir="$(mktemp -d)"
-  python3 scripts/fetch_external_vault.py --dest "$workdir" r-base >/dev/null || {
-    echo "central-ci: could not fetch a verified ${archive} from external-vault" >&2
-    exit 1
-  }
-  tar -C "$workdir" -xJf "$workdir/$archive"
-
-  # cairo, pango and fontconfig give R's png() device without X11; charts (chart_render) need it.
-  sudo apt-get install -y gfortran libicu-dev libpcre2-dev liblzma-dev libbz2-dev zlib1g-dev libcurl4-openssl-dev \
-    libcairo2-dev libpango1.0-dev libfontconfig1-dev libpng-dev libjpeg-dev libtiff-dev
-  (
-    cd "$workdir/R-${version}"
-    ./configure --prefix="$prefix" --without-x --with-cairo --without-readline --without-recommended-packages \
-      >configure.log 2>&1 || { tail -n 60 configure.log >&2; exit 1; }
-    make -j"$(nproc)" >make.log 2>&1 || { tail -n 80 make.log >&2; exit 1; }
-    sudo make install >install.log 2>&1 || { tail -n 40 install.log >&2; exit 1; }
-  )
-  export PATH="$prefix/bin:$PATH"
-  if ! Rscript --version 2>&1 | grep -q "version ${version} "; then
-    echo "central-ci: Rscript is not R ${version} after building it" >&2
-    exit 1
-  fi
-  require_r_cairo "the R built from ${archive}"
-}
-
-# chart_render draws PNG files with R's cairo device. An R without it is refused here, so the
-# statistics job cannot pass by skipping the chart test on a build that cannot draw.
-require_r_cairo() {
-  local source="$1"
-  if ! Rscript --vanilla -e 'cat(capabilities("cairo"))' 2>/dev/null | grep -qx TRUE; then
-    echo "central-ci: ${source} has no cairo support, so charts cannot be drawn" >&2
-    exit 1
-  fi
-}
-
+# Foundation no longer installs R: the R statistics and charts were removed in ADR-0081. R
+# belongs to the Delta Suite Validate Pack, which is validated in that repository's CI.
 # Building cargo-deny from source on every run took minutes. On Linux x86_64 the pinned upstream
 # release binary is installed instead, and it is used only if its SHA-256 matches. Any other
 # platform keeps building the same version from source.
@@ -422,9 +368,6 @@ if [ "$rust_required" = "true" ]; then
   fi
 
   if run_shard rust-crates; then
-    phase_begin rust-crates-r-toolchain
-    install_pinned_r
-    phase_end
     phase_begin rust-crates
     run_pool 2 run_rust_workspace \
       "crates/delta-core" \
