@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use super::{find_rscript, parse_dcf, run_rscript, sha256_hex};
 use crate::capability::{
@@ -218,44 +218,6 @@ for (i in seq_along(co)) {
       "p_value.", i, ": ", num(unname(row[4])), "\n", sep = "")
 }
 finish()
-"#;
-
-/// Arguments: seed, replicates, center points, randomize, then low and high of each factor. The
-/// design is the two-level full factorial: every corner, repeated `replicates` times, plus the
-/// center points. Factor values are coded -1 (low), +1 (high) and 0 (center).
-const DOE_SCRIPT: &str = r#"
-seed <- as.integer(args[2])
-replicates <- as.integer(args[3])
-centers <- as.integer(args[4])
-randomize <- args[5] == "true"
-limits <- as.numeric(args[6:length(args)])
-k <- length(limits) / 2
-low <- limits[seq(1, by = 2, length.out = k)]
-high <- limits[seq(2, by = 2, length.out = k)]
-corners <- as.matrix(expand.grid(rep(list(c(-1, 1)), k)))
-coded <- corners[rep(seq_len(nrow(corners)), replicates), , drop = FALSE]
-type <- rep("corner", nrow(coded))
-if (centers > 0) {
-  coded <- rbind(coded, matrix(0, nrow = centers, ncol = k))
-  type <- c(type, rep("center", centers))
-}
-standard <- seq_len(nrow(coded))
-if (randomize) {
-  set.seed(seed)
-  order <- sample(nrow(coded))
-} else {
-  order <- standard
-}
-cat("runs: ", num(nrow(coded)), "\n", sep = "")
-for (position in seq_along(order)) {
-  i <- order[position]
-  centre <- (low + high) / 2
-  actual <- centre + coded[i, ] * (high - low) / 2
-  cat("run.", position, ": ", i, "|", type[i], "|",
-      paste(num(coded[i, ]), collapse = "|"), "|",
-      paste(num(actual), collapse = "|"), "\n", sep = "")
-}
-cat("r_version: ", paste(R.version$major, R.version$minor, sep = "."), "\n", sep = "")
 "#;
 
 /// The registrations of every method in this module.
@@ -988,173 +950,8 @@ fn shape_regression(
     }))
 }
 
-// --- two-level factorial design ---------------------------------------------------------
-
-static DOE: Method = Method {
-    name: "doe_full_factorial",
-    script: DOE_SCRIPT,
-    reads_input: false,
-    prepare: prepare_doe,
-    shape: shape_doe,
-};
-
-fn doe_registration() -> CapabilityRegistration {
-    registration(
-        "statistics.doe",
-        "statistics_doe",
-        "Generate a two-level full factorial design: every combination of each factor's low and \
-         high level, optionally repeated and with center points, in a random run order that the \
-         seed reproduces. Returns each run with its standard order, run order, coded values \
-         (-1, +1, 0) and actual values, computed by R. Run the experiment in `run_order`, enter \
-         the responses in a CSV file with the coded columns, and analyse it with \
-         statistics_regression using interactions. Fractional designs are not offered.",
-        json!({
-            "type": "object", "required": ["factors"],
-            "properties": {
-                "factors": {
-                    "type": "array", "description": "2 to 8 factors.",
-                    "items": {
-                        "type": "object", "required": ["name", "low", "high"],
-                        "properties": {
-                            "name": {"type": "string"},
-                            "low": {"type": "number"},
-                            "high": {"type": "number"}
-                        }
-                    }
-                },
-                "replicates": {"type": "integer", "description": "How many times every corner is run, 1 to 10. Default 1."},
-                "center_points": {"type": "integer", "description": "Extra runs at the middle of every factor, 0 to 10. Default 0."},
-                "randomize": {"type": "boolean", "description": "Randomize the run order. Default true."},
-                "seed": {"type": "integer", "description": "Seed of the randomization. Chosen and returned when omitted."}
-            }
-        }),
-        &DOE,
-    )
-}
-
-fn prepare_doe(arguments: &Value) -> Result<Prepared, String> {
-    let list = arguments
-        .get("factors")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "factors is required: a list of {name, low, high}".to_owned())?;
-    if !(2..=MAX_FACTORS).contains(&list.len()) {
-        return Err(format!("factors needs between 2 and {MAX_FACTORS} entries"));
-    }
-    let mut names: Vec<String> = Vec::with_capacity(list.len());
-    let mut limits = Vec::with_capacity(list.len() * 2);
-    let mut factors = Vec::with_capacity(list.len());
-    for factor in list {
-        let name = factor
-            .get("name")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|name| !name.is_empty() && name.chars().count() <= 64)
-            .ok_or_else(|| "every factor needs a name of 1 to 64 characters".to_owned())?;
-        if names.iter().any(|seen| seen == name) {
-            return Err(format!("the factor {name} appears twice"));
-        }
-        let low = real(factor, "low", f64::NAN)
-            .ok()
-            .filter(|value| value.is_finite())
-            .ok_or_else(|| format!("the factor {name} needs a numeric low level"))?;
-        let high = real(factor, "high", f64::NAN)
-            .ok()
-            .filter(|value| value.is_finite())
-            .ok_or_else(|| format!("the factor {name} needs a numeric high level"))?;
-        if low >= high {
-            return Err(format!("the factor {name} needs low below high"));
-        }
-        names.push(name.to_owned());
-        limits.push(low.to_string());
-        limits.push(high.to_string());
-        factors.push(json!({"name": name, "low": low, "high": high}));
-    }
-    let replicates = whole_number(arguments, "replicates", 1, (1, MAX_REPLICATES))?;
-    let center_points = whole_number(arguments, "center_points", 0, (0, MAX_CENTER_POINTS))?;
-    let randomize = flag(arguments, "randomize", true)?;
-    let seed = match arguments.get("seed") {
-        None | Some(Value::Null) => seed_from_clock(),
-        Some(_) => whole_number(arguments, "seed", 0, (0, i32::MAX as u64))?,
-    };
-    let runs = (1u64 << names.len()) * replicates + center_points;
-    if runs > MAX_DESIGN_RUNS as u64 {
-        return Err(format!(
-            "this design has {runs} runs; the most is {MAX_DESIGN_RUNS}"
-        ));
-    }
-    let mut r_args = vec![
-        seed.to_string(),
-        replicates.to_string(),
-        center_points.to_string(),
-        randomize.to_string(),
-    ];
-    r_args.extend(limits);
-    Ok(Prepared {
-        r_args,
-        parameters: json!({
-            "factors": factors, "replicates": replicates, "center_points": center_points,
-            "randomize": randomize, "seed": seed,
-        }),
-        names,
-    })
-}
-
-/// A seed for a design the caller did not give one. It is returned with the design.
-fn seed_from_clock() -> u64 {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.subsec_nanos() as u64 ^ elapsed.as_secs())
-        .unwrap_or(1);
-    nanos % (i32::MAX as u64)
-}
-
-fn shape_doe(values: &BTreeMap<String, String>, prepared: &Prepared) -> Result<Value, String> {
-    let runs = count(values, "runs")?;
-    let width = prepared.names.len();
-    let mut table = Vec::with_capacity(runs);
-    for position in 1..=runs {
-        let line = values
-            .get(&format!("run.{position}"))
-            .ok_or_else(|| format!("R did not report run.{position}"))?;
-        let fields: Vec<&str> = line.split('|').collect();
-        if fields.len() != 2 + width * 2 {
-            return Err(format!("R reported a malformed run: {line}"));
-        }
-        let standard: u64 = fields[0]
-            .parse()
-            .map_err(|_| format!("R reported a malformed run: {line}"))?;
-        let number = |field: &str| -> Result<f64, String> {
-            field
-                .parse::<f64>()
-                .map_err(|_| format!("R reported a malformed run: {line}"))
-        };
-        let coded = fields[2..2 + width]
-            .iter()
-            .map(|field| number(field))
-            .collect::<Result<Vec<_>, _>>()?;
-        let actual = fields[2 + width..]
-            .iter()
-            .map(|field| number(field))
-            .collect::<Result<Vec<_>, _>>()?;
-        table.push(json!({
-            "run_order": position,
-            "standard_order": standard,
-            "point_type": fields[1],
-            "coded": coded,
-            "actual": actual,
-        }));
-    }
-    let mut result = Map::new();
-    result.insert("factors".to_owned(), json!(prepared.names));
-    result.insert("runs".to_owned(), Value::Array(table));
-    result.insert("seed".to_owned(), prepared.parameters["seed"].clone());
-    result.insert(
-        "randomized".to_owned(),
-        prepared.parameters["randomize"].clone(),
-    );
-    Ok(Value::Object(result))
-}
-
+mod design;
+use design::doe_registration;
 mod record;
 
 #[cfg(test)]

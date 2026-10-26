@@ -1,3 +1,4 @@
+use super::design::{prepare_doe, DOE};
 use super::*;
 
 /// 12 rows. The expected figures below were computed independently with SciPy 1.18 and
