@@ -13,6 +13,7 @@ use std::time::Duration;
 use serde_json::{json, Value};
 
 use crate::application::ApplicationStore;
+use crate::approval::ApprovalRecordInput;
 use crate::automation::AutomationStore;
 use crate::capability::{CapabilityHost, CapabilityRegistration};
 use crate::control_plane;
@@ -21,6 +22,7 @@ use crate::mcp::McpStore;
 use crate::mcp_runtime::McpRuntime;
 use crate::memory::MemoryStore;
 use crate::model_authority::ModelAuthority;
+use crate::policy::RiskLevel;
 use crate::policy::{ExecutionMode, ToolMetadata};
 use crate::runtime::{
     EventSink, RecoveryReport, RuntimeAuthorities, RuntimeConfig, RuntimeHandle, RuntimeHost,
@@ -269,6 +271,10 @@ impl CoreControlPlane {
         if !registration.is_local_statistics() {
             return json!({"ok": false, "error": format!("{tool_name} is not a local statistics tool")});
         }
+        // Fail closed: a run that cannot be written to the audit log does not start.
+        if let Err(error) = self.audit_statistics_run(tool_name, &arguments, workspace) {
+            return json!({"ok": false, "error": format!("audit log unavailable: {error}")});
+        }
         let call = ToolCall {
             id: uuid::Uuid::new_v4().to_string(),
             name: tool_name.to_string(),
@@ -289,6 +295,48 @@ impl CoreControlPlane {
             Some(error) => json!({"ok": false, "error": error, "result": result.output}),
             None => result.output,
         }
+    }
+
+    /// Writes the start of a product-run statistics call to the audit log, where the Activity view
+    /// lists it with the approvals and tool calls of the model path.
+    fn audit_statistics_run(
+        &self,
+        tool_name: &str,
+        arguments: &Value,
+        workspace: &str,
+    ) -> Result<(), String> {
+        let mut writer = ApprovalWriter::open(
+            self.state_dir
+                .join("audit_events.db")
+                .to_string_lossy()
+                .as_ref(),
+        )
+        .map_err(|error| error.to_string())?;
+        let ts = crate::runtime::now_ts();
+        writer
+            .record(
+                ApprovalRecordInput {
+                    session_id: "__statistics__".to_string(),
+                    agent: Some("delta".to_string()),
+                    workspace: Some(workspace.to_string()),
+                    connector: None,
+                    tool: tool_name.to_string(),
+                    stage: "execute".to_string(),
+                    status: Some("started".to_string()),
+                    approval: None,
+                    arguments: Some(arguments.clone()),
+                    result_preview: None,
+                    reason: Some("statistics run without a model turn".to_string()),
+                    resource: None,
+                    level: Some(format!("{:?}", RiskLevel::L0)),
+                    isolation: Some("runtime".to_string()),
+                    ts: Some(ts),
+                },
+                ts,
+                workspace,
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
     }
 
     pub fn memory(&self) -> &Arc<MemoryStore> {
@@ -1535,6 +1583,22 @@ mod statistics_run_tests {
             .as_str()
             .unwrap()
             .contains("workspace"));
+    }
+
+    #[test]
+    fn a_statistics_run_is_written_to_the_audit_log_before_it_starts() {
+        let (state, plane) = open_plane();
+        let workspace = state.path().to_string_lossy().to_string();
+        plane.run_statistics_tool(
+            "statistics_f2",
+            json!({"path": "missing.csv", "reference": "r", "test": "t"}),
+            &workspace,
+        );
+        let listed = plane.audit_list(Some(10), None, None, Some("statistics_f2"));
+        let events = listed["events"].as_array().unwrap();
+        assert!(!events.is_empty(), "{listed}");
+        assert_eq!(events[0]["tool"], "statistics_f2");
+        assert_eq!(events[0]["status"], "started");
     }
 
     /// Runs f2 from the product path on a workspace file. Needs the pinned R, so it returns early

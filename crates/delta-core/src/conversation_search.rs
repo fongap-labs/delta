@@ -493,6 +493,20 @@ mod tests {
         assert_eq!(hits(&short), ["s1", "s1"], "both messages mention it");
     }
 
+    /// Budget (ADR-0077): however many hits match and whatever limit is asked for, one search
+    /// returns at most `MAX_LIMIT` hits, so the output size stays bounded.
+    #[test]
+    fn the_hit_count_is_capped_whatever_limit_is_asked() {
+        let state = state_with_sessions(&[("s1", "/w", "t")]);
+        let lines: Vec<String> = (0..30)
+            .map(|index| format!(r#"{{"role":"user","content":"budget line {index}"}}"#))
+            .collect();
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        write_lines(state.path(), "s1", &refs);
+        let found = search(state.path(), "/w", "budget", 10_000).unwrap();
+        assert_eq!(hits(&found).len(), MAX_LIMIT);
+    }
+
     #[test]
     fn short_words_match_by_substring_and_snippets_keep_the_match() {
         let state = state_with_sessions(&[("s1", "/w", "t")]);
