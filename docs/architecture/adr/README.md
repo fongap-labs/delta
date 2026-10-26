@@ -37,6 +37,8 @@
 | [0076](0076-skill-deterministic-evaluation.md) | 内置 Skill 的确定性评估（已接受） |
 | [0077](0077-performance-budgets.md) | 关键路径性能预算与门禁（已接受，方案 C） |
 | [0078](0078-statistics-without-model.md) | 统计工具无需 AI 网关即可运行，并新增 f2（已接受） |
+| [0079](0079-analysis-assurance-and-report-gate.md) | 分析保证等级与报告门禁（已接受） |
+| [0080](0080-analysis-runtime-packs.md) | 分析运行时包：Explore Pack 与 Validate Pack（已接受） |
 
 ## 代码中引用但本仓库未保存的编号
 

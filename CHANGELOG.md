@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 分析结果新增 `exploratory`、`validated` 与 `attested` 三档保证等级，并新增对应的结果 v2 合同、分析环境、方法包与绑定清单 Schema；正式报告只接受 `validated` / `attested` 结果，探索性结果只能进入草稿。决定见 ADR-0079 与 ADR-0080。
+- 新增 Explore Pack 与 Validate Pack 的运行时边界：Foundation 的探索性分析默认使用受控 Python 运行时，Suite 的可报告方法使用固定 R 4.6.0 与版本化方法包；两者都通过签名、锁文件与环境摘要校验。
+
+### 变更
+
+- `report_check` 的正式模式会检查被绑定结果文件的保证等级：显式标记为 `exploratory` 的结果失败，`validated` / `attested` 通过；没有该字段的 v1 结果按 legacy 继续接受，供迁移使用。
+
 ## [0.1.1-beta.2](https://github.com/fongap-labs/delta/releases/tag/delta-v0.1.1-beta.2) - 2026-10-26
 
 ### 新增

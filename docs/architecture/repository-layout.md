@@ -168,7 +168,7 @@ Anthropic-compatible
 
 ## `schemas/`
 
-JSON Schema 定义，用于跨进程合同数据结构的版本化验证。当前包括能力清单（`capability-manifest.schema.json`）、执行授权（`execution-grant.schema.json`）以及多轮研究记录（`study.schema.json`，ADR-0056）。
+JSON Schema 定义，用于跨进程合同数据结构的版本化验证。当前包括能力清单（`capability-manifest.schema.json`）、执行授权（`execution-grant.schema.json`）、多轮研究记录（`study.schema.json`，ADR-0056），以及分析结果、分析环境、方法包与绑定清单（ADR-0079、ADR-0080）。
 
 ## `packages/`
 

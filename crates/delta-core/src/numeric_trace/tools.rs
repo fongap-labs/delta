@@ -177,7 +177,10 @@ fn check_registration() -> CapabilityRegistration {
             value rounded to the declared format, and must sit where the manifest says. A formal \
             report (the default) may also contain no other number, except in headings and numbered \
             lists and where one of the `allow` regular expressions covers it (for example a date \
-            or 25 °C / 60 % RH). Returns whether it passed and every problem found."
+            or 25 °C / 60 % RH). In a formal report every bound result must also be validated or \
+            attested (ADR-0079); an exploratory result fails, and a version 1 result without an \
+            assurance level is accepted as legacy. Returns whether it passed and every problem \
+            found."
             .to_owned(),
         parameters: json!({
             "type": "object", "required": ["report_path"],

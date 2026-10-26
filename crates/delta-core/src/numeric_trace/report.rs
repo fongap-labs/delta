@@ -73,21 +73,44 @@ impl Rendered {
     }
 }
 
-/// The number under `key` in a result file, and the file's SHA-256.
+/// The assurance level a result file declares (ADR-0079). Version 1 result files written before
+/// the levels existed have no field and are treated as legacy, so existing reports keep checking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Assurance {
+    Exploratory,
+    Validated,
+    Attested,
+    Legacy,
+}
+
+impl Assurance {
+    fn of(result: &Value) -> Result<Self, String> {
+        match result.get("assurance").and_then(Value::as_str) {
+            Some("exploratory") => Ok(Self::Exploratory),
+            Some("validated") => Ok(Self::Validated),
+            Some("attested") => Ok(Self::Attested),
+            Some(other) => Err(format!("unknown assurance level: {other}")),
+            None => Ok(Self::Legacy),
+        }
+    }
+}
+
+/// The number under `key` in a result file, the file's SHA-256 and its assurance level.
 fn load_value(
-    cache: &mut HashMap<String, Result<(String, Value), String>>,
+    cache: &mut HashMap<String, Result<(String, Value, Assurance), String>>,
     read: Reader<'_>,
     artifact: &str,
     key: &str,
-) -> Result<(String, f64), String> {
+) -> Result<(String, f64, Assurance), String> {
     let loaded = cache.entry(artifact.to_owned()).or_insert_with(|| {
         let bytes = read(artifact)?;
         let sha256 = format!("{:x}", Sha256::digest(&bytes));
         let value: Value = serde_json::from_slice(&bytes)
             .map_err(|_| format!("{artifact} is not a JSON result file"))?;
-        Ok((sha256, value))
+        let assurance = Assurance::of(&value)?;
+        Ok((sha256, value, assurance))
     });
-    let (sha256, value) = loaded.as_ref().map_err(|error| error.clone())?;
+    let (sha256, value, assurance) = loaded.as_ref().map_err(|error| error.clone())?;
     let number = value
         .get("values")
         .and_then(|values| values.get(key))
@@ -97,7 +120,7 @@ fn load_value(
     if !number.is_finite() {
         return Err(format!("{artifact}: {key} is not a finite number"));
     }
-    Ok((sha256.clone(), number))
+    Ok((sha256.clone(), number, *assurance))
 }
 
 /// The heading text of the closest heading before `at` in `text`.
@@ -138,9 +161,9 @@ pub fn render_template(template: &str, read: Reader<'_>) -> Result<Rendered, Vec
             .rsplit_once('|')
             .map(|(_, format)| format.trim_end_matches(CLOSE).trim().to_owned())
             .unwrap_or_default();
-        match load_value(&mut cache, read, &binding.path, &binding.key).and_then(|(sha256, raw)| {
-            render(raw, binding.format).map(|rendered| (sha256, raw, rendered))
-        }) {
+        match load_value(&mut cache, read, &binding.path, &binding.key).and_then(
+            |(sha256, raw, _)| render(raw, binding.format).map(|rendered| (sha256, raw, rendered)),
+        ) {
             Ok((sha256, raw, rendered)) => {
                 let offset = text.chars().count();
                 let section = section_at(&text, text.len());
@@ -254,6 +277,7 @@ pub fn check_report(
     let mut cache = HashMap::new();
     let mut spans: Vec<(usize, usize)> = Vec::new();
     let mut seen_artifacts = std::collections::HashSet::new();
+    let mut rejected_exploratory = std::collections::HashSet::new();
     let mut last_end = 0usize;
     for (index, entry) in entries.iter().enumerate() {
         let at = format!("binding {}", index + 1);
@@ -285,7 +309,7 @@ pub fn check_report(
             Err(error) => check
                 .problems
                 .push(format!("{at} ({artifact}#{key}): {error}")),
-            Ok((current_sha, current)) => {
+            Ok((current_sha, current, assurance)) => {
                 if current_sha != sha256 {
                     check.problems.push(format!(
                         "{at} ({artifact}#{key}): the result file has changed since the report was rendered"
@@ -293,6 +317,14 @@ pub fn check_report(
                 } else if current != raw {
                     check.problems.push(format!(
                         "{at} ({artifact}#{key}): the file holds {current}, the manifest says {raw}"
+                    ));
+                }
+                if is_formal
+                    && assurance == Assurance::Exploratory
+                    && rejected_exploratory.insert(artifact.to_owned())
+                {
+                    check.problems.push(format!(
+                        "{at} ({artifact}#{key}): the result is exploratory and cannot be used in a formal report (ADR-0079)"
                     ));
                 }
             }

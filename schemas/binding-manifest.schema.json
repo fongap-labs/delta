@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/binding-manifest.schema.json",
+  "title": "Binding manifest",
+  "description": "The manifest written beside a rendered report. It records, for every bound number, the result file and SHA-256, the key, the raw value, the rendered text and its position. The report gate reads the result files' assurance level (ADR-0079).",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "report",
+    "template",
+    "bindings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "delta.binding-manifest"
+    },
+    "version": {
+      "const": 1
+    },
+    "report": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/binding"
+      }
+    }
+  },
+  "definitions": {
+    "binding": {
+      "type": "object",
+      "required": [
+        "artifact",
+        "sha256",
+        "key",
+        "format",
+        "raw",
+        "rendered",
+        "offset"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "format": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "number"
+        },
+        "rendered": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "section": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

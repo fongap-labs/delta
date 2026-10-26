@@ -14,6 +14,32 @@ fn result_file(values: Value) -> Vec<u8> {
     serde_json::to_vec(&json!({"format": "delta.result", "version": 1, "values": values})).unwrap()
 }
 
+/// A version 2 result file with an assurance level, as an analysis engine writes it.
+fn result_file_v2(assurance: &str, values: Value) -> Vec<u8> {
+    let values: serde_json::Map<String, Value> = values
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(key, value)| (key.clone(), json!({"value": value})))
+        .collect();
+    let environment_sha256 = "a".repeat(64);
+    serde_json::to_vec(&json!({
+        "format": "delta.result",
+        "version": 2,
+        "assurance": assurance,
+        "engine": {
+            "name": if assurance == "validated" { "r" } else { "python" },
+            "version": "test",
+            "environment_sha256": environment_sha256,
+        },
+        "method": {"id": "test.method", "version": "1.0.0"},
+        "inputs": [],
+        "parameters": {},
+        "values": values,
+    }))
+    .unwrap()
+}
+
 struct Files(RefCell<HashMap<String, Vec<u8>>>, RefCell<usize>);
 
 impl Files {
@@ -327,6 +353,56 @@ fn a_formal_report_may_not_hold_a_number_outside_its_bindings() {
         [("24", 3), ("3", 4), ("2026", 4), ("10", 4), ("25", 4)]
     );
     assert!(!outcome.passed());
+}
+
+#[test]
+fn a_formal_report_refuses_an_exploratory_result_but_a_draft_accepts_it() {
+    let files = Files::new(&[(
+        "out/e.json",
+        result_file_v2("exploratory", json!({"n": 12.0})),
+    )]);
+    let rendered = render_ok("The sample held {{result:out/e.json#n|%.0f}} rows.", &files);
+    let formal = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(!formal.passed());
+    assert!(
+        formal
+            .problems
+            .iter()
+            .any(|problem| problem.contains("exploratory")),
+        "{:?}",
+        formal.problems
+    );
+    let draft = check(&rendered, &rendered.text, &files, false, &[]);
+    assert!(draft.passed(), "{:?}", draft.problems);
+}
+
+#[test]
+fn a_formal_report_accepts_a_validated_result() {
+    let files = Files::new(&[(
+        "out/v.json",
+        result_file_v2("validated", json!({"n": 12.0})),
+    )]);
+    let rendered = render_ok("The sample held {{result:out/v.json#n|%.0f}} rows.", &files);
+    let formal = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(formal.passed(), "{:?}", formal.problems);
+}
+
+#[test]
+fn a_version_1_result_is_still_accepted_as_legacy_in_a_formal_report() {
+    let files = Files::new(&[("out/v1.json", result_file(json!({"n": 12.0})))]);
+    let rendered = render_ok(
+        "The sample held {{result:out/v1.json#n|%.0f}} rows.",
+        &files,
+    );
+    let formal = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(formal.passed(), "{:?}", formal.problems);
+}
+
+#[test]
+fn an_unknown_assurance_level_is_refused() {
+    let files = Files::new(&[("out/x.json", result_file_v2("maybe", json!({"n": 12.0})))]);
+    let outcome = render_template("{{result:out/x.json#n|%.0f}}", &|path| files.read(path));
+    assert!(outcome.is_err(), "{outcome:?}");
 }
 
 #[test]
