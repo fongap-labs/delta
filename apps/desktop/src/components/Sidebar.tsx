@@ -130,6 +130,8 @@ interface Props {
   onOpenAutomation: (id: string) => void;
   onOpenIntegrations: () => void;
   onOpenAudit: () => void;
+  onOpenStatistics?: () => void;
+  statisticsActive?: boolean;
   onOpenInbox: () => void;
   scheduledActive: boolean;
   integrationsActive: boolean;
@@ -411,6 +413,9 @@ export function Sidebar(props: Props) {
         )}
         <SidebarToolIcon icon="inbox" label={t("nav.inbox", undefined, "Inbox")} active={props.inboxActive} onClick={props.onOpenInbox} badge={totalAttention || null} badgeTitle={totalAttention ? t("nav.inboxItemsNeedYou", { n: totalAttention }, `Inbox — ${totalAttention} items need you`) : undefined} testid="sidebar-footer-inbox" />
         <SidebarToolIcon icon="audit" label={t("nav.activity", undefined, "Activity")} active={props.auditActive} onClick={props.onOpenAudit} testid="sidebar-footer-activity" />
+        {props.onOpenStatistics && (
+          <SidebarToolIcon icon="table" label={t("nav.statistics", undefined, "Statistics")} active={props.statisticsActive} onClick={props.onOpenStatistics} testid="sidebar-footer-statistics" />
+        )}
         <SidebarToolIcon icon="plug" label={t("nav.integrations", undefined, "Connectors")} active={props.integrationsActive} onClick={props.onOpenIntegrations} testid="sidebar-footer-integrations" />
         <SidebarToolIcon icon="gear" label={t("nav.settings", undefined, "Settings")} onClick={props.onManage} testid="sidebar-footer-settings" />
       </div>

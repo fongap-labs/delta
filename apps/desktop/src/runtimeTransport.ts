@@ -384,6 +384,22 @@ export async function directSessionMessages(sessionId: string): Promise<unknown>
   }
 }
 
+export async function directStatisticsTools(): Promise<unknown> {
+  try {
+    return await invoke("statistics_tools");
+  } catch (e) {
+    return { tools: [], error: String(e) };
+  }
+}
+
+export async function directStatisticsRun(tool: string, args: Record<string, unknown>, workspace: string): Promise<unknown> {
+  try {
+    return await invoke("statistics_run", { tool, arguments: args, workspace });
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export async function directSearchConversations(workspace: string, query: string): Promise<unknown> {
   try {
     return await invoke("conversations_search", { workspace, query });

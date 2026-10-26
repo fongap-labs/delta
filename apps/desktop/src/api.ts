@@ -65,6 +65,8 @@ import {
   directSessionDelete,
   directSessionMessages,
   directSearchConversations,
+  directStatisticsRun,
+  directStatisticsTools,
   addSessionRoot,
   directSessionRename,
   deleteSessionRoot,
@@ -612,6 +614,36 @@ export interface ConversationHit {
   line: number;
   role: string;
   snippet: string;
+}
+
+// A statistics tool that runs without a model (ADR-0078). `parameters` is its JSON Schema.
+export interface StatisticsTool {
+  name: string;
+  description: string;
+  parameters: {
+    type?: string;
+    required?: string[];
+    properties?: Record<string, { type?: string; description?: string; enum?: string[]; default?: unknown }>;
+  };
+}
+
+export async function listStatisticsTools(): Promise<StatisticsTool[]> {
+  const out = (await directStatisticsTools()) as { tools?: unknown[] };
+  return ((out.tools ?? []) as Array<{ function?: { name: string; description: string; parameters: StatisticsTool["parameters"] } }>)
+    .filter((tool) => tool.function)
+    .map((tool) => ({
+      name: tool.function!.name,
+      description: tool.function!.description,
+      parameters: tool.function!.parameters,
+    }));
+}
+
+export async function runStatisticsTool(
+  tool: string,
+  args: Record<string, unknown>,
+  workspace: string,
+): Promise<{ ok?: boolean; error?: string; [key: string]: unknown }> {
+  return (await directStatisticsRun(tool, args, workspace)) as { ok?: boolean; error?: string; [key: string]: unknown };
 }
 
 export async function searchConversations(workspace: string, query: string): Promise<ConversationHit[]> {
