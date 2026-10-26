@@ -172,8 +172,9 @@ install_rust_crates_system_packages() {
 }
 
 # The statistics tests and the statistics_describe tool compute only with R 4.6.0 (ADR-0054). The
-# release is built from the CRAN source tarball, whose SHA-256 is pinned below: a download that
-# does not match, or an empty pin, fails the job instead of testing with another R.
+# release is built from the source tarball that scripts/fetch_external_vault.py downloads from the
+# external-vault GitHub Releases. Its SHA-256 is pinned in .github/external-vault-assets.json: a
+# download that does not match, or a missing pin, fails the job instead of testing with another R.
 # Building R from source only works on Linux; on other platforms the tests must provide R
 # 4.6.0 themselves (or skip the statistics tests).
 install_pinned_r() {
@@ -183,24 +184,17 @@ install_pinned_r() {
   fi
   local version="4.6.0"
   local archive="R-${version}.tar.xz"
-  local url="https://cran.r-project.org/src/base/R-4/${archive}"
-  local sha256="91f2b3693fa5252cdea9b62abc84a1c58db5547cb9f0fe3d15f44eef8aff5a27"
   local prefix="/opt/R-${version}"
   if [ -x "$prefix/bin/Rscript" ] && "$prefix/bin/Rscript" --version 2>&1 | grep -q "version ${version} "; then
     export PATH="$prefix/bin:$PATH"
     require_r_cairo "an existing R at $prefix"
     return 0
   fi
-  if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
-    echo "central-ci: the SHA-256 of ${archive} is not pinned" >&2
-    exit 1
-  fi
 
   local workdir
   workdir="$(mktemp -d)"
-  curl -fsSL -o "$workdir/$archive" "$url"
-  echo "${sha256}  $workdir/$archive" | sha256sum -c - >/dev/null || {
-    echo "central-ci: ${archive} does not match the pinned SHA-256" >&2
+  python3 scripts/fetch_external_vault.py --dest "$workdir" r-base >/dev/null || {
+    echo "central-ci: could not fetch a verified ${archive} from external-vault" >&2
     exit 1
   }
   tar -C "$workdir" -xJf "$workdir/$archive"
