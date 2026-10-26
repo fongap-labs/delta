@@ -30,6 +30,7 @@
 | [0069](0069-web-reading-and-search.md) | 网页读取与搜索的改进（Markdown 正文、续读与链接、网上文档、时间与站点过滤） |
 | [0070](0070-chart-engine-r-base-graphics.md) | 图表由 R 基础绘图生成（复用固定版本 R，不引入 Python；已接受） |
 | [0071](0071-doe-designs-and-foundation-suite-split.md) | 试验设计补齐在基础版，行业专用设计放 Suite（已接受） |
+| [0072](0072-suite-first-batch.md) | Suite 首批：稳定性货架期、溶出 f2 与报告模板；参数策略（已接受） |
 
 ## 代码中引用但本仓库未保存的编号
 
