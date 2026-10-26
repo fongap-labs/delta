@@ -30,7 +30,7 @@ capabilities: ["file.read", "statistics.ttest", "statistics.anova", "statistics.
 | 两个分类变量是否有关 | statistics_chisq |
 | 两个数值列是否相关 | statistics_correlation，method 为 pearson、spearman 或 kendall |
 | 一个结果由多个数值列解释 | statistics_regression，predictors 为 1 到 8 列，需要时开 interactions |
-| 设计两水平析因试验 | statistics_doe；做完试验、填好响应列后用 statistics_regression 分析 |
+| 规划试验（析因、部分析因、响应面、最优设计） | statistics_doe：design 为 full（全因子）、fractional（部分析因，需 generators）、central_composite 或 box_behnken（响应面）、d_optimal（按模型选最优点，需 runs）；做完试验、填好响应列后用 statistics_regression 分析，含交互项时开 interactions |
 | 只想看一列的概况 | statistics_describe（只在对话里用，见下面"不能绑定的数字"） |
 | 画分布、比较、相关或趋势的图 | chart_render：histogram（一列分布）、boxplot 或 bar（按组比较）、scatter（两列相关，可用 fit 画回归线）、line（日期或有序列的趋势）；图片保存为工作区内的 `.png` |
 
