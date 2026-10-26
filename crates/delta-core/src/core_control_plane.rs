@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 use crate::application::ApplicationStore;
 use crate::automation::AutomationStore;
-use crate::capability::CapabilityHost;
+use crate::capability::{CapabilityHost, CapabilityRegistration};
 use crate::control_plane;
 use crate::extension_manifest::load_worker_manifests;
 use crate::mcp::McpStore;
@@ -28,6 +28,12 @@ use crate::runtime::{
 };
 use crate::skills::SkillStore;
 use crate::{ApprovalWriter, SourceCitationReader, ValidationReader, DELTA_AGENT};
+
+/// Hits shown by the desktop search box; the model's tool asks for its own limit.
+const SEARCH_HIT_LIMIT: usize = 12;
+
+/// Upper bound for a statistics run started from the product; R's own limit is shorter.
+const STATISTICS_TIMEOUT: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Clone)]
 pub struct RuntimeStartRequest {
@@ -242,6 +248,47 @@ impl CoreControlPlane {
             });
         }
         result.output
+    }
+
+    /// The statistics tools a product surface can run without a model turn.
+    pub fn statistics_tools(&self) -> Value {
+        self.capabilities
+            .tool_schemas_filtered(CapabilityRegistration::is_local_statistics)
+    }
+
+    /// Runs one local statistics tool directly, so the calculators work with no AI gateway
+    /// configured. Only read-only statistics tools are accepted (see `is_local_statistics`), and
+    /// the call still goes through the capability host, so the execution gate applies.
+    pub fn run_statistics_tool(&self, tool_name: &str, arguments: Value, workspace: &str) -> Value {
+        if workspace.trim().is_empty() {
+            return json!({"ok": false, "error": "a workspace is needed to read the data file"});
+        }
+        let Some(registration) = self.capabilities.registration(tool_name) else {
+            return json!({"ok": false, "error": format!("unknown statistics tool: {tool_name}")});
+        };
+        if !registration.is_local_statistics() {
+            return json!({"ok": false, "error": format!("{tool_name} is not a local statistics tool")});
+        }
+        let call = ToolCall {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: tool_name.to_string(),
+            arguments,
+        };
+        let context = ToolExecutionContext {
+            session_id: "__statistics__".to_string(),
+            run_id: format!("statistics-{}", uuid::Uuid::new_v4()),
+            workspace: Some(workspace.to_string()),
+            timeout: STATISTICS_TIMEOUT,
+            cancel: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(|_| {}),
+            secrets: BTreeMap::new(),
+            proxy: None,
+        };
+        let result = self.capabilities.execute(&call, &context);
+        match result.error {
+            Some(error) => json!({"ok": false, "error": error, "result": result.output}),
+            None => result.output,
+        }
     }
 
     pub fn memory(&self) -> &Arc<MemoryStore> {
@@ -1075,6 +1122,11 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    /// Full-text search over the conversations of one workspace, for the desktop search box.
+    pub fn search_conversations(&self, workspace: &str, query: &str) -> Result<Value, String> {
+        crate::conversation_search::search(&self.state_dir, workspace, query, SEARCH_HIT_LIMIT)
+    }
+
     pub fn rename_session(&self, session_id: &str, title: &str) -> Result<Value, String> {
         control_plane::rename_session(&self.state_dir, session_id, title)
             .map_err(|error| error.to_string())
@@ -1426,4 +1478,85 @@ pub fn default_state_dir() -> PathBuf {
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".config").join("delta")
+}
+
+#[cfg(test)]
+mod statistics_run_tests {
+    use super::*;
+
+    fn open_plane() -> (tempfile::TempDir, CoreControlPlane) {
+        let state = tempfile::tempdir().unwrap();
+        let plane = CoreControlPlane::open(state.path()).unwrap();
+        (state, plane)
+    }
+
+    fn names(schemas: &Value) -> Vec<String> {
+        schemas
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|schema| schema["function"]["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn only_read_only_statistics_tools_are_listed() {
+        let (_state, plane) = open_plane();
+        let listed = names(&plane.statistics_tools());
+        assert!(listed.iter().any(|name| name == "statistics_f2"));
+        assert!(listed.iter().any(|name| name == "statistics_ancova"));
+        assert!(!listed.iter().any(|name| name == "statistics_record"));
+        assert!(!listed.iter().any(|name| name == "chart_render"));
+        assert!(!listed.iter().any(|name| name == "run_shell"));
+    }
+
+    #[test]
+    fn a_tool_outside_the_local_statistics_set_is_refused_before_it_runs() {
+        let (state, plane) = open_plane();
+        let workspace = state.path().to_string_lossy().to_string();
+        let shell = plane.run_statistics_tool("run_shell", json!({}), &workspace);
+        assert_eq!(shell["ok"], false);
+        assert!(shell["error"]
+            .as_str()
+            .unwrap()
+            .contains("not a local statistics tool"));
+        let record = plane.run_statistics_tool("statistics_record", json!({}), &workspace);
+        assert!(record["error"]
+            .as_str()
+            .unwrap()
+            .contains("not a local statistics tool"));
+        let missing = plane.run_statistics_tool("statistics_nope", json!({}), &workspace);
+        assert!(missing["error"]
+            .as_str()
+            .unwrap()
+            .contains("unknown statistics tool"));
+        let no_workspace = plane.run_statistics_tool("statistics_f2", json!({}), "  ");
+        assert!(no_workspace["error"]
+            .as_str()
+            .unwrap()
+            .contains("workspace"));
+    }
+
+    /// Runs f2 from the product path on a workspace file. Needs the pinned R, so it returns early
+    /// without it (CI installs R).
+    #[test]
+    fn f2_runs_from_the_workspace_without_a_model_turn() {
+        if crate::statistics::find_rscript().is_err() {
+            return;
+        }
+        let (_state, plane) = open_plane();
+        let workspace = tempfile::tempdir().unwrap();
+        std::fs::write(
+            workspace.path().join("profiles.csv"),
+            "time,reference,test\n10,10,12\n20,40,38\n30,70,75\n",
+        )
+        .unwrap();
+        let result = plane.run_statistics_tool(
+            "statistics_f2",
+            json!({"path": "profiles.csv", "reference": "reference", "test": "test"}),
+            &workspace.path().to_string_lossy(),
+        );
+        let f2 = result["f2"].as_f64().unwrap_or(f64::NAN);
+        assert!((f2 - 73.02046884880939).abs() <= 1e-9, "{result}");
+    }
 }

@@ -73,6 +73,7 @@ import { parseArtifactUpdate, upsertArtifactTrace, type ArtifactTrace } from "./
 import { IntegrationsView } from "./components/IntegrationsView";
 import { SettingsView } from "./components/SettingsView";
 import { AuditView } from "./components/AuditView";
+import { StatisticsView } from "./components/StatisticsView";
 import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ApprovalModal, useEgressLevel, useDialogPref, usesApprovalModal } from "./components/ApprovalModal";
@@ -265,7 +266,7 @@ export function App() {
   // load; corrected by loadSettings.
   const [isModelReady, setModelReady] = useState(true);
   const [surface, setSurface] = useState<
-    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "settings"
+    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "statistics" | "settings"
   >("session");
   // Approval dialog inputs: the default egress level (re-read when Settings closes) and the preference.
   const egressLevel = useEgressLevel(surface);
@@ -1593,11 +1594,13 @@ export function App() {
         onOpenIntegrations={() => setSurface("integrations")}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
+        onOpenStatistics={() => setSurface("statistics")}
         onNewSession={startNewSession}
         conversationActive={surface === "session"}
         scheduledActive={surface === "scheduled"}
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
+        statisticsActive={surface === "statistics"}
         inboxActive={surface === "inbox"}
         collapsed={navCollapsed}
         onCollapse={toggleNav}
@@ -1630,6 +1633,8 @@ export function App() {
         />
       ) : surface === "audit" ? (
         <AuditView onOpenSession={(sid) => selectSession(sid, sessions.find((s) => s.session_id === sid)?.workspace ?? "")} />
+      ) : surface === "statistics" ? (
+        <StatisticsView workspace={sessions.find((s) => s.session_id === sessionId)?.workspace || undefined} />
       ) : surface === "inbox" ? (
         <InboxView onOpenSession={openInboxSession} onOpenArtifact={openInboxArtifact} />
       ) : (

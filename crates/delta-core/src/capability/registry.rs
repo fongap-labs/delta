@@ -53,6 +53,24 @@ pub struct CapabilityRegistration {
     pub runner: Arc<dyn CapabilityRunner>,
 }
 
+impl CapabilityRegistration {
+    /// True for a read-only statistics tool that needs no network, secret, process or write grant.
+    /// Only these run without a model turn (`CoreControlPlane::run_statistics_tool`); the execution
+    /// gate still applies to them.
+    pub fn is_local_statistics(&self) -> bool {
+        self.capability_id.starts_with("statistics.")
+            && matches!(
+                self.side_effect,
+                SideEffectClass::None | SideEffectClass::Read
+            )
+            && self.grants.network.is_empty()
+            && self.grants.secrets.is_empty()
+            && self.grants.write_roots.is_empty()
+            && !self.grants.exec
+            && !self.workspace_write
+    }
+}
+
 /// Rust-authoritative capability catalogue. Registration owns both the model
 /// schema and the runner, preventing a model-visible tool from bypassing its
 /// controlled execution implementation.

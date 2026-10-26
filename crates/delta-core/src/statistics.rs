@@ -121,7 +121,7 @@ const DESCRIBE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The Rscript on PATH, if it is the pinned release. Another release, or none, is an error that
 /// says which version was found.
-fn find_rscript() -> Result<PathBuf, String> {
+pub(crate) fn find_rscript() -> Result<PathBuf, String> {
     let output = Command::new("Rscript").arg("--version").output();
     let Ok(output) = output else {
         return Err("R (Rscript) is not installed, so statistics are unavailable".to_owned());

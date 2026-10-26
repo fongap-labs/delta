@@ -36,6 +36,7 @@
 | [0075](0075-conversation-search.md) | 会话内容可搜索（复用本地全文索引，默认当前工作区；已接受） |
 | [0076](0076-skill-deterministic-evaluation.md) | 内置 Skill 的确定性评估（已接受） |
 | [0077](0077-performance-budgets.md) | 关键路径性能预算与门禁（提议） |
+| [0078](0078-statistics-without-model.md) | 统计工具无需 AI 网关即可运行，并新增 f2（已接受） |
 
 ## 代码中引用但本仓库未保存的编号
 

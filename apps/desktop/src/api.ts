@@ -64,6 +64,9 @@ import {
   directRun,
   directSessionDelete,
   directSessionMessages,
+  directSearchConversations,
+  directStatisticsRun,
+  directStatisticsTools,
   addSessionRoot,
   directSessionRename,
   deleteSessionRoot,
@@ -601,6 +604,51 @@ export async function getSessionMessages(sessionId: string): Promise<Conversatio
     messages?: ConversationMessage[];
   };
   return out.messages ?? [];
+}
+
+// One message that matches a conversation search (ADR-0075). `line` is the 1-based line in the
+// session's transcript file, so the UI can cite it the way the model does.
+export interface ConversationHit {
+  session_id: string;
+  title: string | null;
+  line: number;
+  role: string;
+  snippet: string;
+}
+
+// A statistics tool that runs without a model (ADR-0078). `parameters` is its JSON Schema.
+export interface StatisticsTool {
+  name: string;
+  description: string;
+  parameters: {
+    type?: string;
+    required?: string[];
+    properties?: Record<string, { type?: string; description?: string; enum?: string[]; default?: unknown }>;
+  };
+}
+
+export async function listStatisticsTools(): Promise<StatisticsTool[]> {
+  const out = (await directStatisticsTools()) as { tools?: unknown[] };
+  return ((out.tools ?? []) as Array<{ function?: { name: string; description: string; parameters: StatisticsTool["parameters"] } }>)
+    .filter((tool) => tool.function)
+    .map((tool) => ({
+      name: tool.function!.name,
+      description: tool.function!.description,
+      parameters: tool.function!.parameters,
+    }));
+}
+
+export async function runStatisticsTool(
+  tool: string,
+  args: Record<string, unknown>,
+  workspace: string,
+): Promise<{ ok?: boolean; error?: string; [key: string]: unknown }> {
+  return (await directStatisticsRun(tool, args, workspace)) as { ok?: boolean; error?: string; [key: string]: unknown };
+}
+
+export async function searchConversations(workspace: string, query: string): Promise<ConversationHit[]> {
+  const out = (await directSearchConversations(workspace, query)) as { hits?: ConversationHit[] };
+  return out.hits ?? [];
 }
 
 export async function renameSession(sessionId: string, title: string): Promise<{ ok: boolean; error?: string }> {

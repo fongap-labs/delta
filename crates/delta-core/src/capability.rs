@@ -227,6 +227,7 @@ mod tests {
                 "statistics_correlation",
                 "statistics_describe",
                 "statistics_doe",
+                "statistics_f2",
                 "statistics_record",
                 "statistics_regression",
                 "statistics_shelf_life",
