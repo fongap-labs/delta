@@ -45,8 +45,9 @@ keep <- function(...) {
   lapply(columns, function(v) v[ok])
 }
 points <- 0L; dropped <- 0L
-png(output, width = 1200, height = 800, res = 150,
-    type = if (capabilities("cairo")) "cairo" else getOption("bitmapType"))
+device <- if (capabilities("cairo")) "cairo" else if (.Platform$OS.type == "windows") "windows" else NA
+if (is.na(device)) stop("this R has no PNG device without X11; build R with cairo support")
+png(output, width = 1200, height = 800, res = 150, type = device)
 if (kind == "histogram") {
   x <- numeric_column(column)
   kept <- keep(x)
@@ -567,15 +568,20 @@ mod tests {
         );
     }
 
+    /// Whether the Rscript on PATH can write PNG files without X11, which is what `chart_render`
+    /// needs. The CI build of R 4.6.0 is compiled without cairo, so it cannot draw PNG files.
+    fn r_can_draw_png() -> bool {
+        std::process::Command::new("Rscript")
+            .args(["--vanilla", "-e", "cat(capabilities(\"cairo\"))"])
+            .output()
+            .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).trim() == "TRUE")
+    }
+
     /// The R-dependent test: the figure is a real PNG, and its record names it by hash. It is
-    /// skipped where R 4.6.0 is not installed, as the other statistics tests are.
+    /// skipped where R cannot draw PNG files, as the other statistics tests skip without R.
     #[test]
     fn a_histogram_is_drawn_to_a_png_with_its_record() {
-        if std::process::Command::new("Rscript")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
+        if !r_can_draw_png() {
             return;
         }
         let temp = tempfile::tempdir().unwrap();
