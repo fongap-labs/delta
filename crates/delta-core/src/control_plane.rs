@@ -421,11 +421,19 @@ pub fn set_session_flags(
     Ok(json!({"ok": true}))
 }
 
-/// Delete a session: remove its row and its transcript file.
+/// Delete a session: remove its row and its transcript, and the content its runs left behind: the
+/// stored results of their tool calls and the Office files attached to them. What stays is the
+/// run-event ledger and the approval records, which are tamper-evident chains and audit facts.
 pub fn delete_session(state_dir: &Path, session_id: &str) -> Result<Value, ShadowReadError> {
     if !safe_session_id(session_id) {
         return Err(ShadowReadError::Parse("unsafe session id".to_string()));
     }
+    // Both come from the transcript and the row, so read them before those are removed.
+    let run_ids = session_run_ids(state_dir, session_id);
+    let workspace = session_workspace(state_dir, session_id)
+        .ok()
+        .filter(|workspace| !workspace.trim().is_empty());
+
     let db_path = state_dir.join("core.db");
     let mut is_is_deleted_row = false;
     if db_path.exists() {
@@ -438,7 +446,59 @@ pub fn delete_session(state_dir: &Path, session_id: &str) -> Result<Value, Shado
     }
     let jl = conversations_dir(state_dir).join(format!("{session_id}.jsonl"));
     let _ = fs::remove_file(&jl);
-    Ok(json!({"ok": is_is_deleted_row, "session_id": session_id}))
+
+    let mut warnings = Vec::new();
+    forget_run_content(state_dir, workspace.as_deref(), &run_ids, &mut warnings);
+    Ok(json!({"ok": is_is_deleted_row, "session_id": session_id, "warnings": warnings}))
+}
+
+/// Remove the stored tool results and saved attachments of `run_ids`. Best effort: the
+/// conversation is already gone, so what cannot be removed is reported in `warnings`.
+fn forget_run_content(
+    state_dir: &Path,
+    workspace: Option<&str>,
+    run_ids: &[String],
+    warnings: &mut Vec<String>,
+) {
+    // A run id is read from a file on disk and becomes part of a path below.
+    let run_ids: Vec<&String> = run_ids
+        .iter()
+        .filter(|run_id| safe_session_id(run_id))
+        .collect();
+    let effects_path = state_dir.join("side_effects.db");
+    if effects_path.exists() && !run_ids.is_empty() {
+        match crate::IdempotencyWriter::open(&effects_path) {
+            Ok(effects) => {
+                for run_id in &run_ids {
+                    if let Err(error) = effects.forget_run(run_id) {
+                        warnings.push(format!("stored results of {run_id}: {error}"));
+                    }
+                }
+            }
+            Err(error) => warnings.push(format!("stored results: {error}")),
+        }
+    }
+    let Some(attachments) = workspace
+        .map(|workspace| Path::new(workspace).join(".delta").join("attachments"))
+        .and_then(|folder| folder.canonicalize().ok())
+        .filter(|folder| {
+            // `.delta` or `attachments` may be a link into somewhere else: stay inside the workspace.
+            Path::new(workspace.unwrap_or_default())
+                .canonicalize()
+                .is_ok_and(|workspace| folder.starts_with(workspace))
+        })
+    else {
+        return;
+    };
+    for run_id in run_ids {
+        let folder = attachments.join(run_id);
+        let is_real_folder = fs::symlink_metadata(&folder).is_ok_and(|meta| meta.is_dir());
+        if is_real_folder {
+            if let Err(error) = fs::remove_dir_all(&folder) {
+                warnings.push(format!("attachments of {run_id}: {error}"));
+            }
+        }
+    }
 }
 
 /// List recently-used workspaces (distinct workspace column from sessions).
@@ -1565,6 +1625,89 @@ mod tests {
         assert_eq!(d["ok"], true);
         let listed4 = list_sessions(tmp.path(), None).unwrap();
         assert_eq!(listed4["sessions"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn deleting_a_conversation_also_removes_the_content_it_left_behind() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path().join("state");
+        let workspace = tmp.path().join("work");
+        fs::create_dir_all(&state).unwrap();
+        let attachments = workspace.join(".delta/attachments");
+        fs::create_dir_all(attachments.join("run-1")).unwrap();
+        fs::create_dir_all(attachments.join("run-other")).unwrap();
+        fs::write(attachments.join("run-1/0-secret.docx"), "private").unwrap();
+        fs::write(attachments.join("run-other/0-keep.docx"), "keep").unwrap();
+        fs::write(workspace.join("report.md"), "the user's own file").unwrap();
+
+        ensure_session(&state, "s1", workspace.to_str(), "m").unwrap();
+        append_session_message(
+            &state,
+            "s1",
+            &json!({"role": "user", "content": "hi", "run_id": "run-1"}),
+        )
+        .unwrap();
+        let effects = crate::IdempotencyWriter::open(state.join("side_effects.db")).unwrap();
+        for run in ["run-1", "run-other"] {
+            effects
+                .commit(
+                    run,
+                    "call-1",
+                    "read_file",
+                    &json!({"path": "a"}),
+                    &json!({"output": "file text"}),
+                )
+                .unwrap();
+        }
+        drop(effects);
+
+        let outcome = delete_session(&state, "s1").unwrap();
+        assert_eq!(outcome["ok"], true);
+
+        assert!(!conversations_dir(&state).join("s1.jsonl").exists());
+        assert!(
+            !attachments.join("run-1").exists(),
+            "the conversation's attachments were left"
+        );
+        assert!(
+            attachments.join("run-other/0-keep.docx").exists(),
+            "another run's attachment was removed"
+        );
+        assert!(
+            workspace.join("report.md").exists(),
+            "a file of the user's was removed"
+        );
+        let effects = crate::IdempotencyReader::open(state.join("side_effects.db")).unwrap();
+        assert!(
+            effects.for_run("run-1").unwrap().is_empty(),
+            "the stored results were left"
+        );
+        assert_eq!(effects.for_run("run-other").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn deleting_a_conversation_never_follows_a_run_id_out_of_the_attachments_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path().join("state");
+        let workspace = tmp.path().join("work");
+        let victim = tmp.path().join("victim");
+        fs::create_dir_all(&state).unwrap();
+        fs::create_dir_all(workspace.join(".delta/attachments")).unwrap();
+        fs::create_dir_all(&victim).unwrap();
+        fs::write(victim.join("keep.txt"), "keep").unwrap();
+
+        ensure_session(&state, "s1", workspace.to_str(), "m").unwrap();
+        append_session_message(
+            &state,
+            "s1",
+            &json!({"role": "user", "content": "hi", "run_id": "../../../victim"}),
+        )
+        .unwrap();
+        delete_session(&state, "s1").unwrap();
+        assert!(
+            victim.join("keep.txt").exists(),
+            "a run id walked out of the attachments folder"
+        );
     }
 
     #[test]
