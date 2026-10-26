@@ -140,12 +140,14 @@ impl RuntimeHost {
         }
     }
 
-    pub(super) fn require_approval(
+    /// Tell the product surface, the ledger, the audit log, the Inbox (for an unattended run) and
+    /// the checkpoint that `call` is waiting for an answer.
+    fn announce_approval(
         &self,
         call: &ToolCall,
         reason: &str,
         level: RiskLevel,
-    ) -> Result<ApprovalDecision, String> {
+    ) -> Result<(), String> {
         self.emit_event(RuntimeEvent::PermissionRequired {
             tool_call_id: call.id.clone(),
             name: call.name.clone(),
@@ -194,7 +196,22 @@ impl RuntimeHost {
             self.record_approval(call, "approval_parked", "inbox", None, reason, level)?;
         }
 
+        Ok(())
+    }
+
+    pub(super) fn require_approval(
+        &self,
+        call: &ToolCall,
+        reason: &str,
+        level: RiskLevel,
+    ) -> Result<ApprovalDecision, String> {
+        // The request is registered before anyone is told about it: an answer that comes back
+        // while the request is still being recorded (the app, the Inbox) must find it waiting.
         let receiver = self.approvals.begin(&call.id)?;
+        if let Err(error) = self.announce_approval(call, reason, level) {
+            self.approvals.cancel(&call.id);
+            return Err(error);
+        }
         self.set_runtime_state(if self.config.unattended {
             RuntimeState::WaitingUser
         } else {

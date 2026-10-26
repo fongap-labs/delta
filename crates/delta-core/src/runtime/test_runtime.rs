@@ -1224,6 +1224,17 @@ fn native_e2e_unattended_approval_is_durable_in_inbox() {
     let (host, authorities) = approval_test_host(temp.path(), calls.clone(), true);
     let worker = execute_approval_tool(host.clone());
     wait_for_approval(&host);
+    // The request is answerable as soon as it is registered; its Inbox item is written right after.
+    for _ in 0..200 {
+        if !authorities
+            .inbox()
+            .list(Some("session-approval-e2e"), Some("pending"))
+            .is_empty()
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
 
     let pending = authorities
         .inbox()
