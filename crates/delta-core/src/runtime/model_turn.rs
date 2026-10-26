@@ -946,18 +946,18 @@ fn compaction_prompt(messages: &[Value]) -> String {
     )
 }
 
-/// Characters a message contributes to the context estimate: text content,
-/// reasoning and serialized tool calls; images and attachments are ignored
-/// (they are either stripped or cost proportionally to their caption).
+/// Quarter-tokens a message contributes to the context estimate: text content, reasoning and
+/// serialized tool calls; images and attachments are ignored (they are either stripped or cost
+/// proportionally to their caption).
 fn message_chars(message: &Value) -> usize {
     let content_chars = match message.get("content") {
-        Some(Value::String(text)) => text.len(),
+        Some(Value::String(text)) => text_weight(text),
         Some(Value::Array(parts)) => parts
             .iter()
             .map(|part| {
                 part.get("text")
                     .and_then(Value::as_str)
-                    .map(str::len)
+                    .map(text_weight)
                     .unwrap_or(0)
             })
             .sum(),
@@ -966,17 +966,25 @@ fn message_chars(message: &Value) -> usize {
     let reasoning_chars = message
         .get("reasoning")
         .and_then(Value::as_str)
-        .map(str::len)
+        .map(text_weight)
         .unwrap_or(0);
     let tool_chars = message
         .get("tool_calls")
         .map(|calls| {
             serde_json::to_string(calls)
-                .map(|text| text.len())
+                .map(|text| text_weight(&text))
                 .unwrap_or(0)
         })
         .unwrap_or(0);
     content_chars + reasoning_chars + tool_chars
+}
+
+/// Text size in quarter-tokens. Latin text runs about four characters to a token, so an ASCII
+/// character counts one; a character outside ASCII (Chinese, Japanese, Korean, most symbols) is
+/// about a token of its own, so it counts four. Counting UTF-8 bytes instead would give a Chinese
+/// character three, and a Chinese conversation would look a third smaller than it is.
+fn text_weight(text: &str) -> usize {
+    text.chars().map(|c| if c.is_ascii() { 1 } else { 4 }).sum()
 }
 
 /// Backoff before retry number `retry` (1-based): the base delay doubled each time, capped.

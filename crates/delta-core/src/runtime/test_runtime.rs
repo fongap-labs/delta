@@ -3802,6 +3802,18 @@ fn compaction_estimate_counts_text_tokens_only() {
 }
 
 #[test]
+fn compaction_estimate_counts_a_chinese_character_as_a_token() {
+    let messages = vec![
+        json!({"role": "system", "content": "s"}),
+        json!({"role": "user", "content": "汉".repeat(400)}),
+    ];
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(messages);
+    let estimate = host.estimate_context_tokens();
+    assert!(estimate >= 400, "one token per character; got {estimate}");
+    assert!(estimate < 450, "overhead is bounded; got {estimate}");
+}
+
+#[test]
 fn a_short_context_does_not_compact() {
     let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
         json!({"role": "system", "content": "s"}),
