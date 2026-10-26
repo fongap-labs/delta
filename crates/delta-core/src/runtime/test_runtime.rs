@@ -3972,6 +3972,24 @@ fn a_persisted_compaction_is_restored_on_the_same_message() {
 }
 
 #[test]
+fn each_run_may_compact_again() {
+    let config = RuntimeConfig {
+        base_url: "http://127.0.0.1:9/v1".to_string(),
+        api_key: "k".to_string(),
+        max_retries: 0,
+        ..RuntimeConfig::default()
+    };
+    let mut host = RuntimeHost::new("s", config);
+    // The flag a previous run left behind.
+    host.compacted_in_turn = true;
+    let _ = host.run("hello", None);
+    assert!(
+        !host.compacted_in_turn,
+        "a new run starts with its compaction allowance"
+    );
+}
+
+#[test]
 fn truncating_below_the_compaction_boundary_discards_the_summary() {
     let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
         json!({"role": "user", "content": "a"}),

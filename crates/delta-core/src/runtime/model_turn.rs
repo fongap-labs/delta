@@ -415,6 +415,7 @@ impl RuntimeHost {
         // would let a settings change land halfway through an answer.
         self.turn_proxy = self.resolve_turn_proxy();
         self.reduced_request = false;
+        self.compacted_in_turn = false;
         self.tool_calls_this_turn = 0;
         self.turn_artifacts.lock().unwrap().clear();
         loop {
