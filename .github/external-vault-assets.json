@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "url_prefix": "https://github.com/fongap-labs/external-vault/releases/download/",
+  "tools": {
+    "algdesign": {"version": "1.2.1.2", "asset": "AlgDesign_1.2.1.2.tar.gz", "sha256": "692dc7a02a6c5eb2421a7398488e9fb8700174187bda37ff820548654d0b7625"},
+    "bland-altman-leh": {"version": "0.3.1", "asset": "BlandAltmanLeh_0.3.1.tar.gz", "sha256": "9522d321668b2cc61087c73f2ffb2f9f328dc2bbbaa1b0c77431b9b1f007e386"},
+    "blandr": {"version": "0.6.0", "asset": "blandr_0.6.0.tar.gz", "sha256": "51d80f112c93d1950163bd446803d6641aced0e07e2d90536accbf8efd6b6bb2"},
+    "doe-base": {"version": "1.2.5", "asset": "DoE.base_1.2-5.tar.gz", "sha256": "59cc4e2afe7bef792d454655258e8f4eb073cf3fdcb9639237f83e2fe1b7f4b9"},
+    "frf2": {"version": "2.3.5", "asset": "FrF2_2.3-5.tar.gz", "sha256": "8bda7afaa1a1dab4da447477d6f5408567e2a0c6e0c93d6ab0bccc16ff7eb9f7"},
+    "qcc": {"version": "2.7.0", "asset": "qcc_2.7.tar.gz", "sha256": "ff139a046e6b139ac25537b69be24e0ff32d6a39db6c941d1d02b4710f378251"},
+    "r-base": {"version": "4.6.0", "asset": "R-4.6.0.tar.xz", "sha256": "91f2b3693fa5252cdea9b62abc84a1c58db5547cb9f0fe3d15f44eef8aff5a27"},
+    "rsm": {"version": "2.10.6", "asset": "rsm_2.10.6.tar.gz", "sha256": "d276a933c1641fedbc8023a21ab86a3c7a7e2e31b6e0b71b8525cd810b4bbfff"}
+  }
+}
