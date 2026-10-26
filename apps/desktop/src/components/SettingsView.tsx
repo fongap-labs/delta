@@ -51,7 +51,7 @@ import { useThemePref } from "../theme";
 import { LoadError } from "./ViewStates";
 import { useI18n, type TranslationKey } from "@delta/i18n/I18nContext";
 import type { Locale } from "@delta/i18n/types";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
 import { useDialogPref } from "./ApprovalModal";
 import { Toggle } from "./Toggle";
@@ -91,7 +91,7 @@ const BTN_BORDERED =
 const SET_TABS: {
   key: SetTab;
   labelKey: TranslationKey;
-  icon: "sliders" | "code" | "shield" | "mic" | "archive" | "book" | "folder";
+  icon: IconName;
 }[] = [
   { key: "appearance", labelKey: "settings.general.title", icon: "sliders" },
   { key: "models", labelKey: "settings.models.title", icon: "code" },
