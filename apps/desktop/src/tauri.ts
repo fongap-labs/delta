@@ -85,6 +85,10 @@ export const setNativeTheme = (isDark: boolean) => invoke<boolean>("set_native_t
   /** Auto theme: un-pin the native window theme so it follows the OS again. */
   export const followSystemTheme = () => invoke<boolean>("follow_system_theme");
 
+/** Product information for the About screen. Edition is display-only (ADR-0083). */
+export type ProductInfo = { edition: string; label: string; version: string };
+export const getProductInfo = () => invoke<ProductInfo>("product_info");
+
 // Local dictation is native-only. The browser build deliberately keeps this unavailable rather
 // than silently sending microphone audio to a server.
 export const getDictationStatus = () => invoke<DictationStatus>("get_dictation_status");

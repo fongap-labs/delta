@@ -26,6 +26,7 @@ use tauri::{
 };
 use tauri_plugin_autostart::ManagerExt;
 
+mod product_info;
 mod runtime_ipc;
 
 /// The active keep-awake guard while keep-awake is on (None when off). Dropping the guard
@@ -634,6 +635,7 @@ pub fn run() {
             start_window_drag,
             set_native_theme,
             follow_system_theme,
+            product_info::product_info,
             get_dictation_status,
             start_dictation,
             stop_dictation,

@@ -41,15 +41,17 @@ import {
   startDictation,
   stopDictation,
   verifyDictationModel,
+  getProductInfo,
   type DictationDownloadProgress,
   type DictationStatus,
+  type ProductInfo,
 } from "../tauri";
 import { UPDATER_FEED_PUBLISHED } from "./UpdateBanner";
 import { useThemePref } from "../theme";
 import { LoadError } from "./ViewStates";
 import { useI18n, type TranslationKey } from "@delta/i18n/I18nContext";
 import type { Locale } from "@delta/i18n/types";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { PanelHead } from "./IntegrationsView";
 import { useDialogPref } from "./ApprovalModal";
 import { Toggle } from "./Toggle";
@@ -66,7 +68,15 @@ import { SkillsTab } from "./SkillsTab";
 // Models + Skills host the existing tab components inside the page shell.
 // "appearance" is the General tab's stable key — callers deep-link with it, so the
 // rename (UX-021) changed only the label. "files" folded into General as a card.
-type SetTab = "appearance" | "models" | "privacy" | "skills" | "library" | "voice" | "memory";
+type SetTab =
+  | "appearance"
+  | "models"
+  | "privacy"
+  | "skills"
+  | "library"
+  | "voice"
+  | "memory"
+  | "about";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
 const ZH_CN_LABEL = "简体中文";
@@ -81,7 +91,7 @@ const BTN_BORDERED =
 const SET_TABS: {
   key: SetTab;
   labelKey: TranslationKey;
-  icon: "sliders" | "code" | "shield" | "mic" | "archive" | "book" | "folder";
+  icon: IconName;
 }[] = [
   { key: "appearance", labelKey: "settings.general.title", icon: "sliders" },
   { key: "models", labelKey: "settings.models.title", icon: "code" },
@@ -90,6 +100,7 @@ const SET_TABS: {
   { key: "library", labelKey: "settings.library.title", icon: "folder" },
   { key: "voice", labelKey: "settings.voice.title", icon: "mic" },
   { key: "memory", labelKey: "settings.memory.title", icon: "archive" },
+  { key: "about", labelKey: "settings.about.title", icon: "logo" },
 ];
 
 export function SettingsView({
@@ -186,10 +197,61 @@ export function SettingsView({
             <VoiceInputSection />
           ) : tab === "memory" ? (
             <MemorySection />
+          ) : tab === "about" ? (
+            <AboutSection />
           ) : null}
         </div>
       </div>
     </main>
+  );
+}
+
+function AboutSection() {
+  const { t } = useI18n();
+  const [info, setInfo] = useState<ProductInfo | null>(null);
+
+  useEffect(() => {
+    let isAlive = true;
+    const fallback: ProductInfo = { edition: "base", label: "Delta", version: "" };
+    getProductInfo()
+      .then((value) => {
+        if (isAlive) setInfo(value ?? fallback);
+      })
+      .catch(() => {
+        if (isAlive) setInfo(fallback);
+      });
+    return () => {
+      isAlive = false;
+    };
+  }, []);
+
+  const label = info?.label || "Delta";
+  const version = info?.version ? `v${info.version}` : "—";
+
+  return (
+    <section>
+      <PanelHead title={t("settings.about.title")} sub={t("settings.about.sub")} />
+      <div className={CARD + " mt-4 p-5"}>
+        <div className="flex items-center gap-3">
+          <Icon name="logo" size={28} />
+          <div>
+            <div className="text-[20px] font-semibold text-ink" data-testid="product-edition">
+              {label}
+            </div>
+            <div className="text-[12.5px] text-muted">
+              {t("settings.about.version", undefined, "Version")} {version}
+            </div>
+          </div>
+        </div>
+        <p className="mt-4 text-[12.5px] text-muted">
+          {t(
+            "settings.about.editionHint",
+            undefined,
+            "Delta Pro appears when the Delta Suite extension is installed and active."
+          )}
+        </p>
+      </div>
+    </section>
   );
 }
 

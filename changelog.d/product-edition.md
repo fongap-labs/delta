@@ -1,0 +1,1 @@
+- 新增: 设置中的关于界面显示 Delta 或 Delta Pro；已安装扩展通过自身目录下的 `product-edition.json` 声明显示名，Foundation 只读取最高 rank 的有效标记，不授予功能或权益。

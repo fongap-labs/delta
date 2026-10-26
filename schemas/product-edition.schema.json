@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/product-edition.schema.json",
+  "title": "Product edition marker",
+  "description": "A display-only marker installed under <state>/extensions/<source>/product-edition.json. Foundation's About screen shows the highest-ranked valid label; it grants no features or entitlements (ADR-0083).",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "edition",
+    "label",
+    "source"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "delta.product-edition"
+    },
+    "version": {
+      "const": 1
+    },
+    "edition": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rank": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}
