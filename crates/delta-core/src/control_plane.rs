@@ -80,10 +80,20 @@ fn load_messages(state_dir: &Path, session_id: &str) -> Vec<Value> {
     let Ok(file) = fs::File::open(&path) else {
         return Vec::new();
     };
+    // Read raw bytes per line: one line with bytes that are not UTF-8 (a torn write, a bad disk
+    // sector) must cost that line only, not every message after it.
     let mut out = Vec::new();
-    for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
-        if let Ok(v) = serde_json::from_str::<Value>(&line) {
-            out.push(v);
+    let mut reader = std::io::BufReader::new(file);
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        match reader.read_until(b'\n', &mut line) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                if let Ok(v) = serde_json::from_slice::<Value>(&line) {
+                    out.push(v);
+                }
+            }
         }
     }
     out
@@ -1207,6 +1217,23 @@ fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_damaged_line_in_a_transcript_costs_only_that_line() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = conversations_dir(tmp.path());
+        fs::create_dir_all(&dir).unwrap();
+        let mut bytes = b"{\"role\":\"user\",\"text\":\"one\"}\n".to_vec();
+        bytes.extend_from_slice(b"{\"role\":\"assistant\",\"text\":\"\xff\xfe broken\"}\n");
+        bytes.extend_from_slice(b"not json at all\n");
+        bytes.extend_from_slice(b"{\"role\":\"user\",\"text\":\"three\"}\n");
+        fs::write(dir.join("s1.jsonl"), bytes).unwrap();
+        let texts: Vec<String> = load_messages(tmp.path(), "s1")
+            .iter()
+            .map(|m| m["text"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(texts, vec!["one", "three"]);
+    }
 
     #[test]
     fn derive_title_uses_first_line_and_clips() {
