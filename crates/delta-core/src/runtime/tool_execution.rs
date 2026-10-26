@@ -778,6 +778,9 @@ impl RuntimeHost {
             proxy: self.turn_proxy.clone(),
         };
         let mut result = self.tool_executor.execute(call, &context);
+        // Whatever a tool returned, only a bounded amount goes on: into the conversation, the
+        // event stream, the transcript, the replay record and the next model request.
+        result.output = limit_tool_output(std::mem::take(&mut result.output));
 
         if let Some(progress_error) = progress_error.lock().unwrap().clone() {
             let primary = format!(
@@ -972,7 +975,7 @@ impl RuntimeHost {
         if let Err(error) = self.ledger_append(
             "tool.completed",
             "runtime",
-            json!({"tool_call_id": call.id, "tool": call.name, "result": result.output}),
+            json!({"tool_call_id": call.id, "tool": call.name, "result": ledger_summary(&result.output)}),
         ) {
             return ToolResult::failure(&call.id, error);
         }
@@ -982,6 +985,67 @@ impl RuntimeHost {
         }
         result
     }
+}
+
+/// Most bytes of one tool's output that go into the conversation, the stores and the model
+/// request. A tool that can return more (a long document, a big table) is cut to a preview that
+/// says so; a tool that pages by itself, like `read_file`, never reaches it.
+pub(super) const MAX_TOOL_OUTPUT_BYTES: usize = 128 * 1024;
+/// How much of an over-long output the preview keeps; the rest of the budget is the wrapper.
+const OUTPUT_PREVIEW_BYTES: usize = 96 * 1024;
+/// Characters of a result the ledger keeps as a preview.
+const LEDGER_PREVIEW_CHARS: usize = 500;
+
+/// `output` itself when it fits the limit, otherwise an object that says how long it was and shows
+/// the start of it. The `ok` flag and the picture paths survive: the model and the screenshot
+/// handling both read them.
+pub(super) fn limit_tool_output(output: Value) -> Value {
+    let text = output.to_string();
+    if text.len() <= MAX_TOOL_OUTPUT_BYTES {
+        return output;
+    }
+    let mut end = OUTPUT_PREVIEW_BYTES;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let mut limited = json!({
+        "truncated": true,
+        "original_bytes": text.len(),
+        "shown_bytes": end,
+        "preview": &text[..end],
+        "note": format!(
+            "This result was {} bytes, over the {MAX_TOOL_OUTPUT_BYTES}-byte limit, so only the first {end} bytes of its JSON text are shown. Ask for a smaller part if you need the rest.",
+            text.len()
+        ),
+    });
+    if let Some(ok) = output.get("ok") {
+        limited["ok"] = ok.clone();
+    }
+    if let Some(images) = output.get("images") {
+        limited["images"] = images.clone();
+    }
+    limited
+}
+
+/// What the ledger keeps of a tool result: how big it was, its hash and the start of it. The
+/// ledger records what happened; the content is not kept in it, and the replay record holds the
+/// result when one is needed.
+fn ledger_summary(output: &Value) -> Value {
+    let text = output.to_string();
+    let preview: String = text.chars().take(LEDGER_PREVIEW_CHARS).collect();
+    let mut summary = json!({
+        "bytes": text.len(),
+        "sha256": format!("{:x}", Sha256::digest(text.as_bytes())),
+        "preview": preview,
+    });
+    // A cut-down result says how long it was before the cut.
+    if let Some(original) = output
+        .get("original_bytes")
+        .filter(|_| output["truncated"] == true)
+    {
+        summary["original_bytes"] = original.clone();
+    }
+    summary
 }
 
 /// Whether a call of `name` may be remembered as a workspace rule. Calls that send content off the
