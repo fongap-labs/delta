@@ -62,11 +62,14 @@ impl RuntimeHandle {
     }
 
     pub fn state(&self) -> RuntimeState {
-        *self.state.lock().unwrap()
+        *lock_recovering(&self.state)
     }
 
     pub fn messages(&self) -> Vec<Value> {
-        self.messages.read().unwrap().clone()
+        self.messages
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn resolve_approval(
@@ -149,7 +152,7 @@ impl RuntimeHandle {
     }
 
     fn enqueue_operation(&self, operation: RuntimeOperation) -> Result<(), String> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = lock_recovering(&self.state);
         if state.is_active() {
             return Err(format!(
                 "session {} already has an active run ({state:?})",
@@ -158,8 +161,8 @@ impl RuntimeHandle {
         }
         self.cancel.store(false, Ordering::SeqCst);
         self.provider_cancel.store(false, Ordering::SeqCst);
-        self.steering.lock().unwrap().clear();
-        self.follow_ups.lock().unwrap().clear();
+        lock_recovering(&self.steering).clear();
+        lock_recovering(&self.follow_ups).clear();
         *state = RuntimeState::Running;
         if self
             .command_tx
@@ -178,7 +181,7 @@ impl RuntimeHandle {
     /// Inject guidance into the live run. The current provider stream is
     /// cooperatively interrupted, while the run itself remains active.
     pub fn steer(&self, text: &str, source: Option<Value>) -> Result<(), String> {
-        let state = self.state.lock().unwrap();
+        let state = lock_recovering(&self.state);
         if !matches!(
             *state,
             RuntimeState::Running | RuntimeState::WaitingApproval | RuntimeState::WaitingUser
@@ -190,7 +193,7 @@ impl RuntimeHandle {
         }
         self.steering
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .push((text.to_string(), source));
         self.provider_cancel.store(true, Ordering::SeqCst);
         Ok(())
@@ -199,7 +202,7 @@ impl RuntimeHandle {
     /// Queue a distinct run for the same session. The worker scheduler starts
     /// it only after the current run reaches a terminal boundary.
     pub fn follow_up(&self, text: &str, source: Option<Value>) -> Result<String, String> {
-        let state = self.state.lock().unwrap();
+        let state = lock_recovering(&self.state);
         if !matches!(
             *state,
             RuntimeState::Running | RuntimeState::WaitingApproval | RuntimeState::WaitingUser
@@ -210,7 +213,7 @@ impl RuntimeHandle {
             ));
         }
         let run_id = uuid_v4();
-        self.follow_ups.lock().unwrap().push_back(QueuedRun {
+        lock_recovering(&self.follow_ups).push_back(QueuedRun {
             input: text.to_string(),
             attachments: Vec::new(),
             source,
@@ -222,19 +225,19 @@ impl RuntimeHandle {
     /// Cancel the active run immediately. Pending follow-ups are discarded so
     /// cancellation cannot unexpectedly start more work.
     pub fn cancel(&self) -> bool {
-        let mut state = self.state.lock().unwrap();
+        let mut state = lock_recovering(&self.state);
         if !state.is_active() {
             return false;
         }
         *state = RuntimeState::Cancelling;
-        self.follow_ups.lock().unwrap().clear();
+        lock_recovering(&self.follow_ups).clear();
         self.cancel.store(true, Ordering::SeqCst);
         self.provider_cancel.store(true, Ordering::SeqCst);
         true
     }
 
     pub fn switch_model(&self, model: &str) -> Result<Option<String>, String> {
-        let state = self.state.lock().unwrap();
+        let state = lock_recovering(&self.state);
         if state.is_active() {
             return Err(format!(
                 "cannot switch model: session {} has an active run ({state:?})",
@@ -254,7 +257,7 @@ impl RuntimeHandle {
     }
 
     pub fn switch_runtime_config(&self, config: RuntimeConfig) -> Result<Option<String>, String> {
-        let state = self.state.lock().unwrap();
+        let state = lock_recovering(&self.state);
         if state.is_active() {
             return Err(format!(
                 "cannot switch model: session {} has an active run ({state:?})",
@@ -278,7 +281,7 @@ impl RuntimeHandle {
         config: RuntimeConfig,
         tools: Value,
     ) -> Result<Option<String>, String> {
-        let state = self.state.lock().unwrap();
+        let state = lock_recovering(&self.state);
         if state.is_active() {
             return Err(format!(
                 "cannot refresh runtime: session {} has an active run ({state:?})",
@@ -299,7 +302,7 @@ impl RuntimeHandle {
     }
 
     pub fn truncate_messages(&self, index: usize) -> Result<usize, String> {
-        let state = self.state.lock().unwrap();
+        let state = lock_recovering(&self.state);
         if state.is_active() {
             return Err(format!(
                 "cannot truncate messages: session {} has an active run ({state:?})",
@@ -384,8 +387,8 @@ fn execute_operation_chain(
         // Holding state before the queue gives follow_up() an atomic choice:
         // either it queues while the run is active, or it observes terminal
         // state and is rejected. No accepted follow-up can be lost here.
-        let mut current_state = state.lock().unwrap();
-        let mut queued = follow_ups.lock().unwrap();
+        let mut current_state = lock_recovering(state);
+        let mut queued = lock_recovering(follow_ups);
         if cancel.load(Ordering::SeqCst) {
             queued.clear();
             *current_state = RuntimeState::Interrupted;
@@ -464,7 +467,7 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 }
 
 fn sync_message_snapshot(host: &RuntimeHost, messages: &Arc<RwLock<Vec<Value>>>) {
-    *messages.write().unwrap() = host.messages().to_vec();
+    *messages.write().unwrap_or_else(PoisonError::into_inner) = host.messages().to_vec();
 }
 
 fn state_from_result(result: &Result<Value, String>) -> RuntimeState {
@@ -492,7 +495,7 @@ pub(crate) fn interrupted_run_of(
     session_id: &str,
 ) -> Result<String, String> {
     let run_id = {
-        let ledger = authorities.ledger.lock().unwrap();
+        let ledger = lock_recovering(&authorities.ledger);
         let reader = ledger.reader().map_err(|error| error.to_string())?;
         CheckpointReader::from_reader(reader)
             .list(None, Some(session_id))
@@ -505,7 +508,7 @@ pub(crate) fn interrupted_run_of(
     let status = authorities
         .ledger
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .reader()
         .and_then(|reader| reader.run_status(&run_id))
         .map_err(|error| error.to_string())?;

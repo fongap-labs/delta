@@ -4026,6 +4026,40 @@ fn a_persisted_compaction_is_restored_on_the_same_message() {
     drop(provider);
 }
 
+/// Poison `mutex` the way a panic inside a contained run would: a thread dies holding it.
+fn poison<T: Send + 'static>(mutex: &Arc<Mutex<T>>) {
+    let held = mutex.clone();
+    let _ = std::thread::spawn(move || {
+        let _guard = held.lock().unwrap();
+        panic!("a panic while the lock is held");
+    })
+    .join();
+    assert!(mutex.is_poisoned());
+}
+
+#[test]
+fn a_contained_panic_does_not_lock_the_session_out_of_its_own_state() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let host =
+        RuntimeHost::new("s", RuntimeConfig::default()).with_authorities(authorities.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+
+    poison(&handle.state);
+    poison(&handle.steering);
+    poison(&authorities.ledger);
+
+    assert_eq!(handle.state(), RuntimeState::Idle);
+    assert!(
+        handle.steer("more", None).is_err(),
+        "idle: refused, not a panic"
+    );
+    assert!(handle.pending_approvals().is_empty());
+    // Reading the ledger for a resumable run still works, and says why there is none.
+    let error = handle.resume().unwrap_err();
+    assert!(error.contains("nothing to resume"), "{error}");
+}
+
 #[test]
 fn each_run_may_compact_again() {
     let config = RuntimeConfig {

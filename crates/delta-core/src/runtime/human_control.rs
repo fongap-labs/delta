@@ -13,7 +13,7 @@ pub(super) struct InteractionController {
 impl InteractionController {
     pub(super) fn begin(&self, id: &str, kind: &str) -> Result<mpsc::Receiver<Value>, String> {
         let (sender, receiver) = mpsc::channel();
-        let mut pending = self.pending.lock().unwrap();
+        let mut pending = lock_recovering(&self.pending);
         if pending.contains_key(id) {
             return Err(format!("interaction is already pending: {id}"));
         }
@@ -27,7 +27,7 @@ impl InteractionController {
         id: Option<&str>,
         value: Value,
     ) -> Result<String, String> {
-        let mut pending = self.pending.lock().unwrap();
+        let mut pending = lock_recovering(&self.pending);
         let key = if let Some(id) = id {
             id.to_string()
         } else {
@@ -51,7 +51,7 @@ impl InteractionController {
     }
 
     fn cancel(&self, id: &str) {
-        self.pending.lock().unwrap().remove(id);
+        lock_recovering(&self.pending).remove(id);
     }
 }
 

@@ -94,7 +94,7 @@ impl Default for ApprovalController {
 
 impl ApprovalController {
     pub fn begin(&self, tool_call_id: &str) -> Result<mpsc::Receiver<ApprovalDecision>, String> {
-        let mut pending = self.pending.lock().unwrap();
+        let mut pending = crate::runtime::lock_recovering(&self.pending);
         if pending.iter().any(|item| item.tool_call_id == tool_call_id) {
             return Err(format!("approval already pending: {tool_call_id}"));
         }
@@ -111,7 +111,7 @@ impl ApprovalController {
         tool_call_id: Option<&str>,
         decision: ApprovalDecision,
     ) -> Result<String, String> {
-        let mut pending = self.pending.lock().unwrap();
+        let mut pending = crate::runtime::lock_recovering(&self.pending);
         let index = match tool_call_id {
             Some(id) => pending
                 .iter()
@@ -132,7 +132,7 @@ impl ApprovalController {
     }
 
     pub fn cancel(&self, tool_call_id: &str) -> bool {
-        let mut pending = self.pending.lock().unwrap();
+        let mut pending = crate::runtime::lock_recovering(&self.pending);
         if let Some(index) = pending
             .iter()
             .position(|item| item.tool_call_id == tool_call_id)
@@ -156,7 +156,7 @@ impl ApprovalController {
     pub fn remember(&self, decision: ApprovalDecision, tool: &str, arguments: &Value) {
         match decision {
             ApprovalDecision::AlwaysTool | ApprovalDecision::AlwaysTask => {
-                self.tool_grants.lock().unwrap().insert(tool.to_string());
+                crate::runtime::lock_recovering(&self.tool_grants).insert(tool.to_string());
             }
             ApprovalDecision::AlwaysCommand => {
                 if let Some(command) = arguments.get("command").and_then(Value::as_str) {
@@ -204,7 +204,7 @@ impl ApprovalController {
     /// Take back a session grant. Returns whether one was removed. The next matching call asks.
     pub fn revoke_grant(&self, tool: &str, command: Option<&str>) -> bool {
         match command {
-            None => self.tool_grants.lock().unwrap().remove(tool),
+            None => crate::runtime::lock_recovering(&self.tool_grants).remove(tool),
             Some(command) => self
                 .command_grants
                 .lock()
@@ -214,7 +214,7 @@ impl ApprovalController {
     }
 
     pub fn has_standing_grant(&self, tool: &str, arguments: &Value) -> bool {
-        if self.tool_grants.lock().unwrap().contains(tool) {
+        if crate::runtime::lock_recovering(&self.tool_grants).contains(tool) {
             return true;
         }
         arguments

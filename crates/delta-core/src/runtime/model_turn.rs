@@ -358,7 +358,7 @@ impl RuntimeHost {
     }
 
     pub(super) fn drain_steering(&mut self) -> bool {
-        let mut q = self.steering.lock().unwrap();
+        let mut q = lock_recovering(&self.steering);
         if q.is_empty() {
             return false;
         }
@@ -467,7 +467,7 @@ impl RuntimeHost {
         self.reduced_request = false;
         self.compacted_in_turn = false;
         self.tool_calls_this_turn = 0;
-        self.turn_artifacts.lock().unwrap().clear();
+        lock_recovering(&self.turn_artifacts).clear();
         loop {
             self.ensure_event_delivery()?;
             if iterations >= self.config.max_iterations {

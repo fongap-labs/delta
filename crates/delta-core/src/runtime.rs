@@ -543,7 +543,7 @@ impl RuntimeAuthorities {
     /// `recovery` column are rebuild evidence only and are not consulted to
     /// decide whether a run may be replayed.
     pub fn recover_interrupted_runs(&self) -> Result<RecoveryReport, String> {
-        let ledger = self.ledger.lock().unwrap();
+        let ledger = lock_recovering(&self.ledger);
         let reader = ledger.reader().map_err(|error| error.to_string())?;
         let open_runs = reader.open_runs().map_err(|error| error.to_string())?;
         if open_runs.is_empty() {
@@ -593,7 +593,7 @@ impl RuntimeAuthorities {
         let swept = if interrupted.is_empty() {
             Vec::new()
         } else {
-            let idempotency = self.idempotency.lock().unwrap();
+            let idempotency = lock_recovering(&self.idempotency);
             idempotency
                 .sweep_stale(&interrupted)
                 .map_err(|error| error.to_string())?
@@ -1069,7 +1069,7 @@ pub(crate) fn message_anchor(message: &Value) -> String {
 /// changed in single, complete steps (a counter, an `Option`, a database handle whose truth lives
 /// on disk): a panic then leaves a valid value behind, and refusing to lock would turn one
 /// contained panic into a permanent failure of every later run.
-fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -1371,7 +1371,7 @@ impl RuntimeHost {
     pub fn steer(&self, text: &str, source: Option<Value>) {
         self.steering
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .push((text.to_string(), source));
         self.provider_cancel.store(true, Ordering::SeqCst);
     }
@@ -1564,7 +1564,7 @@ impl RuntimeHost {
         payload: Value,
     ) -> Result<(), String> {
         {
-            let writer = authorities.idempotency.lock().unwrap();
+            let writer = lock_recovering(&authorities.idempotency);
             writer.mark_uncertain(run_id, &call.id).map_err(|error| {
                 format!("failed to persist uncertain side-effect state: {error}")
             })?;
@@ -1583,7 +1583,7 @@ impl RuntimeHost {
     ) -> Result<(), String> {
         let (event_type, actor, payload) = event;
         {
-            let writer = authorities.idempotency.lock().unwrap();
+            let writer = lock_recovering(&authorities.idempotency);
             writer
                 .mark_failed(run_id, &call.id, failure_reason)
                 .map_err(|error| format!("failed to persist failed side-effect state: {error}"))?;
@@ -1726,7 +1726,7 @@ impl RuntimeHost {
 
     fn set_runtime_state(&self, state: RuntimeState) {
         if let Some(runtime_state) = &self.runtime_state {
-            *runtime_state.lock().unwrap() = state;
+            *lock_recovering(runtime_state) = state;
         }
     }
 
@@ -1743,7 +1743,7 @@ impl RuntimeHost {
         };
         let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
         let workspace = self.config.workspace.clone().unwrap_or_default();
-        let ledger = authorities.ledger.lock().unwrap();
+        let ledger = lock_recovering(&authorities.ledger);
         CheckpointWriter::new(&ledger)
             .register(
                 CheckpointRegisterInput {
@@ -1753,7 +1753,7 @@ impl RuntimeHost {
                     phase: phase.to_string(),
                     pending_tool_call,
                     pending_inbox_item_id,
-                    last_event_seq: Some(*self.sequence.lock().unwrap() as i64),
+                    last_event_seq: Some(*lock_recovering(&self.sequence) as i64),
                     todo_summary: Vec::new(),
                     recent_artifacts: artifacts,
                     error,
