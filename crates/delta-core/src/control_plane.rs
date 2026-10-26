@@ -1135,9 +1135,22 @@ pub fn read_artifact(
     path: &str,
 ) -> Result<Value, ShadowReadError> {
     let absolute = resolve_artifact_path(state_dir, session_id, path)?;
+    preview_file(&absolute, path)
+}
+
+/// Largest picture or PDF the artifact view loads whole. It travels to the window as one Base64
+/// text, so a bigger one is opened from its folder instead.
+const MAX_MEDIA_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
+/// Most text of a file the artifact view shows.
+const MAX_TEXT_PREVIEW_BYTES: usize = 2 * 1024 * 1024;
+
+/// What the artifact view shows for the file or folder at `absolute`, which `path` names for the
+/// view. Only as much of the file as the view can show is read.
+fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
+    use std::io::Read;
     if absolute.is_dir() {
         let mut entries = Vec::new();
-        for entry in fs::read_dir(&absolute)?.flatten().take(500) {
+        for entry in fs::read_dir(absolute)?.flatten().take(500) {
             let metadata = entry.metadata().ok();
             entries.push(json!({
                 "name": entry.file_name().to_string_lossy(),
@@ -1147,7 +1160,6 @@ pub fn read_artifact(
         }
         return Ok(json!({"ok": true, "path": path, "kind": "folder", "entries": entries}));
     }
-    let bytes = fs::read(&absolute)?;
     let extension = absolute
         .extension()
         .and_then(|value| value.to_str())
@@ -1162,16 +1174,30 @@ pub fn read_artifact(
         "pdf" => Some("application/pdf"),
         _ => None,
     };
+    let size = fs::metadata(absolute)?.len();
     if let Some(mime) = mime {
-        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+        if size > MAX_MEDIA_PREVIEW_BYTES {
+            return Ok(json!({
+                "ok": false, "path": path, "kind": "unknown", "size": size,
+                "error": format!(
+                    "This file is {} MB, too large to preview here. Open it from its folder.",
+                    size / (1024 * 1024)
+                ),
+            }));
+        }
+        let encoded = base64::engine::general_purpose::STANDARD.encode(fs::read(absolute)?);
         return Ok(json!({
             "ok": true, "path": path, "kind": if extension == "pdf" { "pdf" } else { "image" },
             "data_url": format!("data:{mime};base64,{encoded}"), "truncated": false,
         }));
     }
-    let max = 2 * 1024 * 1024;
-    let truncated = bytes.len() > max;
-    let content = String::from_utf8_lossy(&bytes[..bytes.len().min(max)]).to_string();
+    let mut bytes = Vec::new();
+    fs::File::open(absolute)?
+        .take(MAX_TEXT_PREVIEW_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    let truncated = bytes.len() > MAX_TEXT_PREVIEW_BYTES;
+    let content =
+        String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_TEXT_PREVIEW_BYTES)]).to_string();
     Ok(json!({
         "ok": true, "path": path, "kind": "text", "content": content,
         "truncated": truncated,
@@ -1420,6 +1446,47 @@ mod tests {
             inside.exists() && outside.exists(),
             "a file outside conversations/ was deleted"
         );
+    }
+
+    #[test]
+    fn the_artifact_view_does_not_load_a_huge_file_whole() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // A picture over the limit is refused with a message, without being read.
+        let huge = tmp.path().join("huge.png");
+        fs::File::create(&huge)
+            .unwrap()
+            .set_len(MAX_MEDIA_PREVIEW_BYTES + 1)
+            .unwrap();
+        let refused = preview_file(&huge, "huge.png").unwrap();
+        assert_eq!(refused["ok"], false);
+        assert!(refused["error"].as_str().unwrap().contains("too large"));
+        assert!(refused.get("data_url").is_none());
+
+        // A text file far over the limit shows its start and says it was cut.
+        let text = tmp.path().join("log.txt");
+        fs::write(&text, "x".repeat(MAX_TEXT_PREVIEW_BYTES + 1000)).unwrap();
+        let shown = preview_file(&text, "log.txt").unwrap();
+        assert_eq!(shown["truncated"], true);
+        assert_eq!(
+            shown["content"].as_str().unwrap().len(),
+            MAX_TEXT_PREVIEW_BYTES
+        );
+
+        // Ordinary files are unchanged.
+        let small = tmp.path().join("a.txt");
+        fs::write(&small, "hello").unwrap();
+        let shown = preview_file(&small, "a.txt").unwrap();
+        assert_eq!(
+            (
+                shown["content"].as_str().unwrap(),
+                shown["truncated"].as_bool().unwrap()
+            ),
+            ("hello", false)
+        );
+        let pic = tmp.path().join("p.png");
+        fs::write(&pic, [1_u8, 2, 3]).unwrap();
+        assert_eq!(preview_file(&pic, "p.png").unwrap()["kind"], "image");
     }
 
     #[test]
