@@ -60,3 +60,11 @@
 - ADR-0054、ADR-0055：统计引擎与数值溯源；本 ADR 沿用其结果文件格式。
 - ADR-0072：Suite 首批范围；有效期功能依赖本 ADR。
 - ADR-0073：斜率与截距的比较，用于 poolability 判断。
+
+## 实现记录
+
+- 工具 `statistics_shelf_life`（`statistics/methods/shelf_life.rs`）：参数为时间列、属性列、批次列（可选）、`model`（`pooled` 或 `separate`）、`direction`（`decreasing` 或 `increasing`）、规格限与单侧置信水平（默认 0.95）。
+- 预测均值及其标准误由 R 的 `predict(..., se.fit = TRUE)` 给出；界限取均值减去（或加上）`qt(level, df)` 乘以标准误；交点由 `uniroot` 求解，容差 1e-10。
+- 交点超出最大观测时间时标记 `extrapolated`；在零时刻已越界，或在十倍观测范围内无交点时，有效期为空并给出说明。
+- 参考值来自 statsmodels 0.15（`get_prediction` 的均值与标准误）与 SciPy 1.18（单侧 t 分位数与求根），对同一组固定数据（3 批次、6 个时间点）计算。测试比对相对容差 1e-6。
+- R 相关的测试只在 CI 中执行；本机没有 R，因此本次没有运行 R 程序。

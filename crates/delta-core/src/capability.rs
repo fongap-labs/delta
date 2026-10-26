@@ -229,6 +229,7 @@ mod tests {
                 "statistics_doe",
                 "statistics_record",
                 "statistics_regression",
+                "statistics_shelf_life",
                 "statistics_ttest",
                 "study_evaluate",
                 "todo_write",
