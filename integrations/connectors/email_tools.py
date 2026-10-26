@@ -108,6 +108,10 @@ def _auth_hint(servers: EmailServers) -> str:
 
 
 # -- connections ----------------------------------------------------------------
+# Most a message's attachments may add up to. Gmail, Outlook and most other servers reject more.
+_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+
 def _default_imap_factory(host: str, port: int) -> imaplib.IMAP4_SSL:
     return imaplib.IMAP4_SSL(host, port, timeout=_TIMEOUT)
 
@@ -655,6 +659,7 @@ def make_email_tools(
         msg.set_content(body)
 
         allowed_roots = [r.path for r in (roots or [])]
+        attached_bytes = 0
         for raw_path in attachments or []:
             path = Path(str(raw_path)).expanduser().resolve()
             if not any(path.is_relative_to(root) for root in allowed_roots):
@@ -663,6 +668,14 @@ def make_email_tools(
                 }
             if not path.is_file():
                 return {"error": f"attachment not found: {raw_path}"}
+            # Mail servers refuse messages past about this size anyway; checking before the
+            # read keeps a model-chosen huge file from being loaded into memory first.
+            attached_bytes += path.stat().st_size
+            if attached_bytes > _MAX_ATTACHMENT_BYTES:
+                return {
+                    "error": "attachments are larger than "
+                    f"{_MAX_ATTACHMENT_BYTES // (1024 * 1024)} MiB in total; send fewer or smaller files"
+                }
             import mimetypes
 
             ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
