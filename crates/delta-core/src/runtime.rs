@@ -53,6 +53,8 @@ const DEFAULT_MAX_ITERATIONS: usize = 12;
 const DEFAULT_MAX_TOOL_CALLS: usize = 100;
 /// Automatic retries of one model call after a transient failure (so up to 5 attempts).
 pub(crate) const DEFAULT_MAX_RETRIES: u32 = 4;
+/// How long an unattended run waits for an answer in the Inbox before giving up on the call.
+const DEFAULT_UNATTENDED_WAIT: Duration = Duration::from_secs(12 * 60 * 60);
 /// Screenshots from tools that are still sent to the model (the newest ones).
 const MAX_SCREENSHOTS_IN_CONTEXT: usize = 2;
 /// Largest screenshot file read back into a request.
@@ -644,6 +646,10 @@ pub struct RuntimeConfig {
     /// Unattended runs park approval requests in the Inbox authority instead
     /// of waiting on an in-composer response.
     pub unattended: bool,
+    /// How long an unattended run waits for an answer (approval, question, plan, directory)
+    /// before it gives up on that call. `None` waits for ever. An attended run is never timed
+    /// out: its user is at the screen, and may step away and come back.
+    pub unattended_wait: Option<Duration>,
     /// Execution mode drives the Plan-mode Trust constraint in the Policy
     /// layer. Default is `Execute`. `Plan` hard-rejects any non-read-only
     /// capability regardless of model behavior.
@@ -679,6 +685,7 @@ impl Default for RuntimeConfig {
             system_prompt: None,
             workspace: None,
             unattended: false,
+            unattended_wait: Some(DEFAULT_UNATTENDED_WAIT),
             mode: crate::policy::ExecutionMode::Execute,
             context_window_tokens: None,
             compaction_threshold_pct: 0.8,
@@ -1343,6 +1350,15 @@ impl RuntimeHost {
             .iter()
             .take_while(|m| m.get("role").and_then(Value::as_str) == Some("system"))
             .count()
+    }
+
+    /// Whether an unattended run has waited as long as it is willing to since `since`.
+    pub(crate) fn unattended_wait_expired(&self, since: std::time::Instant) -> bool {
+        self.config.unattended
+            && self
+                .config
+                .unattended_wait
+                .is_some_and(|limit| since.elapsed() >= limit)
     }
 
     pub fn with_run_id(mut self, run_id: String) -> Self {

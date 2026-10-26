@@ -652,6 +652,131 @@ fn native_e2e_approval_rejection_never_enters_capability() {
     assert!(events.iter().any(|event| event.r#type == "tool.cancelled"));
 }
 
+fn unattended_host(
+    temp: &Path,
+    wait: Option<Duration>,
+    unattended: bool,
+    calls: Arc<AtomicUsize>,
+) -> (RuntimeHost, RuntimeAuthorities) {
+    let authorities = authorities_at(temp);
+    let mut host = RuntimeHost::new(
+        "session-wait",
+        RuntimeConfig {
+            unattended,
+            unattended_wait: wait,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities.clone())
+    .with_tools(tool_contract("medium", true))
+    .with_tool_executor(Arc::new(CountingExecutor {
+        calls,
+        staged: None,
+    }));
+    host.set_run_id("run-wait".to_string());
+    (host, authorities)
+}
+
+#[test]
+fn an_unattended_approval_that_gets_no_answer_expires_and_closes_its_inbox_item() {
+    let temp = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (host, authorities) = unattended_host(
+        temp.path(),
+        Some(Duration::from_millis(100)),
+        true,
+        calls.clone(),
+    );
+    let result = host.execute_tool_call(&ToolCall {
+        id: "call-expiry".to_string(),
+        name: "write_report".to_string(),
+        arguments: json!({"path": "report.md"}),
+    });
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("expired")),
+        "{:?}",
+        result.error
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "the tool never ran");
+    assert!(host.approvals.pending_ids().is_empty());
+    let items = authorities.inbox().list(Some("session-wait"), None);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].state, "resolved");
+    assert_eq!(items[0].resolution.as_deref(), Some("expired"));
+    let events = authorities
+        .ledger()
+        .lock()
+        .unwrap()
+        .reader()
+        .unwrap()
+        .events("run-wait")
+        .unwrap();
+    assert!(events.iter().any(|e| e.r#type == "approval.expired"));
+    assert!(events.iter().any(|e| e.r#type == "tool.cancelled"));
+}
+
+#[test]
+fn an_unattended_question_that_gets_no_answer_expires() {
+    let temp = tempfile::tempdir().unwrap();
+    let (host, authorities) = unattended_host(
+        temp.path(),
+        Some(Duration::from_millis(100)),
+        true,
+        Arc::new(AtomicUsize::new(0)),
+    );
+    let result = host
+        .execute_interaction(&ToolCall {
+            id: "call-question".to_string(),
+            name: "ask_user".to_string(),
+            arguments: json!({"question": "Which file?"}),
+        })
+        .expect("ask_user is an interaction");
+    assert!(
+        result
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("expired")),
+        "{:?}",
+        result.error
+    );
+    let items = authorities.inbox().list(Some("session-wait"), None);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].resolution.as_deref(), Some("expired"));
+}
+
+#[test]
+fn an_attended_approval_is_never_timed_out() {
+    let temp = tempfile::tempdir().unwrap();
+    let (host, _authorities) = unattended_host(
+        temp.path(),
+        Some(Duration::from_millis(50)),
+        false,
+        Arc::new(AtomicUsize::new(0)),
+    );
+    let host = Arc::new(host);
+    let worker = {
+        let host = host.clone();
+        std::thread::spawn(move || {
+            host.execute_tool_call(&ToolCall {
+                id: "call-attended".to_string(),
+                name: "write_report".to_string(),
+                arguments: json!({"path": "report.md"}),
+            })
+        })
+    };
+    // Well past the limit an unattended run would have given up at.
+    std::thread::sleep(Duration::from_millis(400));
+    assert_eq!(host.approvals.pending_ids(), ["call-attended"]);
+    host.approvals
+        .resolve(Some("call-attended"), ApprovalDecision::Deny)
+        .unwrap();
+    let result = worker.join().unwrap();
+    assert_eq!(result.error.as_deref(), Some("tool call denied by user"));
+}
+
 #[test]
 fn native_e2e_repeated_denials_in_an_automation_run_pause_it_and_leave_a_notice() {
     let temp = tempfile::tempdir().unwrap();

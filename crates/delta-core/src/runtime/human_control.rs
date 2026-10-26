@@ -144,7 +144,30 @@ impl RuntimeHost {
             return Some(ToolResult::failure(&call.id, error));
         }
         self.set_runtime_state(RuntimeState::WaitingUser);
+        let waiting_since = std::time::Instant::now();
         loop {
+            if self.unattended_wait_expired(waiting_since) {
+                self.interactions.cancel(&call.id);
+                if let Some(authorities) = &self.authorities {
+                    let _ =
+                        authorities
+                            .inbox
+                            .resolve_for_call(&self.session_id, &call.id, "expired");
+                }
+                self.set_runtime_state(RuntimeState::Running);
+                let primary = "user input expired: no answer arrived in the Inbox in time";
+                if let Err(error) = self.ledger_append(
+                    "interaction.expired",
+                    "runtime",
+                    json!({"tool_call_id": call.id, "kind": kind}),
+                ) {
+                    return Some(ToolResult::failure(
+                        &call.id,
+                        format!("{primary}; failed to persist interaction.expired: {error}"),
+                    ));
+                }
+                return Some(ToolResult::failure(&call.id, primary));
+            }
             if self.cancel.load(Ordering::Acquire) {
                 self.interactions.cancel(&call.id);
                 let primary = "run cancelled while user input was pending";

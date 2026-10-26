@@ -300,6 +300,28 @@ impl InboxStore {
             .collect()
     }
 
+    /// Close the pending item a session holds for a tool call, if it still holds one. Used when
+    /// the run stops waiting for it, so the Inbox does not keep offering an answer nobody reads.
+    pub fn resolve_for_call(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        resolution: &str,
+    ) -> Result<Option<InboxItem>, ShadowReadError> {
+        let id = crate::runtime::lock_recovering(&self.items)
+            .iter()
+            .find(|item| {
+                item.state == "pending"
+                    && item.session_id == session_id
+                    && item.tool_call_id.as_deref() == Some(tool_call_id)
+            })
+            .map(|item| item.id.clone());
+        match id {
+            Some(id) => self.resolve(&id, resolution),
+            None => Ok(None),
+        }
+    }
+
     pub fn resolve(
         &self,
         item_id: &str,
