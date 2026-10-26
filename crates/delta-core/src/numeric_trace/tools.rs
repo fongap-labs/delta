@@ -57,8 +57,8 @@ fn render_registration() -> CapabilityRegistration {
             result file, rounded half up to the format (%.Nf, or integer). The report is written \
             to `report_path`, and next to it a manifest (`<report_path>.bindings.json`) records, \
             for every number, its result file, that file's SHA-256, the key, the raw value, the \
-            rendered text and its place. Write numbers in a report only as bindings: use \
-            statistics_record to make the result files. Markdown only."
+            rendered text and its place. Write numbers in a report only as bindings: use an \
+            analysis engine to make the result files (ADR-0079). Markdown only."
             .to_owned(),
         parameters: json!({
             "type": "object", "required": ["template_path", "report_path"],

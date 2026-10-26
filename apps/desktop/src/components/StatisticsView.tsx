@@ -5,6 +5,8 @@ import { useI18n } from "@delta/i18n/I18nContext";
 // Statistics without a model (ADR-0078): pick a tool, fill its arguments, run it on a CSV file in
 // the workspace. The tools are read-only and local, so this works with no AI gateway configured.
 // The arguments form is generated from each tool's JSON Schema; nothing here computes a figure.
+// The R engine was removed from Foundation (ADR-0081); until the Python Explore Pack lands, the
+// list is empty and the page says so.
 
 type Fields = Record<string, string>;
 
@@ -99,6 +101,15 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
         {!workspace && (
           <p className="mt-2 text-[13px] text-muted">
             {t("statistics.noWorkspace", undefined, "Open a conversation in a workspace first; the data file is read from there.")}
+          </p>
+        )}
+        {!loadError && tools.length === 0 && (
+          <p className="mt-2 text-[13px] text-muted">
+            {t(
+              "statistics.none",
+              undefined,
+              "No local statistics engine is available in this build. Delta Suite provides validated analysis."
+            )}
           </p>
         )}
         {tool && (

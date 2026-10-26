@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-/// A result file as `statistics_record` writes it.
+/// A version 1 result file as the legacy R engine wrote it.
 fn result_file(values: Value) -> Vec<u8> {
     let values: serde_json::Map<String, Value> = values
         .as_object()
@@ -694,9 +694,9 @@ fn the_render_tool_asks_first_and_the_check_tool_does_not() {
     }
 }
 
-// --- the data-analysis skill's claims about reports ------------------------------------------
+// --- report binding fixtures ---------------------------------------------------------------
 
-/// The result file the skill's template points at, as `statistics_record` flattens a t test.
+/// A t test result as an analysis engine flattens it into a result file.
 fn ttest_files() -> Files {
     Files::new(&[(
         "out/ttest.json",
@@ -706,34 +706,6 @@ fn ttest_files() -> Files {
             "conf_level": 0.95
         })),
     )])
-}
-
-/// The one Markdown block of the skill: its report template.
-fn skill_template() -> &'static str {
-    let skill = include_str!("../../skills/data-analysis/SKILL.md");
-    let start = skill
-        .find("```markdown\n")
-        .expect("the skill has a template")
-        + "```markdown\n".len();
-    let end = start
-        + skill[start..]
-            .find("\n```")
-            .expect("the template is closed");
-    &skill[start..end]
-}
-
-#[test]
-fn the_template_in_the_data_analysis_skill_renders_and_passes_a_formal_check() {
-    let files = ttest_files();
-    let rendered = render_ok(skill_template(), &files);
-    let outcome = check(&rendered, &rendered.text, &files, true, &[]);
-    assert!(
-        outcome.passed(),
-        "{:?} {:?}",
-        outcome.problems,
-        outcome.unbound
-    );
-    assert_eq!(outcome.bindings, 8);
 }
 
 #[test]

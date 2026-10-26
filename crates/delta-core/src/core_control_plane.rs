@@ -1548,79 +1548,19 @@ mod statistics_run_tests {
     }
 
     #[test]
-    fn only_read_only_statistics_tools_are_listed() {
+    fn no_local_statistics_tools_are_registered_after_the_r_engine_is_removed() {
         let (_state, plane) = open_plane();
-        let listed = names(&plane.statistics_tools());
-        assert!(listed.iter().any(|name| name == "statistics_f2"));
-        assert!(listed.iter().any(|name| name == "statistics_ancova"));
-        assert!(!listed.iter().any(|name| name == "statistics_record"));
-        assert!(!listed.iter().any(|name| name == "chart_render"));
-        assert!(!listed.iter().any(|name| name == "run_shell"));
+        assert!(names(&plane.statistics_tools()).is_empty());
     }
 
     #[test]
-    fn a_tool_outside_the_local_statistics_set_is_refused_before_it_runs() {
+    fn an_unregistered_statistics_tool_is_refused_before_it_runs() {
         let (state, plane) = open_plane();
         let workspace = state.path().to_string_lossy().to_string();
-        let shell = plane.run_statistics_tool("run_shell", json!({}), &workspace);
-        assert_eq!(shell["ok"], false);
-        assert!(shell["error"]
-            .as_str()
-            .unwrap()
-            .contains("not a local statistics tool"));
-        let record = plane.run_statistics_tool("statistics_record", json!({}), &workspace);
-        assert!(record["error"]
-            .as_str()
-            .unwrap()
-            .contains("not a local statistics tool"));
-        let missing = plane.run_statistics_tool("statistics_nope", json!({}), &workspace);
+        let missing = plane.run_statistics_tool("statistics_f2", json!({}), &workspace);
         assert!(missing["error"]
             .as_str()
             .unwrap()
             .contains("unknown statistics tool"));
-        let no_workspace = plane.run_statistics_tool("statistics_f2", json!({}), "  ");
-        assert!(no_workspace["error"]
-            .as_str()
-            .unwrap()
-            .contains("workspace"));
-    }
-
-    #[test]
-    fn a_statistics_run_is_written_to_the_audit_log_before_it_starts() {
-        let (state, plane) = open_plane();
-        let workspace = state.path().to_string_lossy().to_string();
-        plane.run_statistics_tool(
-            "statistics_f2",
-            json!({"path": "missing.csv", "reference": "r", "test": "t"}),
-            &workspace,
-        );
-        let listed = plane.audit_list(Some(10), None, None, Some("statistics_f2"));
-        let events = listed["events"].as_array().unwrap();
-        assert!(!events.is_empty(), "{listed}");
-        assert_eq!(events[0]["tool"], "statistics_f2");
-        assert_eq!(events[0]["status"], "started");
-    }
-
-    /// Runs f2 from the product path on a workspace file. Needs the pinned R, so it returns early
-    /// without it (CI installs R).
-    #[test]
-    fn f2_runs_from_the_workspace_without_a_model_turn() {
-        if crate::statistics::find_rscript().is_err() {
-            return;
-        }
-        let (_state, plane) = open_plane();
-        let workspace = tempfile::tempdir().unwrap();
-        std::fs::write(
-            workspace.path().join("profiles.csv"),
-            "time,reference,test\n10,10,12\n20,40,38\n30,70,75\n",
-        )
-        .unwrap();
-        let result = plane.run_statistics_tool(
-            "statistics_f2",
-            json!({"path": "profiles.csv", "reference": "reference", "test": "test"}),
-            &workspace.path().to_string_lossy(),
-        );
-        let f2 = result["f2"].as_f64().unwrap_or(f64::NAN);
-        assert!((f2 - 73.02046884880939).abs() <= 1e-9, "{result}");
     }
 }

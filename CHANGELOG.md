@@ -11,6 +11,10 @@
 
 - `report_check` 的正式模式会检查被绑定结果文件的保证等级：显式标记为 `exploratory` 的结果失败，`validated` / `attested` 通过；没有该字段的 v1 结果按 legacy 继续接受，供迁移使用。
 
+### 移除
+
+- Foundation 立即移除 R 统计：`statistics_describe`、`statistics_ttest`、`statistics_anova`、`statistics_chisq`、`statistics_correlation`、`statistics_regression`、`statistics_ancova`、`statistics_shelf_life`、`statistics_doe`、`statistics_f2`、`statistics_record` 与 `chart_render` 全部删除；同时删除内置 `data-analysis` 技能、系统提示中的统计指令、CI 的 R 4.6.0 构建与 external-vault 的 R 资产。报告渲染、数值溯源与研究记录保留，旧 v1 结果文件继续可读。统计页在没有本地引擎时明确说明。决定见 ADR-0081。
+
 ## [0.1.1-beta.2](https://github.com/fongap-labs/delta/releases/tag/delta-v0.1.1-beta.2) - 2026-10-26
 
 ### 新增

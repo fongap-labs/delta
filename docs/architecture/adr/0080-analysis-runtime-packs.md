@@ -67,3 +67,8 @@
 - 签名基础设施与三平台构建尚未实现。
 - Suite 仓库当前不在本会话的访问范围内；方法包与 R Worker 的现状需要在获得权限后核对。
 - 验证证据的格式与首批方法尚未确定。
+
+## 实现记录（2026-10-27）
+
+- Foundation 的 R 统计、R CI 与 external-vault R 资产已立即移除（ADR-0081）。
+- Explore Pack 尚未实现；Suite Validate Pack 的 R 方法包是下一步。

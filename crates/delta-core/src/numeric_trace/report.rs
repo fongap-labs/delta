@@ -2,7 +2,7 @@
 //! (ADR-0055 points 2 and 3).
 //!
 //! A template is Markdown with `{{result:<path>#<key>|<format>}}` where a computed number goes.
-//! Rendering reads each result file (the JSON `values` object `statistics_record` writes), formats
+//! Rendering reads each result file (the JSON `values` object an analysis engine writes, ADR-0079), formats
 //! the number with the declared format, and writes the report together with a manifest that says,
 //! for every binding, which file (and SHA-256) and key it came from, the raw value, the format, the
 //! rendered text and where in the report it sits. Checking recomputes all of that from the files as

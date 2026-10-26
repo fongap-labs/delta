@@ -80,10 +80,6 @@ const BUILTIN_SKILLS: &[(&str, &str)] = &[
         "short-video-pack",
         include_str!("../skills/short-video-pack/SKILL.md"),
     ),
-    (
-        "data-analysis",
-        include_str!("../skills/data-analysis/SKILL.md"),
-    ),
 ];
 
 /// What the user is told when they try to change or delete a built-in skill.
@@ -1236,8 +1232,8 @@ mod tests {
 
         let sales = lookup_call(&host, "s1", "find_skill", json!({"query": "sales report"}));
         assert_eq!(sales.state, ToolExitState::Completed, "{:?}", sales.error);
-        // 12 + invoice + the built-in data-analysis skill, whose description says "report".
-        assert_eq!(sales.output["total"], 14);
+        // 12 + invoice; the built-in data-analysis skill was removed with the R engine (ADR-0081).
+        assert_eq!(sales.output["total"], 13);
         assert_eq!(sales.output["truncated"], true);
         let names: Vec<&str> = sales.output["skills"]
             .as_array()
@@ -1503,12 +1499,7 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            [
-                "data-analysis",
-                "five-image-note",
-                "short-video-pack",
-                "wechat-article"
-            ]
+            ["five-image-note", "short-video-pack", "wechat-article"]
         );
         for row in &rows {
             let name = row["name"].as_str().unwrap();
@@ -1546,68 +1537,6 @@ mod tests {
         assert_eq!(first("小红书"), "five-image-note");
         assert_eq!(first("短视频素材包"), "short-video-pack");
         assert_eq!(first("video"), "short-video-pack");
-        assert_eq!(first("统计分析"), "data-analysis");
-        assert_eq!(first("statistics report"), "data-analysis");
-    }
-
-    #[test]
-    fn the_data_analysis_skill_only_names_tools_that_exist_and_says_what_it_cannot_do() {
-        let temp = tempfile::tempdir().unwrap();
-        let store = SkillStore::open(temp.path()).unwrap();
-        let read = store.read_for_session("s1", None, "data-analysis").unwrap();
-        assert_eq!(read["ok"], true);
-        let text = read["instructions"].as_str().unwrap();
-
-        // Every tool the skill tells the model to call is a tool the product registers.
-        let host = crate::capability::CapabilityHost::product_defaults().unwrap();
-        let registered: std::collections::HashSet<String> = host
-            .tool_schemas()
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|schema| schema["function"]["name"].as_str().unwrap().to_owned())
-            .collect();
-        let mut named = 0;
-        for word in text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
-            if word.starts_with("statistics_")
-                || word.starts_with("report_")
-                || matches!(
-                    word,
-                    "read_file"
-                        | "read_document"
-                        | "create_document"
-                        | "ask_user"
-                        | "web_search"
-                        | "web_fetch"
-                        | "chart_render"
-                )
-            {
-                named += 1;
-                assert!(
-                    registered.contains(word),
-                    "the skill names {word}, which is not a tool"
-                );
-            }
-        }
-        assert!(named > 10, "{named}");
-
-        for needle in [
-            "statistics_record",
-            "report_render",
-            "report_check",
-            "ask_user",
-            "隐私级别",
-        ] {
-            assert!(text.contains(needle), "must mention {needle}");
-        }
-        // It says what it cannot do instead of pretending to.
-        for needle in ["不能插入 Word 或 Excel", "不检验统计前提", "R 不可用"] {
-            assert!(text.contains(needle), "must say {needle}");
-        }
-        assert!(
-            !text.contains("无需批准") && !text.contains("不需要批准"),
-            "nothing here tells the model to skip an approval"
-        );
     }
 
     #[test]
@@ -1683,7 +1612,7 @@ mod tests {
         let deleted = store.delete("wechat-article", None).unwrap();
         assert_eq!(deleted["ok"], false);
         assert!(deleted["error"].as_str().unwrap().contains("built-in"));
-        assert_eq!(builtin_rows(&store).len(), 4, "nothing was removed");
+        assert_eq!(builtin_rows(&store).len(), 3, "nothing was removed");
     }
 
     #[test]
@@ -1700,7 +1629,7 @@ mod tests {
             .unwrap();
         assert_eq!(mine["scope"], "global");
         assert_eq!(mine["instructions"], "My way.");
-        assert_eq!(builtin_rows(&store).len(), 3);
+        assert_eq!(builtin_rows(&store).len(), 2);
         assert_eq!(
             store
                 .update("wechat-article", &json!({"instructions": "Changed."}), None)
@@ -1708,7 +1637,7 @@ mod tests {
             true
         );
         assert_eq!(store.delete("wechat-article", None).unwrap()["ok"], true);
-        assert_eq!(builtin_rows(&store).len(), 4, "the built-in one is back");
+        assert_eq!(builtin_rows(&store).len(), 3, "the built-in one is back");
     }
 
     #[test]
@@ -1768,7 +1697,7 @@ mod tests {
             .collect();
         let forbidden = ["无需批准", "不需要批准", "跳过审批", "绕过审批"];
         let rows = builtin_rows(&store);
-        assert!(rows.len() >= 4, "{}", rows.len());
+        assert!(rows.len() >= 3, "{}", rows.len());
         for row in &rows {
             let name = row["name"].as_str().unwrap();
             let read = store.read_for_session("s1", None, name).unwrap();

@@ -81,3 +81,8 @@ v1 文件继续可读，按 legacy 处理；新工具只写 v2。
 - Suite 方法包的验证证据格式与首批方法尚未确定。
 - 现有 v1 结果何时停止写入，需要迁移工具与弃用公告。
 - `attested` 的外部工具适配器不在本次范围。
+
+## 实现记录（2026-10-27）
+
+- Foundation 的 R 统计已按 ADR-0081 立即移除；本 ADR 的 Explore / Validate 分层与报告门禁不变。
+- Explore Pack 与 Suite Validate Pack 尚未实现。

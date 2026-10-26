@@ -73,6 +73,13 @@ describe("StatisticsView", () => {
     expect(await screen.findByText(/column not found: test/)).toBeTruthy();
   });
 
+  it("says no local statistics engine is available when the list is empty", async () => {
+    listStatisticsTools.mockResolvedValue([]);
+    render(wrap(<StatisticsView workspace="/work/a" />));
+
+    expect(await screen.findByText(/No local statistics engine is available/)).toBeTruthy();
+  });
+
   it("asks for a workspace and cannot run without one", async () => {
     listStatisticsTools.mockResolvedValue([f2Tool]);
     render(wrap(<StatisticsView />));
