@@ -699,12 +699,18 @@ impl CoreControlPlane {
             if let Ok(Some(compaction)) =
                 control_plane::get_session_compaction(&self.state_dir, &session_id)
             {
-                if let (Some(summary), Some(boundary)) = (
+                // A compaction saved without an anchor predates the fingerprint check and its
+                // index cannot be trusted; it is skipped and the next compaction starts afresh.
+                if let (Some(summary), Some(boundary), Some(anchor)) = (
                     compaction.get("summary").and_then(Value::as_str),
                     compaction.get("boundary").and_then(Value::as_u64),
+                    compaction.get("anchor").and_then(Value::as_str),
                 ) {
-                    host = host
-                        .with_compaction(summary.to_string(), (boundary as usize).min(seeded_len));
+                    host = host.with_persisted_compaction(
+                        summary.to_string(),
+                        (boundary as usize).min(seeded_len),
+                        anchor,
+                    );
                 }
             }
             let handle = match RuntimeHandle::spawn(host) {

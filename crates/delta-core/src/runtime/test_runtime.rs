@@ -3879,6 +3879,112 @@ fn a_successful_compaction_replaces_future_messages() {
     drop(provider);
 }
 
+fn compacting_config(provider: &MockJsonProvider) -> RuntimeConfig {
+    RuntimeConfig {
+        base_url: provider.base_url.clone(),
+        api_key: "test-key".to_string(),
+        system_prompt: Some("rules".to_string()),
+        context_window_tokens: Some(20_000),
+        compaction_threshold_pct: 0.5,
+        ..RuntimeConfig::default()
+    }
+}
+
+fn tool_call_message(id: &str) -> Value {
+    json!({"role": "assistant", "tool_calls": [
+        {"id": id, "type": "function", "function": {"name": "t", "arguments": "{}"}}
+    ]})
+}
+
+#[test]
+fn compacting_in_the_middle_of_a_tool_exchange_keeps_each_result_after_its_call() {
+    let prompt = "x".repeat(200_000);
+    let provider = MockJsonProvider::start(
+        r#"{"choices":[{"message":{"content":"THE SUMMARY"}}]}"#.to_string(),
+    );
+    let mut host = RuntimeHost::new("s", compacting_config(&provider)).with_messages(vec![
+        json!({"role": "user", "content": &prompt}),
+        tool_call_message("call_1"),
+        json!({"role": "tool", "tool_call_id": "call_1", "content": "one"}),
+        tool_call_message("call_2"),
+        json!({"role": "tool", "tool_call_id": "call_2", "content": "two"}),
+    ]);
+    let mut confirmed = false;
+    host.maybe_compact(&mut confirmed).unwrap();
+
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["system", "user", "assistant", "tool"]);
+    assert!(out[1]["content"].as_str().unwrap().contains("THE SUMMARY"));
+    assert_eq!(out[3]["tool_call_id"], "call_2");
+    drop(provider);
+}
+
+#[test]
+fn a_persisted_compaction_is_restored_on_the_same_message() {
+    let temp = tempfile::tempdir().unwrap();
+    crate::control_plane::ensure_session(temp.path(), "s", None, "m").unwrap();
+    let prompt = "x".repeat(200_000);
+    let provider = MockJsonProvider::start(
+        r#"{"choices":[{"message":{"content":"THE SUMMARY"}}]}"#.to_string(),
+    );
+    let transcript = vec![
+        json!({"role": "user", "content": &prompt}),
+        json!({"role": "assistant", "content": &prompt}),
+        json!({"role": "user", "content": "live input"}),
+    ];
+    let mut host = RuntimeHost::new("s", compacting_config(&provider))
+        .with_authorities(authorities_at(temp.path()))
+        .with_messages(transcript.clone());
+    let mut confirmed = false;
+    host.maybe_compact(&mut confirmed).unwrap();
+    let live = host.outbound_messages();
+
+    // A new host is built from the stored transcript (which has no system message) and the
+    // stored compaction.
+    let saved = crate::control_plane::get_session_compaction(temp.path(), "s")
+        .unwrap()
+        .unwrap();
+    let restored = RuntimeHost::new("s", compacting_config(&provider))
+        .with_messages(transcript.clone())
+        .with_persisted_compaction(
+            saved["summary"].as_str().unwrap().to_string(),
+            saved["boundary"].as_u64().unwrap() as usize,
+            saved["anchor"].as_str().unwrap(),
+        );
+    assert_eq!(restored.outbound_messages(), live);
+
+    // A transcript that no longer lines up with the stored boundary drops the compaction.
+    let mut drifted = transcript;
+    drifted.insert(
+        0,
+        json!({"role": "user", "content": "an extra earlier message"}),
+    );
+    let restored = RuntimeHost::new("s", compacting_config(&provider))
+        .with_messages(drifted)
+        .with_persisted_compaction(
+            saved["summary"].as_str().unwrap().to_string(),
+            saved["boundary"].as_u64().unwrap() as usize,
+            saved["anchor"].as_str().unwrap(),
+        );
+    assert!(restored.compaction_summary.is_none());
+    drop(provider);
+}
+
+#[test]
+fn truncating_below_the_compaction_boundary_discards_the_summary() {
+    let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "user", "content": "a"}),
+        json!({"role": "assistant", "content": "b"}),
+        json!({"role": "user", "content": "c"}),
+    ]);
+    host.compaction_summary = Some("S".to_string());
+    host.compaction_boundary = 2;
+    host.truncate_messages(1);
+    assert!(host.compaction_summary.is_none());
+    assert_eq!(host.compaction_boundary, 0);
+}
+
 #[test]
 fn the_registry_round_trips_a_session_compaction() {
     let temp = tempfile::tempdir().unwrap();

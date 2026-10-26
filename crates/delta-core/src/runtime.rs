@@ -1044,6 +1044,27 @@ fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> V
     Value::Array(parts)
 }
 
+/// A short fingerprint of a message's role and text, to recognise it again in a transcript that
+/// was rebuilt from storage.
+pub(crate) fn message_anchor(message: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let role = message
+        .get("role")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let text = match message.get("content") {
+        Some(Value::String(text)) => text.clone(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => String::new(),
+    };
+    let digest = Sha256::digest(format!("{role}\0{}", text.trim()).as_bytes());
+    format!("{digest:x}")
+}
+
 /// Lock `mutex` even when a thread panicked while holding it. Use it only for state that is
 /// changed in single, complete steps (a counter, an `Option`, a database handle whose truth lives
 /// on disk): a panic then leaves a valid value behind, and refusing to lock would turn one
@@ -1293,6 +1314,37 @@ impl RuntimeHost {
         self.compaction_boundary = boundary;
         self
     }
+    /// Restore a compaction persisted by `persist_compaction`. The boundary counts messages after
+    /// the leading system messages, and `anchor` fingerprints the first message kept verbatim.
+    /// The persisted transcript is not the in-memory one (it lacks messages the runtime keeps
+    /// only for itself), so an index alone can drift; when the message at the boundary is not the
+    /// one that was anchored, the compaction is dropped and the next one summarizes afresh.
+    pub fn with_persisted_compaction(
+        mut self,
+        summary: String,
+        relative_boundary: usize,
+        anchor: &str,
+    ) -> Self {
+        let boundary = relative_boundary + self.system_prefix();
+        let anchored = self
+            .messages
+            .get(boundary)
+            .is_some_and(|message| message_anchor(message) == anchor);
+        if anchored {
+            self.compaction_summary = Some(summary);
+            self.compaction_boundary = boundary;
+        }
+        self
+    }
+
+    /// Leading system messages, which are never part of a persisted transcript.
+    pub(crate) fn system_prefix(&self) -> usize {
+        self.messages
+            .iter()
+            .take_while(|m| m.get("role").and_then(Value::as_str) == Some("system"))
+            .count()
+    }
+
     pub fn with_run_id(mut self, run_id: String) -> Self {
         self.run_id = Some(run_id);
         self
@@ -1336,6 +1388,11 @@ impl RuntimeHost {
     pub fn truncate_messages(&mut self, index: usize) {
         if index < self.messages.len() {
             self.messages.truncate(index);
+        }
+        // A summary of messages that are gone must not be applied to whatever is appended next.
+        if self.compaction_boundary > self.messages.len() {
+            self.compaction_summary = None;
+            self.compaction_boundary = 0;
         }
     }
 

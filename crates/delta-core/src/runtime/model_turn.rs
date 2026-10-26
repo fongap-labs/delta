@@ -781,8 +781,16 @@ impl RuntimeHost {
         if self.messages.len() < 3 {
             return Ok(());
         }
-        let boundary = self.messages.len() - 1;
-        if boundary < 2 {
+        // Keep the newest message verbatim, and with it the whole tool exchange it belongs to: a
+        // tool result must stay right after the assistant turn that asked for it, or the provider
+        // refuses the request.
+        let mut boundary = self.messages.len() - 1;
+        while boundary > 0 && role_of(&self.messages[boundary]) == Some("tool") {
+            boundary -= 1;
+        }
+        let first = self.system_prefix();
+        // Nothing new to fold in: everything before the boundary is already summarized.
+        if boundary <= first || boundary <= self.compaction_boundary {
             return Ok(());
         }
         self.emit_event(RuntimeEvent::Compacting);
@@ -790,7 +798,7 @@ impl RuntimeHost {
         let mut req = ProviderRequest {
             protocol: self.config.protocol.clone(),
             model: self.config.model.clone(),
-            messages: json!([{"role": "user", "content": compaction_prompt(&self.messages[1..boundary])}]),
+            messages: json!([{"role": "user", "content": compaction_prompt(&self.messages[first..boundary])}]),
             tools: None,
             settings: Some(json!({})),
             api_key: self.config.api_key.clone(),
@@ -852,9 +860,13 @@ impl RuntimeHost {
     /// record it still compacts for this host's lifetime.
     fn persist_compaction(&self, summary: &str, boundary: usize) {
         if let Some(authorities) = &self.authorities {
+            let Some(kept) = self.messages.get(boundary) else {
+                return;
+            };
             let payload = json!({
                 "summary": summary,
-                "boundary": boundary,
+                "boundary": boundary.saturating_sub(self.system_prefix()),
+                "anchor": crate::runtime::message_anchor(kept),
                 "created_at": now_ts(),
             });
             let _ = crate::control_plane::set_session_compaction(
@@ -864,6 +876,10 @@ impl RuntimeHost {
             );
         }
     }
+}
+
+fn role_of(message: &Value) -> Option<&str> {
+    message.get("role").and_then(Value::as_str)
 }
 
 /// The user message that carries the summary in outbound requests.
