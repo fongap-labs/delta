@@ -543,7 +543,7 @@ impl RuntimeAuthorities {
     /// `recovery` column are rebuild evidence only and are not consulted to
     /// decide whether a run may be replayed.
     pub fn recover_interrupted_runs(&self) -> Result<RecoveryReport, String> {
-        let ledger = self.ledger.lock().unwrap();
+        let ledger = lock_recovering(&self.ledger);
         let reader = ledger.reader().map_err(|error| error.to_string())?;
         let open_runs = reader.open_runs().map_err(|error| error.to_string())?;
         if open_runs.is_empty() {
@@ -593,7 +593,7 @@ impl RuntimeAuthorities {
         let swept = if interrupted.is_empty() {
             Vec::new()
         } else {
-            let idempotency = self.idempotency.lock().unwrap();
+            let idempotency = lock_recovering(&self.idempotency);
             idempotency
                 .sweep_stale(&interrupted)
                 .map_err(|error| error.to_string())?
@@ -1044,11 +1044,32 @@ fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> V
     Value::Array(parts)
 }
 
+/// A short fingerprint of a message's role and text, to recognise it again in a transcript that
+/// was rebuilt from storage.
+pub(crate) fn message_anchor(message: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let role = message
+        .get("role")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let text = match message.get("content") {
+        Some(Value::String(text)) => text.clone(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => String::new(),
+    };
+    let digest = Sha256::digest(format!("{role}\0{}", text.trim()).as_bytes());
+    format!("{digest:x}")
+}
+
 /// Lock `mutex` even when a thread panicked while holding it. Use it only for state that is
 /// changed in single, complete steps (a counter, an `Option`, a database handle whose truth lives
 /// on disk): a panic then leaves a valid value behind, and refusing to lock would turn one
 /// contained panic into a permanent failure of every later run.
-fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -1268,8 +1289,19 @@ impl RuntimeHost {
         self.authorities = Some(authorities);
         self
     }
+    /// Seed the transcript. The persisted transcript never holds the system message, so the
+    /// host's own prompt is carried over; a seeded system message is replaced by the current one.
     pub fn with_messages(mut self, messages: Vec<Value>) -> Self {
+        let is_system =
+            |message: &Value| message.get("role").and_then(Value::as_str) == Some("system");
+        let system = self.messages.iter().find(|m| is_system(m)).cloned();
         self.messages = messages;
+        if let Some(system) = system {
+            match self.messages.iter().position(is_system) {
+                Some(index) => self.messages[index] = system,
+                None => self.messages.insert(0, system),
+            }
+        }
         self
     }
 
@@ -1282,6 +1314,37 @@ impl RuntimeHost {
         self.compaction_boundary = boundary;
         self
     }
+    /// Restore a compaction persisted by `persist_compaction`. The boundary counts messages after
+    /// the leading system messages, and `anchor` fingerprints the first message kept verbatim.
+    /// The persisted transcript is not the in-memory one (it lacks messages the runtime keeps
+    /// only for itself), so an index alone can drift; when the message at the boundary is not the
+    /// one that was anchored, the compaction is dropped and the next one summarizes afresh.
+    pub fn with_persisted_compaction(
+        mut self,
+        summary: String,
+        relative_boundary: usize,
+        anchor: &str,
+    ) -> Self {
+        let boundary = relative_boundary + self.system_prefix();
+        let anchored = self
+            .messages
+            .get(boundary)
+            .is_some_and(|message| message_anchor(message) == anchor);
+        if anchored {
+            self.compaction_summary = Some(summary);
+            self.compaction_boundary = boundary;
+        }
+        self
+    }
+
+    /// Leading system messages, which are never part of a persisted transcript.
+    pub(crate) fn system_prefix(&self) -> usize {
+        self.messages
+            .iter()
+            .take_while(|m| m.get("role").and_then(Value::as_str) == Some("system"))
+            .count()
+    }
+
     pub fn with_run_id(mut self, run_id: String) -> Self {
         self.run_id = Some(run_id);
         self
@@ -1308,7 +1371,7 @@ impl RuntimeHost {
     pub fn steer(&self, text: &str, source: Option<Value>) {
         self.steering
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .push((text.to_string(), source));
         self.provider_cancel.store(true, Ordering::SeqCst);
     }
@@ -1325,6 +1388,11 @@ impl RuntimeHost {
     pub fn truncate_messages(&mut self, index: usize) {
         if index < self.messages.len() {
             self.messages.truncate(index);
+        }
+        // A summary of messages that are gone must not be applied to whatever is appended next.
+        if self.compaction_boundary > self.messages.len() {
+            self.compaction_summary = None;
+            self.compaction_boundary = 0;
         }
     }
 
@@ -1496,7 +1564,7 @@ impl RuntimeHost {
         payload: Value,
     ) -> Result<(), String> {
         {
-            let writer = authorities.idempotency.lock().unwrap();
+            let writer = lock_recovering(&authorities.idempotency);
             writer.mark_uncertain(run_id, &call.id).map_err(|error| {
                 format!("failed to persist uncertain side-effect state: {error}")
             })?;
@@ -1515,7 +1583,7 @@ impl RuntimeHost {
     ) -> Result<(), String> {
         let (event_type, actor, payload) = event;
         {
-            let writer = authorities.idempotency.lock().unwrap();
+            let writer = lock_recovering(&authorities.idempotency);
             writer
                 .mark_failed(run_id, &call.id, failure_reason)
                 .map_err(|error| format!("failed to persist failed side-effect state: {error}"))?;
@@ -1658,7 +1726,7 @@ impl RuntimeHost {
 
     fn set_runtime_state(&self, state: RuntimeState) {
         if let Some(runtime_state) = &self.runtime_state {
-            *runtime_state.lock().unwrap() = state;
+            *lock_recovering(runtime_state) = state;
         }
     }
 
@@ -1675,7 +1743,7 @@ impl RuntimeHost {
         };
         let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
         let workspace = self.config.workspace.clone().unwrap_or_default();
-        let ledger = authorities.ledger.lock().unwrap();
+        let ledger = lock_recovering(&authorities.ledger);
         CheckpointWriter::new(&ledger)
             .register(
                 CheckpointRegisterInput {
@@ -1685,7 +1753,7 @@ impl RuntimeHost {
                     phase: phase.to_string(),
                     pending_tool_call,
                     pending_inbox_item_id,
-                    last_event_seq: Some(*self.sequence.lock().unwrap() as i64),
+                    last_event_seq: Some(*lock_recovering(&self.sequence) as i64),
                     todo_summary: Vec::new(),
                     recent_artifacts: artifacts,
                     error,

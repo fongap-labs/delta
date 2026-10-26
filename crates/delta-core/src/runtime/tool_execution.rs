@@ -32,7 +32,7 @@ impl RuntimeHost {
         authorities
             .approvals
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .record(
                 ApprovalRecordInput {
                     session_id: self.session_id.clone(),
@@ -388,7 +388,7 @@ impl RuntimeHost {
                 },
                 lineage: Vec::new(),
             };
-            ArtifactRegistryWriter::new(&authorities.ledger.lock().unwrap())
+            ArtifactRegistryWriter::new(&lock_recovering(&authorities.ledger))
                 .register(&artifact, now_ts(), workspace_text)
                 .map_err(|error| error.to_string())?;
             let mut payload = artifact.registered_payload();
@@ -400,7 +400,7 @@ impl RuntimeHost {
                 artifact: payload.clone(),
             });
             if !candidate.incomplete {
-                let mut finished = self.turn_artifacts.lock().unwrap();
+                let mut finished = lock_recovering(&self.turn_artifacts);
                 finished.retain(|(path, _)| *path != relative_path);
                 finished.push((relative_path.clone(), artifact.name.clone()));
             }
@@ -427,7 +427,7 @@ impl RuntimeHost {
             "max_artifacts": 50,
             "require_complete": true
         });
-        let ledger = authorities.ledger.lock().unwrap();
+        let ledger = lock_recovering(&authorities.ledger);
         let (_, result) = ValidationWriter::new(&ledger)
             .evaluate_and_register(
                 &run_id,
@@ -455,7 +455,7 @@ impl RuntimeHost {
         }
         let workspace = self.config.workspace.clone().unwrap_or_default();
         let workspace_root = Path::new(&workspace).canonicalize().ok();
-        let ledger = authorities.ledger.lock().unwrap();
+        let ledger = lock_recovering(&authorities.ledger);
         let writer = SourceCitationWriter::new(&ledger);
         let captured_at = time::OffsetDateTime::now_utc()
             .format(&time::format_description::well_known::Rfc3339)
@@ -678,11 +678,11 @@ impl RuntimeHost {
             tool_name: call.name.clone(),
             args: call.arguments.clone(),
         };
-        let plan = match tool_lifecycle::plan(&authorities.idempotency.lock().unwrap(), &plan_input)
-        {
-            Ok(plan) => plan,
-            Err(error) => return ToolResult::failure(&call.id, error.to_string()),
-        };
+        let plan =
+            match tool_lifecycle::plan(&lock_recovering(&authorities.idempotency), &plan_input) {
+                Ok(plan) => plan,
+                Err(error) => return ToolResult::failure(&call.id, error.to_string()),
+            };
         match plan.action {
             PlanAction::Replay => {
                 let output = plan.result.unwrap_or_else(|| json!({"ok": true}));
@@ -744,7 +744,7 @@ impl RuntimeHost {
         let progress_tool_call_id = call.id.clone();
         let progress_tool = call.name.clone();
         let progress = Arc::new(move |frame: CapabilityProgress| {
-            let write_result = progress_authorities.ledger.lock().unwrap().append(
+            let write_result = lock_recovering(&progress_authorities.ledger).append(
                 &progress_run_id,
                 "tool.progress",
                 "worker",
@@ -760,7 +760,7 @@ impl RuntimeHost {
                 &progress_workspace,
             );
             if let Err(error) = write_result {
-                let mut current = progress_error_sink.lock().unwrap();
+                let mut current = lock_recovering(&progress_error_sink);
                 if current.is_none() {
                     *current = Some(error.to_string());
                 }
@@ -782,7 +782,7 @@ impl RuntimeHost {
         // event stream, the transcript, the replay record and the next model request.
         result.output = limit_tool_output(std::mem::take(&mut result.output));
 
-        if let Some(progress_error) = progress_error.lock().unwrap().clone() {
+        if let Some(progress_error) = lock_recovering(&progress_error).clone() {
             let primary = format!(
             "tool progress ledger persistence failed after execution started; outcome is uncertain: {progress_error}"
         );
@@ -947,7 +947,7 @@ impl RuntimeHost {
                 return ToolResult::failure(&call.id, primary);
             }
         }
-        if let Err(error) = authorities.idempotency.lock().unwrap().commit(
+        if let Err(error) = lock_recovering(&authorities.idempotency).commit(
             &run_id,
             &call.id,
             &call.name,

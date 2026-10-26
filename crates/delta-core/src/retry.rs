@@ -102,6 +102,7 @@ pub fn is_retryable_text(message: &str) -> bool {
         || lower.contains("503")
         || lower.contains("504")
         || lower.contains("connection")
+        || lower.contains("stream interrupted")
         || lower.contains("timeout")
         || lower.contains("timed out")
         || lower.contains("transport")

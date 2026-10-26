@@ -365,18 +365,18 @@ impl LedgerWriter {
         let payload_str = canonical_json(payload);
         let ts_repr = format_ts_repr(ts);
 
-        let row = self
-            .conn
-            .query_row(
-                "SELECT seq, hash FROM run_events WHERE run_id = ? \
-                 ORDER BY seq DESC LIMIT 1",
-                params![run_id],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
-            )
-            .ok();
-        let (seq, prev_hash) = match row {
-            Some((s, h)) => (s + 1, h),
-            None => (1, String::new()),
+        // Only a run with no events starts a chain. Any other failure to read the tail must stop
+        // the append: starting over at seq 1 would fork the run's hash chain without a trace.
+        let tail = self.conn.query_row(
+            "SELECT seq, hash FROM run_events WHERE run_id = ? \
+             ORDER BY seq DESC LIMIT 1",
+            params![run_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        );
+        let (seq, prev_hash) = match tail {
+            Ok((s, h)) => (s + 1, h),
+            Err(rusqlite::Error::QueryReturnedNoRows) => (1, String::new()),
+            Err(error) => return Err(error.into()),
         };
         let basis = format!(
             "{}|{}|{}|{}|{}|{}",
@@ -775,6 +775,29 @@ mod tests {
         // Each run is its own chain, so both start with empty prev_hash.
         assert_eq!(r1["prev_hash"], "");
         assert_eq!(r2["prev_hash"], "");
+    }
+
+    #[test]
+    fn an_unreadable_chain_tail_stops_the_append_instead_of_forking_the_chain() {
+        let writer = LedgerWriter::open_in_memory().unwrap();
+        writer
+            .append("r1", "run.started", "user", 1.0, &serde_json::json!({}), "")
+            .unwrap();
+        // A tail row whose seq cannot be read as a number.
+        writer
+            .conn
+            .execute(
+                "INSERT INTO run_events (run_id, seq, type, ts, hash) VALUES ('r1', 'x', 't', 2.0, 'h')",
+                [],
+            )
+            .unwrap();
+        let result = writer.append("r1", "run.resumed", "user", 3.0, &serde_json::json!({}), "");
+        assert!(result.is_err());
+        let rows: i64 = writer
+            .conn
+            .query_row("SELECT COUNT(*) FROM run_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 2, "nothing was appended");
     }
 
     #[test]

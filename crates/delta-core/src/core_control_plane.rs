@@ -171,6 +171,22 @@ impl CoreControlPlane {
         &self.models
     }
 
+    /// Check a provider's connection. Only reads the stored settings, so it does not take the
+    /// authority's lock while it waits on the network.
+    pub fn verify_provider(&self, name: &str, fields: &Value) -> Result<Value, String> {
+        ModelAuthority::open(&self.state_dir)?.verify_provider(name, fields)
+    }
+
+    /// Fetch a provider's model list and add it to the user's models. The wait on the provider
+    /// happens outside the authority's lock; only the update to the list is made under it.
+    pub fn fetch_provider_models(&self, name: &str, fields: &Value) -> Result<Value, String> {
+        let probed = ModelAuthority::open(&self.state_dir)?.probe_models(name, fields)?;
+        self.models
+            .lock()
+            .map_err(|_| "model authority lock poisoned".to_string())?
+            .add_fetched_models(name, &probed)
+    }
+
     pub fn runtime_authorities(&self) -> &RuntimeAuthorities {
         &self.authorities
     }
@@ -699,12 +715,18 @@ impl CoreControlPlane {
             if let Ok(Some(compaction)) =
                 control_plane::get_session_compaction(&self.state_dir, &session_id)
             {
-                if let (Some(summary), Some(boundary)) = (
+                // A compaction saved without an anchor predates the fingerprint check and its
+                // index cannot be trusted; it is skipped and the next compaction starts afresh.
+                if let (Some(summary), Some(boundary), Some(anchor)) = (
                     compaction.get("summary").and_then(Value::as_str),
                     compaction.get("boundary").and_then(Value::as_u64),
+                    compaction.get("anchor").and_then(Value::as_str),
                 ) {
-                    host = host
-                        .with_compaction(summary.to_string(), (boundary as usize).min(seeded_len));
+                    host = host.with_persisted_compaction(
+                        summary.to_string(),
+                        (boundary as usize).min(seeded_len),
+                        anchor,
+                    );
                 }
             }
             let handle = match RuntimeHandle::spawn(host) {

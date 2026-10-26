@@ -14,7 +14,8 @@ const TEXT_SEARCH_RESULT_CHARS: usize = 12_000;
 
 /// Keys the runtime keeps for itself. They never reach a provider: gateways reject message fields
 /// they do not know, and some of these (such as `model`) mean something else to the UI.
-const SIDECAR_KEYS: [&str; 10] = [
+const SIDECAR_KEYS: [&str; 11] = [
+    "error",
     "source",
     "_display",
     "ts",
@@ -149,6 +150,16 @@ impl RuntimeHost {
         let keep_from = with_images.len().saturating_sub(MAX_SCREENSHOTS_IN_CONTEXT);
         let sent_images: Vec<usize> = with_images[keep_from..].to_vec();
 
+        // A result with no call before it in what is sent is refused by every provider. The
+        // stored transcript can hold one (the runtime's own text-search step records a tool
+        // result for a call the model never made).
+        let announced: std::collections::HashSet<&str> = history
+            .iter()
+            .filter_map(|m| m.get("tool_calls").and_then(Value::as_array))
+            .flatten()
+            .filter_map(|call| call.get("id").and_then(Value::as_str))
+            .collect();
+
         let mut pending: Vec<Value> = Vec::new();
         let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>| {
             if pending.is_empty() {
@@ -169,12 +180,30 @@ impl RuntimeHost {
             if role == Some("notice") {
                 continue;
             }
+            if role == Some("tool")
+                && !m
+                    .get("tool_call_id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| announced.contains(id))
+            {
+                continue;
+            }
             // Tool results must stay together right after the assistant turn that asked for
             // them, so the pictures follow the last of them.
             if role != Some("tool") {
                 flush(&mut out, &mut pending);
             }
             let mut message = without_sidecars(m);
+            if role == Some("tool") {
+                // A result read back from storage keeps the tool's structured output and its
+                // name; the provider takes the text the model was given the first time.
+                if let Some(object) = message.as_object_mut() {
+                    object.remove("name");
+                    if let Some(content) = m.get("content") {
+                        object.insert("content".to_string(), json!(tool_result_content(content)));
+                    }
+                }
+            }
             if role == Some("user") {
                 if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
                     if !attachments.is_empty() {
@@ -307,8 +336,29 @@ impl RuntimeHost {
         msg
     }
 
+    /// Give every tool call an id no earlier call in this transcript has used. Some endpoints
+    /// send no id, or number their calls `call_0`, `call_1` afresh in every reply; the id pairs a
+    /// result with its call and keys the idempotency record, so a repeat would make a later call
+    /// fail as a collision or, with the same arguments, replay an earlier call's result.
+    pub(super) fn unique_call_ids(&self, calls: &mut [ToolCall]) {
+        let mut used: std::collections::HashSet<String> = self
+            .messages
+            .iter()
+            .filter_map(|message| message.get("tool_calls").and_then(Value::as_array))
+            .flatten()
+            .filter_map(|call| call.get("id").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect();
+        for call in calls {
+            if call.id.is_empty() || used.contains(&call.id) {
+                call.id = format!("call_{}", uuid_v4());
+            }
+            used.insert(call.id.clone());
+        }
+    }
+
     pub(super) fn drain_steering(&mut self) -> bool {
-        let mut q = self.steering.lock().unwrap();
+        let mut q = lock_recovering(&self.steering);
         if q.is_empty() {
             return false;
         }
@@ -415,8 +465,9 @@ impl RuntimeHost {
         // would let a settings change land halfway through an answer.
         self.turn_proxy = self.resolve_turn_proxy();
         self.reduced_request = false;
+        self.compacted_in_turn = false;
         self.tool_calls_this_turn = 0;
-        self.turn_artifacts.lock().unwrap().clear();
+        lock_recovering(&self.turn_artifacts).clear();
         loop {
             self.ensure_event_delivery()?;
             if iterations >= self.config.max_iterations {
@@ -638,7 +689,8 @@ impl RuntimeHost {
                 self.ensure_event_delivery()?;
                 return Ok("interrupted".to_string());
             }
-            let turn = turn.unwrap_or_default();
+            let mut turn = turn.unwrap_or_default();
+            self.unique_call_ids(&mut turn.tool_calls);
             let assistant_message = self.assistant_message(
                 turn.text.as_deref(),
                 turn.reasoning.as_deref(),
@@ -781,8 +833,16 @@ impl RuntimeHost {
         if self.messages.len() < 3 {
             return Ok(());
         }
-        let boundary = self.messages.len() - 1;
-        if boundary < 2 {
+        // Keep the newest message verbatim, and with it the whole tool exchange it belongs to: a
+        // tool result must stay right after the assistant turn that asked for it, or the provider
+        // refuses the request.
+        let mut boundary = self.messages.len() - 1;
+        while boundary > 0 && role_of(&self.messages[boundary]) == Some("tool") {
+            boundary -= 1;
+        }
+        let first = self.system_prefix();
+        // Nothing new to fold in: everything before the boundary is already summarized.
+        if boundary <= first || boundary <= self.compaction_boundary {
             return Ok(());
         }
         self.emit_event(RuntimeEvent::Compacting);
@@ -790,7 +850,7 @@ impl RuntimeHost {
         let mut req = ProviderRequest {
             protocol: self.config.protocol.clone(),
             model: self.config.model.clone(),
-            messages: json!([{"role": "user", "content": compaction_prompt(&self.messages[1..boundary])}]),
+            messages: json!([{"role": "user", "content": compaction_prompt(&self.messages[first..boundary])}]),
             tools: None,
             settings: Some(json!({})),
             api_key: self.config.api_key.clone(),
@@ -852,9 +912,13 @@ impl RuntimeHost {
     /// record it still compacts for this host's lifetime.
     fn persist_compaction(&self, summary: &str, boundary: usize) {
         if let Some(authorities) = &self.authorities {
+            let Some(kept) = self.messages.get(boundary) else {
+                return;
+            };
             let payload = json!({
                 "summary": summary,
-                "boundary": boundary,
+                "boundary": boundary.saturating_sub(self.system_prefix()),
+                "anchor": crate::runtime::message_anchor(kept),
                 "created_at": now_ts(),
             });
             let _ = crate::control_plane::set_session_compaction(
@@ -864,6 +928,10 @@ impl RuntimeHost {
             );
         }
     }
+}
+
+fn role_of(message: &Value) -> Option<&str> {
+    message.get("role").and_then(Value::as_str)
 }
 
 /// The user message that carries the summary in outbound requests.
@@ -929,18 +997,18 @@ fn compaction_prompt(messages: &[Value]) -> String {
     )
 }
 
-/// Characters a message contributes to the context estimate: text content,
-/// reasoning and serialized tool calls; images and attachments are ignored
-/// (they are either stripped or cost proportionally to their caption).
+/// Quarter-tokens a message contributes to the context estimate: text content, reasoning and
+/// serialized tool calls; images and attachments are ignored (they are either stripped or cost
+/// proportionally to their caption).
 fn message_chars(message: &Value) -> usize {
     let content_chars = match message.get("content") {
-        Some(Value::String(text)) => text.len(),
+        Some(Value::String(text)) => text_weight(text),
         Some(Value::Array(parts)) => parts
             .iter()
             .map(|part| {
                 part.get("text")
                     .and_then(Value::as_str)
-                    .map(str::len)
+                    .map(text_weight)
                     .unwrap_or(0)
             })
             .sum(),
@@ -949,17 +1017,25 @@ fn message_chars(message: &Value) -> usize {
     let reasoning_chars = message
         .get("reasoning")
         .and_then(Value::as_str)
-        .map(str::len)
+        .map(text_weight)
         .unwrap_or(0);
     let tool_chars = message
         .get("tool_calls")
         .map(|calls| {
             serde_json::to_string(calls)
-                .map(|text| text.len())
+                .map(|text| text_weight(&text))
                 .unwrap_or(0)
         })
         .unwrap_or(0);
     content_chars + reasoning_chars + tool_chars
+}
+
+/// Text size in quarter-tokens. Latin text runs about four characters to a token, so an ASCII
+/// character counts one; a character outside ASCII (Chinese, Japanese, Korean, most symbols) is
+/// about a token of its own, so it counts four. Counting UTF-8 bytes instead would give a Chinese
+/// character three, and a Chinese conversation would look a third smaller than it is.
+fn text_weight(text: &str) -> usize {
+    text.chars().map(|c| if c.is_ascii() { 1 } else { 4 }).sum()
 }
 
 /// Backoff before retry number `retry` (1-based): the base delay doubled each time, capped.

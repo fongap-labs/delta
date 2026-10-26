@@ -125,6 +125,42 @@ fn test_outbound_strips_sidecars() {
 }
 
 #[test]
+fn a_restored_transcript_keeps_the_session_system_prompt() {
+    // The persisted transcript never carries the system message, so seeding a host from it must
+    // not drop the prompt the host was built with.
+    let config = RuntimeConfig {
+        system_prompt: Some("agent rules".to_string()),
+        ..Default::default()
+    };
+    let host = RuntimeHost::new("s1", config).with_messages(vec![
+        json!({"role": "user", "content": "hello"}),
+        json!({"role": "assistant", "content": "hi"}),
+    ]);
+    let outbound = host.outbound_messages();
+    assert_eq!(outbound.len(), 3);
+    assert_eq!(outbound[0]["role"], "system");
+    assert_eq!(outbound[0]["content"], "agent rules");
+    assert_eq!(outbound[1]["content"], "hello");
+
+    // A transcript that does carry a system message gets the current prompt, not a second one.
+    let config = RuntimeConfig {
+        system_prompt: Some("new rules".to_string()),
+        ..Default::default()
+    };
+    let host = RuntimeHost::new("s1", config).with_messages(vec![
+        json!({"role": "system", "content": "old rules"}),
+        json!({"role": "user", "content": "hello"}),
+    ]);
+    let systems: Vec<&Value> = host
+        .messages()
+        .iter()
+        .filter(|m| m["role"] == "system")
+        .collect();
+    assert_eq!(systems.len(), 1);
+    assert_eq!(systems[0]["content"], "new rules");
+}
+
+#[test]
 fn canonical_attachments_convert_only_at_provider_boundary() {
     let host = RuntimeHost::new(
         "s1",
@@ -1547,10 +1583,11 @@ fn only_the_newest_screenshots_are_sent_and_unsafe_or_missing_files_are_ignored(
     ] {
         let messages = vec![
             json!({"role": "user", "content": "x"}),
+            tool_call_message("t"),
             json!({"role": "tool", "tool_call_id": "t", "content": {}, "images": [{"path": path}]}),
         ];
         let out = host_with_messages("openai_chat", temp.path(), messages).outbound_messages();
-        assert_eq!(out.len(), 2, "{path}");
+        assert_eq!(out.len(), 3, "{path}");
     }
 }
 
@@ -3766,6 +3803,60 @@ fn compaction_estimate_counts_text_tokens_only() {
 }
 
 #[test]
+fn compaction_estimate_counts_a_chinese_character_as_a_token() {
+    let messages = vec![
+        json!({"role": "system", "content": "s"}),
+        json!({"role": "user", "content": "汉".repeat(400)}),
+    ];
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(messages);
+    let estimate = host.estimate_context_tokens();
+    assert!(estimate >= 400, "one token per character; got {estimate}");
+    assert!(estimate < 450, "overhead is bounded; got {estimate}");
+}
+
+#[test]
+fn tool_call_ids_are_unique_within_a_transcript() {
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "user", "content": "go"}),
+        tool_call_message("call_0"),
+        json!({"role": "tool", "tool_call_id": "call_0", "content": "done"}),
+    ]);
+    let call = |id: &str| ToolCall {
+        id: id.to_string(),
+        name: "t".to_string(),
+        arguments: json!({}),
+    };
+    // An id used earlier, a missing id, a repeat within the reply, and one that is fine.
+    let mut calls = vec![call("call_0"), call(""), call("call_0"), call("fresh")];
+    host.unique_call_ids(&mut calls);
+    let ids: Vec<&str> = calls.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids[3], "fresh", "a unique id is kept");
+    let distinct: std::collections::HashSet<&&str> = ids.iter().collect();
+    assert_eq!(distinct.len(), 4);
+    assert!(ids.iter().all(|id| !id.is_empty() && *id != "call_0"));
+}
+
+#[test]
+fn a_tool_result_read_back_from_storage_goes_out_as_the_model_first_saw_it() {
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "user", "content": "go"}),
+        tool_call_message("call_1"),
+        // The shape the stored transcript gives a result: structured output, a name, an error slot.
+        json!({"role": "tool", "tool_call_id": "call_1", "name": "t",
+               "content": {"ok": true}, "error": null}),
+        // A result for a call the model never made (the text-search step).
+        json!({"role": "tool", "tool_call_id": "text-search-1", "name": "web_search",
+               "content": {"hits": []}, "error": null}),
+    ]);
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["user", "assistant", "tool"]);
+    assert_eq!(out[2]["content"], "{\"ok\":true}");
+    assert!(out[2].get("name").is_none() && out[2].get("error").is_none());
+    assert_eq!(out[2]["tool_call_id"], "call_1");
+}
+
+#[test]
 fn a_short_context_does_not_compact() {
     let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
         json!({"role": "system", "content": "s"}),
@@ -3841,6 +3932,164 @@ fn a_successful_compaction_replaces_future_messages() {
         "the summary replaces the collapsed history"
     );
     drop(provider);
+}
+
+fn compacting_config(provider: &MockJsonProvider) -> RuntimeConfig {
+    RuntimeConfig {
+        base_url: provider.base_url.clone(),
+        api_key: "test-key".to_string(),
+        system_prompt: Some("rules".to_string()),
+        context_window_tokens: Some(20_000),
+        compaction_threshold_pct: 0.5,
+        ..RuntimeConfig::default()
+    }
+}
+
+fn tool_call_message(id: &str) -> Value {
+    json!({"role": "assistant", "tool_calls": [
+        {"id": id, "type": "function", "function": {"name": "t", "arguments": "{}"}}
+    ]})
+}
+
+#[test]
+fn compacting_in_the_middle_of_a_tool_exchange_keeps_each_result_after_its_call() {
+    let prompt = "x".repeat(200_000);
+    let provider = MockJsonProvider::start(
+        r#"{"choices":[{"message":{"content":"THE SUMMARY"}}]}"#.to_string(),
+    );
+    let mut host = RuntimeHost::new("s", compacting_config(&provider)).with_messages(vec![
+        json!({"role": "user", "content": &prompt}),
+        tool_call_message("call_1"),
+        json!({"role": "tool", "tool_call_id": "call_1", "content": "one"}),
+        tool_call_message("call_2"),
+        json!({"role": "tool", "tool_call_id": "call_2", "content": "two"}),
+    ]);
+    let mut confirmed = false;
+    host.maybe_compact(&mut confirmed).unwrap();
+
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["system", "user", "assistant", "tool"]);
+    assert!(out[1]["content"].as_str().unwrap().contains("THE SUMMARY"));
+    assert_eq!(out[3]["tool_call_id"], "call_2");
+    drop(provider);
+}
+
+#[test]
+fn a_persisted_compaction_is_restored_on_the_same_message() {
+    let temp = tempfile::tempdir().unwrap();
+    crate::control_plane::ensure_session(temp.path(), "s", None, "m").unwrap();
+    let prompt = "x".repeat(200_000);
+    let provider = MockJsonProvider::start(
+        r#"{"choices":[{"message":{"content":"THE SUMMARY"}}]}"#.to_string(),
+    );
+    let transcript = vec![
+        json!({"role": "user", "content": &prompt}),
+        json!({"role": "assistant", "content": &prompt}),
+        json!({"role": "user", "content": "live input"}),
+    ];
+    let mut host = RuntimeHost::new("s", compacting_config(&provider))
+        .with_authorities(authorities_at(temp.path()))
+        .with_messages(transcript.clone());
+    let mut confirmed = false;
+    host.maybe_compact(&mut confirmed).unwrap();
+    let live = host.outbound_messages();
+
+    // A new host is built from the stored transcript (which has no system message) and the
+    // stored compaction.
+    let saved = crate::control_plane::get_session_compaction(temp.path(), "s")
+        .unwrap()
+        .unwrap();
+    let restored = RuntimeHost::new("s", compacting_config(&provider))
+        .with_messages(transcript.clone())
+        .with_persisted_compaction(
+            saved["summary"].as_str().unwrap().to_string(),
+            saved["boundary"].as_u64().unwrap() as usize,
+            saved["anchor"].as_str().unwrap(),
+        );
+    assert_eq!(restored.outbound_messages(), live);
+
+    // A transcript that no longer lines up with the stored boundary drops the compaction.
+    let mut drifted = transcript;
+    drifted.insert(
+        0,
+        json!({"role": "user", "content": "an extra earlier message"}),
+    );
+    let restored = RuntimeHost::new("s", compacting_config(&provider))
+        .with_messages(drifted)
+        .with_persisted_compaction(
+            saved["summary"].as_str().unwrap().to_string(),
+            saved["boundary"].as_u64().unwrap() as usize,
+            saved["anchor"].as_str().unwrap(),
+        );
+    assert!(restored.compaction_summary.is_none());
+    drop(provider);
+}
+
+/// Poison `mutex` the way a panic inside a contained run would: a thread dies holding it.
+fn poison<T: Send + 'static>(mutex: &Arc<Mutex<T>>) {
+    let held = mutex.clone();
+    let _ = std::thread::spawn(move || {
+        let _guard = held.lock().unwrap();
+        panic!("a panic while the lock is held");
+    })
+    .join();
+    assert!(mutex.is_poisoned());
+}
+
+#[test]
+fn a_contained_panic_does_not_lock_the_session_out_of_its_own_state() {
+    let temp = tempfile::tempdir().unwrap();
+    let authorities = authorities_at(temp.path());
+    let host =
+        RuntimeHost::new("s", RuntimeConfig::default()).with_authorities(authorities.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+
+    poison(&handle.state);
+    poison(&handle.steering);
+    poison(&authorities.ledger);
+
+    assert_eq!(handle.state(), RuntimeState::Idle);
+    assert!(
+        handle.steer("more", None).is_err(),
+        "idle: refused, not a panic"
+    );
+    assert!(handle.pending_approvals().is_empty());
+    // Reading the ledger for a resumable run still works, and says why there is none.
+    let error = handle.resume().unwrap_err();
+    assert!(error.contains("nothing to resume"), "{error}");
+}
+
+#[test]
+fn each_run_may_compact_again() {
+    let config = RuntimeConfig {
+        base_url: "http://127.0.0.1:9/v1".to_string(),
+        api_key: "k".to_string(),
+        max_retries: 0,
+        ..RuntimeConfig::default()
+    };
+    let mut host = RuntimeHost::new("s", config);
+    // The flag a previous run left behind.
+    host.compacted_in_turn = true;
+    let _ = host.run("hello", None);
+    assert!(
+        !host.compacted_in_turn,
+        "a new run starts with its compaction allowance"
+    );
+}
+
+#[test]
+fn truncating_below_the_compaction_boundary_discards_the_summary() {
+    let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "user", "content": "a"}),
+        json!({"role": "assistant", "content": "b"}),
+        json!({"role": "user", "content": "c"}),
+    ]);
+    host.compaction_summary = Some("S".to_string());
+    host.compaction_boundary = 2;
+    host.truncate_messages(1);
+    assert!(host.compaction_summary.is_none());
+    assert_eq!(host.compaction_boundary, 0);
 }
 
 #[test]

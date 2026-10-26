@@ -14,7 +14,7 @@ impl RuntimeHost {
             return;
         };
         let state_dir = authorities.state_dir().to_path_buf();
-        let artifacts = self.turn_artifacts.lock().unwrap().clone();
+        let artifacts = lock_recovering(&self.turn_artifacts).clone();
         let summary = webhook::summarize(final_text, webhook::SUMMARY_CHARS);
         let context = AutomationStore::open(&state_dir)
             .and_then(|store| store.completion_context(&self.session_id));
