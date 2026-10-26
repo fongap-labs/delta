@@ -228,6 +228,7 @@ pub fn registrations() -> Vec<CapabilityRegistration> {
         chisq_registration(),
         correlation_registration(),
         regression_registration(),
+        ancova::ancova_registration(),
         doe_registration(),
         record::registration(),
     ]
@@ -950,6 +951,7 @@ fn shape_regression(
     }))
 }
 
+mod ancova;
 mod design;
 use design::doe_registration;
 mod record;

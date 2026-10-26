@@ -221,6 +221,7 @@ mod tests {
                 "report_render",
                 "request_directory",
                 "run_shell",
+                "statistics_ancova",
                 "statistics_anova",
                 "statistics_chisq",
                 "statistics_correlation",
