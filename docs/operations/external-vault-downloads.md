@@ -54,4 +54,4 @@ python3 scripts/fetch_external_vault.py --dest ./vault qcc  # 指定保存目录
 
 ## 与 CI 的关系
 
-当前 `.github/scripts/central-ci.sh` 仍直接从 CRAN 下载 R 源码并校验同一个 SHA-256，本次没有改动。两处的校验值必须保持一致；改为从 external-vault 下载属于后续变更。
+`.github/scripts/central-ci.sh` 的 `install_pinned_r()` 在编译 R 之前，调用本脚本下载 `r-base`。SHA-256 只在 `.github/external-vault-assets.json` 中固定一份，CI 不再单独保存校验值，也不再直接访问 CRAN。下载失败或校验不通过时，CI 作业失败，不会改用其他来源或其他版本的 R。
