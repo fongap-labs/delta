@@ -307,6 +307,27 @@ impl RuntimeHost {
         msg
     }
 
+    /// Give every tool call an id no earlier call in this transcript has used. Some endpoints
+    /// send no id, or number their calls `call_0`, `call_1` afresh in every reply; the id pairs a
+    /// result with its call and keys the idempotency record, so a repeat would make a later call
+    /// fail as a collision or, with the same arguments, replay an earlier call's result.
+    pub(super) fn unique_call_ids(&self, calls: &mut [ToolCall]) {
+        let mut used: std::collections::HashSet<String> = self
+            .messages
+            .iter()
+            .filter_map(|message| message.get("tool_calls").and_then(Value::as_array))
+            .flatten()
+            .filter_map(|call| call.get("id").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect();
+        for call in calls {
+            if call.id.is_empty() || used.contains(&call.id) {
+                call.id = format!("call_{}", uuid_v4());
+            }
+            used.insert(call.id.clone());
+        }
+    }
+
     pub(super) fn drain_steering(&mut self) -> bool {
         let mut q = self.steering.lock().unwrap();
         if q.is_empty() {
@@ -639,7 +660,8 @@ impl RuntimeHost {
                 self.ensure_event_delivery()?;
                 return Ok("interrupted".to_string());
             }
-            let turn = turn.unwrap_or_default();
+            let mut turn = turn.unwrap_or_default();
+            self.unique_call_ids(&mut turn.tool_calls);
             let assistant_message = self.assistant_message(
                 turn.text.as_deref(),
                 turn.reasoning.as_deref(),

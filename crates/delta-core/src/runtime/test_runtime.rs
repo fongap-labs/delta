@@ -3814,6 +3814,28 @@ fn compaction_estimate_counts_a_chinese_character_as_a_token() {
 }
 
 #[test]
+fn tool_call_ids_are_unique_within_a_transcript() {
+    let host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
+        json!({"role": "user", "content": "go"}),
+        tool_call_message("call_0"),
+        json!({"role": "tool", "tool_call_id": "call_0", "content": "done"}),
+    ]);
+    let call = |id: &str| ToolCall {
+        id: id.to_string(),
+        name: "t".to_string(),
+        arguments: json!({}),
+    };
+    // An id used earlier, a missing id, a repeat within the reply, and one that is fine.
+    let mut calls = vec![call("call_0"), call(""), call("call_0"), call("fresh")];
+    host.unique_call_ids(&mut calls);
+    let ids: Vec<&str> = calls.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids[3], "fresh", "a unique id is kept");
+    let distinct: std::collections::HashSet<&&str> = ids.iter().collect();
+    assert_eq!(distinct.len(), 4);
+    assert!(ids.iter().all(|id| !id.is_empty() && *id != "call_0"));
+}
+
+#[test]
 fn a_short_context_does_not_compact() {
     let mut host = RuntimeHost::new("s", RuntimeConfig::default()).with_messages(vec![
         json!({"role": "system", "content": "s"}),
