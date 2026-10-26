@@ -413,6 +413,9 @@ pub fn set_session_flags(
 
 /// Delete a session: remove its row and its transcript file.
 pub fn delete_session(state_dir: &Path, session_id: &str) -> Result<Value, ShadowReadError> {
+    if !safe_session_id(session_id) {
+        return Err(ShadowReadError::Parse("unsafe session id".to_string()));
+    }
     let db_path = state_dir.join("core.db");
     let mut is_is_deleted_row = false;
     if db_path.exists() {
@@ -1399,6 +1402,24 @@ mod tests {
         assert_eq!(d["ok"], true);
         let listed4 = list_sessions(tmp.path(), None).unwrap();
         assert_eq!(listed4["sessions"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn delete_session_refuses_an_id_that_is_not_a_plain_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path().join("state");
+        fs::create_dir_all(conversations_dir(&state)).unwrap();
+        let inside = state.join("victim.jsonl");
+        let outside = tmp.path().join("outside.jsonl");
+        fs::write(&inside, "keep").unwrap();
+        fs::write(&outside, "keep").unwrap();
+        for id in ["../victim", "../../outside", "a/b", "..", ""] {
+            assert!(delete_session(&state, id).is_err(), "{id:?} was accepted");
+        }
+        assert!(
+            inside.exists() && outside.exists(),
+            "a file outside conversations/ was deleted"
+        );
     }
 
     #[test]
