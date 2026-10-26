@@ -33,6 +33,9 @@
 | [0072](0072-suite-first-batch.md) | Suite 首批：稳定性货架期、溶出 f2 与报告模板；参数策略（已接受） |
 | [0073](0073-foundation-grouped-regression-and-nested-f.md) | 基础版统计引擎支持分组回归与嵌套模型 F 检验（已接受） |
 | [0074](0074-foundation-shelf-life-estimate.md) | 基础版统计引擎计算预测置信界限与有效期（已接受） |
+| [0075](0075-conversation-search.md) | 会话内容可搜索（复用本地全文索引，默认当前工作区；已接受） |
+| [0076](0076-skill-deterministic-evaluation.md) | 内置 Skill 的确定性评估（已接受） |
+| [0077](0077-performance-budgets.md) | 关键路径性能预算与门禁（提议） |
 
 ## 代码中引用但本仓库未保存的编号
 
