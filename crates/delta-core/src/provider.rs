@@ -4,7 +4,7 @@
 //! Response format matches the Python `AssistantTurn` / `StreamChunk`
 //! contract (base.py) so the engine keeps working unchanged.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufReader, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
@@ -366,19 +366,60 @@ enum SseLine {
     End,
 }
 
+/// Longest single line a provider stream may send. One event carries at most a chunk of an
+/// answer or of a tool call's arguments, so this is far above anything honest.
+const SSE_MAX_LINE_BYTES: usize = 4 * 1024 * 1024;
+/// Most a single provider stream may send in total.
+const SSE_MAX_STREAM_BYTES: usize = 64 * 1024 * 1024;
+/// Lines the reader may run ahead of the consumer before it waits.
+const SSE_QUEUE_LINES: usize = 256;
+const SSE_TOO_LARGE: &str = "provider stream exceeds the size limit";
+
 /// Reads response lines on a helper thread so a silent stream (a model that is still thinking,
-/// a gateway that stopped sending) cannot hold the caller past a cancel.
+/// a gateway that stopped sending) cannot hold the caller past a cancel. A line or a stream past
+/// its limit ends the read with an error instead of growing in memory without bound.
 struct SseLines {
     rx: mpsc::Receiver<std::io::Result<String>>,
 }
 
 impl SseLines {
     fn new(reader: Box<dyn Read + Send + Sync + 'static>) -> Self {
-        let (tx, rx) = mpsc::channel();
+        Self::with_limits(reader, SSE_MAX_LINE_BYTES, SSE_MAX_STREAM_BYTES)
+    }
+
+    fn with_limits(
+        reader: Box<dyn Read + Send + Sync + 'static>,
+        max_line: usize,
+        max_total: usize,
+    ) -> Self {
+        let (tx, rx) = mpsc::sync_channel(SSE_QUEUE_LINES);
         std::thread::spawn(move || {
-            for line in BufReader::new(reader).lines() {
-                let failed = line.is_err();
-                if tx.send(line).is_err() || failed {
+            let mut reader = BufReader::new(reader);
+            let mut line = Vec::new();
+            let mut total = 0usize;
+            loop {
+                // One byte past the limit tells a line that fits from one that was cut.
+                match crate::capability::process_io::read_capped_line(
+                    &mut reader,
+                    &mut line,
+                    max_line + 1,
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => break,
+                    Err(error) => {
+                        let _ = tx.send(Err(error));
+                        break;
+                    }
+                }
+                total += line.len() + 1;
+                if line.len() > max_line || total > max_total {
+                    let _ = tx.send(Err(std::io::Error::other(SSE_TOO_LARGE)));
+                    break;
+                }
+                let text = String::from_utf8_lossy(&line)
+                    .trim_end_matches('\r')
+                    .to_string();
+                if tx.send(Ok(text)).is_err() {
                     break;
                 }
             }
@@ -1481,6 +1522,32 @@ mod tests {
     const ANTHROPIC_CUT: &str = "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n\
         data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}\n\n\
         data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"half an ans\"}}\n\n";
+
+    #[test]
+    fn a_stream_line_or_stream_past_its_limit_ends_the_read() {
+        use super::{SseLine, SseLines};
+        let cancel = AtomicBool::new(false);
+        let reader = |text: &'static str| -> Box<dyn Read + Send + Sync> {
+            Box::new(std::io::Cursor::new(text.as_bytes()))
+        };
+
+        // Lines inside the limit arrive whole, with the carriage return dropped.
+        let lines = SseLines::with_limits(reader("data: ok\r\nnext\n"), 16, 1024);
+        assert!(matches!(lines.next(&cancel), Ok(SseLine::Line(l)) if l == "data: ok"));
+        assert!(matches!(lines.next(&cancel), Ok(SseLine::Line(l)) if l == "next"));
+        assert!(matches!(lines.next(&cancel), Ok(SseLine::End)));
+
+        // A line with no end in sight is refused instead of buffered.
+        let lines = SseLines::with_limits(reader("0123456789abcdefghij-no-newline"), 16, 1024);
+        let error = lines.next(&cancel).err().unwrap();
+        assert!(error.contains("size limit"), "{error}");
+
+        // So is a stream that goes on past its total.
+        let lines = SseLines::with_limits(reader("aaaa\nbbbb\ncccc\n"), 16, 12);
+        assert!(matches!(lines.next(&cancel), Ok(SseLine::Line(_))));
+        assert!(matches!(lines.next(&cancel), Ok(SseLine::Line(_))));
+        assert!(lines.next(&cancel).is_err());
+    }
 
     #[test]
     fn an_anthropic_stream_cut_before_its_end_is_an_error_not_an_answer() {
