@@ -10,14 +10,14 @@
 
 use std::process::{Child, Command};
 
-pub(super) struct ProcessTree {
+pub(crate) struct ProcessTree {
     #[cfg(windows)]
     job: windows::Job,
 }
 
 impl ProcessTree {
     /// Put the command in a process group of its own. Call before `spawn`.
-    pub(super) fn prepare(command: &mut Command) {
+    pub(crate) fn prepare(command: &mut Command) {
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;
@@ -28,7 +28,7 @@ impl ProcessTree {
     }
 
     /// Start tracking the spawned `child` and everything it starts from here on.
-    pub(super) fn attach(child: &Child) -> Self {
+    pub(crate) fn attach(child: &Child) -> Self {
         #[cfg(windows)]
         {
             Self {
@@ -43,7 +43,7 @@ impl ProcessTree {
     }
 
     /// End the child and every process it started. Safe to call on a child that already exited.
-    pub(super) fn kill(&self, child: &mut Child) {
+    pub(crate) fn kill(&self, child: &mut Child) {
         #[cfg(unix)]
         {
             // SAFETY: `kill` takes plain integers. The negative pid names the process group that
@@ -59,7 +59,7 @@ impl ProcessTree {
     }
 
     /// The command finished on its own: whatever it left running is no longer this tool's to end.
-    pub(super) fn release(&self) {
+    pub(crate) fn release(&self) {
         #[cfg(windows)]
         self.job.release();
     }
@@ -79,13 +79,17 @@ mod windows {
 
     /// A Job Object holding the command. While it is open, closing its last handle (which also
     /// happens when Delta itself dies) ends every process in it.
-    pub(super) struct Job(HANDLE);
+    pub(crate) struct Job(HANDLE);
+
+    // The handle is only used through `&self` calls that Windows allows from any thread, and
+    // closed once on drop. A worker session that owns one is moved between threads.
+    unsafe impl Send for Job {}
 
     impl Job {
         /// A job around `child`, or an empty one when Windows refuses; ending the tree then falls
         /// back to ending the child alone. A process the child started in the instant before it
         /// joined the job is not covered.
-        pub(super) fn around(child: &Child) -> Self {
+        pub(crate) fn around(child: &Child) -> Self {
             // SAFETY: plain Win32 calls with valid arguments; the handles are owned by `Job`.
             unsafe {
                 let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -116,7 +120,7 @@ mod windows {
             }
         }
 
-        pub(super) fn terminate(&self) {
+        pub(crate) fn terminate(&self) {
             if !self.0.is_null() {
                 // SAFETY: `self.0` is a job handle owned by this value.
                 unsafe {
@@ -125,7 +129,7 @@ mod windows {
             }
         }
 
-        pub(super) fn release(&self) {
+        pub(crate) fn release(&self) {
             if !self.0.is_null() {
                 self.set_flags(0);
             }

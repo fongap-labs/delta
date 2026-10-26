@@ -20,8 +20,8 @@
 
 mod abi;
 mod host;
-mod process_io;
-mod process_tree;
+pub(crate) mod process_io;
+pub(crate) mod process_tree;
 mod registry;
 mod runners;
 mod shell;

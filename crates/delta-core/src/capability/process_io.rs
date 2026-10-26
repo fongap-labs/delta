@@ -20,13 +20,13 @@ use std::time::{Duration, Instant};
 /// How long a supervisor waits, once the child has ended, for the readers to see the end of their
 /// pipes. A reader still blocked after that is held open by a process the child left behind; it is
 /// detached and stops by itself when that process lets go of the pipe or the receiver is gone.
-pub(super) const READER_GRACE: Duration = Duration::from_millis(500);
+pub(crate) const READER_GRACE: Duration = Duration::from_millis(500);
 
 const POLL: Duration = Duration::from_millis(10);
 
 /// Where a reader sends its lines: an unbounded channel, or a bounded one whose full queue makes
 /// the reader wait, which in turn makes the child wait on its pipe.
-pub(super) trait LineSink<T>: Send + 'static {
+pub(crate) trait LineSink<T>: Send + 'static {
     /// `false` when nobody is receiving any more.
     fn send_line(&self, item: T) -> bool;
 }
@@ -43,9 +43,22 @@ impl<T: Send + 'static> LineSink<T> for SyncSender<T> {
     }
 }
 
+/// A bounded channel for output nobody must wait for (a diagnostic stream): when the queue is
+/// full the newest line is dropped, and the child is never held up on its pipe.
+pub(crate) struct DropWhenFull<T>(pub SyncSender<T>);
+
+impl<T: Send + 'static> LineSink<T> for DropWhenFull<T> {
+    fn send_line(&self, item: T) -> bool {
+        !matches!(
+            self.0.try_send(item),
+            Err(std::sync::mpsc::TrySendError::Disconnected(_))
+        )
+    }
+}
+
 /// Read one line into `line` without its terminator, keeping at most `max` bytes of it and
 /// discarding the rest of a longer line. `Ok(false)` at the end of the stream.
-pub(super) fn read_capped_line(
+pub(crate) fn read_capped_line(
     reader: &mut impl BufRead,
     line: &mut Vec<u8>,
     max: usize,
@@ -79,7 +92,7 @@ pub(super) fn read_capped_line(
 /// Drain `stream` on a thread of its own, sending each line (decoded lossily, without its line
 /// ending, cut at `max_line` bytes) through `wrap` into `sink`. The thread ends with the stream or
 /// when the sink has no receiver.
-pub(super) fn spawn_line_reader<R, T, S>(
+pub(crate) fn spawn_line_reader<R, T, S>(
     name: &str,
     stream: R,
     max_line: usize,
@@ -108,7 +121,7 @@ where
 /// Give `readers` up to [`READER_GRACE`] to finish, calling `drain` while waiting and once more at
 /// the end so nothing they sent is left in the channel. Readers that are still blocked are
 /// detached, not waited for.
-pub(super) fn join_readers_within(readers: Vec<JoinHandle<()>>, drain: &mut dyn FnMut()) {
+pub(crate) fn join_readers_within(readers: Vec<JoinHandle<()>>, drain: &mut dyn FnMut()) {
     let deadline = Instant::now() + READER_GRACE;
     while Instant::now() < deadline && readers.iter().any(|reader| !reader.is_finished()) {
         drain();
