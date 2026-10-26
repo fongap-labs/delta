@@ -66,6 +66,7 @@ class TavilyProvider(WebSearchProvider):
             json={"api_key": self.api_key, "query": query, "max_results": max_results},
             timeout=_TIMEOUT,
         )
+        resp.raise_for_status()
         data = resp.json()
         return [
             SearchResult(
@@ -96,6 +97,7 @@ class BraveProvider(WebSearchProvider):
             params={"q": query, "count": max_results},
             timeout=_TIMEOUT,
         )
+        resp.raise_for_status()
         data = resp.json()
         return [
             SearchResult(

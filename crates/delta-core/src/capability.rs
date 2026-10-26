@@ -1296,7 +1296,9 @@ mod tests {
             grants,
             workspace_write: false,
             runner: Arc::new(NativeCapabilityRunner::new(move |job, _| {
-                *received_clone.lock().unwrap() = job.secret_values.clone();
+                *received_clone
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = job.secret_values.clone();
                 CapabilityResult::completed(&job.job_id, serde_json::json!({"ok": true}))
             })),
         })
@@ -1324,7 +1326,9 @@ mod tests {
             &context,
         );
         assert_eq!(result.state, crate::runtime::ToolExitState::Completed);
-        let received = received.lock().unwrap();
+        let received = received
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         assert_eq!(received.len(), 2);
         assert_eq!(received.get("API_KEY").map(|s| s.as_str()), Some("sk-xxx"));
         assert_eq!(
@@ -1354,7 +1358,9 @@ mod tests {
             grants: CapabilityGrants::read_only(),
             workspace_write: false,
             runner: Arc::new(NativeCapabilityRunner::new(move |job, _| {
-                *received_clone.lock().unwrap() = job.secret_values.clone();
+                *received_clone
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = job.secret_values.clone();
                 CapabilityResult::completed(&job.job_id, serde_json::json!({"ok": true}))
             })),
         })
@@ -1378,7 +1384,9 @@ mod tests {
             &context,
         );
         assert_eq!(result.state, crate::runtime::ToolExitState::Completed);
-        let received = received.lock().unwrap();
+        let received = received
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         assert!(
             received.is_empty(),
             "no secrets should be delivered when grants.secrets is empty"

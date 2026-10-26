@@ -183,7 +183,7 @@ impl CoreControlPlane {
         let probed = ModelAuthority::open(&self.state_dir)?.probe_models(name, fields)?;
         self.models
             .lock()
-            .map_err(|_| "model authority lock poisoned".to_string())?
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .add_fetched_models(name, &probed)
     }
 
@@ -254,9 +254,10 @@ impl CoreControlPlane {
     }
 
     fn refresh_dynamic_tools(&self) {
-        if let Ok(mut hosts) = self.hosts.lock() {
-            hosts.retain(|_, handle| handle.state().is_active());
-        }
+        self.hosts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .retain(|_, handle| handle.state().is_active());
     }
 
     pub fn mcp_list_runtime(&self) -> Value {
@@ -328,7 +329,7 @@ impl CoreControlPlane {
             let session_id = format!("__run__{run_id}");
             self.automations
                 .lock()
-                .map_err(|_| "automation authority lock poisoned".to_string())?
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .finalize_session(&session_id, "interrupted")
                 .map_err(|error| error.to_string())?;
         }
@@ -354,7 +355,7 @@ impl CoreControlPlane {
                 });
                 self.automations
                     .lock()
-                    .map_err(|_| "automation authority lock poisoned".to_string())?
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .finalize_recovery(session_id, &recovery)
                     .map_err(|error| error.to_string())?;
             }
@@ -366,7 +367,7 @@ impl CoreControlPlane {
         let mut automations = self
             .automations
             .lock()
-            .map_err(|_| "automation authority lock poisoned".to_string())?;
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         automations
             .reconcile_terminal_sessions()
             .map_err(|error| error.to_string())?;
@@ -465,7 +466,7 @@ impl CoreControlPlane {
             .map_err(|error| format!("persist runtime event: {error}"))?;
         self.automations
             .lock()
-            .map_err(|_| "automation authority lock poisoned".to_string())?
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .finalize_recovery(session_id, &recovery)
             .map_err(|error| error.to_string())?;
         Ok(())
@@ -475,7 +476,7 @@ impl CoreControlPlane {
         let settings = self
             .models
             .lock()
-            .map_err(|_| "model authority lock poisoned".to_string())?
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .settings()?;
         Ok(settings
             .get("model")
@@ -549,8 +550,8 @@ impl CoreControlPlane {
         let mut config = match self
             .models
             .lock()
-            .map_err(|_| "model authority lock poisoned".to_string())
-            .and_then(|models| models.resolve_runtime_config(&model_id))
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .resolve_runtime_config(&model_id)
         {
             Ok(config) => config,
             Err(error) => return json!({"ok": false, "error": error}),
@@ -678,10 +679,10 @@ impl CoreControlPlane {
                 .unwrap_or(false)
         });
 
-        let mut hosts = match self.hosts.lock() {
-            Ok(hosts) => hosts,
-            Err(_) => return json!({"ok": false, "error": "runtime host registry lock poisoned"}),
-        };
+        let mut hosts = self
+            .hosts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let handle = if let Some(existing) = hosts.get(&session_id).cloned() {
             if existing.state().is_active() {
                 return json!({
@@ -755,7 +756,11 @@ impl CoreControlPlane {
     }
 
     fn runtime_handle(&self, session_id: &str) -> Option<Arc<RuntimeHandle>> {
-        self.hosts.lock().ok()?.get(session_id).cloned()
+        self.hosts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(session_id)
+            .cloned()
     }
 
     pub fn runtime_retry(&self, session_id: &str) -> Value {
@@ -910,8 +915,8 @@ impl CoreControlPlane {
         let config = match self
             .models
             .lock()
-            .map_err(|_| "model authority lock poisoned".to_string())
-            .and_then(|models| models.resolve_runtime_config(model_id))
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .resolve_runtime_config(model_id)
         {
             Ok(config) => self.with_compaction_settings(model_id, config),
             Err(error) => return json!({"ok": false, "error": error}),
@@ -1363,7 +1368,7 @@ impl CoreControlPlane {
         let settings = self
             .models
             .lock()
-            .map_err(|_| "model authority lock poisoned".to_string())?
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .settings()?;
         if !settings.is_object() || self.capabilities.tool_schemas().as_array().is_none() {
             return Err("embedded Runtime authorities did not initialize".to_string());

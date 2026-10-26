@@ -1,6 +1,5 @@
 """Stable tooling contract for extension-provided connector tools."""
 
-from typing import Any, Callable
 
 from integrations.connectors.tool_runtime import (
     attach_connector_tool,

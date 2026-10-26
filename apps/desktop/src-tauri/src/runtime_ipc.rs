@@ -63,56 +63,72 @@ pub fn portable_self_test() -> Result<(), String> {
 
 static APP_EVENT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// Run one step of a background loop so that a panic in it ends that step, not the thread: a
+/// scheduler that dies silently stops every automation until the app is restarted. Returns
+/// whether the step finished.
+fn run_guarded(label: &str, step: impl FnOnce()) -> bool {
+    let finished = std::panic::catch_unwind(std::panic::AssertUnwindSafe(step)).is_ok();
+    if !finished {
+        eprintln!("{label} stopped on an internal error; it will try again");
+    }
+    finished
+}
+
+/// Claim the automation runs that are due and start each one.
+fn scheduler_tick(app: &AppHandle) {
+    let state = app.state::<RuntimeRegistry>();
+    let runs = match state.claim_due_runs() {
+        Ok(runs) => runs,
+        Err(error) => {
+            eprintln!("automation scheduler claim failed: {error}");
+            Vec::new()
+        }
+    };
+    for run in runs {
+        let session_id = run
+            .get("session_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let accepted = state.start_claimed_automation(
+            &run,
+            Arc::new(TauriEventSink {
+                app: app.clone(),
+                core: state.inner().clone(),
+            }),
+        );
+        if accepted.get("ok").and_then(Value::as_bool) == Some(true) {
+            let sequence = APP_EVENT_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
+            let _ = app.emit(
+                "delta-runtime-event",
+                json!({
+                    "type": "automation_run_started", "version": 1,
+                    "sessionId": Value::Null, "sequence": sequence,
+                    "payload": {
+                        "task_id": run.get("task_id"),
+                        "task_title": run.get("task_title"),
+                        "session_id": session_id,
+                        "workspace": run.get("workspace"),
+                    }
+                }),
+            );
+        } else {
+            eprintln!(
+                "automation runtime start failed: {}",
+                accepted
+                    .get("error")
+                    .map(Value::to_string)
+                    .unwrap_or_else(|| "unknown error".to_string())
+            );
+        }
+    }
+}
+
 pub fn start_scheduler(app: AppHandle) {
     std::thread::Builder::new()
         .name("delta-rust-scheduler".to_string())
         .spawn(move || loop {
-            let state = app.state::<RuntimeRegistry>();
-            let runs = match state.claim_due_runs() {
-                Ok(runs) => runs,
-                Err(error) => {
-                    eprintln!("automation scheduler claim failed: {error}");
-                    Vec::new()
-                }
-            };
-            for run in runs {
-                let session_id = run
-                    .get("session_id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-                let accepted = state.start_claimed_automation(
-                    &run,
-                    Arc::new(TauriEventSink {
-                        app: app.clone(),
-                        core: state.inner().clone(),
-                    }),
-                );
-                if accepted.get("ok").and_then(Value::as_bool) == Some(true) {
-                    let sequence = APP_EVENT_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
-                    let _ = app.emit(
-                        "delta-runtime-event",
-                        json!({
-                            "type": "automation_run_started", "version": 1,
-                            "sessionId": Value::Null, "sequence": sequence,
-                            "payload": {
-                                "task_id": run.get("task_id"),
-                                "task_title": run.get("task_title"),
-                                "session_id": session_id,
-                                "workspace": run.get("workspace"),
-                            }
-                        }),
-                    );
-                } else {
-                    eprintln!(
-                        "automation runtime start failed: {}",
-                        accepted
-                            .get("error")
-                            .map(Value::to_string)
-                            .unwrap_or_else(|| "unknown error".to_string())
-                    );
-                }
-            }
+            run_guarded("automation scheduler", || scheduler_tick(&app));
             std::thread::sleep(Duration::from_secs(15));
         })
         .expect("start Rust automation scheduler");
@@ -340,61 +356,123 @@ pub fn runtime_truncate(
 
 #[tauri::command]
 pub fn settings_get(state: State<'_, RuntimeRegistry>) -> Value {
-    authority_result(state.models().lock().unwrap().settings())
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .settings(),
+    )
 }
 
 #[tauri::command]
 pub fn update_model_key(state: State<'_, RuntimeRegistry>, api_key: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_provider(
-        "openai",
-        None,
-        &json!({"api_key": api_key}),
-    ))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_provider("openai", None, &json!({"api_key": api_key})),
+    )
 }
 
 #[tauri::command]
 pub fn update_model_default(state: State<'_, RuntimeRegistry>, model_id: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_default_model(&model_id))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_default_model(&model_id),
+    )
 }
 
 #[tauri::command]
 pub fn settings_add_model(state: State<'_, RuntimeRegistry>, model_id: String) -> Value {
-    authority_result(state.models().lock().unwrap().add_model(&model_id))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .add_model(&model_id),
+    )
 }
 
 #[tauri::command]
 pub fn settings_remove_model(state: State<'_, RuntimeRegistry>, model_id: String) -> Value {
-    authority_result(state.models().lock().unwrap().remove_model(&model_id))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove_model(&model_id),
+    )
 }
 
 #[tauri::command]
 pub fn settings_set_onboarded(state: State<'_, RuntimeRegistry>, is_onboarded: bool) -> Value {
-    authority_result(state.models().lock().unwrap().set_onboarded(is_onboarded))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_onboarded(is_onboarded),
+    )
 }
 
 #[tauri::command]
 pub fn settings_set_language(state: State<'_, RuntimeRegistry>, language: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_language(&language))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_language(&language),
+    )
 }
 
 #[tauri::command]
 pub fn update_context_bar(state: State<'_, RuntimeRegistry>, is_shown: bool) -> Value {
-    authority_result(state.models().lock().unwrap().set_context_bar(is_shown))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_context_bar(is_shown),
+    )
 }
 
 #[tauri::command]
 pub fn update_session_peek(state: State<'_, RuntimeRegistry>, count: i64) -> Value {
-    authority_result(state.models().lock().unwrap().set_sessions_peek(count))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_sessions_peek(count),
+    )
 }
 
 #[tauri::command]
 pub fn update_scratch_base(state: State<'_, RuntimeRegistry>, path: String) -> Value {
-    authority_result(state.models().lock().unwrap().set_scratch_base(&path))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_scratch_base(&path),
+    )
 }
 
 #[tauri::command]
 pub fn update_pdf_settings(state: State<'_, RuntimeRegistry>, patch: Value) -> Value {
-    authority_result(state.models().lock().unwrap().set_pdf_settings(&patch))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_pdf_settings(&patch),
+    )
 }
 
 #[tauri::command]
@@ -403,7 +481,7 @@ pub fn update_compaction(state: State<'_, RuntimeRegistry>, patch: Value) -> Val
         state
             .models()
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_compaction_settings(&patch),
     )
 }
@@ -415,19 +493,29 @@ pub fn update_proxy_settings(state: State<'_, RuntimeRegistry>, patch: Value) ->
     state
         .models()
         .lock()
-        .unwrap()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .set_proxy_settings(&patch)
         .unwrap_or_else(|error| json!({"ok": false, "error": error}))
 }
 
 #[tauri::command]
 pub fn providers_list(state: State<'_, RuntimeRegistry>) -> Value {
-    authority_result(state.models().lock().unwrap().providers())
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .providers(),
+    )
 }
 
 #[tauri::command]
 pub fn provider_protocols(state: State<'_, RuntimeRegistry>) -> Value {
-    state.models().lock().unwrap().protocols()
+    state
+        .models()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .protocols()
 }
 
 #[tauri::command]
@@ -437,16 +525,24 @@ pub fn provider_set(
     protocol: Option<String>,
     fields: Value,
 ) -> Value {
-    authority_result(state.models().lock().unwrap().set_provider(
-        &name,
-        protocol.as_deref(),
-        &fields,
-    ))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_provider(&name, protocol.as_deref(), &fields),
+    )
 }
 
 #[tauri::command]
 pub fn provider_remove(state: State<'_, RuntimeRegistry>, name: String) -> Value {
-    authority_result(state.models().lock().unwrap().remove_provider(&name))
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove_provider(&name),
+    )
 }
 
 /// Run blocking work off the thread that serves the window: a synchronous command runs on the
@@ -886,7 +982,12 @@ pub fn update_memory_settings(state: State<'_, RuntimeRegistry>, patch: Value) -
 
 #[tauri::command]
 pub fn automations_list(state: State<'_, RuntimeRegistry>) -> Value {
-    match state.automations().lock().unwrap().list() {
+    match state
+        .automations()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .list()
+    {
         Ok(tasks) => json!({"tasks": tasks}),
         Err(error) => json!({"tasks": [], "error": error.to_string()}),
     }
@@ -894,27 +995,56 @@ pub fn automations_list(state: State<'_, RuntimeRegistry>) -> Value {
 
 #[tauri::command]
 pub fn automation_create(state: State<'_, RuntimeRegistry>, payload: Value) -> Value {
-    authority_result(state.automations().lock().unwrap().create(&payload))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .create(&payload),
+    )
 }
 
 #[tauri::command]
 pub fn automation_get(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().get(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&id),
+    )
 }
 
 #[tauri::command]
 pub fn automation_update(state: State<'_, RuntimeRegistry>, id: String, changes: Value) -> Value {
-    authority_result(state.automations().lock().unwrap().update(&id, &changes))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .update(&id, &changes),
+    )
 }
 
 #[tauri::command]
 pub fn automation_delete(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().delete(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .delete(&id),
+    )
 }
 
 #[tauri::command]
 pub fn automation_denial_threshold(state: State<'_, RuntimeRegistry>) -> Value {
-    match state.automations().lock().unwrap().denial_threshold() {
+    match state
+        .automations()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .denial_threshold()
+    {
         Ok(threshold) => json!({"denial_threshold": threshold}),
         Err(error) => json!({"ok": false, "error": error.to_string()}),
     }
@@ -926,19 +1056,31 @@ pub fn set_denial_threshold(state: State<'_, RuntimeRegistry>, threshold: u32) -
         state
             .automations()
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_denial_threshold(threshold),
     )
 }
 
 #[tauri::command]
 pub fn update_automation_seen(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().mark_seen(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .mark_seen(&id),
+    )
 }
 
 #[tauri::command]
 pub fn prepare_automation_run(state: State<'_, RuntimeRegistry>, id: String) -> Value {
-    authority_result(state.automations().lock().unwrap().prepare_run(&id))
+    authority_result(
+        state
+            .automations()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .prepare_run(&id),
+    )
 }
 
 #[tauri::command]
@@ -951,14 +1093,19 @@ pub fn finalize_automation_run(
         state
             .automations()
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .finalize_run(&id, &run_id),
     )
 }
 
 #[tauri::command]
 pub fn scheduler_due(state: State<'_, RuntimeRegistry>) -> Value {
-    match state.automations().lock().unwrap().due() {
+    match state
+        .automations()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .due()
+    {
         Ok(tasks) => json!({"tasks": tasks}),
         Err(error) => json!({"tasks": [], "error": error.to_string()}),
     }
@@ -1389,4 +1536,24 @@ pub fn browser_screenshot(state: State<'_, RuntimeRegistry>) -> Value {
 #[tauri::command]
 pub fn browser_close(state: State<'_, RuntimeRegistry>) -> Value {
     browser_capability(state.inner(), "browser_close")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_guarded;
+
+    #[test]
+    fn a_panic_in_one_step_of_a_background_loop_does_not_end_the_loop() {
+        let mut ran = Vec::new();
+        for step in 0..3 {
+            let finished = run_guarded("test loop", || {
+                if step == 1 {
+                    panic!("a step failed");
+                }
+                ran.push(step);
+            });
+            assert_eq!(finished, step != 1);
+        }
+        assert_eq!(ran, [0, 2], "the steps after the panic still ran");
+    }
 }

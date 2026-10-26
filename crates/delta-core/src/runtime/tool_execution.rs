@@ -217,7 +217,26 @@ impl RuntimeHost {
         } else {
             RuntimeState::WaitingApproval
         });
+        let waiting_since = std::time::Instant::now();
         loop {
+            if self.unattended_wait_expired(waiting_since) {
+                self.approvals.cancel(&call.id);
+                let reason = "no answer arrived in the Inbox in time";
+                if let Some(authorities) = &self.authorities {
+                    let _ =
+                        authorities
+                            .inbox
+                            .resolve_for_call(&self.session_id, &call.id, "expired");
+                }
+                self.record_approval(call, "approval_resolved", "expired", None, reason, level)?;
+                self.ledger_append(
+                    "approval.expired",
+                    "runtime",
+                    json!({"tool_call_id": call.id, "tool": call.name}),
+                )?;
+                self.set_runtime_state(RuntimeState::Running);
+                return Err(format!("approval expired: {reason}"));
+            }
             if self.cancel.load(Ordering::Acquire) {
                 self.approvals.cancel(&call.id);
                 self.record_approval(
@@ -363,8 +382,8 @@ impl RuntimeHost {
                 fs::copy(&source, &target).map_err(|error| error.to_string())?;
                 fs::remove_file(&source).map_err(|error| error.to_string())?;
             }
-            let bytes = fs::read(&target).map_err(|error| error.to_string())?;
-            let sha256 = format!("{:x}", Sha256::digest(&bytes));
+            let (sha256, size) =
+                crate::artifact::file_digest(&target).map_err(|error| error.to_string())?;
             let relative_path = candidate.relative_path.replace('\\', "/");
             let artifact = ArtifactInput {
                 path: relative_path.clone(),
@@ -374,7 +393,7 @@ impl RuntimeHost {
                     .unwrap_or(&relative_path)
                     .to_string(),
                 kind: candidate.kind.clone(),
-                size: bytes.len() as i64,
+                size: size as i64,
                 modified_at: now_ts(),
                 run_id: run_id.clone(),
                 sha256: sha256.clone(),

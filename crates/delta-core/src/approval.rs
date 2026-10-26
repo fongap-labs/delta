@@ -147,7 +147,7 @@ impl ApprovalController {
     pub fn pending_ids(&self) -> Vec<String> {
         self.pending
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .map(|item| item.tool_call_id.clone())
             .collect()
@@ -162,7 +162,7 @@ impl ApprovalController {
                 if let Some(command) = arguments.get("command").and_then(Value::as_str) {
                     self.command_grants
                         .lock()
-                        .unwrap()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .insert(format!("{tool}\0{command}"));
                 }
             }
@@ -177,7 +177,7 @@ impl ApprovalController {
         let mut tools: Vec<SessionGrant> = self
             .tool_grants
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .map(|tool| SessionGrant {
                 tool: tool.clone(),
@@ -188,7 +188,7 @@ impl ApprovalController {
         let mut commands: Vec<SessionGrant> = self
             .command_grants
             .lock()
-            .unwrap()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .filter_map(|key| key.split_once('\0'))
             .map(|(tool, command)| SessionGrant {
@@ -208,7 +208,7 @@ impl ApprovalController {
             Some(command) => self
                 .command_grants
                 .lock()
-                .unwrap()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .remove(&format!("{tool}\0{command}")),
         }
     }
@@ -223,7 +223,7 @@ impl ApprovalController {
             .is_some_and(|command| {
                 self.command_grants
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .contains(&format!("{tool}\0{command}"))
             })
     }

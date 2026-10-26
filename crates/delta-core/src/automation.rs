@@ -1,4 +1,4 @@
-﻿//! Rust Application Control Plane authority for automations, scheduler state,
+//! Rust Application Control Plane authority for automations, scheduler state,
 //! and run identity.
 
 use std::path::{Path, PathBuf};
@@ -719,13 +719,9 @@ pub fn create_registration(
                     "workspace": text("workspace"),
                     "permissions": job.arguments.get("permissions").cloned().unwrap_or_else(|| json!([])),
                 });
-                let Ok(guard) = store.lock() else {
-                    return CapabilityResult::failed(
-                        &job.job_id,
-                        "the automation store is unavailable",
-                        Some("store_locked"),
-                    );
-                };
+                let guard = store
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 match guard.create(&payload) {
                     Ok(result) if result.get("ok").and_then(Value::as_bool) == Some(true) => {
                         CapabilityResult::completed(&job.job_id, result)
@@ -1046,7 +1042,11 @@ mod tests {
             task["next_run"].as_f64().is_some(),
             "cron yields a next run"
         );
-        let listed = store.lock().unwrap().list().unwrap();
+        let listed = store
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .list()
+            .unwrap();
         assert_eq!(listed.len(), 1);
     }
 
