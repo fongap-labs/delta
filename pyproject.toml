@@ -26,6 +26,10 @@ dev = [
     "pip-audit==2.10.1",
     "pyright==1.1.414",
     "ruff==0.16.10",
+    # The Office Worker is type-checked and tested in CI, so its libraries resolve there too.
+    "python-docx==1.2.0",
+    "python-pptx==1.0.2",
+    "openpyxl==3.1.5",
 ]
 browser = ["playwright==1.63.0"]
 # Office Worker (ADR-0085): finished DOCX, PPTX and XLSX files, packaged with the Python sidecar.

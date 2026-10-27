@@ -287,10 +287,13 @@ browser = [
 dev = [
     { name = "httpx" },
     { name = "jsonschema" },
+    { name = "openpyxl" },
     { name = "pip-audit" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "python-docx" },
+    { name = "python-pptx" },
     { name = "ruff" },
 ]
 office = [
@@ -305,6 +308,7 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
     { name = "jsonschema", marker = "extra == 'dev'", specifier = "==4.25.1" },
+    { name = "openpyxl", marker = "extra == 'dev'", specifier = "==3.1.5" },
     { name = "openpyxl", marker = "extra == 'office'", specifier = "==3.1.5" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = "==2.10.1" },
     { name = "playwright", marker = "extra == 'browser'", specifier = "==1.63.0" },
@@ -313,7 +317,9 @@ requires-dist = [
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.414" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.1.1" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.4.0" },
+    { name = "python-docx", marker = "extra == 'dev'", specifier = "==1.2.0" },
     { name = "python-docx", marker = "extra == 'office'", specifier = "==1.2.0" },
+    { name = "python-pptx", marker = "extra == 'dev'", specifier = "==1.0.2" },
     { name = "python-pptx", marker = "extra == 'office'", specifier = "==1.0.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.16.10" },
 ]
