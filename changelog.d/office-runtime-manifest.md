@@ -1,0 +1,1 @@
+- 新增: Office 运行时清单校验：Office 工具只在运行时文件与 `manifest.json` 完全一致时注册；没有清单时拒绝注册，仅 `DELTA_OFFICE_DEVELOPMENT=1` 可放行未打包的检出，并在标准错误中记录。
