@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::{json, Value};
@@ -20,6 +20,59 @@ pub const ROOT_ENV: &str = "DELTA_EXPLORE_ROOT";
 
 /// The worker's path under the pack root. The worker adds the root to `sys.path` itself.
 const WORKER_PARTS: [&str; 3] = ["packages", "explore_pack", "worker.py"];
+
+/// The manifest that a packaged Explore runtime carries (ADR-0080, `runtime_pack.py`).
+const MANIFEST_NAME: &str = "manifest.json";
+
+/// The problems that stop a packaged Explore runtime from being used. A root without a manifest
+/// is a development checkout and is not checked. A root with a manifest must match it exactly.
+fn pack_problems(root: &Path) -> Vec<String> {
+    if !root.join(MANIFEST_NAME).exists() {
+        return Vec::new();
+    }
+    let manifest: Value = match std::fs::read(root.join(MANIFEST_NAME))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    {
+        Some(manifest) => manifest,
+        None => return vec![format!("{MANIFEST_NAME} is unreadable")],
+    };
+    if manifest["format"] != "delta.explore-runtime" || manifest["version"] != 1 {
+        return vec!["manifest format or version is not supported".to_string()];
+    }
+    let Some(files) = manifest["files"].as_array() else {
+        return vec!["manifest lists no files".to_string()];
+    };
+    let mut problems = Vec::new();
+    for entry in files {
+        let (Some(relative), Some(expected)) = (entry["path"].as_str(), entry["sha256"].as_str())
+        else {
+            problems.push("manifest entry is malformed".to_string());
+            continue;
+        };
+        let stays_inside = Path::new(relative)
+            .components()
+            .all(|part| matches!(part, Component::Normal(_)));
+        if !stays_inside {
+            problems.push(format!("path escapes the pack: {relative}"));
+            continue;
+        }
+        match std::fs::read(root.join(relative)) {
+            Ok(bytes) if sha256_hex(&bytes) == expected => {}
+            Ok(_) => problems.push(format!("hash mismatch: {relative}")),
+            Err(_) => problems.push(format!("missing file: {relative}")),
+        }
+    }
+    problems
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::Digest;
+    sha2::Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
 /// The fixed Explore runtime: an interpreter and the worker script it runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +90,9 @@ impl ExploreRuntime {
     fn from_lookup(lookup: impl Fn(&str) -> Option<OsString>) -> Option<Self> {
         let python = PathBuf::from(lookup(PYTHON_ENV)?);
         let root = PathBuf::from(lookup(ROOT_ENV)?);
+        if !pack_problems(&root).is_empty() {
+            return None;
+        }
         let worker = WORKER_PARTS.iter().fold(root, |path, part| path.join(part));
         (python.is_file() && worker.is_file()).then_some(Self { python, worker })
     }
@@ -239,6 +295,75 @@ mod tests {
         other.capability_id = "statistics.shell.run".to_string();
         assert!(other.grants.exec);
         assert!(!other.is_local_statistics());
+    }
+
+    fn write_manifest(root: &Path, files: &[(&str, &[u8])]) {
+        let entries: Vec<Value> = files
+            .iter()
+            .map(|(path, bytes)| {
+                json!({"path": path, "sha256": sha256_hex(bytes), "size": bytes.len()})
+            })
+            .collect();
+        let manifest = json!({"format": "delta.explore-runtime", "version": 1, "files": entries});
+        std::fs::write(root.join(MANIFEST_NAME), manifest.to_string()).unwrap();
+    }
+
+    #[test]
+    fn a_root_without_a_manifest_is_a_development_checkout() {
+        let temp = tempfile::tempdir().unwrap();
+        assert!(pack_problems(temp.path()).is_empty());
+    }
+
+    #[test]
+    fn a_pack_that_matches_its_manifest_is_accepted() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("packages")).unwrap();
+        std::fs::write(temp.path().join("packages/a.py"), b"x = 1\n").unwrap();
+        write_manifest(temp.path(), &[("packages/a.py", b"x = 1\n")]);
+        assert!(pack_problems(temp.path()).is_empty());
+    }
+
+    #[test]
+    fn a_changed_file_fails_the_manifest_check() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("packages")).unwrap();
+        std::fs::write(temp.path().join("packages/a.py"), b"x = 2\n").unwrap();
+        write_manifest(temp.path(), &[("packages/a.py", b"x = 1\n")]);
+        assert_eq!(pack_problems(temp.path()), ["hash mismatch: packages/a.py"]);
+    }
+
+    #[test]
+    fn a_missing_file_fails_the_manifest_check() {
+        let temp = tempfile::tempdir().unwrap();
+        write_manifest(temp.path(), &[("packages/a.py", b"x = 1\n")]);
+        assert_eq!(pack_problems(temp.path()), ["missing file: packages/a.py"]);
+    }
+
+    #[test]
+    fn a_path_that_escapes_the_pack_fails_the_manifest_check() {
+        let temp = tempfile::tempdir().unwrap();
+        write_manifest(temp.path(), &[("../outside.py", b"x = 1\n")]);
+        assert_eq!(
+            pack_problems(temp.path()),
+            ["path escapes the pack: ../outside.py"]
+        );
+    }
+
+    #[test]
+    fn a_tampered_pack_is_not_registered() {
+        let temp = tempfile::tempdir().unwrap();
+        let (python, root) = fake_runtime(temp.path());
+        let worker = "packages/explore_pack/worker.py";
+        write_manifest(&root, &[(worker, &b""[..])]);
+        let pairs = [
+            (PYTHON_ENV, python.clone().into_os_string()),
+            (ROOT_ENV, root.clone().into_os_string()),
+        ];
+        assert!(ExploreRuntime::from_lookup(lookup(&pairs)).is_some());
+
+        std::fs::write(root.join(worker), b"tampered").unwrap();
+
+        assert!(ExploreRuntime::from_lookup(lookup(&pairs)).is_none());
     }
 
     fn python3() -> Option<PathBuf> {

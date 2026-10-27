@@ -54,6 +54,15 @@
 - CI 固定 Python 锁文件与 R 4.6.0，构建并验证 Runtime Pack 与至少一个方法包。
 - Foundation 的 R 统计进入弃用期：先双轨，再迁移，最后移除；旧结果文件保持可读。
 
+## 分发（2026-10-27 决定）
+
+- Explore Runtime Pack 发布到固定仓库 `fongap-labs/external-vault` 的 GitHub Releases，标签 `explore-runtime-v<semver>`；Git 树中不提交归档。该仓库的规范即是把版本化产物放在 Releases 中。
+- 归档与清单由 `scripts/build_explore_runtime.py`（实现于 `packages/explore_pack/runtime_pack.py`）生成。归档是确定性的：同一源码两次构建的字节完全一致。清单列出每个文件的 SHA-256 以及归档的 SHA-256。
+- 签名采用免费方案：cosign keyless（基于 GitHub OIDC）或 minisign。应用清单固定下载地址、归档 SHA-256 与签名身份。操作系统层面的代码签名（macOS 公证、Windows 证书）不在本决定范围内，暂不做。
+- 解释器不随 Pack 分发：要求系统 Python ≥3.11，并通过 `DELTA_EXPLORE_PYTHON` 显式指定。
+- 运行时校验：若 `DELTA_EXPLORE_ROOT` 指向的目录含有 `manifest.json`，Rust 在注册工具前逐文件核对 SHA-256。任何不一致、缺失或越界的路径都会使工具不注册（失败即关闭）。没有清单的目录视为开发检出，不做此校验。
+- 已知限制：清单本身在签名接入前不受保护；删除清单会使目录退回开发模式。签名步骤与 external-vault 的发布规则需要在源仓库和 Action Worker 中配置，尚未完成。
+
 ## 后果
 
 - 新增两类可分发的运行时包与一套方法包合同。
@@ -75,4 +84,5 @@
 - 尚未实现：Rust 能力注册与审批接入、受控脚本模式、独立 Runtime Pack 的签名与三平台构建、统计页接入。这些是 P3 的后续工作。
 - Suite Validate Pack 的 R 方法包由 Suite 仓库另行交付，不在本次范围内。
 - 第二阶段：`packages/explore_pack/worker.py` 按能力 ABI v2 从 stdin 读取作业、向 stdout 写出结果；Rust 侧 `statistics_explore` 在配置 `DELTA_EXPLORE_PYTHON` 与 `DELTA_EXPLORE_ROOT` 后注册四个 `statistics.explore.*` 工具，统计页可在无模型时运行它们（ADR-0078 修订）。未配置时不注册任何工具。
-- 第二阶段仍未解决：Runtime Pack 的分发、签名与离线安装；统计运行的审计条目（ADR-0078 待办）；受控脚本模式。
+- 第二阶段仍未解决：Runtime Pack 的签名接入与发布（见上方"分发"一节）；受控脚本模式。
+- 统计运行的审计条目已在 `CoreControlPlane::audit_statistics_run` 实现（写入 `audit_events.db`，写入失败即拒绝运行），此前的待办已过时。
