@@ -19,14 +19,14 @@ MAX_TABLE_COLUMNS = 64
 
 
 def text(
-    value: Any, label: str, *, required: bool = True, max_chars: int = MAX_TEXT_CHARS
+    value: Any, label: str, *, is_required: bool = True, max_chars: int = MAX_TEXT_CHARS
 ) -> str:
     """A plain string, bounded in length. Empty is allowed only when the field is optional."""
-    if value is None and not required:
+    if value is None and not is_required:
         return ""
     if not isinstance(value, str):
         raise ValueError(f"{label} must be a string")
-    if required and not value.strip():
+    if is_required and not value.strip():
         raise ValueError(f"{label} must not be empty")
     if len(value) > max_chars:
         raise ValueError(f"{label} is longer than {max_chars} characters")

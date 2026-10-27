@@ -155,8 +155,8 @@ def build(content: dict[str, Any], path: Path) -> dict[str, Any]:
             counts[key] = counts.get(key, 0) + value
     _header_and_footer(
         document,
-        spec.text(content.get("header"), "header", required=False, max_chars=512),
-        spec.text(content.get("footer"), "footer", required=False, max_chars=512),
+        spec.text(content.get("header"), "header", is_required=False, max_chars=512),
+        spec.text(content.get("footer"), "footer", is_required=False, max_chars=512),
     )
     document.save(str(path))
     return counts

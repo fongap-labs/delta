@@ -67,7 +67,7 @@ def _title_slide(presentation: Any, slide_spec: dict[str, Any], label: str) -> A
         slide.placeholders[1].text = spec.text(
             slide_spec.get("subtitle"),
             f"{label} subtitle",
-            required=False,
+            is_required=False,
             max_chars=512,
         )
     return slide
