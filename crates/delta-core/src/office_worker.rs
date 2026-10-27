@@ -8,16 +8,22 @@
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::json;
 
 use crate::capability::{CapabilityGrants, CapabilityRegistration, WorkerProcessRunner};
+use crate::runtime_pack;
 use crate::skills::SideEffectClass;
 
 pub const PYTHON_ENV: &str = "DELTA_OFFICE_PYTHON";
 pub const ROOT_ENV: &str = "DELTA_OFFICE_ROOT";
+/// Set to `1` to run an unpacked checkout that has no manifest. Never set in a packaged install.
+pub const DEVELOPMENT_ENV: &str = "DELTA_OFFICE_DEVELOPMENT";
+
+/// The format the packaged runtime's manifest declares (ADR-0085, `packages/office_worker`).
+const FORMAT: &str = "delta.office-runtime";
 
 /// The worker's path under the package root. The worker adds the root to `sys.path` itself.
 const WORKER_PARTS: [&str; 3] = ["packages", "office_worker", "worker.py"];
@@ -47,9 +53,33 @@ impl OfficeRuntime {
     fn from_lookup(lookup: impl Fn(&str) -> Option<OsString>) -> Option<Self> {
         let python = PathBuf::from(lookup(PYTHON_ENV)?);
         let root = PathBuf::from(lookup(ROOT_ENV)?);
+        let development = lookup(DEVELOPMENT_ENV).is_some_and(|value| value == "1");
+        if !may_run(&root, development) {
+            return None;
+        }
         let worker = WORKER_PARTS.iter().fold(root, |path, part| path.join(part));
         (python.is_file() && worker.is_file()).then_some(Self { python, worker })
     }
+}
+
+/// Whether the runtime at `root` may run. A root with a manifest must match it exactly, whatever
+/// the development switch says. A root without one is refused, unless the switch admits an
+/// unpacked checkout; that admission is logged, so it is never silent.
+fn may_run(root: &Path, development: bool) -> bool {
+    if root.join(runtime_pack::MANIFEST_NAME).exists() {
+        let problems = runtime_pack::pack_problems(root, FORMAT);
+        if !problems.is_empty() {
+            eprintln!("delta: office runtime refused: {}", problems.join("; "));
+            return false;
+        }
+        return true;
+    }
+    if development {
+        eprintln!("delta: office runtime runs an unpacked checkout without a manifest ({DEVELOPMENT_ENV}=1)");
+        return true;
+    }
+    eprintln!("delta: office runtime refused: manifest.json is missing; set {DEVELOPMENT_ENV}=1 for an unpacked checkout");
+    false
 }
 
 /// One Office format the worker can build.
@@ -143,20 +173,54 @@ pub fn registrations(runtime: Option<&OfficeRuntime>) -> Vec<CapabilityRegistrat
 mod tests {
     use super::*;
 
-    fn runtime_in(directory: &std::path::Path) -> Option<OfficeRuntime> {
+    const WORKER_RELATIVE: &str = "packages/office_worker/worker.py";
+
+    /// An unpacked checkout: an interpreter path and a root holding the worker script.
+    fn checkout(directory: &Path) -> (PathBuf, PathBuf) {
         let python = directory.join("python");
         let root = directory.join("root");
-        let worker = WORKER_PARTS
-            .iter()
-            .fold(root.clone(), |path, part| path.join(part));
+        let worker = root.join(WORKER_RELATIVE);
         std::fs::create_dir_all(worker.parent().unwrap()).unwrap();
         std::fs::write(&python, "").unwrap();
-        std::fs::write(&worker, "").unwrap();
-        OfficeRuntime::from_lookup(|name| match name {
-            PYTHON_ENV => Some(python.clone().into_os_string()),
-            ROOT_ENV => Some(root.clone().into_os_string()),
+        std::fs::write(&worker, "print('worker')\n").unwrap();
+        (python, root)
+    }
+
+    /// Writes the manifest a packaged runtime carries, listing the worker with its hash.
+    fn write_manifest(root: &Path) {
+        let bytes = std::fs::read(root.join(WORKER_RELATIVE)).unwrap();
+        let manifest = serde_json::json!({
+            "format": FORMAT,
+            "version": 1,
+            "files": [{
+                "path": WORKER_RELATIVE,
+                "sha256": runtime_pack::sha256_hex(&bytes),
+                "size": bytes.len(),
+            }],
+        });
+        std::fs::write(root.join(runtime_pack::MANIFEST_NAME), manifest.to_string()).unwrap();
+    }
+
+    fn lookup_for(
+        python: &Path,
+        root: &Path,
+        development: bool,
+    ) -> impl Fn(&str) -> Option<OsString> {
+        let python = python.to_path_buf().into_os_string();
+        let root = root.to_path_buf().into_os_string();
+        move |name| match name {
+            PYTHON_ENV => Some(python.clone()),
+            ROOT_ENV => Some(root.clone()),
+            DEVELOPMENT_ENV if development => Some(OsString::from("1")),
             _ => None,
-        })
+        }
+    }
+
+    /// A packaged runtime: a checkout with its manifest written beside the worker.
+    fn packaged_runtime_in(directory: &Path) -> Option<OfficeRuntime> {
+        let (python, root) = checkout(directory);
+        write_manifest(&root);
+        OfficeRuntime::from_lookup(lookup_for(&python, &root, false))
     }
 
     #[test]
@@ -169,20 +233,66 @@ mod tests {
         assert!(OfficeRuntime::from_lookup(|_| None).is_none());
 
         let temp = tempfile::tempdir().unwrap();
-        let python = temp.path().join("python");
-        std::fs::write(&python, "").unwrap();
-        let missing = OfficeRuntime::from_lookup(|name| match name {
-            PYTHON_ENV => Some(python.clone().into_os_string()),
-            ROOT_ENV => Some(temp.path().join("no-such-root").into_os_string()),
-            _ => None,
-        });
+        let (python, _) = checkout(temp.path());
+        let missing = OfficeRuntime::from_lookup(lookup_for(
+            &python,
+            &temp.path().join("no-such-root"),
+            false,
+        ));
         assert!(missing.is_none());
+    }
+
+    #[test]
+    fn a_packaged_runtime_whose_manifest_matches_is_accepted() {
+        let temp = tempfile::tempdir().unwrap();
+
+        assert!(packaged_runtime_in(temp.path()).is_some());
+    }
+
+    #[test]
+    fn a_root_without_a_manifest_is_refused_by_default() {
+        let temp = tempfile::tempdir().unwrap();
+        let (python, root) = checkout(temp.path());
+
+        assert!(OfficeRuntime::from_lookup(lookup_for(&python, &root, false)).is_none());
+    }
+
+    #[test]
+    fn the_development_switch_admits_an_unpacked_checkout() {
+        let temp = tempfile::tempdir().unwrap();
+        let (python, root) = checkout(temp.path());
+
+        assert!(OfficeRuntime::from_lookup(lookup_for(&python, &root, true)).is_some());
+    }
+
+    #[test]
+    fn a_tampered_packaged_worker_is_refused_even_with_the_development_switch() {
+        let temp = tempfile::tempdir().unwrap();
+        let (python, root) = checkout(temp.path());
+        write_manifest(&root);
+        std::fs::write(root.join(WORKER_RELATIVE), "import os\n").unwrap();
+
+        assert!(OfficeRuntime::from_lookup(lookup_for(&python, &root, true)).is_none());
+        assert!(OfficeRuntime::from_lookup(lookup_for(&python, &root, false)).is_none());
+    }
+
+    #[test]
+    fn a_manifest_of_another_pack_is_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let (python, root) = checkout(temp.path());
+        write_manifest(&root);
+        let other = std::fs::read_to_string(root.join(runtime_pack::MANIFEST_NAME))
+            .unwrap()
+            .replace(FORMAT, "delta.explore-runtime");
+        std::fs::write(root.join(runtime_pack::MANIFEST_NAME), other).unwrap();
+
+        assert!(OfficeRuntime::from_lookup(lookup_for(&python, &root, true)).is_none());
     }
 
     #[test]
     fn three_formats_are_registered_as_staged_writes_that_need_approval() {
         let temp = tempfile::tempdir().unwrap();
-        let runtime = runtime_in(temp.path()).expect("configured runtime");
+        let runtime = packaged_runtime_in(temp.path()).expect("configured runtime");
 
         let registered = registrations(Some(&runtime));
 
@@ -200,11 +310,17 @@ mod tests {
         );
         for registration in &registered {
             assert!(registration.workspace_write);
-            assert_eq!(registration.metadata["requires_approval"], json!(true));
-            assert_eq!(registration.metadata["risk_level"], json!("medium"));
+            assert_eq!(
+                registration.metadata["requires_approval"],
+                serde_json::json!(true)
+            );
+            assert_eq!(
+                registration.metadata["risk_level"],
+                serde_json::json!("medium")
+            );
             assert_eq!(
                 registration.parameters["required"],
-                json!(["path", "content"])
+                serde_json::json!(["path", "content"])
             );
         }
     }
@@ -212,7 +328,7 @@ mod tests {
     #[test]
     fn tool_names_are_distinct_from_the_native_document_tools() {
         let temp = tempfile::tempdir().unwrap();
-        let runtime = runtime_in(temp.path()).expect("configured runtime");
+        let runtime = packaged_runtime_in(temp.path()).expect("configured runtime");
 
         let names: Vec<String> = registrations(Some(&runtime))
             .into_iter()
@@ -231,24 +347,26 @@ mod tests {
     }
 
     /// The worker run through the host, with a real Python runtime. It needs an interpreter that
-    /// has the Office libraries installed, so it runs only when DELTA_OFFICE_PYTHON names one.
+    /// has the Office libraries installed, so it runs only when DELTA_OFFICE_PYTHON names one. The
+    /// repository checkout has no manifest, so it runs under the development switch.
     #[test]
     fn a_docx_call_runs_the_worker_through_the_host() {
         let Some(python) = std::env::var_os(PYTHON_ENV).map(PathBuf::from) else {
             eprintln!("skipped: {PYTHON_ENV} is not set, so the office worker cannot run here");
             return;
         };
-        let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .find(|path| path.join("packages").join("office_worker").is_dir())
             .expect("repository root")
             .to_path_buf();
-        let runtime = OfficeRuntime {
-            python,
-            worker: WORKER_PARTS
-                .iter()
-                .fold(repository, |path, part| path.join(part)),
-        };
+        let runtime = OfficeRuntime::from_lookup(|name| match name {
+            PYTHON_ENV => Some(python.clone().into_os_string()),
+            ROOT_ENV => Some(repository.clone().into_os_string()),
+            DEVELOPMENT_ENV => Some(OsString::from("1")),
+            _ => None,
+        })
+        .expect("the unpacked checkout runs under the development switch");
         let workspace = tempfile::tempdir().unwrap();
         let host = crate::capability::CapabilityHost::new();
         for registration in registrations(Some(&runtime)) {
@@ -267,7 +385,7 @@ mod tests {
         let call = crate::runtime::ToolCall {
             id: "call-office-docx".to_string(),
             name: "office_create_docx".to_string(),
-            arguments: json!({
+            arguments: serde_json::json!({
                 "path": "reports/q3.docx",
                 "content": {
                     "title": "Q3 review",

@@ -7,12 +7,13 @@
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::{json, Value};
 
 use crate::capability::{CapabilityGrants, CapabilityRegistration, WorkerProcessRunner};
+use crate::runtime_pack::{self, sha256_hex, MANIFEST_NAME};
 use crate::skills::SideEffectClass;
 
 pub const PYTHON_ENV: &str = "DELTA_EXPLORE_PYTHON";
@@ -21,8 +22,8 @@ pub const ROOT_ENV: &str = "DELTA_EXPLORE_ROOT";
 /// The worker's path under the pack root. The worker adds the root to `sys.path` itself.
 const WORKER_PARTS: [&str; 3] = ["packages", "explore_pack", "worker.py"];
 
-/// The manifest that a packaged Explore runtime carries (ADR-0080, `runtime_pack.py`).
-const MANIFEST_NAME: &str = "manifest.json";
+/// The format a packaged Explore runtime's manifest declares (ADR-0080, `runtime_pack.py`).
+const FORMAT: &str = "delta.explore-runtime";
 
 /// The problems that stop a packaged Explore runtime from being used. A root without a manifest
 /// is a development checkout and is not checked. A root with a manifest must match it exactly.
@@ -30,48 +31,7 @@ fn pack_problems(root: &Path) -> Vec<String> {
     if !root.join(MANIFEST_NAME).exists() {
         return Vec::new();
     }
-    let manifest: Value = match std::fs::read(root.join(MANIFEST_NAME))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-    {
-        Some(manifest) => manifest,
-        None => return vec![format!("{MANIFEST_NAME} is unreadable")],
-    };
-    if manifest["format"] != "delta.explore-runtime" || manifest["version"] != 1 {
-        return vec!["manifest format or version is not supported".to_string()];
-    }
-    let Some(files) = manifest["files"].as_array() else {
-        return vec!["manifest lists no files".to_string()];
-    };
-    let mut problems = Vec::new();
-    for entry in files {
-        let (Some(relative), Some(expected)) = (entry["path"].as_str(), entry["sha256"].as_str())
-        else {
-            problems.push("manifest entry is malformed".to_string());
-            continue;
-        };
-        let stays_inside = Path::new(relative)
-            .components()
-            .all(|part| matches!(part, Component::Normal(_)));
-        if !stays_inside {
-            problems.push(format!("path escapes the pack: {relative}"));
-            continue;
-        }
-        match std::fs::read(root.join(relative)) {
-            Ok(bytes) if sha256_hex(&bytes) == expected => {}
-            Ok(_) => problems.push(format!("hash mismatch: {relative}")),
-            Err(_) => problems.push(format!("missing file: {relative}")),
-        }
-    }
-    problems
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::Digest;
-    sha2::Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    runtime_pack::pack_problems(root, FORMAT)
 }
 
 /// The fixed Explore runtime: an interpreter and the worker script it runs.
