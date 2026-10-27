@@ -1,0 +1,1 @@
+- 变更: 新增 `docs/governance/AGENT_HANDOFF.md`，把剩余任务、跨仓库边界、验证等级规则、发布前置条件与交接格式整理给其他开发 Agent。
