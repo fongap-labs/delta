@@ -1,0 +1,2 @@
+- 新增: Explore Runtime Pack 的确定性构建（`scripts/build_explore_runtime.py`）与清单（`manifest.json`，逐文件 SHA-256）；`DELTA_EXPLORE_ROOT` 指向含清单的目录时，工具在清单不一致、缺失或路径越界时不注册（失败即关闭）。
+- 变更: ADR-0080 增加"分发"一节：Pack 发布到 `external-vault` 的 GitHub Releases，使用免费签名方案；解释器不随 Pack 分发，由 `DELTA_EXPLORE_PYTHON` 指定。
