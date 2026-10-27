@@ -1,9 +1,10 @@
 """Build the Explore Runtime Pack and its manifest (ADR-0080, distribution section).
 
-Usage: python scripts/build_explore_runtime.py --out-dir <dir>
+Usage: python scripts/build_explore_runtime.py --version <semver> --out-dir <dir>
 
-The output is deterministic. The script prints the archive name and SHA-256, which is what a published
-tool descriptor pins.
+The version must equal the pack's PACK_VERSION. The output is deterministic, and it is exactly two
+files: the archive and manifest.json. The script prints the archive name and SHA-256, which is what a
+published tool descriptor pins.
 """
 
 from __future__ import annotations
@@ -20,9 +21,14 @@ from packages.explore_pack import runtime_pack  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     args = parser.parse_args()
-    manifest = runtime_pack.build(args.out_dir)
+    try:
+        manifest = runtime_pack.build(args.out_dir, version=args.version)
+    except ValueError as exc:
+        print(f"build_explore_runtime: {exc}", file=sys.stderr)
+        return 2
     archive = manifest["archive"]
     print(f"archive: {archive['name']}")
     print(f"sha256: {archive['sha256']}")

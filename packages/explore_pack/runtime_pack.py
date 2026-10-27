@@ -23,6 +23,7 @@ from typing import Any
 from packages.explore_pack.result import PACK_VERSION
 
 MANIFEST_NAME = "manifest.json"
+ARCHIVE_NAME = "explore-runtime.tar.gz"
 PYTHON_REQUIRES = ">=3.11"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EXCLUDED_DIRS = {"tests", "__pycache__"}
@@ -61,20 +62,32 @@ def _tar_bytes(repo_root: Path, names: Sequence[str]) -> bytes:
     return raw.getvalue()
 
 
-def build(out_dir: Path, repo_root: Path = _REPO_ROOT) -> dict[str, Any]:
-    """Write the archive and its manifest into `out_dir`; return the manifest."""
+def build(
+    out_dir: Path, version: str = PACK_VERSION, repo_root: Path = _REPO_ROOT
+) -> dict[str, Any]:
+    """Write the archive and its manifest into `out_dir`; return the manifest.
+
+    The version is checked against the pack's own `PACK_VERSION`, which is what the results it
+    writes report. The asset names carry no version: the release manifest names its assets once,
+    and the version comes from the release start.
+    """
+    if version != PACK_VERSION:
+        raise ValueError(
+            f"version {version} does not match the pack's PACK_VERSION {PACK_VERSION}; "
+            "update packages/explore_pack/result.py first"
+        )
     names = source_files(repo_root)
     files = []
     for name in names:
         data = (repo_root / name).read_bytes()
         files.append({"path": name, "sha256": _sha256(data), "size": len(data)})
     archive = _tar_bytes(repo_root, names)
-    archive_name = f"explore-runtime-{PACK_VERSION}.tar.gz"
+    archive_name = ARCHIVE_NAME
     manifest: dict[str, Any] = {
         "format": "delta.explore-runtime",
         "version": 1,
         "pack": "explore",
-        "pack_version": PACK_VERSION,
+        "pack_version": version,
         "python_requires": PYTHON_REQUIRES,
         "license": "Apache-2.0",
         "archive": {
