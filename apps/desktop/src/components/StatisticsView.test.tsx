@@ -9,6 +9,8 @@ const runStatisticsTool = vi.fn();
 vi.mock("../api", () => ({
   listStatisticsTools: () => listStatisticsTools(),
   runStatisticsTool: (...args: unknown[]) => runStatisticsTool(...args),
+  getRuntimePack: () => Promise.resolve({ published: false }),
+  installRuntimePack: () => Promise.resolve({ published: false }),
 }));
 
 const describeTool = {

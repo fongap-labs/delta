@@ -68,6 +68,33 @@ pub struct CoreControlPlane {
     application: Arc<ApplicationStore>,
 }
 
+/// Registers the Explore and Office tools when a Python runtime is configured for development or
+/// installed under `state_dir` from `pack` (ADR-0085). Without one nothing is registered. Tools
+/// registered earlier under the same names are replaced, so the set follows the installed runtime.
+fn register_python_tools(
+    capabilities: &CapabilityHost,
+    state_dir: &Path,
+    pack: Option<&crate::runtime_install::PackSource>,
+) -> Result<(), String> {
+    capabilities.unregister_prefix("statistics_explore_");
+    capabilities.unregister_prefix("office_create_");
+    let explore = crate::statistics_explore::ExploreRuntime::from_env().or_else(|| {
+        pack.and_then(|pack| {
+            crate::statistics_explore::ExploreRuntime::from_installed(state_dir, pack)
+        })
+    });
+    for registration in crate::statistics_explore::registrations(explore.as_ref()) {
+        capabilities.register(registration)?;
+    }
+    let office = crate::office_worker::OfficeRuntime::from_env().or_else(|| {
+        pack.and_then(|pack| crate::office_worker::OfficeRuntime::from_installed(state_dir, pack))
+    });
+    for registration in crate::office_worker::registrations(office.as_ref()) {
+        capabilities.register(registration)?;
+    }
+    Ok(())
+}
+
 impl CoreControlPlane {
     pub fn open_default() -> Result<Self, String> {
         Self::open(default_state_dir())
@@ -85,17 +112,11 @@ impl CoreControlPlane {
         for registration in crate::skills::lookup_registrations(skills.clone()) {
             capability_host.register(registration)?;
         }
-        // Explore statistics need a configured Python runtime; without one nothing is registered.
-        let explore_runtime =
-            crate::statistics_explore::ExploreRuntime::from_env_or_installed(&state_dir);
-        for registration in crate::statistics_explore::registrations(explore_runtime.as_ref()) {
-            capability_host.register(registration)?;
-        }
-        // Office files need a configured Python runtime too; without one nothing is registered.
-        let office_runtime = crate::office_worker::OfficeRuntime::from_env_or_installed(&state_dir);
-        for registration in crate::office_worker::registrations(office_runtime.as_ref()) {
-            capability_host.register(registration)?;
-        }
+        register_python_tools(
+            &capability_host,
+            &state_dir,
+            crate::runtime_install::published_python_pack().as_ref(),
+        )?;
         let library_state = state_dir.clone();
         let library = Arc::new(
             crate::retrieval::Library::open(&state_dir)?.with_hook(Arc::new(move |report| {
@@ -183,6 +204,31 @@ impl CoreControlPlane {
             application,
             state_dir,
         })
+    }
+
+    /// The shared Python runtime's state for the application to show.
+    pub fn shared_runtime_status(&self) -> serde_json::Value {
+        crate::runtime_install::shared_runtime_status(
+            &self.state_dir,
+            crate::runtime_install::published_python_pack().as_ref(),
+        )
+    }
+
+    /// Installs the shared Python runtime after the user confirmed it in the application, then
+    /// registers the Explore and Office tools against it (ADR-0085). Nothing is fetched before the
+    /// confirmation, and the install leaves nothing behind when it fails.
+    pub fn install_shared_runtime(&self) -> Result<serde_json::Value, String> {
+        let pack = crate::runtime_install::published_python_pack()
+            .ok_or_else(|| "the shared runtime is not published yet".to_string())?;
+        let approved_at = chrono::Utc::now().to_rfc3339();
+        crate::runtime_install::approve_and_install(
+            &self.state_dir,
+            &pack,
+            &crate::runtime_install::HttpsFetch::new(&self.state_dir),
+            &approved_at,
+        )?;
+        register_python_tools(&self.capabilities, &self.state_dir, Some(&pack))?;
+        Ok(self.shared_runtime_status())
     }
 
     pub fn state_dir(&self) -> &Path {
@@ -1576,5 +1622,78 @@ mod statistics_run_tests {
             .as_str()
             .unwrap()
             .contains("unknown statistics tool"));
+    }
+}
+
+#[cfg(test)]
+mod shared_runtime_tests {
+    use super::*;
+    use crate::runtime_install::{
+        install_root, ArchiveFormat, PackSource, PYTHON_PACK_FORMAT, PYTHON_PACK_NAME,
+    };
+
+    /// A pack of the shared runtime's format, laid out as an installed copy: the two worker
+    /// packages and a manifest that lists no files, so nothing needs hashing.
+    fn installed_pack(state: &Path) -> PackSource {
+        let pack = PackSource {
+            name: PYTHON_PACK_NAME.to_string(),
+            version: "0.1.0".to_string(),
+            url: "https://packs.example.com/delta-python-0.1.0.tar.gz".to_string(),
+            sha256: "0".repeat(64),
+            size: 1,
+            format: PYTHON_PACK_FORMAT.to_string(),
+            interpreter: "python/bin/python3".to_string(),
+            archive: ArchiveFormat::TarGz,
+        };
+        let root = install_root(state, &pack.name, &pack.version);
+        for worker in [
+            "packages/explore_pack/worker.py",
+            "packages/office_worker/worker.py",
+        ] {
+            let path = root.join(worker);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "").unwrap();
+        }
+        std::fs::write(
+            root.join("manifest.json"),
+            r#"{"format":"delta.python-runtime","version":1,"files":[]}"#,
+        )
+        .unwrap();
+        pack
+    }
+
+    #[test]
+    fn an_installed_runtime_registers_its_tools_and_registering_again_replaces_them() {
+        let state = tempfile::tempdir().unwrap();
+        let pack = installed_pack(state.path());
+        let host = CapabilityHost::new();
+
+        register_python_tools(&host, state.path(), Some(&pack)).unwrap();
+        assert!(host.registration("office_create_docx").is_some());
+        assert!(host.registration("statistics_explore_describe").is_some());
+
+        register_python_tools(&host, state.path(), Some(&pack)).unwrap();
+        assert!(host.registration("office_create_docx").is_some());
+    }
+
+    #[test]
+    fn without_a_published_runtime_no_python_tool_is_registered() {
+        let state = tempfile::tempdir().unwrap();
+        let host = CapabilityHost::new();
+
+        register_python_tools(&host, state.path(), None).unwrap();
+
+        assert!(host.registration("office_create_docx").is_none());
+    }
+
+    #[test]
+    fn installing_before_publication_is_refused_and_nothing_is_fetched() {
+        let state = tempfile::tempdir().unwrap();
+        let plane = CoreControlPlane::open(state.path()).unwrap();
+
+        let error = plane.install_shared_runtime().unwrap_err();
+
+        assert!(error.contains("not published"));
+        assert_eq!(plane.shared_runtime_status()["published"], false);
     }
 }

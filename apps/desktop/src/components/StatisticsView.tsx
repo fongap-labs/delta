@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listStatisticsTools, runStatisticsTool, type StatisticsTool } from "../api";
 import { useI18n } from "@delta/i18n/I18nContext";
+import { RuntimePackPrompt } from "./RuntimePackPrompt";
 
 // Statistics without a model (ADR-0078): pick a tool, fill its arguments, run it on a CSV file in
 // the workspace. The tools are read-only and local, so this works with no AI gateway configured.
@@ -27,6 +28,7 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
   const [fields, setFields] = useState<Fields>({});
   const [isRunning, setRunning] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [toolsVersion, setToolsVersion] = useState(0);
 
   useEffect(() => {
     let isAlive = true;
@@ -42,7 +44,7 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
     return () => {
       isAlive = false;
     };
-  }, []);
+  }, [toolsVersion]);
 
   const tool = tools.find((item) => item.name === selected);
   const specs = Object.entries(tool?.parameters.properties ?? {});
@@ -111,6 +113,9 @@ export function StatisticsView({ workspace }: { workspace?: string }) {
               "No local statistics engine is available in this build. Delta Suite provides validated analysis."
             )}
           </p>
+        )}
+        {!loadError && tools.length === 0 && (
+          <RuntimePackPrompt onInstalled={() => setToolsVersion((version) => version + 1)} />
         )}
         {tool && (
           <>

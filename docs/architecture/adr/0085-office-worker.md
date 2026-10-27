@@ -65,7 +65,14 @@
 
 - 首次使用时，由用户在应用内一次性确认下载。批准记录写入 `<状态目录>/runtimes/approvals.json`（按包名、版本、归档哈希），并写入审计日志（`audit_events.db`，工具名 `runtime.install`）。拒绝同样写入审计。批准只覆盖确切的包；模型调用的出口规则不变。
 - 统计与办公共用一个共享运行时包 `delta-python`（清单格式 `delta.python-runtime`），内含 CPython 3.12、锁定依赖与两个 worker 包。解释器路径由 `PackSource.interpreter` 给出。
-- `ExploreRuntime::from_env_or_installed` 与 `OfficeRuntime::from_env_or_installed` 先读环境变量（开发用），再查已安装且通过清单校验的共享包；未安装时不注册任何工具。
+- `ExploreRuntime::from_env` 与 `OfficeRuntime::from_env` 先读环境变量（开发用），再由 `register_python_tools` 查已安装且通过清单校验的共享包（`from_installed`）；未安装时不注册任何工具。
 - 生产获取器 `HttpsFetch` 经应用的代理设置获取，不跟随重定向，读取上限为已发布的大小。
 - tar.gz 解压的安全约束：路径上任一已存在的组成部分若为符号链接（含条目本身），整个条目被拒绝（`refuse_symlinked_path`）；符号链接的目标必须在词法上留在包内。若不做第一条，较早的链接可把后续条目写到包外。回归测试 `a_link_may_not_carry_a_later_entry_out_of_the_pack`。
-- 尚未完成：在界面中弹出确认、发布的包描述（`runtime/packs.json` 当前为空，即"尚未发布"）、包的构建与签名、在 external-vault 发布。
+- 尚未完成：包的构建与签名、在 external-vault 发布，以及把真实描述填入 `runtime/packs.json`（当前为空，即"尚未发布"）。
+
+## 修订（2026-10-27）：界面确认与热注册
+
+- 统计页在没有可用工具时显示 `RuntimePackPrompt`：列出包名、版本、大小与来源域名，用户点击确认后才下载。未发布时只显示"尚未发布"，不提供安装。
+- 确认后调用 `CoreControlPlane::install_shared_runtime`：先 `approve_and_install`（记录批准，再按批准安装），成功后用 `register_python_tools` 替换 `statistics_explore_*` 与 `office_create_*` 工具，不需要重启。下载在后台线程进行。
+- 状态由 `shared_runtime_status` 给出（是否发布、是否已安装、是否已批准、来源域名）。
+- 批准与安装的顺序意味着：批准记录写入后，即使下载失败，同一包不会再次询问。重试会直接下载，失败不留半成品。

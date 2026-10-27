@@ -631,6 +631,22 @@ pub fn statistics_run(
     state.run_statistics_tool(&tool, arguments, &workspace)
 }
 
+/// Whether the shared Python runtime is published, installed and approved (ADR-0085).
+#[tauri::command]
+pub fn runtime_pack_status(state: State<'_, RuntimeRegistry>) -> Value {
+    state.shared_runtime_status()
+}
+
+/// Installs the shared Python runtime once the user has confirmed it. The download runs off the
+/// UI thread.
+#[tauri::command]
+pub async fn runtime_pack_install(state: State<'_, RuntimeRegistry>) -> Result<Value, String> {
+    let core = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || core.install_shared_runtime())
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 #[tauri::command]
 pub fn session_rename(
     state: State<'_, RuntimeRegistry>,

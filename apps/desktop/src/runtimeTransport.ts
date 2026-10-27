@@ -392,6 +392,22 @@ export async function directStatisticsTools(): Promise<unknown> {
   }
 }
 
+export async function directRuntimePackStatus(): Promise<unknown> {
+  try {
+    return await invoke("runtime_pack_status");
+  } catch (e) {
+    return { published: false, error: String(e) };
+  }
+}
+
+export async function directRuntimePackInstall(): Promise<unknown> {
+  try {
+    return await invoke("runtime_pack_install");
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export async function directStatisticsRun(tool: string, args: Record<string, unknown>, workspace: string): Promise<unknown> {
   try {
     return await invoke("statistics_run", { tool, arguments: args, workspace });

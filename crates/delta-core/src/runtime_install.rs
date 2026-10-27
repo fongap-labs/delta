@@ -528,6 +528,18 @@ pub fn install_if_approved(
     install(state_dir, source, &decision, fetch)
 }
 
+/// The user confirmed `source` in the application: record the approval, then install it. The
+/// approval covers exactly this pack, so a later version asks again.
+pub fn approve_and_install(
+    state_dir: &Path,
+    source: &PackSource,
+    fetch: &dyn Fetch,
+    approved_at: &str,
+) -> Result<InstallOutcome, String> {
+    record_approval(state_dir, source, approved_at)?;
+    install_if_approved(state_dir, source, fetch)
+}
+
 /// Where the installed shared runtime lives and which interpreter runs it, if a copy that passes
 /// its manifest is in place.
 pub fn installed_python_pack(state_dir: &Path, source: &PackSource) -> Option<(PathBuf, PathBuf)> {
@@ -536,6 +548,23 @@ pub fn installed_python_pack(state_dir: &Path, source: &PackSource) -> Option<(P
         return None;
     }
     Some((root.clone(), root.join(&source.interpreter)))
+}
+
+/// What the application shows about the shared runtime. `pack` is the published description, or
+/// `None` while nothing is published.
+pub fn shared_runtime_status(state_dir: &Path, pack: Option<&PackSource>) -> serde_json::Value {
+    let Some(pack) = pack else {
+        return json!({"published": false, "installed": false, "approved": false});
+    };
+    json!({
+        "published": true,
+        "name": pack.name,
+        "version": pack.version,
+        "size": pack.size,
+        "host": url::Url::parse(&pack.url).ok().and_then(|url| url.host_str().map(str::to_string)),
+        "installed": installed_python_pack(state_dir, pack).is_some(),
+        "approved": is_approved(state_dir, pack),
+    })
 }
 
 /// The production fetcher: HTTPS through the application's proxy policy, with a size cap.
@@ -1129,6 +1158,49 @@ mod tests {
             .join("runtimes")
             .join("delta-python-0.1.0")
             .exists());
+    }
+
+    #[test]
+    fn approving_a_pack_installs_exactly_that_pack() {
+        let temp = state();
+        let bytes = archive_of(PYTHON_PACK_FORMAT, &[("python/bin/python3", "#!/bin/sh\n")]);
+        let source = shared_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+
+        let outcome =
+            approve_and_install(temp.path(), &source, &served, "2026-10-27T14:00:00Z").unwrap();
+
+        assert!(matches!(outcome, InstallOutcome::Installed(_)));
+        assert_eq!(served.calls.get(), 1);
+        assert!(is_approved(temp.path(), &source));
+        assert!(installed_python_pack(temp.path(), &source).is_some());
+    }
+
+    #[test]
+    fn the_status_follows_publication_approval_and_installation() {
+        let temp = state();
+        assert_eq!(shared_runtime_status(temp.path(), None)["published"], false);
+
+        let bytes = archive_of(PYTHON_PACK_FORMAT, &[("python/bin/python3", "#!/bin/sh\n")]);
+        let source = shared_source_for(&bytes);
+        let before = shared_runtime_status(temp.path(), Some(&source));
+        assert_eq!(before["published"], true);
+        assert_eq!(before["host"], "packs.example.com");
+        assert_eq!(before["installed"], false);
+        assert_eq!(before["approved"], false);
+
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        approve_and_install(temp.path(), &source, &served, "2026-10-27T14:00:00Z").unwrap();
+
+        let after = shared_runtime_status(temp.path(), Some(&source));
+        assert_eq!(after["installed"], true);
+        assert_eq!(after["approved"], true);
     }
 
     #[test]
