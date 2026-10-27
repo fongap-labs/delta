@@ -88,3 +88,8 @@
 - 第二阶段：`packages/explore_pack/worker.py` 按能力 ABI v2 从 stdin 读取作业、向 stdout 写出结果；Rust 侧 `statistics_explore` 在配置 `DELTA_EXPLORE_PYTHON` 与 `DELTA_EXPLORE_ROOT` 后注册四个 `statistics.explore.*` 工具，统计页可在无模型时运行它们（ADR-0078 修订）。未配置时不注册任何工具。
 - 第二阶段仍未解决：Runtime Pack 的签名接入与发布（见上方"分发"一节）；受控脚本模式。
 - 统计运行的审计条目已在 `CoreControlPlane::audit_statistics_run` 实现（写入 `audit_events.db`，写入失败即拒绝运行），此前的待办已过时。
+
+## 修订（2026-10-27）：解释器的分发
+
+- 上文"解释器不随 Pack 分发"已被修订：统计与办公的运行时包包含可重定位的 CPython 3.12 解释器，并在首次使用时从固定 HTTPS 地址下载、校验后安装（见 ADR-0085 修订）。`DELTA_EXPLORE_PYTHON` 仍可用于开发检出。
+- 解释器不随安装包发布，以符合便携版的发布契约。
