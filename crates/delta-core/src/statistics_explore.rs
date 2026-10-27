@@ -13,7 +13,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use crate::capability::{CapabilityGrants, CapabilityRegistration, WorkerProcessRunner};
-use crate::runtime_pack::{self, sha256_hex, MANIFEST_NAME};
+use crate::runtime_pack::{self, MANIFEST_NAME};
 use crate::skills::SideEffectClass;
 
 pub const PYTHON_ENV: &str = "DELTA_EXPLORE_PYTHON";
@@ -167,6 +167,7 @@ mod tests {
     use super::*;
     use crate::capability::CapabilityHost;
     use crate::runtime::{ToolCall, ToolExecutionContext, ToolExecutor};
+    use crate::runtime_pack::sha256_hex;
     use std::sync::atomic::AtomicBool;
     use std::time::Duration;
 
