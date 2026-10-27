@@ -4526,3 +4526,86 @@ fn the_reviewer_asks_when_there_is_no_user_request_to_judge_against() {
         crate::reviewer::Verdict::Ask
     );
 }
+
+/// The evaluation corpora of ADR-0084, one JSON object per line in each file.
+const REVIEWER_CORPORA: [&str; 3] = [
+    include_str!("../../tests/fixtures/reviewer/benign.jsonl"),
+    include_str!("../../tests/fixtures/reviewer/dangerous.jsonl"),
+    include_str!("../../tests/fixtures/reviewer/injection.jsonl"),
+];
+
+fn reviewer_eval_cases() -> Vec<crate::reviewer::EvalCase> {
+    REVIEWER_CORPORA
+        .iter()
+        .flat_map(|corpus| corpus.lines().filter(|line| !line.trim().is_empty()))
+        .map(|line| serde_json::from_str(line).expect("a corpus row is a JSON case"))
+        .collect()
+}
+
+#[test]
+fn the_reviewer_corpora_are_well_formed() {
+    use crate::reviewer::Category;
+
+    let cases = reviewer_eval_cases();
+    let mut ids: Vec<&str> = cases.iter().map(|case| case.id.as_str()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+
+    assert_eq!(ids.len(), cases.len(), "case ids must be unique");
+    for category in [Category::Benign, Category::Dangerous, Category::Injection] {
+        assert!(
+            cases.iter().any(|case| case.category == category),
+            "every category has cases: {category:?}"
+        );
+    }
+}
+
+/// The ship gate of ADR-0084, run against the model the environment names. It spends model calls,
+/// so it is ignored by default. Set DELTA_REVIEWER_EVAL_BASE_URL, DELTA_REVIEWER_EVAL_MODEL and
+/// DELTA_REVIEWER_EVAL_API_KEY to run it; DELTA_REVIEWER_EVAL_REPORT names a file for the report.
+#[test]
+#[ignore = "spends model calls; run the reviewer evaluation gate explicitly"]
+fn the_reviewer_evaluation_gate() {
+    let base_url = std::env::var("DELTA_REVIEWER_EVAL_BASE_URL")
+        .expect("set DELTA_REVIEWER_EVAL_BASE_URL to run the reviewer gate");
+    let model = std::env::var("DELTA_REVIEWER_EVAL_MODEL")
+        .expect("set DELTA_REVIEWER_EVAL_MODEL to run the reviewer gate");
+    let api_key = std::env::var("DELTA_REVIEWER_EVAL_API_KEY")
+        .expect("set DELTA_REVIEWER_EVAL_API_KEY to run the reviewer gate");
+
+    let mut results = Vec::new();
+    let mut verdicts = Vec::new();
+    for case in reviewer_eval_cases() {
+        let mut host = RuntimeHost::new(
+            "session-reviewer-eval",
+            RuntimeConfig {
+                model: model.clone(),
+                protocol: "openai_chat".to_string(),
+                api_key: api_key.clone(),
+                base_url: base_url.clone(),
+                reviewer_enabled: true,
+                ..RuntimeConfig::default()
+            },
+        );
+        host.messages
+            .push(json!({"role": "user", "content": case.request}));
+        let call = ToolCall {
+            id: case.id.clone(),
+            name: case.tool.clone(),
+            arguments: case.arguments.clone(),
+        };
+        let verdict = host.review_call(&call);
+        verdicts.push(
+            json!({"id": case.id, "category": case.category, "verdict": format!("{verdict:?}")}),
+        );
+        results.push((case, verdict));
+    }
+
+    let report = crate::reviewer::summarize(&results);
+    if let Ok(path) = std::env::var("DELTA_REVIEWER_EVAL_REPORT") {
+        let document = json!({"gate": report, "passes": report.passes(), "cases": verdicts});
+        std::fs::write(&path, serde_json::to_string_pretty(&document).unwrap())
+            .expect("write the reviewer report");
+    }
+    assert!(report.passes(), "reviewer gate failed: {report:?}");
+}

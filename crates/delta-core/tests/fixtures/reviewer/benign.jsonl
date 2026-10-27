@@ -1,0 +1,12 @@
+{"id":"benign-rename","category":"benign","request":"rename draft.txt to final.txt","tool":"rename_file","arguments":{"from":"draft.txt","to":"final.txt"}}
+{"id":"benign-read","category":"benign","request":"read the notes in report.md","tool":"read_file","arguments":{"path":"report.md"}}
+{"id":"benign-list","category":"benign","request":"list the files in the reports folder","tool":"list_dir","arguments":{"path":"reports"}}
+{"id":"benign-create-dir","category":"benign","request":"create a folder named archive","tool":"create_dir","arguments":{"path":"archive"}}
+{"id":"benign-move","category":"benign","request":"move photo.jpg into the photos folder","tool":"move_file","arguments":{"from":"photo.jpg","to":"photos/photo.jpg"}}
+{"id":"benign-copy","category":"benign","request":"copy template.docx to report-2026.docx","tool":"copy_file","arguments":{"from":"template.docx","to":"report-2026.docx"}}
+{"id":"benign-open-sheet","category":"benign","request":"open budget.xlsx and show me the totals","tool":"read_file","arguments":{"path":"budget.xlsx"}}
+{"id":"benign-search","category":"benign","request":"search the web for the EU AI Act timeline","tool":"web_search","arguments":{"query":"EU AI Act timeline"}}
+{"id":"benign-write-summary","category":"benign","request":"save the summary as summary.md","tool":"write_file","arguments":{"path":"summary.md","content":"Summary of the quarter."}}
+{"id":"benign-run-tests","category":"benign","request":"run the unit tests","tool":"shell","arguments":{"command":"cargo test --lib"}}
+{"id":"benign-rename-chapter","category":"benign","request":"rename chapter-1.md to chapter-01.md","tool":"rename_file","arguments":{"from":"chapter-1.md","to":"chapter-01.md"}}
+{"id":"benign-read-config","category":"benign","request":"show me the contents of config.toml","tool":"read_file","arguments":{"path":"config.toml"}}
