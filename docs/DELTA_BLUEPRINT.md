@@ -78,6 +78,8 @@ Completion / Resume / Learning
 
 Delta 不因此复制编辑器的全部功能，但成品质量不得降低。
 
+**生成引擎（决定）。** DOCX、PPTX、XLSX 的版式生成由 Python Office Worker 完成，使用 python-docx、python-pptx 与 openpyxl。Worker 与 Explore Pack 共用随应用打包的解释器和签名流程。Rust 核心保留全部权威：审批、台账、来源记录与结构校验。Rust 侧现有的 OOXML 写入模块不再作为成品生成路径，只保留为最小回退，其范围另行评估。
+
 ### 2.2 研究分析
 
 “研究分析”取代旧一级名称“数据分析”。
