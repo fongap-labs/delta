@@ -60,3 +60,11 @@
 - 解释器版本固定为 **CPython 3.12**。3.12 的安全更新期更长，三个办公库在其上的预编译轮子更稳定；CI 仍在 3.13 上运行，用于提前发现兼容问题。
 - 运行时包是 ZIP 归档（使用已有的 `zip` 依赖，不引入 tar/gzip）。`crates/delta-core/src/runtime_install.rs` 实现安装：只在出口决定为 `Allow` 时获取；固定 HTTPS 地址；归档 SHA-256 与大小必须与应用内的描述一致；解压到暂存目录，用清单逐文件校验，通过后才原子移入 `<状态目录>/runtimes/<名称>-<版本>/`。任何一步失败都不留下半成品。
 - 尚未完成：生产环境的 HTTPS 获取器（需经应用的代理设置）、出口决定的接线（需要用户的出口级别）、运行时包的构建与签名、以及在 external-vault 发布。这些在后续工作中完成。
+
+## 修订（2026-10-27）：批准、接线与共享运行时
+
+- 首次使用时，由用户在应用内一次性确认下载。批准记录写入 `<状态目录>/runtimes/approvals.json`（按包名、版本、归档哈希），并写入审计日志（`audit_events.db`，工具名 `runtime.install`）。拒绝同样写入审计。批准只覆盖确切的包；模型调用的出口规则不变。
+- 统计与办公共用一个共享运行时包 `delta-python`（清单格式 `delta.python-runtime`），内含 CPython 3.12、锁定依赖与两个 worker 包。解释器路径由 `PackSource.interpreter` 给出。
+- `ExploreRuntime::from_env_or_installed` 与 `OfficeRuntime::from_env_or_installed` 先读环境变量（开发用），再查已安装且通过清单校验的共享包；未安装时不注册任何工具。
+- 生产获取器 `HttpsFetch` 经应用的代理设置获取，不跟随重定向，读取上限为已发布的大小。
+- 尚未完成：在界面中弹出确认、发布的包描述（`runtime/packs.json` 当前为空，即"尚未发布"）、包的构建与签名、在 external-vault 发布。
