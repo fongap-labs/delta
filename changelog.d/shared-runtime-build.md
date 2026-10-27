@@ -1,0 +1,1 @@
+- 新增: 共享 Python 运行时包的构建器：以固定摘要的 CPython 3.12 归档与 Office 库闭包生成确定性的 tar.gz 与清单，并提供 Windows x64 的构建脚本；尚未发布。
