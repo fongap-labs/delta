@@ -44,6 +44,7 @@ pub mod provider;
 pub mod redact;
 pub mod retrieval;
 pub mod retry;
+pub mod reviewer;
 pub mod runtime;
 pub mod skills;
 pub mod source_citation;

@@ -4408,3 +4408,204 @@ fn limiting_a_tool_output_leaves_small_ones_alone_and_cuts_on_a_character_bounda
     assert!(!preview.contains('\u{FFFD}'));
     assert!(limited["note"].as_str().unwrap().contains("limit"));
 }
+
+/// Serves one non-streaming chat completion whose assistant text is `reply`, as the auto-approve
+/// reviewer (ADR-0084) receives it from the model endpoint.
+fn serve_judge_reply(reply: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind judge");
+    let address = listener.local_addr().expect("judge address");
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept judge request");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let _ = read_http_request(&mut stream);
+        let body = json!({"choices": [{"message": {"role": "assistant", "content": reply}, "finish_reason": "stop"}]})
+            .to_string();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+    format!("http://{address}/v1")
+}
+
+/// A host whose newest user message is `request`, pointed at `base_url` for the judge.
+fn reviewer_test_host(base_url: String, request: &str) -> RuntimeHost {
+    let mut host = RuntimeHost::new(
+        "session-review",
+        RuntimeConfig {
+            model: "judge-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "judge-key".to_string(),
+            base_url,
+            reviewer_enabled: true,
+            ..RuntimeConfig::default()
+        },
+    );
+    host.messages
+        .push(json!({"role": "user", "content": request}));
+    host
+}
+
+fn rename_call() -> ToolCall {
+    ToolCall {
+        id: "call-review-1".to_string(),
+        name: "rename_file".to_string(),
+        arguments: json!({"from": "draft.txt", "to": "final.txt"}),
+    }
+}
+
+#[test]
+fn the_reviewer_allows_a_call_the_request_covers() {
+    let host = reviewer_test_host(
+        serve_judge_reply(r#"{"verdict":"allow"}"#),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Allow
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_the_judge_asks() {
+    let host = reviewer_test_host(
+        serve_judge_reply(r#"{"verdict":"ask"}"#),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_the_judge_answers_in_prose() {
+    let host = reviewer_test_host(
+        serve_judge_reply("Sure, this looks fine: {\"verdict\":\"allow\"}"),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_the_judge_is_unreachable() {
+    let host = reviewer_test_host(
+        "http://127.0.0.1:9/v1".to_string(),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_there_is_no_user_request_to_judge_against() {
+    let host = RuntimeHost::new(
+        "session-review-empty",
+        RuntimeConfig {
+            reviewer_enabled: true,
+            base_url: "http://127.0.0.1:9/v1".to_string(),
+            ..RuntimeConfig::default()
+        },
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+/// The evaluation corpora of ADR-0084, one JSON object per line in each file.
+const REVIEWER_CORPORA: [&str; 3] = [
+    include_str!("../../tests/fixtures/reviewer/benign.jsonl"),
+    include_str!("../../tests/fixtures/reviewer/dangerous.jsonl"),
+    include_str!("../../tests/fixtures/reviewer/injection.jsonl"),
+];
+
+fn reviewer_eval_cases() -> Vec<crate::reviewer::EvalCase> {
+    REVIEWER_CORPORA
+        .iter()
+        .flat_map(|corpus| corpus.lines().filter(|line| !line.trim().is_empty()))
+        .map(|line| serde_json::from_str(line).expect("a corpus row is a JSON case"))
+        .collect()
+}
+
+#[test]
+fn the_reviewer_corpora_are_well_formed() {
+    use crate::reviewer::Category;
+
+    let cases = reviewer_eval_cases();
+    let mut ids: Vec<&str> = cases.iter().map(|case| case.id.as_str()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+
+    assert_eq!(ids.len(), cases.len(), "case ids must be unique");
+    for category in [Category::Benign, Category::Dangerous, Category::Injection] {
+        assert!(
+            cases.iter().any(|case| case.category == category),
+            "every category has cases: {category:?}"
+        );
+    }
+}
+
+/// The ship gate of ADR-0084, run against the model the environment names. It spends model calls,
+/// so it is ignored by default. Set DELTA_REVIEWER_EVAL_BASE_URL, DELTA_REVIEWER_EVAL_MODEL and
+/// DELTA_REVIEWER_EVAL_API_KEY to run it; DELTA_REVIEWER_EVAL_REPORT names a file for the report.
+#[test]
+#[ignore = "spends model calls; run the reviewer evaluation gate explicitly"]
+fn the_reviewer_evaluation_gate() {
+    let base_url = std::env::var("DELTA_REVIEWER_EVAL_BASE_URL")
+        .expect("set DELTA_REVIEWER_EVAL_BASE_URL to run the reviewer gate");
+    let model = std::env::var("DELTA_REVIEWER_EVAL_MODEL")
+        .expect("set DELTA_REVIEWER_EVAL_MODEL to run the reviewer gate");
+    let api_key = std::env::var("DELTA_REVIEWER_EVAL_API_KEY")
+        .expect("set DELTA_REVIEWER_EVAL_API_KEY to run the reviewer gate");
+
+    let mut results = Vec::new();
+    let mut verdicts = Vec::new();
+    for case in reviewer_eval_cases() {
+        let mut host = RuntimeHost::new(
+            "session-reviewer-eval",
+            RuntimeConfig {
+                model: model.clone(),
+                protocol: "openai_chat".to_string(),
+                api_key: api_key.clone(),
+                base_url: base_url.clone(),
+                reviewer_enabled: true,
+                ..RuntimeConfig::default()
+            },
+        );
+        host.messages
+            .push(json!({"role": "user", "content": case.request}));
+        let call = ToolCall {
+            id: case.id.clone(),
+            name: case.tool.clone(),
+            arguments: case.arguments.clone(),
+        };
+        let verdict = host.review_call(&call);
+        verdicts.push(
+            json!({"id": case.id, "category": case.category, "verdict": format!("{verdict:?}")}),
+        );
+        results.push((case, verdict));
+    }
+
+    let report = crate::reviewer::summarize(&results);
+    if let Ok(path) = std::env::var("DELTA_REVIEWER_EVAL_REPORT") {
+        let document = json!({"gate": report, "passes": report.passes(), "cases": verdicts});
+        std::fs::write(&path, serde_json::to_string_pretty(&document).unwrap())
+            .expect("write the reviewer report");
+    }
+    assert!(report.passes(), "reviewer gate failed: {report:?}");
+}

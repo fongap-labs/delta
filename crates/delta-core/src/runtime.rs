@@ -665,6 +665,9 @@ pub struct RuntimeConfig {
     /// Optional routed model id for the summarizer request; empty means the
     /// session's own model.
     pub compaction_model: Option<String>,
+    /// Whether the auto-approve reviewer (ADR-0084) may answer a question the policy would put to
+    /// the user. Off until the reviewer evaluation gate passes.
+    pub reviewer_enabled: bool,
 }
 
 impl Default for RuntimeConfig {
@@ -691,6 +694,7 @@ impl Default for RuntimeConfig {
             compaction_threshold_pct: 0.8,
             compaction_cap_tokens: 250_000,
             compaction_model: None,
+            reviewer_enabled: false,
         }
     }
 }
@@ -1465,6 +1469,7 @@ impl RuntimeHost {
         self.config.compaction_threshold_pct = config.compaction_threshold_pct;
         self.config.compaction_cap_tokens = config.compaction_cap_tokens;
         self.config.compaction_model = config.compaction_model;
+        self.config.reviewer_enabled = config.reviewer_enabled;
         if self.config.system_prompt != config.system_prompt {
             self.config.system_prompt = config.system_prompt.clone();
             if let Some(prompt) = config.system_prompt {
