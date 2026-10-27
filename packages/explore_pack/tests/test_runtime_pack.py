@@ -108,6 +108,22 @@ def test_a_missing_manifest_fails_closed(tmp_path: Path) -> None:
     assert runtime_pack.verify(tmp_path) == ["manifest.json is missing"]
 
 
+def test_the_output_is_exactly_the_archive_and_the_manifest(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    runtime_pack.build(out, version=runtime_pack.PACK_VERSION)
+
+    assert sorted(path.name for path in out.iterdir()) == [
+        runtime_pack.ARCHIVE_NAME,
+        runtime_pack.MANIFEST_NAME,
+    ]
+
+
+def test_a_version_that_differs_from_the_pack_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="does not match the pack's PACK_VERSION"):
+        runtime_pack.build(tmp_path / "out", version="9.9.9")
+    assert not (tmp_path / "out").exists()
+
+
 def test_a_path_that_escapes_the_pack_is_refused(tmp_path: Path) -> None:
     root = tmp_path / "pack"
     root.mkdir()

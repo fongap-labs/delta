@@ -62,6 +62,8 @@
 - 解释器不随 Pack 分发：要求系统 Python ≥3.11，并通过 `DELTA_EXPLORE_PYTHON` 显式指定。
 - 运行时校验：若 `DELTA_EXPLORE_ROOT` 指向的目录含有 `manifest.json`，Rust 在注册工具前逐文件核对 SHA-256。任何不一致、缺失或越界的路径都会使工具不注册（失败即关闭）。没有清单的目录视为开发检出，不做此校验。
 - 已知限制：清单本身在签名接入前不受保护；删除清单会使目录退回开发模式。签名步骤与 external-vault 的发布规则需要在源仓库和 Action Worker 中配置，尚未完成。
+- 发布声明（尚未提交）：Action Worker 的根级发布清单 `.github/release.manifest.json` 已属于 Delta 产品，且一个仓库只能采用一种布局（根级单产品，或 `projects/<product>/` 多产品）。因此 Explore Runtime 的清单在布局决定之前不提交，不覆盖 Delta 的清单。构建脚本为 `.github/scripts/build-explore-runtime.ps1`（Action Worker 要求 `.ps1`），计划在 `linux-standard` 运行器上调用 `scripts/build_explore_runtime.py`。版本只来自发布时的手动输入，构建会拒绝与 `PACK_VERSION` 不一致的版本。资产固定为 `explore-runtime.tar.gz` 与 `manifest.json`，名称中不含版本。
+- 尚未完成：发布清单的布局决定与提交、外部目标仓库策略（`external-vault` 未登记为发布目标）、运行器上的 `pwsh` 实测、签名步骤，以及 `external-vault` 中的工具元数据。这些需要维护者配置或后续阶段完成。
 
 ## 后果
 
