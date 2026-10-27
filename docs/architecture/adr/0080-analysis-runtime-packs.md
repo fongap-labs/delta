@@ -71,4 +71,6 @@
 ## 实现记录（2026-10-27）
 
 - Foundation 的 R 统计、R CI 与 external-vault R 资产已立即移除（ADR-0081）。
-- Explore Pack 尚未实现；Suite Validate Pack 的 R 方法包是下一步。
+- Explore Pack 第一阶段（`packages/explore_pack/`）：标准库实现的描述统计、Welch t 检验、Pearson 相关与简单回归；CLI 写出 `delta.result` v2，`assurance` 固定为 `exploratory`，并以 `analysis-result.schema.json` 校验。依赖只新增开发期的 `jsonschema`，运行时不引入第三方包。
+- 尚未实现：Rust 能力注册与审批接入、受控脚本模式、独立 Runtime Pack 的签名与三平台构建、统计页接入。这些是 P3 的后续工作。
+- Suite Validate Pack 的 R 方法包由 Suite 仓库另行交付，不在本次范围内。
