@@ -11,16 +11,15 @@ vi.mock("../api", () => ({
   runStatisticsTool: (...args: unknown[]) => runStatisticsTool(...args),
 }));
 
-const f2Tool = {
-  name: "statistics_f2",
-  description: "Similarity factor f2 between two dissolution profiles.",
+const describeTool = {
+  name: "statistics_explore_describe",
+  description: "Summary statistics for one column. Exploratory only.",
   parameters: {
     type: "object",
-    required: ["path", "reference", "test"],
+    required: ["path", "column"],
     properties: {
       path: { type: "string", description: "CSV file path, relative to the workspace." },
-      reference: { type: "string", description: "Reference column." },
-      test: { type: "string", description: "Test column." },
+      column: { type: "string", description: "A column name in the CSV header." },
     },
   },
 };
@@ -35,25 +34,24 @@ describe("StatisticsView", () => {
   });
 
   it("runs a tool with its filled arguments in the open workspace and shows the result", async () => {
-    listStatisticsTools.mockResolvedValue([f2Tool]);
-    runStatisticsTool.mockResolvedValue({ f2: 73.02046884880939, points: 3 });
+    listStatisticsTools.mockResolvedValue([describeTool]);
+    runStatisticsTool.mockResolvedValue({ mean: 73.02046884880939, n: 3 });
     render(wrap(<StatisticsView workspace="/work/a" />));
 
-    await screen.findByText("statistics_f2");
+    await screen.findByText("statistics_explore_describe");
     const run = screen.getByRole("button", { name: "Run" }) as HTMLButtonElement;
     expect(run.disabled).toBe(true);
 
     const inputs = screen.getAllByRole("textbox");
     fireEvent.change(inputs[0], { target: { value: "profiles.csv" } });
-    fireEvent.change(inputs[1], { target: { value: "reference" } });
-    fireEvent.change(inputs[2], { target: { value: "test" } });
+    fireEvent.change(inputs[1], { target: { value: "value" } });
     expect((screen.getByRole("button", { name: "Run" }) as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(screen.getByTestId("statistics-result")).toBeTruthy());
     expect(runStatisticsTool).toHaveBeenCalledWith(
-      "statistics_f2",
-      { path: "profiles.csv", reference: "reference", test: "test" },
+      "statistics_explore_describe",
+      { path: "profiles.csv", column: "value" },
       "/work/a",
     );
     expect(screen.getByText("73.020469")).toBeTruthy();
@@ -61,11 +59,11 @@ describe("StatisticsView", () => {
   });
 
   it("shows the error when the calculation does not run", async () => {
-    listStatisticsTools.mockResolvedValue([f2Tool]);
+    listStatisticsTools.mockResolvedValue([describeTool]);
     runStatisticsTool.mockResolvedValue({ ok: false, error: "column not found: test" });
     render(wrap(<StatisticsView workspace="/work/a" />));
 
-    await screen.findByText("statistics_f2");
+    await screen.findByText("statistics_explore_describe");
     for (const input of screen.getAllByRole("textbox")) {
       fireEvent.change(input, { target: { value: "x" } });
     }
@@ -81,10 +79,10 @@ describe("StatisticsView", () => {
   });
 
   it("asks for a workspace and cannot run without one", async () => {
-    listStatisticsTools.mockResolvedValue([f2Tool]);
+    listStatisticsTools.mockResolvedValue([describeTool]);
     render(wrap(<StatisticsView />));
 
-    await screen.findByText("statistics_f2");
+    await screen.findByText("statistics_explore_describe");
     expect(screen.getByText(/Open a conversation in a workspace first/)).toBeTruthy();
     for (const input of screen.getAllByRole("textbox")) {
       fireEvent.change(input, { target: { value: "x" } });

@@ -54,9 +54,11 @@ pub struct CapabilityRegistration {
 }
 
 impl CapabilityRegistration {
-    /// True for a read-only statistics tool that needs no network, secret, process or write grant.
-    /// Only these run without a model turn (`CoreControlPlane::run_statistics_tool`); the execution
-    /// gate still applies to them.
+    /// True for a read-only statistics tool that needs no network, secret or write grant. Only
+    /// these run without a model turn (`CoreControlPlane::run_statistics_tool`); the execution
+    /// gate still applies to them. The one exception is a process grant for the pinned Explore
+    /// runtime (`statistics.explore.*`, ADR-0078 as amended by ADR-0080): no other statistics
+    /// tool may spawn a process without a model turn.
     pub fn is_local_statistics(&self) -> bool {
         self.capability_id.starts_with("statistics.")
             && matches!(
@@ -66,7 +68,7 @@ impl CapabilityRegistration {
             && self.grants.network.is_empty()
             && self.grants.secrets.is_empty()
             && self.grants.write_roots.is_empty()
-            && !self.grants.exec
+            && (!self.grants.exec || self.capability_id.starts_with("statistics.explore."))
             && !self.workspace_write
     }
 }

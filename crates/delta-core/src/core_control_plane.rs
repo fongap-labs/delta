@@ -85,6 +85,11 @@ impl CoreControlPlane {
         for registration in crate::skills::lookup_registrations(skills.clone()) {
             capability_host.register(registration)?;
         }
+        // Explore statistics need a configured Python runtime; without one nothing is registered.
+        let explore_runtime = crate::statistics_explore::ExploreRuntime::from_env();
+        for registration in crate::statistics_explore::registrations(explore_runtime.as_ref()) {
+            capability_host.register(registration)?;
+        }
         let library_state = state_dir.clone();
         let library = Arc::new(
             crate::retrieval::Library::open(&state_dir)?.with_hook(Arc::new(move |report| {
@@ -1548,9 +1553,12 @@ mod statistics_run_tests {
     }
 
     #[test]
-    fn no_local_statistics_tools_are_registered_after_the_r_engine_is_removed() {
+    fn only_explore_statistics_tools_are_listed_for_the_statistics_page() {
+        // Listed only when a pinned Explore runtime is configured (see statistics_explore).
         let (_state, plane) = open_plane();
-        assert!(names(&plane.statistics_tools()).is_empty());
+        for name in names(&plane.statistics_tools()) {
+            assert!(name.starts_with("statistics_explore_"), "{name}");
+        }
     }
 
     #[test]

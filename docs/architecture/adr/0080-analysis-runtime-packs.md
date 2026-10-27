@@ -74,3 +74,5 @@
 - Explore Pack 第一阶段（`packages/explore_pack/`）：标准库实现的描述统计、Welch t 检验、Pearson 相关与简单回归；CLI 写出 `delta.result` v2，`assurance` 固定为 `exploratory`，并以 `analysis-result.schema.json` 校验。依赖只新增开发期的 `jsonschema`，运行时不引入第三方包。
 - 尚未实现：Rust 能力注册与审批接入、受控脚本模式、独立 Runtime Pack 的签名与三平台构建、统计页接入。这些是 P3 的后续工作。
 - Suite Validate Pack 的 R 方法包由 Suite 仓库另行交付，不在本次范围内。
+- 第二阶段：`packages/explore_pack/worker.py` 按能力 ABI v2 从 stdin 读取作业、向 stdout 写出结果；Rust 侧 `statistics_explore` 在配置 `DELTA_EXPLORE_PYTHON` 与 `DELTA_EXPLORE_ROOT` 后注册四个 `statistics.explore.*` 工具，统计页可在无模型时运行它们（ADR-0078 修订）。未配置时不注册任何工具。
+- 第二阶段仍未解决：Runtime Pack 的分发、签名与离线安装；统计运行的审计条目（ADR-0078 待办）；受控脚本模式。
