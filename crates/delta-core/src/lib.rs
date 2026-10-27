@@ -47,6 +47,7 @@ pub mod retrieval;
 pub mod retry;
 pub mod reviewer;
 pub mod runtime;
+pub mod runtime_install;
 pub mod runtime_pack;
 pub mod skills;
 pub mod source_citation;
