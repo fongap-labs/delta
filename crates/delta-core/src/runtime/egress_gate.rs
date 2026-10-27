@@ -21,7 +21,7 @@ impl RuntimeHost {
     /// Decide the request about to be sent. `Ok` carries the addresses the connection must use
     /// (empty when the decision did not rely on them); `Err` is the refusal shown to the user.
     pub(super) fn gate_model_request(
-        &mut self,
+        &self,
         req: &ProviderRequest,
         iteration: usize,
         is_confirmed: &mut bool,
@@ -96,7 +96,7 @@ impl RuntimeHost {
 
     /// Ask the user to confirm the endpoint for this run. A denial ends the run.
     fn confirm_endpoint(
-        &mut self,
+        &self,
         req: &ProviderRequest,
         level: EgressLevel,
         endpoint: &egress::EndpointInfo,

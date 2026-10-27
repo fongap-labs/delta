@@ -517,6 +517,66 @@ impl RuntimeHost {
         Ok(())
     }
 
+    /// The text of the newest message the user typed. Model-written context (summaries, the
+    /// compaction boundary) is marked `model_only` and never counts as the user's request.
+    fn latest_user_request(&self) -> Option<String> {
+        self.messages
+            .iter()
+            .rev()
+            .find(|message| {
+                message.get("role").and_then(Value::as_str) == Some("user")
+                    && message.get("model_only").is_none()
+            })
+            .and_then(|message| message.get("content").and_then(Value::as_str))
+            .map(str::to_string)
+    }
+
+    /// Asks the auto-approve reviewer about one call the policy would put to the user (ADR-0084).
+    /// Every failure to build, gate, send or read the answer leaves the call to the user.
+    pub(super) fn review_call(&self, call: &ToolCall) -> crate::reviewer::Verdict {
+        use crate::reviewer::{self, Verdict};
+
+        let Some(user_request) = self.latest_user_request() else {
+            return Verdict::Ask;
+        };
+        let input = reviewer::ReviewInput {
+            user_request: &user_request,
+            tool_name: &call.name,
+            arguments: &call.arguments,
+            workspace_root: self.config.workspace.as_deref().unwrap_or(""),
+        };
+        let Some(messages) = reviewer::build_messages(&input) else {
+            return Verdict::Ask;
+        };
+        let mut req = crate::provider::ProviderRequest {
+            protocol: self.config.protocol.clone(),
+            model: self.config.model.clone(),
+            messages,
+            tools: None,
+            settings: Some(json!({})),
+            api_key: self.config.api_key.clone(),
+            base_url: self.config.base_url.clone(),
+            timeout_secs: Some(reviewer::TIMEOUT_SECS),
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: self.turn_proxy.clone(),
+        };
+        // The judge is a model request like any other: it passes the egress gate. It cannot ask
+        // for endpoint confirmation, so an endpoint that needs one leaves the call to the user.
+        let mut is_confirmed = false;
+        let Ok(pinned) = self.gate_model_request(&req, 0, &mut is_confirmed) else {
+            return Verdict::Ask;
+        };
+        req.pinned_addrs = pinned;
+        match crate::provider::complete(&req) {
+            Ok(response) => response
+                .get("text")
+                .and_then(Value::as_str)
+                .map_or(Verdict::Ask, reviewer::parse_verdict),
+            Err(_) => Verdict::Ask,
+        }
+    }
+
     pub(super) fn execute_tool_call(&self, call: &ToolCall) -> ToolResult {
         let (_schema, metadata) = match self.tool_contract(call) {
             Ok(contract) => contract,
@@ -598,15 +658,23 @@ impl RuntimeHost {
         } else {
             None
         };
+        // The reviewer answers only a question the policy would put to the user (ADR-0084).
+        let reviewed = standing.is_none()
+            && decision.needs_user
+            && !decision.allowed
+            && !asks_for_call
+            && self.config.reviewer_enabled
+            && self.review_call(call) == crate::reviewer::Verdict::Allow;
+        let standing = standing.or(reviewed.then_some("approved by the auto-approve reviewer"));
         if let Some(basis) = standing {
-            if let Err(error) = self.record_approval(
-                call,
-                "standing_policy_resolved",
-                "auto_approved",
-                Some("standing"),
-                basis,
-                level,
-            ) {
+            let (resolution, grant) = if reviewed {
+                ("reviewer_resolved", "reviewer")
+            } else {
+                ("standing_policy_resolved", "standing")
+            };
+            if let Err(error) =
+                self.record_approval(call, resolution, "auto_approved", Some(grant), basis, level)
+            {
                 return ToolResult::failure(&call.id, error);
             }
         } else if !decision.allowed || asks_for_call {

@@ -4408,3 +4408,121 @@ fn limiting_a_tool_output_leaves_small_ones_alone_and_cuts_on_a_character_bounda
     assert!(!preview.contains('\u{FFFD}'));
     assert!(limited["note"].as_str().unwrap().contains("limit"));
 }
+
+/// Serves one non-streaming chat completion whose assistant text is `reply`, as the auto-approve
+/// reviewer (ADR-0084) receives it from the model endpoint.
+fn serve_judge_reply(reply: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind judge");
+    let address = listener.local_addr().expect("judge address");
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept judge request");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let _ = read_http_request(&mut stream);
+        let body = json!({"choices": [{"message": {"role": "assistant", "content": reply}, "finish_reason": "stop"}]})
+            .to_string();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+    format!("http://{address}/v1")
+}
+
+/// A host whose newest user message is `request`, pointed at `base_url` for the judge.
+fn reviewer_test_host(base_url: String, request: &str) -> RuntimeHost {
+    let mut host = RuntimeHost::new(
+        "session-review",
+        RuntimeConfig {
+            model: "judge-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "judge-key".to_string(),
+            base_url,
+            reviewer_enabled: true,
+            ..RuntimeConfig::default()
+        },
+    );
+    host.messages
+        .push(json!({"role": "user", "content": request}));
+    host
+}
+
+fn rename_call() -> ToolCall {
+    ToolCall {
+        id: "call-review-1".to_string(),
+        name: "rename_file".to_string(),
+        arguments: json!({"from": "draft.txt", "to": "final.txt"}),
+    }
+}
+
+#[test]
+fn the_reviewer_allows_a_call_the_request_covers() {
+    let host = reviewer_test_host(
+        serve_judge_reply(r#"{"verdict":"allow"}"#),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Allow
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_the_judge_asks() {
+    let host = reviewer_test_host(
+        serve_judge_reply(r#"{"verdict":"ask"}"#),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_the_judge_answers_in_prose() {
+    let host = reviewer_test_host(
+        serve_judge_reply("Sure, this looks fine: {\"verdict\":\"allow\"}"),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_the_judge_is_unreachable() {
+    let host = reviewer_test_host(
+        "http://127.0.0.1:9/v1".to_string(),
+        "rename draft.txt to final.txt",
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
+
+#[test]
+fn the_reviewer_asks_when_there_is_no_user_request_to_judge_against() {
+    let host = RuntimeHost::new(
+        "session-review-empty",
+        RuntimeConfig {
+            reviewer_enabled: true,
+            base_url: "http://127.0.0.1:9/v1".to_string(),
+            ..RuntimeConfig::default()
+        },
+    );
+
+    assert_eq!(
+        host.review_call(&rename_call()),
+        crate::reviewer::Verdict::Ask
+    );
+}
