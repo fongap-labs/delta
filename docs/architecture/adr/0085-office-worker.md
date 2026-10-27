@@ -58,7 +58,7 @@
 
 - 便携版契约禁止把 Python 随安装包发布（`packaging/portable/build-portable.ps1`）。因此 Office 与 Explore 的运行时包（CPython 解释器 + 锁定依赖 + 清单）**在首次使用时下载**，不随安装包携带。
 - 解释器版本固定为 **CPython 3.12**。3.12 的安全更新期更长，三个办公库在其上的预编译轮子更稳定；CI 仍在 3.13 上运行，用于提前发现兼容问题。
-- 运行时包是 ZIP 归档（使用已有的 `zip` 依赖，不引入 tar/gzip）。`crates/delta-core/src/runtime_install.rs` 实现安装：只在出口决定为 `Allow` 时获取；固定 HTTPS 地址；归档 SHA-256 与大小必须与应用内的描述一致；解压到暂存目录，用清单逐文件校验，通过后才原子移入 `<状态目录>/runtimes/<名称>-<版本>/`。任何一步失败都不留下半成品。
+- 运行时包可以是 ZIP 或 tar.gz 归档（由 `PackSource.archive` 指定）。共享包采用 tar.gz：CPython 的可重定位构建依赖符号链接（如 `python3` 指向 `python3.12`），而 ZIP 路径拒绝符号链接。`crates/delta-core/src/runtime_install.rs` 实现安装：只在出口决定为 `Allow` 时获取；固定 HTTPS 地址；归档 SHA-256 与大小必须与应用内的描述一致；解压到暂存目录，用清单逐文件校验，通过后才原子移入 `<状态目录>/runtimes/<名称>-<版本>/`。任何一步失败都不留下半成品。
 - 尚未完成：生产环境的 HTTPS 获取器（需经应用的代理设置）、出口决定的接线（需要用户的出口级别）、运行时包的构建与签名、以及在 external-vault 发布。这些在后续工作中完成。
 
 ## 修订（2026-10-27）：批准、接线与共享运行时
@@ -67,4 +67,5 @@
 - 统计与办公共用一个共享运行时包 `delta-python`（清单格式 `delta.python-runtime`），内含 CPython 3.12、锁定依赖与两个 worker 包。解释器路径由 `PackSource.interpreter` 给出。
 - `ExploreRuntime::from_env_or_installed` 与 `OfficeRuntime::from_env_or_installed` 先读环境变量（开发用），再查已安装且通过清单校验的共享包；未安装时不注册任何工具。
 - 生产获取器 `HttpsFetch` 经应用的代理设置获取，不跟随重定向，读取上限为已发布的大小。
+- tar.gz 解压的安全约束：路径上任一已存在的组成部分若为符号链接（含条目本身），整个条目被拒绝（`refuse_symlinked_path`）；符号链接的目标必须在词法上留在包内。若不做第一条，较早的链接可把后续条目写到包外。回归测试 `a_link_may_not_carry_a_later_entry_out_of_the_pack`。
 - 尚未完成：在界面中弹出确认、发布的包描述（`runtime/packs.json` 当前为空，即"尚未发布"）、包的构建与签名、在 external-vault 发布。

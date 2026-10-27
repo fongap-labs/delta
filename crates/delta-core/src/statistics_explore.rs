@@ -432,6 +432,7 @@ mod tests {
             size: 1,
             format: PYTHON_PACK_FORMAT.to_string(),
             interpreter: "python/bin/python3".to_string(),
+            archive: crate::runtime_install::ArchiveFormat::Zip,
         }
     }
 
@@ -459,6 +460,7 @@ mod tests {
             size: 1,
             format: crate::runtime_install::PYTHON_PACK_FORMAT.to_string(),
             interpreter: "python/bin/python3".to_string(),
+            archive: crate::runtime_install::ArchiveFormat::Zip,
         };
 
         assert!(ExploreRuntime::from_installed(temp.path(), &pack).is_none());

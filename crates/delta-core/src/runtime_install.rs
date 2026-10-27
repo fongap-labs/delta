@@ -45,6 +45,20 @@ pub struct PackSource {
     /// The interpreter's path inside the pack, relative and without `..`, for example
     /// `python/bin/python3`.
     pub interpreter: String,
+    /// The archive's container format.
+    pub archive: ArchiveFormat,
+}
+
+/// The container formats a runtime pack may use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum ArchiveFormat {
+    /// A ZIP archive.
+    #[serde(rename = "zip")]
+    Zip,
+    /// A gzip-compressed tar archive. Keeps permissions and symbolic links, which a relocatable
+    /// interpreter needs.
+    #[serde(rename = "tar.gz")]
+    TarGz,
 }
 
 /// The shared runtime pack that Explore and Office run in: CPython, locked dependencies and the
@@ -122,7 +136,7 @@ pub fn install(
     let staging = staging_root(state_dir, source);
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
-    let staged = extract(&bytes, &staging).and_then(|()| {
+    let staged = extract(source.archive, &bytes, &staging).and_then(|()| {
         let problems = runtime_pack::pack_problems(&staging, &source.format);
         if problems.is_empty() {
             Ok(())
@@ -209,7 +223,91 @@ pub fn require_https(url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn extract(bytes: &[u8], destination: &Path) -> Result<(), String> {
+fn extract(format: ArchiveFormat, bytes: &[u8], destination: &Path) -> Result<(), String> {
+    match format {
+        ArchiveFormat::Zip => extract_zip(bytes, destination),
+        ArchiveFormat::TarGz => extract_tar_gz(bytes, destination),
+    }
+}
+
+/// The path of an archive entry as a path inside the pack, or `None` when it would leave the pack
+/// or is not a plain relative path.
+fn inside_pack(relative: &Path) -> Option<PathBuf> {
+    let mut inside = PathBuf::new();
+    for part in relative.components() {
+        match part {
+            std::path::Component::Normal(name) => inside.push(name),
+            std::path::Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    (!inside.as_os_str().is_empty()).then_some(inside)
+}
+
+/// Whether a symbolic link at `entry` pointing to `link` resolves to a place inside the pack.
+/// The check is lexical: the link must be relative and must never climb above the pack's root.
+/// It is exact only because `refuse_symlinked_path` keeps every directory on the way real.
+fn link_stays_inside(entry: &Path, link: &Path) -> bool {
+    if link.is_absolute() {
+        return false;
+    }
+    let mut depth = entry
+        .parent()
+        .map_or(0, |parent| parent.components().count());
+    for part in link.components() {
+        match part {
+            std::path::Component::Normal(_) => depth += 1,
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if depth == 0 {
+                    return false;
+                }
+                depth -= 1;
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// Refuses an entry whose path already runs through a symbolic link, including the entry itself.
+/// An earlier link may name a directory that is shallower than its spelling, so a later entry
+/// written through it could land outside the pack.
+fn refuse_symlinked_path(destination: &Path, inside: &Path) -> Result<(), String> {
+    let mut so_far = destination.to_path_buf();
+    for part in inside.components() {
+        so_far.push(part);
+        if std::fs::symlink_metadata(&so_far).is_ok_and(|meta| meta.file_type().is_symlink()) {
+            return Err("an archive entry would pass through a symbolic link".to_string());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_mode(path: &Path, mode: u32) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    // Only the permission bits are kept: no setuid, setgid or sticky bits from an archive.
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & 0o777))
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(not(unix))]
+fn set_mode(_path: &Path, _mode: u32) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_link(link: &Path, target: &Path) -> Result<(), String> {
+    std::os::unix::fs::symlink(link, target).map_err(|error| error.to_string())
+}
+
+#[cfg(not(unix))]
+fn create_link(_link: &Path, _target: &Path) -> Result<(), String> {
+    Err("symbolic links in a runtime pack are not supported on this platform".to_string())
+}
+
+fn extract_zip(bytes: &[u8], destination: &Path) -> Result<(), String> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|error| error.to_string())?;
     let mut declared: u64 = 0;
@@ -225,7 +323,16 @@ fn extract(bytes: &[u8], destination: &Path) -> Result<(), String> {
         let Some(relative) = entry.enclosed_name() else {
             return Err("an archive entry would leave the pack".to_string());
         };
-        let target = destination.join(relative);
+        let Some(inside) = inside_pack(&relative) else {
+            return Err("an archive entry would leave the pack".to_string());
+        };
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err("a ZIP runtime pack may not contain symbolic links".to_string());
+        }
+        let target = destination.join(inside);
         if entry.is_dir() {
             std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
             continue;
@@ -236,6 +343,83 @@ fn extract(bytes: &[u8], destination: &Path) -> Result<(), String> {
         let mut file = File::create(&target).map_err(|error| error.to_string())?;
         std::io::copy(&mut entry, &mut file).map_err(|error| error.to_string())?;
         file.flush().map_err(|error| error.to_string())?;
+        drop(file);
+        if let Some(mode) = entry.unix_mode() {
+            set_mode(&target, mode)?;
+        }
+    }
+    Ok(())
+}
+
+fn tar_reader(bytes: &[u8]) -> tar::Archive<flate2::read::GzDecoder<Cursor<&[u8]>>> {
+    tar::Archive::new(flate2::read::GzDecoder::new(Cursor::new(bytes)))
+}
+
+fn extract_tar_gz(bytes: &[u8], destination: &Path) -> Result<(), String> {
+    let mut declared: u64 = 0;
+    for entry in tar_reader(bytes)
+        .entries()
+        .map_err(|error| error.to_string())?
+    {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let size = entry.header().size().map_err(|error| error.to_string())?;
+        declared = declared.saturating_add(size);
+        if declared > MAX_EXTRACTED_BYTES {
+            return Err("the archive expands beyond the accepted size".to_string());
+        }
+    }
+    for entry in tar_reader(bytes)
+        .entries()
+        .map_err(|error| error.to_string())?
+    {
+        let mut entry = entry.map_err(|error| error.to_string())?;
+        let relative = entry
+            .path()
+            .map_err(|error| error.to_string())?
+            .into_owned();
+        let Some(inside) = inside_pack(&relative) else {
+            return Err("an archive entry would leave the pack".to_string());
+        };
+        refuse_symlinked_path(destination, &inside)?;
+        let target = destination.join(&inside);
+        let kind = entry.header().entry_type();
+        let mode = entry.header().mode().ok();
+        match kind {
+            tar::EntryType::Directory => {
+                std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
+            }
+            tar::EntryType::Regular | tar::EntryType::Continuous => {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+                }
+                let mut file = File::create(&target).map_err(|error| error.to_string())?;
+                std::io::copy(&mut entry, &mut file).map_err(|error| error.to_string())?;
+                file.flush().map_err(|error| error.to_string())?;
+                drop(file);
+                if let Some(mode) = mode {
+                    set_mode(&target, mode)?;
+                }
+            }
+            tar::EntryType::Symlink => {
+                let link = entry
+                    .link_name()
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| "a symbolic link names no target".to_string())?
+                    .into_owned();
+                if !link_stays_inside(&inside, &link) {
+                    return Err("a symbolic link would point outside the pack".to_string());
+                }
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+                }
+                create_link(&link, &target)?;
+            }
+            _ => {
+                return Err(
+                    "the archive holds an entry type a runtime pack may not contain".to_string(),
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -465,6 +649,7 @@ mod tests {
             size: bytes.len() as u64,
             format: FORMAT.to_string(),
             interpreter: "python/bin/python3".to_string(),
+            archive: ArchiveFormat::Zip,
         }
     }
 
@@ -706,6 +891,7 @@ mod tests {
             size: bytes.len() as u64,
             format: PYTHON_PACK_FORMAT.to_string(),
             interpreter: "python/bin/python3".to_string(),
+            archive: ArchiveFormat::Zip,
         }
     }
 
@@ -804,5 +990,172 @@ mod tests {
         let fetch = HttpsFetch::new(temp.path());
 
         assert!(fetch.fetch("http://packs.example.com/a.zip", 10).is_err());
+    }
+
+    /// A gzip-compressed tar of `files` (path, body, mode) and `links` (path, target), with a
+    /// manifest of `format` that lists the regular files.
+    fn tar_gz_of(format: &str, files: &[(&str, &str, u32)], links: &[(&str, &str)]) -> Vec<u8> {
+        let mut listed: Vec<serde_json::Value> = files
+            .iter()
+            .map(|(path, body, _)| {
+                json!({"path": path, "sha256": runtime_pack::sha256_hex(body.as_bytes()), "size": body.len()})
+            })
+            .collect();
+        let manifest = json!({"format": format, "version": 1, "files": listed.clone()});
+        listed.clear();
+        let manifest_text = manifest.to_string();
+        let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
+            Vec::new(),
+            flate2::Compression::default(),
+        ));
+        for (path, body, mode) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_mode(*mode);
+            header.set_size(body.len() as u64);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, path, body.as_bytes())
+                .unwrap();
+        }
+        for (path, target) in links {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Symlink);
+            header.set_mode(0o777);
+            header.set_size(0);
+            header.set_cksum();
+            header.set_link_name(target).unwrap();
+            builder
+                .append_data(&mut header, path, std::io::empty())
+                .unwrap();
+        }
+        let mut header = tar::Header::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(manifest_text.len() as u64);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "manifest.json", manifest_text.as_bytes())
+            .unwrap();
+        builder.into_inner().unwrap().finish().unwrap()
+    }
+
+    fn tar_source_for(bytes: &[u8]) -> PackSource {
+        PackSource {
+            archive: ArchiveFormat::TarGz,
+            ..shared_source_for(bytes)
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_tar_pack_keeps_the_interpreter_executable_and_its_links() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = state();
+        let bytes = tar_gz_of(
+            PYTHON_PACK_FORMAT,
+            &[("python/bin/python3", "#!/bin/sh\n", 0o755)],
+            &[("python/bin/python", "python3")],
+        );
+        let source = tar_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        record_approval(temp.path(), &source, "2026-10-27T14:00:00Z").unwrap();
+
+        let outcome = install_if_approved(temp.path(), &source, &served).unwrap();
+
+        let InstallOutcome::Installed(root) = outcome else {
+            panic!("installed")
+        };
+        let mode = std::fs::metadata(root.join("python/bin/python3"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_ne!(mode & 0o111, 0, "the interpreter is executable");
+        assert_eq!(
+            std::fs::read_link(root.join("python/bin/python")).unwrap(),
+            PathBuf::from("python3")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_tar_link_that_leaves_the_pack_is_refused_and_nothing_is_left() {
+        let temp = state();
+        let bytes = tar_gz_of(
+            PYTHON_PACK_FORMAT,
+            &[("python/bin/python3", "#!/bin/sh\n", 0o755)],
+            &[("python/bin/escape", "../../../../etc/passwd")],
+        );
+        let source = tar_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        record_approval(temp.path(), &source, "2026-10-27T14:00:00Z").unwrap();
+
+        let result = install_if_approved(temp.path(), &source, &served);
+
+        assert!(result.unwrap_err().contains("outside the pack"));
+        assert!(!temp
+            .path()
+            .join("runtimes")
+            .join("delta-python-0.1.0")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_may_not_carry_a_later_entry_out_of_the_pack() {
+        let temp = state();
+        let bytes = tar_gz_of(
+            PYTHON_PACK_FORMAT,
+            &[("python/bin/python3", "#!/bin/sh\n", 0o755)],
+            &[("alias", "."), ("alias/b/x", "../..")],
+        );
+        let source = tar_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        record_approval(temp.path(), &source, "2026-10-27T14:00:00Z").unwrap();
+
+        let result = install_if_approved(temp.path(), &source, &served);
+
+        assert!(result.unwrap_err().contains("symbolic link"));
+        assert!(!temp
+            .path()
+            .join("runtimes")
+            .join("delta-python-0.1.0")
+            .exists());
+    }
+
+    #[test]
+    fn only_relative_paths_inside_the_pack_are_accepted() {
+        assert_eq!(
+            inside_pack(Path::new("python/bin/python3")),
+            Some(PathBuf::from("python/bin/python3"))
+        );
+        assert_eq!(inside_pack(Path::new("./a/b")), Some(PathBuf::from("a/b")));
+        assert_eq!(inside_pack(Path::new("../a")), None);
+        assert_eq!(inside_pack(Path::new("/etc/passwd")), None);
+        assert_eq!(inside_pack(Path::new("a/../../b")), None);
+    }
+
+    #[test]
+    fn a_link_must_stay_inside_the_pack_lexically() {
+        let entry = Path::new("python/bin/python");
+        assert!(link_stays_inside(entry, Path::new("python3")));
+        assert!(link_stays_inside(entry, Path::new("../lib/libpython.so")));
+        assert!(!link_stays_inside(
+            entry,
+            Path::new("../../../../etc/passwd")
+        ));
+        assert!(!link_stays_inside(entry, Path::new("/usr/bin/python3")));
+        assert!(!link_stays_inside(
+            Path::new("top"),
+            Path::new("../outside")
+        ));
     }
 }
