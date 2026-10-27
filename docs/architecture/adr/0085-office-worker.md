@@ -76,3 +76,12 @@
 - 确认后调用 `CoreControlPlane::install_shared_runtime`：先 `approve_and_install`（记录批准，再按批准安装），成功后用 `register_python_tools` 替换 `statistics_explore_*` 与 `office_create_*` 工具，不需要重启。下载在后台线程进行。
 - 状态由 `shared_runtime_status` 给出（是否发布、是否已安装、是否已批准、来源域名）。
 - 批准与安装的顺序意味着：批准记录写入后，即使下载失败，同一包不会再次询问。重试会直接下载，失败不留半成品。
+
+## 修订（2026-10-27）：共享包的构建
+
+- 构建器位于 `packages/python_runtime/runtime_pack.py`，入口为 `scripts/build_python_runtime.py`。输入是调用方提供的 CPython 3.12 install_only 归档及其 SHA-256；构建器校验摘要，不自行下载。输出只有两个文件：归档 `delta-python-runtime.tar.gz` 与发布清单 `manifest.json`。
+- 归档内的 `manifest.json` 与 `runtime_pack::pack_problems` 的格式一致（`delta.python-runtime`，版本 1），列出除自身外的每个文件（包括符号链接的目标）。发布清单在其之上附加归档的名称、SHA-256 与大小。
+- 办公库只取 `uv.lock` 中 `office` 额外依赖的闭包，不包含根项目的其他依赖（如网络搜索与 PDF 库）。环境标记保留给 `uv pip install --python-platform` 按目标平台求值。
+- 归档是确定性的：同一输入两次构建的 SHA-256 相同（在 Linux 试构建中已核对）。
+- 签名：仅在 CI 中以 cosign keyless 签名（`.bundle` 与归档一同发布）。应用不在安装时校验签名，信任根仍是 `runtime/packs.json` 中固定的 SHA-256。
+- 尚未完成：Windows x64 的 CPython 3.12 归档的固定地址与摘要（本次会话无法访问 GitHub 发布资源，需在 CI 中获取并记录）；发布工作流与 Action Worker 中 external-vault 的登记；`runtime/packs.json` 的真实描述。
