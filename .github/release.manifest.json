@@ -24,7 +24,7 @@
             "id": "python-runtime",
             "runner_profile": "windows-build",
             "target": "x86_64-pc-windows-msvc",
-            "script": ".github/scripts/release-build-python-runtime.ps1",
+            "script": ".github/scripts/release-build-runtime.ps1",
             "assets": [
                 "delta-python-runtime.tar.gz",
                 "delta-python-runtime-manifest.json"
