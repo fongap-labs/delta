@@ -36,6 +36,7 @@ pub mod model_authority;
 mod model_catalog;
 pub mod net;
 pub mod numeric_trace;
+pub mod office_worker;
 pub mod persistent_worker;
 pub mod policy;
 pub mod private_fs;

@@ -90,6 +90,11 @@ impl CoreControlPlane {
         for registration in crate::statistics_explore::registrations(explore_runtime.as_ref()) {
             capability_host.register(registration)?;
         }
+        // Office files need a configured Python runtime too; without one nothing is registered.
+        let office_runtime = crate::office_worker::OfficeRuntime::from_env();
+        for registration in crate::office_worker::registrations(office_runtime.as_ref()) {
+            capability_host.register(registration)?;
+        }
         let library_state = state_dir.clone();
         let library = Arc::new(
             crate::retrieval::Library::open(&state_dir)?.with_hook(Arc::new(move |report| {
