@@ -53,8 +53,8 @@ impl OfficeRuntime {
     fn from_lookup(lookup: impl Fn(&str) -> Option<OsString>) -> Option<Self> {
         let python = PathBuf::from(lookup(PYTHON_ENV)?);
         let root = PathBuf::from(lookup(ROOT_ENV)?);
-        let development = lookup(DEVELOPMENT_ENV).is_some_and(|value| value == "1");
-        if !may_run(&root, development) {
+        let is_development = lookup(DEVELOPMENT_ENV).is_some_and(|value| value == "1");
+        if !may_run(&root, is_development) {
             return None;
         }
         let worker = WORKER_PARTS.iter().fold(root, |path, part| path.join(part));
@@ -65,7 +65,7 @@ impl OfficeRuntime {
 /// Whether the runtime at `root` may run. A root with a manifest must match it exactly, whatever
 /// the development switch says. A root without one is refused, unless the switch admits an
 /// unpacked checkout; that admission is logged, so it is never silent.
-fn may_run(root: &Path, development: bool) -> bool {
+fn may_run(root: &Path, is_development: bool) -> bool {
     if root.join(runtime_pack::MANIFEST_NAME).exists() {
         let problems = runtime_pack::pack_problems(root, FORMAT);
         if !problems.is_empty() {
@@ -74,7 +74,7 @@ fn may_run(root: &Path, development: bool) -> bool {
         }
         return true;
     }
-    if development {
+    if is_development {
         eprintln!("delta: office runtime runs an unpacked checkout without a manifest ({DEVELOPMENT_ENV}=1)");
         return true;
     }
@@ -204,14 +204,14 @@ mod tests {
     fn lookup_for(
         python: &Path,
         root: &Path,
-        development: bool,
+        is_development: bool,
     ) -> impl Fn(&str) -> Option<OsString> {
         let python = python.to_path_buf().into_os_string();
         let root = root.to_path_buf().into_os_string();
         move |name| match name {
             PYTHON_ENV => Some(python.clone()),
             ROOT_ENV => Some(root.clone()),
-            DEVELOPMENT_ENV if development => Some(OsString::from("1")),
+            DEVELOPMENT_ENV if is_development => Some(OsString::from("1")),
             _ => None,
         }
     }
