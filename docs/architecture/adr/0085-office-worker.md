@@ -91,6 +91,6 @@
 - 运行时包不再发布到 external-vault，而是作为 Delta 现有发布的附加资产，与便携版同一版本、同一 Release 发布（标签 `delta-v<version>`）。原因：中央发布要求产品根非空且 Delta 的构建根是仓库根，新增仓库或迁移布局的代价不符合当前需要。本修订取代 ADR-0080 中"发布到 external-vault"的决定。
 - `.github/release.manifest.json` 增加 `python-runtime` 构建条目，资产为 `delta-python-runtime.tar.gz` 与 `delta-python-runtime-manifest.json`。运行时包自有构建条目，因为每个构建条目只能声明一个 `attest_asset`。
 - 签名：由中央构建的 GitHub 构建证明（`actions/attest-build-provenance`，基于 Sigstore 的 keyless 签名）提供，`attest_asset` 为运行时归档。核对方式是 `gh attestation verify`。不再使用 cosign。
-- 解释器固定：`runtime-interpreter-pin` 工作流（只读）获取 CPython 3.12 归档，核对 PBS 发布的 `SHA256SUMS` 后输出摘要。摘要由维护者核对后写入 `release-build-python-runtime.ps1`；未固定时构建直接失败。
-- 构建脚本 `release-build-python-runtime.ps1` 的参数与便携版相同（`-Target -Version -OutputDir`）。运行时包版本取自 `PACK_VERSION`，不取 Delta 的版本。
+- 解释器固定：`runtime-interpreter-pin` 工作流（只读）获取 CPython 3.12 归档，核对 PBS 发布的 `SHA256SUMS` 后输出摘要。摘要由维护者核对后写入 `release-build-runtime.ps1`；未固定时构建直接失败。
+- 构建脚本 `release-build-runtime.ps1` 的参数与便携版相同（`-Target -Version -OutputDir`）。运行时包版本取自 `PACK_VERSION`，不取 Delta 的版本。
 - 尚未完成：摘要的固定与首次发布（需要维护者运行工作流并启动发布）；发布后把 `url`、`sha256`、`size` 填入 `runtime/packs.json`。
