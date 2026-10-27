@@ -50,16 +50,12 @@ impl OfficeRuntime {
         Self::from_lookup(|name| std::env::var_os(name))
     }
 
-    /// The runtime from the environment (for development), or else the shared runtime pack
-    /// installed under `state_dir` on first use (ADR-0085).
-    pub fn from_env_or_installed(state_dir: &Path) -> Option<Self> {
-        Self::from_lookup(|name| std::env::var_os(name)).or_else(|| {
-            let pack = crate::runtime_install::published_python_pack()?;
-            Self::from_installed(state_dir, &pack)
-        })
-    }
-
-    fn from_installed(state_dir: &Path, pack: &crate::runtime_install::PackSource) -> Option<Self> {
+    /// The shared runtime pack installed under `state_dir` on first use (ADR-0085), when a copy
+    /// that passes its manifest is in place.
+    pub(crate) fn from_installed(
+        state_dir: &Path,
+        pack: &crate::runtime_install::PackSource,
+    ) -> Option<Self> {
         let (root, python) = crate::runtime_install::installed_python_pack(state_dir, pack)?;
         let worker = WORKER_PARTS.iter().fold(root, |path, part| path.join(part));
         worker.is_file().then_some(Self { python, worker })

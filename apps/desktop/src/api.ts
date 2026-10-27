@@ -67,6 +67,8 @@ import {
   directSearchConversations,
   directStatisticsRun,
   directStatisticsTools,
+  directRuntimePackInstall,
+  directRuntimePackStatus,
   addSessionRoot,
   directSessionRename,
   deleteSessionRoot,
@@ -644,6 +646,29 @@ export async function runStatisticsTool(
   workspace: string,
 ): Promise<{ ok?: boolean; error?: string; [key: string]: unknown }> {
   return (await directStatisticsRun(tool, args, workspace)) as { ok?: boolean; error?: string; [key: string]: unknown };
+}
+
+/// The shared Python runtime (ADR-0085). `installed` and `approved` are present once a pack is
+/// published; `ok` and `error` come back only when an install call fails.
+export type RuntimePack = {
+  published: boolean;
+  name?: string;
+  version?: string;
+  size?: number;
+  host?: string | null;
+  installed?: boolean;
+  approved?: boolean;
+  ok?: boolean;
+  error?: string;
+};
+
+export async function getRuntimePack(): Promise<RuntimePack> {
+  return (await directRuntimePackStatus()) as RuntimePack;
+}
+
+/// Installs the shared runtime. Call it only after the user has confirmed the download.
+export async function installRuntimePack(): Promise<RuntimePack> {
+  return (await directRuntimePackInstall()) as RuntimePack;
 }
 
 export async function searchConversations(workspace: string, query: string): Promise<ConversationHit[]> {

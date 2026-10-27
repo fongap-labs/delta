@@ -693,6 +693,8 @@ pub fn run() {
             runtime_ipc::conversations_search,
             runtime_ipc::statistics_tools,
             runtime_ipc::statistics_run,
+            runtime_ipc::runtime_pack_status,
+            runtime_ipc::runtime_pack_install,
             runtime_ipc::session_rename,
             runtime_ipc::update_session_flags,
             runtime_ipc::session_delete,
