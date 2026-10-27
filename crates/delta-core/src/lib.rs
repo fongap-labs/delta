@@ -47,6 +47,7 @@ pub mod retry;
 pub mod runtime;
 pub mod skills;
 pub mod source_citation;
+pub mod statistics_explore;
 pub mod study;
 pub mod taskstore;
 pub mod todo;

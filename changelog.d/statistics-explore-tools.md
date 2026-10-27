@@ -1,0 +1,2 @@
+- 新增: 统计页可在无模型时运行 Explore 工具（`statistics_explore_describe`、`_compare`、`_correlation`、`_regression`）。工具只在配置 `DELTA_EXPLORE_PYTHON` 与 `DELTA_EXPLORE_ROOT` 后注册，结果固定为 `exploratory`，不能进入正式报告。
+- 变更: ADR-0078 修订：无模型入口的进程授权（`exec`）仅允许 `statistics.explore.*` 使用固定的 Explore 运行时；其它统计工具的判定不变。
