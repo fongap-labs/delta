@@ -1,0 +1,2 @@
+- 新增: Office Worker（ADR-0085）：`office_create_docx`、`office_create_pptx`、`office_create_xlsx` 从结构化内容生成成品文件，包括统一样式的标题、表格、幻灯片与工作表；生成后重新打开校验，并拒绝会访问工作簿外部的公式。需要配置 `DELTA_OFFICE_PYTHON` 与 `DELTA_OFFICE_ROOT`，未配置时不注册任何工具。
+- 变更: 原生 `create_document` 保留不变，切换到 Office Worker 的计划见 ADR-0085。
