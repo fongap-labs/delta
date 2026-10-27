@@ -50,6 +50,21 @@ impl OfficeRuntime {
         Self::from_lookup(|name| std::env::var_os(name))
     }
 
+    /// The runtime from the environment (for development), or else the shared runtime pack
+    /// installed under `state_dir` on first use (ADR-0085).
+    pub fn from_env_or_installed(state_dir: &Path) -> Option<Self> {
+        Self::from_lookup(|name| std::env::var_os(name)).or_else(|| {
+            let pack = crate::runtime_install::published_python_pack()?;
+            Self::from_installed(state_dir, &pack)
+        })
+    }
+
+    fn from_installed(state_dir: &Path, pack: &crate::runtime_install::PackSource) -> Option<Self> {
+        let (root, python) = crate::runtime_install::installed_python_pack(state_dir, pack)?;
+        let worker = WORKER_PARTS.iter().fold(root, |path, part| path.join(part));
+        worker.is_file().then_some(Self { python, worker })
+    }
+
     fn from_lookup(lookup: impl Fn(&str) -> Option<OsString>) -> Option<Self> {
         let python = PathBuf::from(lookup(PYTHON_ENV)?);
         let root = PathBuf::from(lookup(ROOT_ENV)?);
@@ -403,5 +418,73 @@ mod tests {
         assert_eq!(result.output["format"], "docx");
         assert_eq!(result.output["verification"]["status"], "passed");
         assert_eq!(result.output["counts"]["tables"], 1);
+    }
+
+    /// Lay out an installed shared pack holding packages/office_worker/worker.py and an interpreter, with a manifest.
+    fn installed_shared_pack(state: &Path) -> crate::runtime_install::PackSource {
+        use crate::runtime_install::{
+            install_root, PackSource, PYTHON_PACK_FORMAT, PYTHON_PACK_NAME,
+        };
+        let root = install_root(state, PYTHON_PACK_NAME, "0.1.0");
+        let entries = [
+            ("packages/office_worker/worker.py", "print('worker')\n"),
+            ("python/bin/python3", "#!/bin/sh\n"),
+        ];
+        let mut files = Vec::new();
+        for (relative, body) in entries {
+            let target = root.join(relative);
+            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+            std::fs::write(&target, body).unwrap();
+            files.push(serde_json::json!({
+                "path": relative,
+                "sha256": crate::runtime_pack::sha256_hex(body.as_bytes()),
+                "size": body.len(),
+            }));
+        }
+        let manifest =
+            serde_json::json!({"format": PYTHON_PACK_FORMAT, "version": 1, "files": files});
+        std::fs::write(root.join("manifest.json"), manifest.to_string()).unwrap();
+        PackSource {
+            name: PYTHON_PACK_NAME.to_string(),
+            version: "0.1.0".to_string(),
+            url: "https://packs.example.com/delta-python-0.1.0.zip".to_string(),
+            sha256: "0".repeat(64),
+            size: 1,
+            format: PYTHON_PACK_FORMAT.to_string(),
+            interpreter: "python/bin/python3".to_string(),
+            archive: crate::runtime_install::ArchiveFormat::Zip,
+        }
+    }
+
+    #[test]
+    fn an_installed_shared_pack_supplies_the_worker_and_the_interpreter() {
+        let temp = tempfile::tempdir().unwrap();
+        let pack = installed_shared_pack(temp.path());
+
+        let runtime = OfficeRuntime::from_installed(temp.path(), &pack).expect("installed runtime");
+
+        let root = crate::runtime_install::install_root(temp.path(), &pack.name, &pack.version);
+        assert_eq!(
+            runtime.worker,
+            root.join("packages/office_worker/worker.py")
+        );
+        assert_eq!(runtime.python, root.join("python/bin/python3"));
+    }
+
+    #[test]
+    fn without_an_installed_shared_pack_nothing_is_found() {
+        let temp = tempfile::tempdir().unwrap();
+        let pack = crate::runtime_install::PackSource {
+            name: crate::runtime_install::PYTHON_PACK_NAME.to_string(),
+            version: "0.1.0".to_string(),
+            url: "https://packs.example.com/x.zip".to_string(),
+            sha256: "0".repeat(64),
+            size: 1,
+            format: crate::runtime_install::PYTHON_PACK_FORMAT.to_string(),
+            interpreter: "python/bin/python3".to_string(),
+            archive: crate::runtime_install::ArchiveFormat::Zip,
+        };
+
+        assert!(OfficeRuntime::from_installed(temp.path(), &pack).is_none());
     }
 }

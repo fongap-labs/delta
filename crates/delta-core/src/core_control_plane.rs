@@ -86,12 +86,13 @@ impl CoreControlPlane {
             capability_host.register(registration)?;
         }
         // Explore statistics need a configured Python runtime; without one nothing is registered.
-        let explore_runtime = crate::statistics_explore::ExploreRuntime::from_env();
+        let explore_runtime =
+            crate::statistics_explore::ExploreRuntime::from_env_or_installed(&state_dir);
         for registration in crate::statistics_explore::registrations(explore_runtime.as_ref()) {
             capability_host.register(registration)?;
         }
         // Office files need a configured Python runtime too; without one nothing is registered.
-        let office_runtime = crate::office_worker::OfficeRuntime::from_env();
+        let office_runtime = crate::office_worker::OfficeRuntime::from_env_or_installed(&state_dir);
         for registration in crate::office_worker::registrations(office_runtime.as_ref()) {
             capability_host.register(registration)?;
         }

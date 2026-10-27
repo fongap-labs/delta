@@ -11,11 +11,13 @@
 //! decision is the caller's job; this module never widens what the user's egress level allows.
 
 use std::fs::File;
-use std::io::{Cursor, Write};
+use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
+use serde_json::json;
 
+use crate::approval::{ApprovalRecordInput, ApprovalWriter};
 use crate::egress::OutboundDecision;
 use crate::runtime_pack;
 
@@ -38,8 +40,46 @@ pub struct PackSource {
     pub sha256: String,
     /// The exact size of the archive in bytes.
     pub size: u64,
-    /// The format the pack's manifest declares, for example `delta.office-runtime`.
+    /// The format the pack's manifest declares, for example `delta.python-runtime`.
     pub format: String,
+    /// The interpreter's path inside the pack, relative and without `..`, for example
+    /// `python/bin/python3`.
+    pub interpreter: String,
+    /// The archive's container format.
+    pub archive: ArchiveFormat,
+}
+
+/// The container formats a runtime pack may use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum ArchiveFormat {
+    /// A ZIP archive.
+    #[serde(rename = "zip")]
+    Zip,
+    /// A gzip-compressed tar archive. Keeps permissions and symbolic links, which a relocatable
+    /// interpreter needs.
+    #[serde(rename = "tar.gz")]
+    TarGz,
+}
+
+/// The shared runtime pack that Explore and Office run in: CPython, locked dependencies and the
+/// worker packages. It is installed once, on first use.
+pub const PYTHON_PACK_NAME: &str = "delta-python";
+/// The manifest format of the shared runtime pack.
+pub const PYTHON_PACK_FORMAT: &str = "delta.python-runtime";
+
+/// The fixed description of the published shared runtime pack, compiled into the application.
+/// `None` until a pack is published; the runtimes then stay unregistered.
+pub fn published_python_pack() -> Option<PackSource> {
+    #[derive(Deserialize)]
+    struct Catalogue {
+        packs: Vec<PackSource>,
+    }
+    let catalogue: Catalogue =
+        serde_json::from_str(include_str!("../../../runtime/packs.json")).ok()?;
+    catalogue
+        .packs
+        .into_iter()
+        .find(|pack| pack.name == PYTHON_PACK_NAME)
 }
 
 /// How the installer fetches bytes. The production implementation speaks HTTPS through the
@@ -96,7 +136,7 @@ pub fn install(
     let staging = staging_root(state_dir, source);
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
-    let staged = extract(&bytes, &staging).and_then(|()| {
+    let staged = extract(source.archive, &bytes, &staging).and_then(|()| {
         let problems = runtime_pack::pack_problems(&staging, &source.format);
         if problems.is_empty() {
             Ok(())
@@ -132,6 +172,13 @@ fn staging_root(state_dir: &Path, source: &PackSource) -> PathBuf {
 }
 
 fn validate(source: &PackSource) -> Result<(), String> {
+    let interpreter_ok = !source.interpreter.is_empty()
+        && Path::new(&source.interpreter)
+            .components()
+            .all(|part| matches!(part, std::path::Component::Normal(_)));
+    if !interpreter_ok {
+        return Err("the interpreter path must be relative and stay inside the pack".to_string());
+    }
     let name_ok = !source.name.is_empty()
         && source.name.len() <= 40
         && source
@@ -176,7 +223,91 @@ pub fn require_https(url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn extract(bytes: &[u8], destination: &Path) -> Result<(), String> {
+fn extract(format: ArchiveFormat, bytes: &[u8], destination: &Path) -> Result<(), String> {
+    match format {
+        ArchiveFormat::Zip => extract_zip(bytes, destination),
+        ArchiveFormat::TarGz => extract_tar_gz(bytes, destination),
+    }
+}
+
+/// The path of an archive entry as a path inside the pack, or `None` when it would leave the pack
+/// or is not a plain relative path.
+fn inside_pack(relative: &Path) -> Option<PathBuf> {
+    let mut inside = PathBuf::new();
+    for part in relative.components() {
+        match part {
+            std::path::Component::Normal(name) => inside.push(name),
+            std::path::Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    (!inside.as_os_str().is_empty()).then_some(inside)
+}
+
+/// Whether a symbolic link at `entry` pointing to `link` resolves to a place inside the pack.
+/// The check is lexical: the link must be relative and must never climb above the pack's root.
+/// It is exact only because `refuse_symlinked_path` keeps every directory on the way real.
+fn link_stays_inside(entry: &Path, link: &Path) -> bool {
+    if link.is_absolute() {
+        return false;
+    }
+    let mut depth = entry
+        .parent()
+        .map_or(0, |parent| parent.components().count());
+    for part in link.components() {
+        match part {
+            std::path::Component::Normal(_) => depth += 1,
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if depth == 0 {
+                    return false;
+                }
+                depth -= 1;
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// Refuses an entry whose path already runs through a symbolic link, including the entry itself.
+/// An earlier link may name a directory that is shallower than its spelling, so a later entry
+/// written through it could land outside the pack.
+fn refuse_symlinked_path(destination: &Path, inside: &Path) -> Result<(), String> {
+    let mut so_far = destination.to_path_buf();
+    for part in inside.components() {
+        so_far.push(part);
+        if std::fs::symlink_metadata(&so_far).is_ok_and(|meta| meta.file_type().is_symlink()) {
+            return Err("an archive entry would pass through a symbolic link".to_string());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_mode(path: &Path, mode: u32) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    // Only the permission bits are kept: no setuid, setgid or sticky bits from an archive.
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & 0o777))
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(not(unix))]
+fn set_mode(_path: &Path, _mode: u32) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_link(link: &Path, target: &Path) -> Result<(), String> {
+    std::os::unix::fs::symlink(link, target).map_err(|error| error.to_string())
+}
+
+#[cfg(not(unix))]
+fn create_link(_link: &Path, _target: &Path) -> Result<(), String> {
+    Err("symbolic links in a runtime pack are not supported on this platform".to_string())
+}
+
+fn extract_zip(bytes: &[u8], destination: &Path) -> Result<(), String> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|error| error.to_string())?;
     let mut declared: u64 = 0;
@@ -192,7 +323,16 @@ fn extract(bytes: &[u8], destination: &Path) -> Result<(), String> {
         let Some(relative) = entry.enclosed_name() else {
             return Err("an archive entry would leave the pack".to_string());
         };
-        let target = destination.join(relative);
+        let Some(inside) = inside_pack(&relative) else {
+            return Err("an archive entry would leave the pack".to_string());
+        };
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err("a ZIP runtime pack may not contain symbolic links".to_string());
+        }
+        let target = destination.join(inside);
         if entry.is_dir() {
             std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
             continue;
@@ -203,8 +343,254 @@ fn extract(bytes: &[u8], destination: &Path) -> Result<(), String> {
         let mut file = File::create(&target).map_err(|error| error.to_string())?;
         std::io::copy(&mut entry, &mut file).map_err(|error| error.to_string())?;
         file.flush().map_err(|error| error.to_string())?;
+        drop(file);
+        if let Some(mode) = entry.unix_mode() {
+            set_mode(&target, mode)?;
+        }
     }
     Ok(())
+}
+
+fn tar_reader(bytes: &[u8]) -> tar::Archive<flate2::read::GzDecoder<Cursor<&[u8]>>> {
+    tar::Archive::new(flate2::read::GzDecoder::new(Cursor::new(bytes)))
+}
+
+fn extract_tar_gz(bytes: &[u8], destination: &Path) -> Result<(), String> {
+    let mut declared: u64 = 0;
+    for entry in tar_reader(bytes)
+        .entries()
+        .map_err(|error| error.to_string())?
+    {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let size = entry.header().size().map_err(|error| error.to_string())?;
+        declared = declared.saturating_add(size);
+        if declared > MAX_EXTRACTED_BYTES {
+            return Err("the archive expands beyond the accepted size".to_string());
+        }
+    }
+    for entry in tar_reader(bytes)
+        .entries()
+        .map_err(|error| error.to_string())?
+    {
+        let mut entry = entry.map_err(|error| error.to_string())?;
+        let relative = entry
+            .path()
+            .map_err(|error| error.to_string())?
+            .into_owned();
+        let Some(inside) = inside_pack(&relative) else {
+            return Err("an archive entry would leave the pack".to_string());
+        };
+        refuse_symlinked_path(destination, &inside)?;
+        let target = destination.join(&inside);
+        let kind = entry.header().entry_type();
+        let mode = entry.header().mode().ok();
+        match kind {
+            tar::EntryType::Directory => {
+                std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
+            }
+            tar::EntryType::Regular | tar::EntryType::Continuous => {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+                }
+                let mut file = File::create(&target).map_err(|error| error.to_string())?;
+                std::io::copy(&mut entry, &mut file).map_err(|error| error.to_string())?;
+                file.flush().map_err(|error| error.to_string())?;
+                drop(file);
+                if let Some(mode) = mode {
+                    set_mode(&target, mode)?;
+                }
+            }
+            tar::EntryType::Symlink => {
+                let link = entry
+                    .link_name()
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| "a symbolic link names no target".to_string())?
+                    .into_owned();
+                if !link_stays_inside(&inside, &link) {
+                    return Err("a symbolic link would point outside the pack".to_string());
+                }
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+                }
+                create_link(&link, &target)?;
+            }
+            _ => {
+                return Err(
+                    "the archive holds an entry type a runtime pack may not contain".to_string(),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The record of one approval, written when the user confirms a download.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct Approval {
+    name: String,
+    version: String,
+    sha256: String,
+    approved_at: String,
+}
+
+fn approvals_path(state_dir: &Path) -> PathBuf {
+    state_dir.join("runtimes").join("approvals.json")
+}
+
+fn read_approvals(state_dir: &Path) -> Vec<Approval> {
+    std::fs::read(approvals_path(state_dir))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Whether the user approved exactly this pack: its name, version and archive digest.
+pub fn is_approved(state_dir: &Path, source: &PackSource) -> bool {
+    read_approvals(state_dir).iter().any(|approval| {
+        approval.name == source.name
+            && approval.version == source.version
+            && approval.sha256 == source.sha256
+    })
+}
+
+/// Record the user's approval of `source` and write it to the audit log.
+pub fn record_approval(
+    state_dir: &Path,
+    source: &PackSource,
+    approved_at: &str,
+) -> Result<(), String> {
+    let mut approvals = read_approvals(state_dir);
+    approvals.retain(|approval| approval.name != source.name);
+    approvals.push(Approval {
+        name: source.name.clone(),
+        version: source.version.clone(),
+        sha256: source.sha256.clone(),
+        approved_at: approved_at.to_string(),
+    });
+    std::fs::create_dir_all(state_dir.join("runtimes")).map_err(|error| error.to_string())?;
+    let bytes = serde_json::to_vec_pretty(&approvals).map_err(|error| error.to_string())?;
+    std::fs::write(approvals_path(state_dir), bytes).map_err(|error| error.to_string())?;
+    audit(state_dir, source, "approved");
+    Ok(())
+}
+
+/// Record that the user declined `source`.
+pub fn record_refusal(state_dir: &Path, source: &PackSource) {
+    audit(state_dir, source, "declined");
+}
+
+fn audit(state_dir: &Path, source: &PackSource, stage: &str) {
+    let path = state_dir.join("audit_events.db");
+    let result = ApprovalWriter::open(path.to_string_lossy().as_ref()).and_then(|mut writer| {
+        writer.record(
+            ApprovalRecordInput {
+                session_id: String::new(),
+                agent: Some("delta".to_string()),
+                workspace: None,
+                connector: None,
+                tool: "runtime.install".to_string(),
+                stage: stage.to_string(),
+                status: Some("ok".to_string()),
+                approval: Some("user".to_string()),
+                arguments: Some(json!({
+                    "name": source.name,
+                    "version": source.version,
+                    "sha256": source.sha256,
+                })),
+                result_preview: None,
+                reason: None,
+                resource: Some(source.url.clone()),
+                level: None,
+                isolation: None,
+                ts: None,
+            },
+            0.0,
+            "",
+        )
+    });
+    if let Err(error) = result {
+        eprintln!("runtime: could not record the install decision in the audit log: {error}");
+    }
+}
+
+/// Install `source` only when the user has approved this exact pack. Without an approval nothing
+/// is fetched; the caller asks the user first.
+pub fn install_if_approved(
+    state_dir: &Path,
+    source: &PackSource,
+    fetch: &dyn Fetch,
+) -> Result<InstallOutcome, String> {
+    let decision = if is_approved(state_dir, source) {
+        OutboundDecision::Allow
+    } else {
+        OutboundDecision::Ask
+    };
+    install(state_dir, source, &decision, fetch)
+}
+
+/// Where the installed shared runtime lives and which interpreter runs it, if a copy that passes
+/// its manifest is in place.
+pub fn installed_python_pack(state_dir: &Path, source: &PackSource) -> Option<(PathBuf, PathBuf)> {
+    let root = install_root(state_dir, &source.name, &source.version);
+    if !root.is_dir() || !runtime_pack::pack_problems(&root, &source.format).is_empty() {
+        return None;
+    }
+    Some((root.clone(), root.join(&source.interpreter)))
+}
+
+/// The production fetcher: HTTPS through the application's proxy policy, with a size cap.
+/// Redirects are not followed; a redirect is an error, so the fetched address is the one that was
+/// checked.
+pub struct HttpsFetch {
+    state_dir: PathBuf,
+}
+
+impl HttpsFetch {
+    /// A fetcher that reads the proxy policy from the preferences under `state_dir`.
+    pub fn new(state_dir: &Path) -> Self {
+        Self {
+            state_dir: state_dir.to_path_buf(),
+        }
+    }
+
+    /// The proxy the policy gives for `url`, or `None` for a direct connection.
+    fn proxy_for(&self, url: &str) -> Option<ureq::Proxy> {
+        let prefs = crate::model_authority::prefs_at(&self.state_dir)?;
+        crate::net::proxy::ProxySettings::from_prefs(&prefs).ureq_proxy(url)
+    }
+}
+
+impl Fetch for HttpsFetch {
+    fn fetch(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>, String> {
+        require_https(url)?;
+        let mut builder = ureq::AgentBuilder::new()
+            .user_agent("Delta-runtime-install")
+            .redirects(0)
+            .timeout_connect(std::time::Duration::from_secs(15))
+            .timeout_read(std::time::Duration::from_secs(120));
+        if let Some(proxy) = self.proxy_for(url) {
+            builder = builder.proxy(proxy);
+        }
+        let response = builder
+            .build()
+            .get(url)
+            .call()
+            .map_err(|error| format!("the runtime download failed: {error}"))?;
+        read_capped(response.into_reader(), max_bytes)
+    }
+}
+
+/// Read at most `max_bytes` from `reader`; a longer body is refused rather than truncated.
+pub fn read_capped(reader: impl std::io::Read, max_bytes: u64) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    reader
+        .take(max_bytes.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > max_bytes {
+        return Err("the runtime download is larger than its published size".to_string());
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -262,6 +648,8 @@ mod tests {
             sha256: runtime_pack::sha256_hex(bytes),
             size: bytes.len() as u64,
             format: FORMAT.to_string(),
+            interpreter: "python/bin/python3".to_string(),
+            archive: ArchiveFormat::Zip,
         }
     }
 
@@ -468,5 +856,306 @@ mod tests {
             assert!(result.is_err(), "{name} {version}");
         }
         assert_eq!(served.calls.get(), 0);
+    }
+
+    /// A ZIP of `entries` with a manifest of `format` that lists each of them.
+    fn archive_of(format: &str, entries: &[(&str, &str)]) -> Vec<u8> {
+        let files: Vec<serde_json::Value> = entries
+            .iter()
+            .map(|(path, body)| {
+                json!({"path": path, "sha256": runtime_pack::sha256_hex(body.as_bytes()), "size": body.len()})
+            })
+            .collect();
+        let manifest = json!({"format": format, "version": 1, "files": files});
+        let mut buffer = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buffer);
+            let options = zip::write::SimpleFileOptions::default();
+            for (path, body) in entries {
+                writer.start_file(*path, options).unwrap();
+                writer.write_all(body.as_bytes()).unwrap();
+            }
+            writer.start_file("manifest.json", options).unwrap();
+            writer.write_all(manifest.to_string().as_bytes()).unwrap();
+            writer.finish().unwrap();
+        }
+        buffer.into_inner()
+    }
+
+    fn shared_source_for(bytes: &[u8]) -> PackSource {
+        PackSource {
+            name: PYTHON_PACK_NAME.to_string(),
+            version: "0.1.0".to_string(),
+            url: "https://packs.example.com/delta-python-0.1.0.zip".to_string(),
+            sha256: runtime_pack::sha256_hex(bytes),
+            size: bytes.len() as u64,
+            format: PYTHON_PACK_FORMAT.to_string(),
+            interpreter: "python/bin/python3".to_string(),
+            archive: ArchiveFormat::Zip,
+        }
+    }
+
+    #[test]
+    fn nothing_is_fetched_until_the_user_approves_that_exact_pack() {
+        let temp = state();
+        let bytes = pack_archive("x = 1\n", "x = 1\n");
+        let source = source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+
+        assert!(install_if_approved(temp.path(), &source, &served).is_err());
+        assert_eq!(served.calls.get(), 0);
+
+        record_approval(temp.path(), &source, "2026-10-27T13:30:00Z").unwrap();
+        assert!(is_approved(temp.path(), &source));
+        let outcome = install_if_approved(temp.path(), &source, &served).unwrap();
+        assert!(matches!(outcome, InstallOutcome::Installed(_)));
+        assert_eq!(served.calls.get(), 1);
+    }
+
+    #[test]
+    fn an_approval_does_not_cover_a_different_digest() {
+        let temp = state();
+        let bytes = pack_archive("x = 1\n", "x = 1\n");
+        let source = source_for(&bytes);
+        record_approval(temp.path(), &source, "2026-10-27T13:30:00Z").unwrap();
+
+        let mut changed = source.clone();
+        changed.sha256 = "1".repeat(64);
+
+        assert!(!is_approved(temp.path(), &changed));
+    }
+
+    #[test]
+    fn an_approval_and_a_refusal_are_written_to_the_audit_log() {
+        let temp = state();
+        let bytes = pack_archive("x = 1\n", "x = 1\n");
+        let source = source_for(&bytes);
+
+        record_refusal(temp.path(), &source);
+        record_approval(temp.path(), &source, "2026-10-27T13:30:00Z").unwrap();
+
+        assert!(temp.path().join("audit_events.db").is_file());
+    }
+
+    #[test]
+    fn a_body_at_the_cap_is_read_and_one_byte_more_is_refused() {
+        let body = vec![7_u8; 10];
+
+        assert_eq!(read_capped(&body[..], 10).unwrap(), body);
+        assert!(read_capped(&body[..], 9).unwrap_err().contains("larger"));
+    }
+
+    #[test]
+    fn the_shared_pack_is_found_only_when_an_intact_copy_is_in_place() {
+        let temp = state();
+        let worker = "print('explore')\n";
+        let interpreter = "#!/bin/sh\n";
+        let bytes = shared_archive(&[
+            ("packages/explore_pack/worker.py", worker),
+            ("python/bin/python3", interpreter),
+        ]);
+        let source = shared_source_for(&bytes);
+        assert!(installed_python_pack(temp.path(), &source).is_none());
+
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        install_if_approved(temp.path(), &source, &served).ok();
+        record_approval(temp.path(), &source, "2026-10-27T13:30:00Z").unwrap();
+        install_if_approved(temp.path(), &source, &served).unwrap();
+
+        let (root, python) = installed_python_pack(temp.path(), &source).expect("installed");
+        assert_eq!(python, root.join("python/bin/python3"));
+        std::fs::write(root.join("packages/explore_pack/worker.py"), "import os\n").unwrap();
+        assert!(installed_python_pack(temp.path(), &source).is_none());
+    }
+
+    /// A ZIP whose manifest is of the shared format and lists `entries`.
+    fn shared_archive(entries: &[(&str, &str)]) -> Vec<u8> {
+        archive_of(PYTHON_PACK_FORMAT, entries)
+    }
+
+    #[test]
+    fn the_catalogue_publishes_nothing_until_a_pack_is_listed() {
+        assert!(published_python_pack().is_none());
+    }
+
+    #[test]
+    fn the_production_fetcher_refuses_a_plain_http_address_before_connecting() {
+        let temp = state();
+        let fetch = HttpsFetch::new(temp.path());
+
+        assert!(fetch.fetch("http://packs.example.com/a.zip", 10).is_err());
+    }
+
+    /// A gzip-compressed tar of `files` (path, body, mode) and `links` (path, target), with a
+    /// manifest of `format` that lists the regular files.
+    fn tar_gz_of(format: &str, files: &[(&str, &str, u32)], links: &[(&str, &str)]) -> Vec<u8> {
+        let mut listed: Vec<serde_json::Value> = files
+            .iter()
+            .map(|(path, body, _)| {
+                json!({"path": path, "sha256": runtime_pack::sha256_hex(body.as_bytes()), "size": body.len()})
+            })
+            .collect();
+        let manifest = json!({"format": format, "version": 1, "files": listed.clone()});
+        listed.clear();
+        let manifest_text = manifest.to_string();
+        let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
+            Vec::new(),
+            flate2::Compression::default(),
+        ));
+        for (path, body, mode) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_mode(*mode);
+            header.set_size(body.len() as u64);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, path, body.as_bytes())
+                .unwrap();
+        }
+        for (path, target) in links {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Symlink);
+            header.set_mode(0o777);
+            header.set_size(0);
+            header.set_cksum();
+            header.set_link_name(target).unwrap();
+            builder
+                .append_data(&mut header, path, std::io::empty())
+                .unwrap();
+        }
+        let mut header = tar::Header::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(manifest_text.len() as u64);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "manifest.json", manifest_text.as_bytes())
+            .unwrap();
+        builder.into_inner().unwrap().finish().unwrap()
+    }
+
+    fn tar_source_for(bytes: &[u8]) -> PackSource {
+        PackSource {
+            archive: ArchiveFormat::TarGz,
+            ..shared_source_for(bytes)
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_tar_pack_keeps_the_interpreter_executable_and_its_links() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = state();
+        let bytes = tar_gz_of(
+            PYTHON_PACK_FORMAT,
+            &[("python/bin/python3", "#!/bin/sh\n", 0o755)],
+            &[("python/bin/python", "python3")],
+        );
+        let source = tar_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        record_approval(temp.path(), &source, "2026-10-27T14:00:00Z").unwrap();
+
+        let outcome = install_if_approved(temp.path(), &source, &served).unwrap();
+
+        let InstallOutcome::Installed(root) = outcome else {
+            panic!("installed")
+        };
+        let mode = std::fs::metadata(root.join("python/bin/python3"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_ne!(mode & 0o111, 0, "the interpreter is executable");
+        assert_eq!(
+            std::fs::read_link(root.join("python/bin/python")).unwrap(),
+            PathBuf::from("python3")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_tar_link_that_leaves_the_pack_is_refused_and_nothing_is_left() {
+        let temp = state();
+        let bytes = tar_gz_of(
+            PYTHON_PACK_FORMAT,
+            &[("python/bin/python3", "#!/bin/sh\n", 0o755)],
+            &[("python/bin/escape", "../../../../etc/passwd")],
+        );
+        let source = tar_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        record_approval(temp.path(), &source, "2026-10-27T14:00:00Z").unwrap();
+
+        let result = install_if_approved(temp.path(), &source, &served);
+
+        assert!(result.unwrap_err().contains("outside the pack"));
+        assert!(!temp
+            .path()
+            .join("runtimes")
+            .join("delta-python-0.1.0")
+            .exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_may_not_carry_a_later_entry_out_of_the_pack() {
+        let temp = state();
+        let bytes = tar_gz_of(
+            PYTHON_PACK_FORMAT,
+            &[("python/bin/python3", "#!/bin/sh\n", 0o755)],
+            &[("alias", "."), ("alias/b/x", "../..")],
+        );
+        let source = tar_source_for(&bytes);
+        let served = Served {
+            bytes,
+            calls: Cell::new(0),
+        };
+        record_approval(temp.path(), &source, "2026-10-27T14:00:00Z").unwrap();
+
+        let result = install_if_approved(temp.path(), &source, &served);
+
+        assert!(result.unwrap_err().contains("symbolic link"));
+        assert!(!temp
+            .path()
+            .join("runtimes")
+            .join("delta-python-0.1.0")
+            .exists());
+    }
+
+    #[test]
+    fn only_relative_paths_inside_the_pack_are_accepted() {
+        assert_eq!(
+            inside_pack(Path::new("python/bin/python3")),
+            Some(PathBuf::from("python/bin/python3"))
+        );
+        assert_eq!(inside_pack(Path::new("./a/b")), Some(PathBuf::from("a/b")));
+        assert_eq!(inside_pack(Path::new("../a")), None);
+        assert_eq!(inside_pack(Path::new("/etc/passwd")), None);
+        assert_eq!(inside_pack(Path::new("a/../../b")), None);
+    }
+
+    #[test]
+    fn a_link_must_stay_inside_the_pack_lexically() {
+        let entry = Path::new("python/bin/python");
+        assert!(link_stays_inside(entry, Path::new("python3")));
+        assert!(link_stays_inside(entry, Path::new("../lib/libpython.so")));
+        assert!(!link_stays_inside(
+            entry,
+            Path::new("../../../../etc/passwd")
+        ));
+        assert!(!link_stays_inside(entry, Path::new("/usr/bin/python3")));
+        assert!(!link_stays_inside(
+            Path::new("top"),
+            Path::new("../outside")
+        ));
     }
 }
