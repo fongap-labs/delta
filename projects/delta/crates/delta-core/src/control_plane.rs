@@ -223,7 +223,7 @@ pub fn append_session_message(
     )?;
     // The search index follows the transcript (ADR-0075). A failure there must not fail the message.
     if let Err(error) = crate::conversation_search::sync_session(state_dir, session_id) {
-        eprintln!("conversation search: could not index {session_id}: {error}");
+        eprintln!("conversation search: could not index a session: {error}");
     }
     Ok(())
 }
