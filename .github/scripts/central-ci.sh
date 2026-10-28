@@ -98,7 +98,7 @@ run_python_version() {
     UV_PYTHON="$version" uv pip check --python "$env_dir/bin/python"
     UV_PROJECT_ENVIRONMENT="$env_dir" \
       UV_PYTHON="$version" \
-      node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" delta "$TARGET_ROOT"
+      node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" delta "$TARGET_ROOT/projects/delta"
   )
 }
 
