@@ -7,6 +7,7 @@ page, numbers are aligned to the right, and the footer carries a live page numbe
 
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
-from packages.office_worker import spec
+from packages.office_worker import chart_render, spec
 
 BODY_FONT = "Calibri"
 HEADING_COLOR = RGBColor(0x1F, 0x3A, 0x5F)
@@ -130,6 +131,11 @@ def _block(document: Any, block: dict[str, Any], index: int) -> dict[str, int]:
     if kind == "page_break":
         document.add_page_break()
         return {"page_breaks": 1}
+    if kind == "chart":
+        chart = spec.chart(block.get("chart"), f"{label} chart")
+        document.add_picture(io.BytesIO(chart_render.render(chart)), width=Cm(15.5))
+        document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        return {"charts": 1}
     raise ValueError(f"{label} has an unknown type: {kind!r}")
 
 
