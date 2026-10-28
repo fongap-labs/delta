@@ -1,0 +1,61 @@
+name: Runtime interpreter pin
+
+# Read-only: resolves a python-build-standalone CPython 3.12 Windows x64 archive, checks it against
+# the release's SHA256SUMS, and prints its digest for review. Nothing is published or committed.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "python-build-standalone release tag, for example 20260101"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: windows-latest
+    steps:
+      - name: Resolve and verify the archive
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pattern = '^cpython-3\.12\.[0-9]+\+' + [regex]::Escape($env:RELEASE_TAG) + '-x86_64-pc-windows-msvc-install_only\.tar\.gz$'
+          $assets = gh api "repos/astral-sh/python-build-standalone/releases/tags/$env:RELEASE_TAG" --jq '.assets[].name'
+          $found = @($assets | Where-Object { $_ -match $pattern })
+          if ($found.Count -ne 1) {
+            throw "expected exactly one CPython 3.12 Windows x64 install_only archive for $env:RELEASE_TAG, found $($found.Count)"
+          }
+          $name = $found[0]
+          $base = "https://github.com/astral-sh/python-build-standalone/releases/download/$env:RELEASE_TAG"
+          $archive = Join-Path $env:RUNNER_TEMP "cpython.tar.gz"
+          Invoke-WebRequest -Uri "$base/$name" -OutFile $archive -UseBasicParsing
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+
+          $sums = Join-Path $env:RUNNER_TEMP "SHA256SUMS"
+          Invoke-WebRequest -Uri "$base/SHA256SUMS" -OutFile $sums -UseBasicParsing
+          $published = (Get-Content -LiteralPath $sums | Where-Object { $_ -match [regex]::Escape($name) }) -replace '\s.*$', ''
+          if ($published -ne $digest) {
+            throw "digest $digest does not match SHA256SUMS ($published) for $name"
+          }
+
+          $layout = tar -tzf $archive
+          if (-not ($layout -contains "python/python.exe")) {
+            throw "the archive has no python/python.exe"
+          }
+
+          $size = (Get-Item -LiteralPath $archive).Length
+          $summary = @(
+            "### CPython 3.12 Windows x64 pin"
+            ""
+            "- URL: $base/$name"
+            "- SHA-256: $digest"
+            "- Size: $size bytes"
+            "- Matches SHA256SUMS: yes"
+          ) -join "`n"
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
+          Write-Output $summary
