@@ -14,7 +14,7 @@ const TEXT_SEARCH_RESULT_CHARS: usize = 12_000;
 
 /// Keys the runtime keeps for itself. They never reach a provider: gateways reject message fields
 /// they do not know, and some of these (such as `model`) mean something else to the UI.
-const SIDECAR_KEYS: [&str; 11] = [
+const SIDECAR_KEYS: [&str; 12] = [
     "error",
     "source",
     "_display",
@@ -26,6 +26,7 @@ const SIDECAR_KEYS: [&str; 11] = [
     "images",
     "model_only",
     "model",
+    "vision_notes",
 ];
 
 /// The message as the provider receives it: the same fields, without the runtime's own keys.
@@ -207,10 +208,12 @@ impl RuntimeHost {
             if role == Some("user") {
                 if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
                     if !attachments.is_empty() {
+                        let attachments =
+                            crate::vision::outbound_attachments(attachments, m.get("vision_notes"));
                         message["content"] = provider_user_content(
                             &self.config.protocol,
                             m.get("content").and_then(Value::as_str).unwrap_or_default(),
-                            attachments,
+                            &attachments,
                         );
                     }
                 }
