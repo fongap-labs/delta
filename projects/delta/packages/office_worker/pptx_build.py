@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from pptx import Presentation
+from pptx.chart.data import CategoryChartData
 from pptx.dml.color import RGBColor
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Emu, Inches, Pt
@@ -26,7 +28,13 @@ TEMPLATE_WIDTH = Inches(10)
 TITLE_LAYOUT = 0
 CONTENT_LAYOUT = 1
 TITLE_ONLY_LAYOUT = 5
-LAYOUTS = ("title", "bullets", "table")
+LAYOUTS = ("title", "bullets", "table", "chart")
+CHART_KINDS = {
+    "column": XL_CHART_TYPE.COLUMN_CLUSTERED,
+    "bar": XL_CHART_TYPE.BAR_CLUSTERED,
+    "line": XL_CHART_TYPE.LINE_MARKERS,
+    "pie": XL_CHART_TYPE.PIE,
+}
 BULLET_SIZE = Pt(20)
 TABLE_SIZE = Pt(14)
 TITLE_SIZE = Pt(32)
@@ -124,6 +132,38 @@ def _table_slide(presentation: Any, slide_spec: dict[str, Any], label: str) -> A
     return slide
 
 
+def _chart_slide(presentation: Any, slide_spec: dict[str, Any], label: str) -> Any:
+    """A native PowerPoint chart: editable in PowerPoint, with its data kept in the file."""
+    chart_spec = spec.chart(slide_spec.get("chart"), f"{label} chart")
+    slide = presentation.slides.add_slide(presentation.slide_layouts[TITLE_ONLY_LAYOUT])
+    slide.shapes.title.text = spec.text(
+        slide_spec.get("title"), f"{label} title", max_chars=512
+    )
+    data = CategoryChartData()
+    data.categories = chart_spec["categories"]
+    for series in chart_spec["series"]:
+        data.add_series(series["name"], series["values"])
+    frame = slide.shapes.add_chart(
+        CHART_KINDS[chart_spec["type"]],
+        Inches(0.8),
+        Inches(1.8),
+        SLIDE_WIDTH - Inches(1.6),
+        Inches(5.2),
+        data,
+    )
+    chart = frame.chart
+    if chart_spec["title"]:
+        chart.has_title = True
+        chart.chart_title.text_frame.text = chart_spec["title"]
+    else:
+        chart.has_title = False
+    chart.has_legend = len(chart_spec["series"]) > 1 or chart_spec["type"] == "pie"
+    if chart.has_legend:
+        chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+        chart.legend.include_in_layout = False
+    return slide
+
+
 def build(content: dict[str, Any], path: Path) -> dict[str, Any]:
     """Write the PPTX to `path` and return what it contains, for the result document."""
     title = spec.text(content.get("title"), "title", max_chars=512)
@@ -151,11 +191,15 @@ def build(content: dict[str, Any], path: Path) -> dict[str, Any]:
             slide = _bullet_slide(presentation, slide_spec, label)
         elif layout == "table":
             slide = _table_slide(presentation, slide_spec, label)
+        elif layout == "chart":
+            slide = _chart_slide(presentation, slide_spec, label)
         else:
             raise ValueError(f"{label} layout must be one of {', '.join(LAYOUTS)}")
         _fit_to_width(slide)
         _decorate(slide)
         counts["slides"] += 1
+        if layout == "chart":
+            counts["charts"] = counts.get("charts", 0) + 1
         if slide_spec.get("notes"):
             slide.notes_slide.notes_text_frame.text = spec.text(
                 slide_spec["notes"], f"{label} notes"
