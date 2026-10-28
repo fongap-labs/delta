@@ -31,10 +31,14 @@ const WORKER_PARTS: [&str; 3] = ["packages", "office_worker", "worker.py"];
 const CONTENT_DESCRIPTION: &str = "The document as structured content, not layout. \
     docx: {title, subtitle?, header?, footer?, blocks: [{type: heading (level 1-3, text) | \
     paragraph (text) | bullets (items) | numbered (items) | table (caption?, columns, rows) | \
+    chart (chart: {type: column | bar | line | pie, title?, categories, series: [{name, values}]}) | \
     page_break}]}. \
     pptx: {title, slides: [{layout: title (title, subtitle?) | bullets (title, items) | \
-    table (title, columns, rows), notes?}]}. \
-    xlsx: {title, sheets: [{name, columns, rows, number_formats? (column name to format)}]}. \
+    table (title, columns, rows) | chart (title, chart: {type: column | bar | line | pie, \
+    title?, categories, series: [{name, values}]}), notes?}]}. \
+    xlsx: {title, sheets: [{name, columns, rows, number_formats? (column name to format), \
+    charts?: [{type: column | bar | line | pie, title?, category_column, value_columns}]}]}. \
+    An xlsx chart reads the sheet's own columns, so its value columns must hold numbers or formulas. \
     A table cell is text, a number, true/false or null. Text that begins with = in an xlsx cell is a formula.";
 
 /// The fixed Office runtime: an interpreter and the worker script it runs.
@@ -143,6 +147,17 @@ fn registration(runtime: &OfficeRuntime, format: &Format) -> CapabilityRegistrat
                     "description": format!("Where to create the file, relative to the workspace, ending in .{}.", format.extension),
                 },
                 "content": {"type": "object", "description": CONTENT_DESCRIPTION},
+                "data": {
+                    "type": "object",
+                    "description": "Values for {{key}} placeholders in the content, for filling one \
+                        template many times. Each value is text, a number, true or false, or null. \
+                        A placeholder without a value fails the call.",
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Check that the content builds and the file reopens, without \
+                        creating the file. Use it to find errors before the real call.",
+                },
             },
         }),
         metadata: json!({

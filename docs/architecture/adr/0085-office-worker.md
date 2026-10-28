@@ -94,3 +94,25 @@
 - 解释器固定：`runtime-interpreter-pin` 工作流（只读）获取 CPython 3.12 归档，核对 PBS 发布的 `SHA256SUMS` 后输出摘要。摘要由维护者核对后写入 `release-build-runtime.ps1`；未固定时构建直接失败。
 - 构建脚本 `release-build-runtime.ps1` 的参数与便携版相同（`-Target -Version -OutputDir`）。运行时包版本取自 `PACK_VERSION`，不取 Delta 的版本。
 - 尚未完成：摘要的固定与首次发布（需要维护者运行工作流并启动发布）；发布后把 `url`、`sha256`、`size` 填入 `projects/delta/runtime/packs.json`。
+
+## 修订（2026-10-28）：预检与占位符填充
+
+- **预检（`dry_run`）。** 三个创建工具接受 `dry_run: true`。worker 仍然生成并重新打开候选文件，但不登记产物，并在结果中标记 `dry_run`。模型可以先预检，再做正式调用。错误信息附带合法范围与修正方法（如“最多 64 列”）。
+- **占位符填充（`data`）。** 规格中文本里的 `{{key}}` 由 `data` 的对应值替换，每次调用只传数据。缺少任何一个值都会整体失败，不会留下带花括号的文字。数据值限于文本、数字、布尔与空值。
+- 两项都不引入新的依赖，也不改变权威边界：worker 仍只写入暂存目录。
+- 文件级的模板合并（对已有 DOCX 做替换）仍由 `edit_document` 负责（ADR-0063）。
+
+## 修订（2026-10-28）：原生图表
+
+- **xlsx**：工作表可带 `charts`（最多 4 个），类型为 `column`、`bar`、`line`、`pie`。图表读取同一工作表的列，因此数据变化后图表随之更新。数值列必须是数字或公式；饼图只能有一个数值列。
+- **pptx**：新增 `chart` 版式，数据随幻灯片保存，可在 PowerPoint 中编辑。
+- **docx**：本次未实现。python-docx 没有原生图表接口，需要先决定是否引入 matplotlib 生成图片，以及中文字体如何处理（见计划中的待定项）。
+- 两种格式都只使用现有依赖（openpyxl、python-pptx），不引入新依赖，也不需要 LibreOffice。
+
+## 修订（2026-10-28）：Word 图表与 matplotlib
+
+- **docx 图表。** `blocks` 可包含 `{type: chart, chart: {...}}`，图表规格与 pptx、xlsx 相同。python-docx 没有原生图表接口，因此图表由 matplotlib 绘制为 PNG（200 dpi，6 英寸宽）后插入文档。PNG 内嵌字形，文档在任何机器上显示一致。
+- **依赖。** `office` 依赖组加入 `matplotlib==3.11.2`，`uv lock` 已更新（新增 numpy、contourpy、kiwisolver、fonttools、cycler、python-dateutil、six、tzdata）。压缩后，闭包约 16 MB（已去掉测试文件与字节码）。
+- **字体。** Delta 不随包分发字体文件。渲染时按优先级在运行 worker 的机器上查找已安装的 CJK 字体（Microsoft YaHei、SimHei、PingFang SC、Noto Sans CJK SC、Source Han Sans、WenQuanYi Zen Hei、Droid Sans Fallback）。图表含非 ASCII 文字而找不到 CJK 字体时，明确拒绝，不生成方框图。结果以所在机器的字体为准。
+- **许可。** matplotlib 与其依赖的许可证文件随 pip 包的 dist-info 保留在运行时包中。`THIRD_PARTY_NOTICES.md` 只登记随仓库提交的第三方代码与字体，本次不改动。
+- **未验证。** 在 Windows x64 上的运行时包构建与 numpy 轮子的可用性，需要在中央构建中确认。
