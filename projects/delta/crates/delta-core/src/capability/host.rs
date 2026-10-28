@@ -53,6 +53,9 @@ impl CapabilityHost {
         host.register(crate::document::read_registration())?;
         host.register(crate::document::create_registration())?;
         host.register(crate::document::edit_registration())?;
+        for registration in crate::document::table::registrations() {
+            host.register(registration)?;
+        }
         host.register(crate::web::fetch_registration())?;
         host.register(crate::web::search_registration())?;
         for registration in crate::web::scholar::registrations() {

@@ -7,6 +7,7 @@
 mod edit;
 mod ooxml;
 mod pdf;
+pub mod table;
 mod write;
 
 pub use edit::edit_registration;

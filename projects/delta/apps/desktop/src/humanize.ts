@@ -176,6 +176,14 @@ export function humanizeTool(name: string, args: any): HumanLine {
       };
     case "web_fetch":
       return { pre: "Read a web page — ", preKey: "humanize.webFetch", obj: trunc(urlHost(a.url), 50) };
+    case "table_reconcile":
+      return {
+        pre: "Compared two tables — ",
+        preKey: "humanize.tableReconcile",
+        obj: `${baseName(String(a.left?.path ?? ""))} ↔ ${baseName(String(a.right?.path ?? ""))}`,
+      };
+    case "table_check":
+      return { pre: "Checked a table — ", preKey: "humanize.tableCheck", obj: baseName(String(a.path ?? "")) };
     case "scholar_search":
       return { pre: "Searched the literature — ", preKey: "humanize.scholarSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
     case "scholar_paper":

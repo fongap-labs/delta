@@ -735,6 +735,8 @@ export const en = {
   "humanize.askScholarPaper": "Wanted to read the record of the paper ",
   "humanize.askScholarCite": "Wanted to check references against the published record: ",
   "humanize.scholarSearch": "Searched the literature — ",
+  "humanize.tableReconcile": "Compared two tables — ",
+  "humanize.tableCheck": "Checked a table — ",
   "humanize.scholarPaper": "Read a paper's record — ",
   "humanize.scholarCite": "Checked references — ",
   "humanize.askCreate": "Wanted to create ",

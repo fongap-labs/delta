@@ -224,6 +224,8 @@ mod tests {
                 "scholar_paper",
                 "scholar_search",
                 "study_evaluate",
+                "table_check",
+                "table_reconcile",
                 "todo_write",
                 "web_fetch",
                 "web_search",

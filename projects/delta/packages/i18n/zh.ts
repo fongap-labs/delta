@@ -735,6 +735,8 @@ export const zh: Record<TranslationKey, string> = {
   "humanize.askScholarPaper": "想要读取这篇论文的记录 ",
   "humanize.askScholarCite": "想要对照已发表记录核验参考文献：",
   "humanize.scholarSearch": "检索了学术文献 — ",
+  "humanize.tableReconcile": "对账了两张表 — ",
+  "humanize.tableCheck": "核查了一张表 — ",
   "humanize.scholarPaper": "读取了论文记录 — ",
   "humanize.scholarCite": "核验了参考文献 — ",
   "humanize.askCreate": "想要创建 ",
