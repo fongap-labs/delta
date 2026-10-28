@@ -245,6 +245,10 @@ if run_shard checks; then
   python3 scripts/check_retired_branding.py
   python3 scripts/check_architecture_boundary.py
   python3 scripts/check_license_policy.py
+  # The release scripts run only on a Windows runner when a release is cut, so this gate checks that
+  # every file they name still exists after a move of the product tree.
+  python3 scripts/check_release_layout.py --self-test
+  python3 scripts/check_release_layout.py
   phase_end
 fi
 

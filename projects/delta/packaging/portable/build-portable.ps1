@@ -138,7 +138,14 @@ $HelpDir = Join-Path $Other "Help"
 $LicenseDir = Join-Path $Other "License"
 $AppInfoDir = Join-Path $Other "AppInfo"
 New-Item -ItemType Directory -Force -Path $SourceDir, $HelpDir, $LicenseDir, $AppInfoDir | Out-Null
-Copy-Item -LiteralPath (Join-Path $RepoRoot "LICENSE") -Destination (Join-Path $LicenseDir "LICENSE.txt") -Force
+# LICENSE sits at the repository root, above the product tree (projects/<product>), so look upward.
+$LicenseFile = $null
+for ($Dir = $RepoRoot; $Dir; $Dir = Split-Path -Parent $Dir) {
+    $Candidate = Join-Path $Dir "LICENSE"
+    if (Test-Path -LiteralPath $Candidate -PathType Leaf) { $LicenseFile = $Candidate; break }
+}
+if (-not $LicenseFile) { throw "LICENSE was not found in or above $RepoRoot" }
+Copy-Item -LiteralPath $LicenseFile -Destination (Join-Path $LicenseDir "LICENSE.txt") -Force
 Set-Content -LiteralPath (Join-Path $SourceDir "BUILD.txt") -Encoding utf8 -Value @"
 This Delta Windows Portable was built from https://github.com/fongap-labs/delta.
 Build entry: packaging\portable\build-portable.ps1
