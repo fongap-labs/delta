@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -21,7 +22,7 @@ _PACK_ROOT = Path(__file__).resolve().parents[2]
 if str(_PACK_ROOT) not in sys.path:
     sys.path.insert(0, str(_PACK_ROOT))
 
-from packages.office_worker import docx_build, pptx_build, xlsx_build  # noqa: E402
+from packages.office_worker import docx_build, pptx_build, spec, xlsx_build  # noqa: E402
 
 ABI_VERSION = 2
 CAPABILITIES = {
@@ -39,6 +40,9 @@ MEDIA_TYPES = {
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+
+
+PLACEHOLDER = re.compile(r"\{\{([A-Za-z0-9_.]{1,64})\}\}")
 
 
 class JobError(Exception):
@@ -67,7 +71,7 @@ def _failed(job_id: str, message: str, code: str) -> dict[str, Any]:
 
 
 def _completed(
-    job_id: str, document: dict[str, Any], artifact: dict[str, Any]
+    job_id: str, document: dict[str, Any], artifact: dict[str, Any] | None
 ) -> dict[str, Any]:
     return {
         "abi_version": ABI_VERSION,
@@ -75,7 +79,7 @@ def _completed(
         "state": "completed",
         "result": document,
         "output": None,
-        "artifacts": [artifact],
+        "artifacts": [] if artifact is None else [artifact],
         "diagnostics": None,
         "finished_at": time.time(),
     }
@@ -117,6 +121,40 @@ def _verify(kind: str, path: Path, counts: dict[str, int]) -> dict[str, Any]:
     return {"status": "passed", "observed": observed}
 
 
+def _fill(value: Any, data: dict[str, Any], label: str) -> Any:
+    """Replace each {{key}} in the spec's text with the matching value from `data`.
+
+    A placeholder with no value is refused, so a template can never reach a file with its braces
+    still in it. Only text is substituted; numbers, booleans and the structure stay as they are.
+    """
+    if isinstance(value, str):
+
+        def replace(match: re.Match[str]) -> str:
+            key = match.group(1)
+            if key not in data:
+                raise JobError(
+                    f'{label} has {{{{{key}}}}} but data has no "{key}" value: add it to data',
+                    "missing_value",
+                )
+            return _display_value(data[key], key)
+
+        return PLACEHOLDER.sub(replace, value)
+    if isinstance(value, list):
+        return [_fill(item, data, f"{label}[{index}]") for index, item in enumerate(value)]
+    if isinstance(value, dict):
+        return {key: _fill(item, data, f"{label}.{key}") for key, item in value.items()}
+    return value
+
+
+def _display_value(value: Any, key: str) -> str:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return spec.display(value)
+    raise JobError(
+        f'data value "{key}" must be text, a number, true or false, or null',
+        "arguments",
+    )
+
+
 def _staging_file(job: dict[str, Any], kind: str) -> Path:
     staging = job.get("artifact_staging_dir")
     if not staging:
@@ -150,6 +188,10 @@ def run_job(job: dict[str, Any]) -> dict[str, Any]:
         content = arguments.get("content")
         if not isinstance(content, dict):
             raise JobError("content must be a structured spec object", "arguments")
+        data = arguments.get("data") if arguments.get("data") is not None else {}
+        if not isinstance(data, dict):
+            raise JobError("data must be an object of values for the placeholders", "arguments")
+        content = _fill(content, data, "content")
         candidate = _staging_file(job, kind)
         counts = BUILDERS[kind](content, candidate)
         verification = _verify(kind, candidate, counts)
@@ -159,7 +201,6 @@ def run_job(job: dict[str, Any]) -> dict[str, Any]:
         return _failed(job_id, str(exc), "invalid_spec")
     except OSError as exc:
         return _failed(job_id, f"could not write the candidate: {exc}", "write_failed")
-    data = candidate.read_bytes()
     document = {
         "format": kind,
         "path": relative_path,
@@ -170,12 +211,18 @@ def run_job(job: dict[str, Any]) -> dict[str, Any]:
         "media_type": MEDIA_TYPES[kind],
         "verification": verification,
     }
+    if arguments.get("dry_run") is True:
+        # A dry run proves the spec builds and the file reopens, then leaves no artifact behind.
+        candidate.unlink(missing_ok=True)
+        document["dry_run"] = True
+        return _completed(job_id, document, None)
+    data_bytes = candidate.read_bytes()
     artifact = {
         "staging_path": str(candidate),
         "relative_path": relative_path,
         "kind": "file",
-        "sha256": hashlib.sha256(data).hexdigest(),
-        "size": len(data),
+        "sha256": hashlib.sha256(data_bytes).hexdigest(),
+        "size": len(data_bytes),
         "incomplete": False,
     }
     return _completed(job_id, document, artifact)
