@@ -31,6 +31,7 @@ const WORKER_PARTS: [&str; 3] = ["packages", "office_worker", "worker.py"];
 const CONTENT_DESCRIPTION: &str = "The document as structured content, not layout. \
     docx: {title, subtitle?, header?, footer?, blocks: [{type: heading (level 1-3, text) | \
     paragraph (text) | bullets (items) | numbered (items) | table (caption?, columns, rows) | \
+    chart (chart: {type: column | bar | line | pie, title?, categories, series: [{name, values}]}) | \
     page_break}]}. \
     pptx: {title, slides: [{layout: title (title, subtitle?) | bullets (title, items) | \
     table (title, columns, rows) | chart (title, chart: {type: column | bar | line | pie, \

@@ -108,3 +108,11 @@
 - **pptx**：新增 `chart` 版式，数据随幻灯片保存，可在 PowerPoint 中编辑。
 - **docx**：本次未实现。python-docx 没有原生图表接口，需要先决定是否引入 matplotlib 生成图片，以及中文字体如何处理（见计划中的待定项）。
 - 两种格式都只使用现有依赖（openpyxl、python-pptx），不引入新依赖，也不需要 LibreOffice。
+
+## 修订（2026-10-28）：Word 图表与 matplotlib
+
+- **docx 图表。** `blocks` 可包含 `{type: chart, chart: {...}}`，图表规格与 pptx、xlsx 相同。python-docx 没有原生图表接口，因此图表由 matplotlib 绘制为 PNG（200 dpi，6 英寸宽）后插入文档。PNG 内嵌字形，文档在任何机器上显示一致。
+- **依赖。** `office` 依赖组加入 `matplotlib==3.11.2`，`uv lock` 已更新（新增 numpy、contourpy、kiwisolver、fonttools、cycler、python-dateutil、six、tzdata）。压缩后，闭包约 16 MB（已去掉测试文件与字节码）。
+- **字体。** Delta 不随包分发字体文件。渲染时按优先级在运行 worker 的机器上查找已安装的 CJK 字体（Microsoft YaHei、SimHei、PingFang SC、Noto Sans CJK SC、Source Han Sans、WenQuanYi Zen Hei、Droid Sans Fallback）。图表含非 ASCII 文字而找不到 CJK 字体时，明确拒绝，不生成方框图。结果以所在机器的字体为准。
+- **许可。** matplotlib 与其依赖的许可证文件随 pip 包的 dist-info 保留在运行时包中。`THIRD_PARTY_NOTICES.md` 只登记随仓库提交的第三方代码与字体，本次不改动。
+- **未验证。** 在 Windows x64 上的运行时包构建与 numpy 轮子的可用性，需要在中央构建中确认。
