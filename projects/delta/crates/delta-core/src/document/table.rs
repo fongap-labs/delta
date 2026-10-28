@@ -483,7 +483,7 @@ pub struct CheckOptions {
 }
 
 /// A date as (year, month, day) from the forms people write: 2026-10-28, 2026/10/28, 2026.10.28,
-/// 2026年10月28日, 20261028, or a spreadsheet's day count.
+/// a Chinese long-form date, 20261028, or a spreadsheet's day count.
 pub fn parse_date(cell: &str) -> Option<(i32, u32, u32)> {
     let text = cell.trim();
     if text.is_empty() {

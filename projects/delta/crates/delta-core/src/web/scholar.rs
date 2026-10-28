@@ -1346,7 +1346,7 @@ mod tests {
             "LOVELACE A, HOPPER G B M. Deep learning is not magic[J]. Journal of Tests, 2021, 12(3): 100-112. DOI:10.1000/example.1."
         );
 
-        // Chinese names are written as they are, and more than three authors end in 等.
+        // Chinese names are written as they are, and more than three authors end in the Chinese "et al." marker.
         let chinese = Paper {
             title: "深度学习综述".into(),
             authors: ["张", "王", "李", "赵"]
