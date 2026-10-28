@@ -33,7 +33,7 @@ fn read_bounded(job: &CapabilityJob, path: &str) -> Result<Vec<u8>, String> {
 }
 
 /// A relative path inside the workspace with the given extension.
-fn valid_output_path(path: &str, extension: &str) -> bool {
+pub(crate) fn valid_output_path(path: &str, extension: &str) -> bool {
     let path = Path::new(path);
     !path.is_absolute()
         && path.components().next().is_some()
@@ -58,7 +58,11 @@ fn render_registration() -> CapabilityRegistration {
             to `report_path`, and next to it a manifest (`<report_path>.bindings.json`) records, \
             for every number, its result file, that file's SHA-256, the key, the raw value, the \
             rendered text and its place. Write numbers in a report only as bindings: use an \
-            analysis engine to make the result files (ADR-0079). Markdown only."
+            analysis engine to make the result files (ADR-0079). Literature claims are bound the \
+            same way: {{cite:<reference file>#<id>}} becomes a numbered marker and \
+            {{references:<reference file>}} the list of what was cited, both read from the file \
+            scholar_cite writes with `output_path`; a reference that no published record backs \
+            stops the render. Markdown only."
             .to_owned(),
         parameters: json!({
             "type": "object", "required": ["template_path", "report_path"],
@@ -179,8 +183,9 @@ fn check_registration() -> CapabilityRegistration {
             lists and where one of the `allow` regular expressions covers it (for example a date \
             or 25 °C / 60 % RH). In a formal report every bound result must also be validated or \
             attested (ADR-0079); an exploratory result fails, and a version 1 result without an \
-            assurance level is accepted as legacy. Returns whether it passed and every problem \
-            found."
+            assurance level is accepted as legacy. Citations are checked too: the reference file \
+            must be the one the report was rendered from, and every cited reference must still be \
+            backed by a published record. Returns whether it passed and every problem found."
             .to_owned(),
         parameters: json!({
             "type": "object", "required": ["report_path"],

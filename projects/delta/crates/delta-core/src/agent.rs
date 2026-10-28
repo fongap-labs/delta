@@ -87,7 +87,7 @@ const TOOL_SECTIONS: &[PromptSection] = &[
     },
     PromptSection {
         tools: &["scholar_search", "scholar_paper", "scholar_cite"],
-        text: "- For academic literature, use scholar_search to find papers, scholar_paper to read one paper's record with what it cites and what cites it, and web_fetch on its open_access_url for the full text. Never write a reference or a DOI from memory: pass each one to scholar_cite and use the citation it returns. A reference with found false, or title_matches false, is not backed by the record: do not cite it, and tell the user. The abstract is not the paper: say when you only read the abstract.\n",
+        text: "- For academic literature, use scholar_search to find papers, scholar_paper to read one paper's record with what it cites and what cites it, and web_fetch on its open_access_url for the full text. Never write a reference or a DOI from memory: pass each one to scholar_cite and use the citation it returns. A reference with found false, or title_matches false, is not backed by the record: do not cite it, and tell the user. In a report written with report_render, set output_path on scholar_cite and cite with {{cite:<file>#<id>}} and {{references:<file>}}, never by typing a marker or a reference. The abstract is not the paper: say when you only read the abstract.\n",
     },
     PromptSection {
         tools: &["screenshot", "open_file", "clipboard_write"],

@@ -743,3 +743,177 @@ fn a_very_small_p_value_shows_as_zero_at_four_decimals_but_not_at_six() {
     let six = render_ok("{{result:out/ttest.json#p_value|%.6f}}", &files);
     assert_eq!(six.text, "0.000012");
 }
+
+// -- citations bound to a reference file (ADR-0087) ---------------------------------------------
+
+fn reference_file(entries: Value) -> Vec<u8> {
+    serde_json::to_vec(&json!({
+        "format": "delta.references", "version": 1, "style": "apa", "references": entries
+    }))
+    .unwrap()
+}
+
+fn cited_files() -> Files {
+    let files = files();
+    files.set(
+        "refs.json",
+        reference_file(json!([
+            {"id": "10.1000/a", "found": true, "title_matches": true,
+             "citation": "Lovelace, A. (1843). Notes. *Taylor's Scientific Memoirs*, *3*, 666–731."},
+            {"id": "arXiv:2301.00001", "found": true,
+             "citation": "Hopper, G. (2023). A preprint."},
+            {"id": "10.1000/ghost", "found": false, "citation": ""},
+            {"id": "10.1000/wrong", "found": true, "title_matches": false, "citation": "Someone (2000). Other."}
+        ])),
+    );
+    files
+}
+
+const CITED: &str = "# Review\n\nFirst claim [source] {{cite:refs.json#10.1000/a}}, again {{cite:refs.json#10.1000/a}}, and a preprint {{cite:refs.json#arXiv:2301.00001}}.\n\n## References\n\n{{references:refs.json}}\n";
+
+#[test]
+fn a_citation_is_numbered_by_first_use_and_the_list_carries_the_checked_citations() {
+    let files = cited_files();
+    let rendered = render_ok(CITED, &files);
+    assert_eq!(
+        rendered.text,
+        "# Review\n\nFirst claim [source] [1], again [1], and a preprint [2].\n\n## References\n\n\
+         [1] Lovelace, A. (1843). Notes. *Taylor's Scientific Memoirs*, *3*, 666–731.\n\n\
+         [2] Hopper, G. (2023). A preprint.\n"
+    );
+    assert_eq!(rendered.bindings.len(), 4);
+    assert_eq!(
+        rendered.bindings[0].kind,
+        BindingKind::Citation { number: 1 }
+    );
+    assert_eq!(
+        rendered.bindings[2].kind,
+        BindingKind::Citation { number: 2 }
+    );
+    assert_eq!(
+        rendered.bindings[3].kind,
+        BindingKind::References {
+            ids: vec!["10.1000/a".into(), "arXiv:2301.00001".into()],
+            numbers: vec![1, 2]
+        }
+    );
+    assert_eq!(rendered.bindings[0].section.as_deref(), Some("Review"));
+    let manifest = manifest_of(&rendered);
+    assert_eq!(manifest["bindings"][0]["kind"], "cite");
+    assert_eq!(manifest["bindings"][3]["kind"], "references");
+}
+
+#[test]
+fn a_reference_no_record_backs_cannot_be_cited() {
+    let files = cited_files();
+    for (template, expected) in [
+        (
+            "{{cite:refs.json#10.1000/ghost}}",
+            "no published record backs the reference 10.1000/ghost",
+        ),
+        (
+            "{{cite:refs.json#10.1000/wrong}}",
+            "is not the recorded title",
+        ),
+        (
+            "{{cite:refs.json#10.9999/missing}}",
+            "has no reference 10.9999/missing",
+        ),
+        ("{{cite:nope.json#10.1000/a}}", "nope.json was not found"),
+        ("{{cite:refs.json}}", "names its reference after '#'"),
+        (
+            "{{references:refs.json}}",
+            "no reference from refs.json is cited",
+        ),
+    ] {
+        let problems = render_template(template, &|path| files.read(path)).unwrap_err();
+        assert!(
+            problems.iter().any(|problem| problem.contains(expected)),
+            "{template}: {problems:?}"
+        );
+    }
+}
+
+#[test]
+fn a_formal_report_with_citations_passes_and_the_markers_are_not_loose_numbers() {
+    let files = cited_files();
+    let rendered = render_ok(CITED, &files);
+    let passed = check(&rendered, &rendered.text, &files, true, &[]);
+    assert!(passed.passed(), "{passed:?}");
+    assert_eq!(passed.bindings, 4);
+    // A number written by hand beside them is still caught.
+    let tampered = rendered
+        .text
+        .replace("First claim", "In 2019 the first claim");
+    let found = check(&rendered, &tampered, &files, true, &[]);
+    assert!(
+        found.unbound.iter().any(|number| number.text == "2019"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_changed_reference_file_or_hand_edited_marker_is_found() {
+    let files = cited_files();
+    let rendered = render_ok(CITED, &files);
+
+    let moved = rendered.text.replacen("[1]", "[2]", 1);
+    let found = check(&rendered, &moved, &files, false, &[]);
+    assert!(
+        found
+            .problems
+            .iter()
+            .any(|problem| problem.contains("where the manifest says")),
+        "{found:?}"
+    );
+
+    // The record behind a citation was withdrawn after the report was written.
+    files.set(
+        "refs.json",
+        reference_file(json!([
+            {"id": "10.1000/a", "found": false, "citation": ""},
+            {"id": "arXiv:2301.00001", "found": true, "citation": "Hopper, G. (2023). A preprint."}
+        ])),
+    );
+    let found = check(&rendered, &rendered.text, &files, false, &[]);
+    assert!(
+        found
+            .problems
+            .iter()
+            .any(|p| p.contains("has changed since the report was rendered")),
+        "{found:?}"
+    );
+    assert!(
+        found
+            .problems
+            .iter()
+            .any(|p| p.contains("no published record backs the reference 10.1000/a")),
+        "{found:?}"
+    );
+    assert!(!found.passed());
+}
+
+#[test]
+fn a_reference_list_edited_by_hand_no_longer_matches_the_file() {
+    let files = cited_files();
+    let rendered = render_ok(CITED, &files);
+    let edited = rendered.text.replace("Hopper, G.", "Hopper, X.");
+    let found = check(&rendered, &edited, &files, false, &[]);
+    assert!(
+        found
+            .problems
+            .iter()
+            .any(|p| p.contains("where the manifest says")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_file_that_is_not_a_reference_file_is_refused() {
+    let files = files();
+    let problems = render_template("{{cite:out/t.json#x}}", &|path| files.read(path)).unwrap_err();
+    assert!(
+        problems[0].contains("is not a delta.references version 1 file"),
+        "{problems:?}"
+    );
+}

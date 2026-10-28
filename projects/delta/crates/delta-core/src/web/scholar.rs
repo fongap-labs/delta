@@ -852,6 +852,26 @@ pub fn cite(
     Ok(out)
 }
 
+/// The reference file a report's `{{cite:…}}` bindings read: each reference, whether a published
+/// record backs it, and its citation text.
+pub fn references_file(checked: &[Checked], style: &str, checked_on: &str) -> Value {
+    json!({
+        "format": crate::numeric_trace::report::REFERENCES_FORMAT,
+        "version": crate::numeric_trace::report::REFERENCES_VERSION,
+        "style": style,
+        "checked_on": checked_on,
+        "references": checked.iter().map(|item| json!({
+            "id": item.id,
+            "found": item.found,
+            "source": item.source,
+            "title_matches": item.title_matches,
+            "doi": item.paper.as_ref().and_then(|paper| paper.doi.clone()),
+            "title": item.paper.as_ref().map(|paper| paper.title.clone()),
+            "citation": item.citation,
+        })).collect::<Vec<_>>(),
+    })
+}
+
 /// The two open services are named by the grant, not any address: the model never chooses the host.
 fn scholar_grants() -> CapabilityGrants {
     CapabilityGrants {
@@ -1010,13 +1030,16 @@ pub fn cite_registration() -> CapabilityRegistration {
     CapabilityRegistration {
         capability_id: "scholar.cite".to_owned(),
         tool_name: "scholar_cite".to_owned(),
-        side_effect: crate::skills::SideEffectClass::Read,
+        side_effect: crate::skills::SideEffectClass::LocalWrite,
         description: "Check references against the published record and write their citations \
             (bibtex, apa or gbt7714). Pass each reference's DOI, arXiv id or PMID and, if you \
             have it, the title you intend to cite it under. A reference with `found: false`, or \
             with `title_matches: false`, is not backed by the record: do not cite it, and tell \
             the user. Never write a citation from memory; use the `citation` this returns. \
-            Up to 20 references per call."
+            Up to 20 references per call. To put the citations in a report, set `output_path` to \
+            a .json file: it records every reference with its check, and a report template then \
+            cites from it with {{cite:<file>#<id>}} and lists them with {{references:<file>}}, \
+            rendered by report_render, which refuses a reference no record backs."
             .to_owned(),
         parameters: json!({
             "type": "object", "required": ["references"],
@@ -1031,12 +1054,13 @@ pub fn cite_registration() -> CapabilityRegistration {
                         }
                     }
                 },
-                "style": {"type": "string", "enum": ["bibtex", "apa", "gbt7714"], "description": "Citation style (default bibtex)."}
+                "style": {"type": "string", "enum": ["bibtex", "apa", "gbt7714"], "description": "Citation style (default bibtex)."},
+                "output_path": {"type": "string", "description": "Write the checked references to this workspace file, ending in .json, for a report template to cite from."}
             }
         }),
         metadata: scholar_metadata("cite"),
         grants: scholar_grants(),
-        workspace_write: false,
+        workspace_write: true,
         runner: Arc::new(NativeCapabilityRunner::new(|job, control| {
             let references: Vec<Reference> = job
                 .arguments
@@ -1070,32 +1094,88 @@ pub fn cite_registration() -> CapabilityRegistration {
                     Some("arguments"),
                 );
             };
+            let output_path = job.arguments.get("output_path").and_then(Value::as_str);
+            if let Some(path) = output_path {
+                if !crate::numeric_trace::tools::valid_output_path(path, "json") {
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        "output_path must be a relative path inside the workspace, ending in .json",
+                        Some("arguments"),
+                    );
+                }
+                if job.artifact_staging_dir.is_none() {
+                    return CapabilityResult::failed(
+                        &job.job_id,
+                        "artifact staging is unavailable",
+                        Some("staging"),
+                    );
+                }
+            }
             let cancelled = || control.is_cancelled();
             let limits = Limits::PRODUCT.with_proxy(job.proxy.clone());
-            run(
-                &job.job_id,
-                cite(&references, style, &Sources::product(), &limits, &cancelled).map(|checked| {
-                    json!({
-                        "ok": true, "style": style_name,
-                        "references": checked.iter().map(|item| {
-                            let mut entry = json!({"id": item.id, "found": item.found, "source": item.source});
-                            if let Some(matches) = item.title_matches {
-                                entry["title_matches"] = json!(matches);
-                            }
-                            if let Some(paper) = &item.paper {
-                                entry["title"] = json!(paper.title);
-                                entry["doi"] = json!(paper.doi);
-                            }
-                            if let Some(citation) = &item.citation {
-                                entry["citation"] = json!(citation);
-                            } else {
-                                entry["note"] = json!("no record under this identifier; do not cite it");
-                            }
-                            entry
-                        }).collect::<Vec<_>>(),
-                    })
-                }),
-                "scholar_cite",
+            let checked = match cite(&references, style, &Sources::product(), &limits, &cancelled) {
+                Ok(checked) => checked,
+                Err(error) if error == "cancelled" => {
+                    return CapabilityResult::cancelled(&job.job_id)
+                }
+                Err(error) => {
+                    return CapabilityResult::failed(&job.job_id, &error, Some("scholar_cite"))
+                }
+            };
+            let mut output = json!({
+                "ok": true, "style": style_name,
+                "references": checked.iter().map(|item| {
+                    let mut entry = json!({"id": item.id, "found": item.found, "source": item.source});
+                    if let Some(matches) = item.title_matches {
+                        entry["title_matches"] = json!(matches);
+                    }
+                    if let Some(paper) = &item.paper {
+                        entry["title"] = json!(paper.title);
+                        entry["doi"] = json!(paper.doi);
+                    }
+                    if let Some(citation) = &item.citation {
+                        entry["citation"] = json!(citation);
+                    } else {
+                        entry["note"] = json!("no record under this identifier; do not cite it");
+                    }
+                    entry
+                }).collect::<Vec<_>>(),
+            });
+            let (Some(path), Some(staging_dir)) =
+                (output_path, job.artifact_staging_dir.as_deref())
+            else {
+                return CapabilityResult::completed(&job.job_id, output);
+            };
+            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+            let bytes =
+                match serde_json::to_vec_pretty(&references_file(&checked, style_name, &today)) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return CapabilityResult::failed(
+                            &job.job_id,
+                            &error.to_string(),
+                            Some("write_failed"),
+                        )
+                    }
+                };
+            let staged = std::path::Path::new(staging_dir).join("candidate_references");
+            if let Err(error) = std::fs::write(&staged, &bytes) {
+                return CapabilityResult::failed(
+                    &job.job_id,
+                    &error.to_string(),
+                    Some("write_failed"),
+                );
+            }
+            output["references_file"] = json!(path);
+            CapabilityResult::completed(&job.job_id, output).with_artifact(
+                crate::capability::CapabilityArtifact {
+                    staging_path: staged.to_string_lossy().to_string(),
+                    relative_path: path.to_owned(),
+                    kind: Some("file".to_owned()),
+                    sha256: None,
+                    size: Some(bytes.len() as u64),
+                    incomplete: false,
+                },
             )
         })),
     }
@@ -1481,6 +1561,67 @@ mod tests {
             assert!(!unbacked.found);
             assert!(unbacked.citation.is_none() && unbacked.paper.is_none());
         }
+    }
+
+    #[test]
+    fn the_reference_file_is_what_a_report_template_cites_from() {
+        let (base, handle) = serve(3, |path| {
+            if path == "/works/10.1000/real" {
+                json_reply(&json!({"message": {
+                    "DOI": "10.1000/real", "title": ["The Real Paper"], "container-title": ["Nature"],
+                    "author": [{"given": "Ada", "family": "Lovelace"}], "issued": {"date-parts": [[2020]]},
+                    "type": "journal-article"
+                }}))
+            } else {
+                not_found()
+            }
+        });
+        let sources = Sources {
+            openalex: base.clone(),
+            crossref: base,
+        };
+        let references = [
+            Reference {
+                id: "10.1000/real".into(),
+                title: Some("The Real Paper".into()),
+            },
+            Reference {
+                id: "10.1000/invented".into(),
+                title: None,
+            },
+        ];
+        let checked = cite(&references, Style::Apa, &sources, &local_limits(), &never).unwrap();
+        drop(handle);
+        let bytes = serde_json::to_vec(&references_file(&checked, "apa", "2026-10-28")).unwrap();
+        let read = |path: &str| -> Result<Vec<u8>, String> {
+            (path == "refs.json")
+                .then(|| bytes.clone())
+                .ok_or_else(|| format!("{path} was not found"))
+        };
+
+        let rendered = crate::numeric_trace::report::render_template(
+            "Shown {{cite:refs.json#10.1000/real}}.\n\n{{references:refs.json}}",
+            &read,
+        )
+        .unwrap();
+        assert!(rendered.text.starts_with("Shown [1]."), "{}", rendered.text);
+        assert!(
+            rendered
+                .text
+                .contains("[1] Lovelace, A. (2020). The Real Paper."),
+            "{}",
+            rendered.text
+        );
+        // The reference no record backs is in the file, flagged, and cannot be cited.
+        let problems = crate::numeric_trace::report::render_template(
+            "{{cite:refs.json#10.1000/invented}}",
+            &read,
+        )
+        .unwrap_err();
+        assert!(
+            problems[0].contains("no published record backs"),
+            "{problems:?}"
+        );
     }
 
     #[test]
