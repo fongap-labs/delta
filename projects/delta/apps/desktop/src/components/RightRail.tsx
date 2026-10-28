@@ -45,7 +45,7 @@ function kindFromPath(path: string): string {
   const ext = (path.split(".").pop() || "").toLowerCase();
   if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext)) return "image";
   if (["html", "htm"].includes(ext)) return "html";
-  if (ext === "md") return "markdown";
+  if (ext === "md" || ext === "markdown") return "markdown";
   if (ext === "csv") return "csv";
   if (ext === "pdf") return "pdf";
   if (["py", "js", "ts", "tsx", "jsx", "json", "sh", "css"].includes(ext)) return "code";
@@ -587,7 +587,7 @@ function ArtifactViewer({
         ) : content.kind === "office" ? (
           <div className="artifact-open-prompt">
             <Icon name="panelOpen" size={28} />
-            <p>{t("artifacts.officeNoPreview", { type: /\.pptx?$/i.test(artifact.name) ? "PowerPoint" : "Word" })}</p>
+            <p>{t("artifacts.officeNoPreview", { type: /\.pptx?$/i.test(artifact.name) ? "PowerPoint" : /\.xlsx?$/i.test(artifact.name) ? "Excel" : "Word" })}</p>
             <button className="btn sm" onClick={() => revealArtifact(sessionId, artifact.path, "open")}>
               {t("artifacts.openInDefaultApp")}
             </button>

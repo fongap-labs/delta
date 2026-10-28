@@ -642,6 +642,94 @@ pub fn restore_file_version(
     restore_version_in(Path::new(&workspace), backup, target)
 }
 
+/// Undo the files one run of a session wrote through the artifact path (a document, a report, a
+/// text file): a file that replaced an earlier one gets the earlier version back, and a file the run
+/// created is taken out of the workspace. Nothing is deleted: what is undone is kept under
+/// `.delta/versions/undone-<time>/`, so the undo can be undone by hand.
+///
+/// A file is touched only if it is still exactly what the run wrote (its SHA-256 is the one the
+/// ledger recorded). One the user or a later run changed since is left alone and reported. Files
+/// that a shell command wrote are not registered artifacts, so they are not part of this.
+pub fn undo_run_files(
+    state_dir: &Path,
+    session_id: &str,
+    run_id: &str,
+) -> Result<Value, ShadowReadError> {
+    let fail = |message: &str| Ok(json!({"ok": false, "error": message}));
+    if !session_run_ids(state_dir, session_id)
+        .iter()
+        .any(|id| id == run_id)
+    {
+        return fail("that run does not belong to this task");
+    }
+    let workspace = session_workspace(state_dir, session_id)?;
+    let Ok(workspace) = Path::new(&workspace).canonicalize() else {
+        return fail("the workspace is unavailable");
+    };
+    let ledger_path = state_dir.join("run_events.db");
+    if !ledger_path.exists() {
+        return Ok(json!({"ok": true, "restored": [], "removed": [], "skipped": []}));
+    }
+    let reader = crate::artifact::ArtifactReader::open(ledger_path)?;
+    // The last record of a path is what the run left there; the first replacement kept the original.
+    let mut latest: Vec<(String, String)> = Vec::new();
+    for record in reader.list_for_run(run_id)? {
+        match latest.iter_mut().find(|(path, _)| *path == record.path) {
+            Some(entry) => entry.1 = record.sha256,
+            None => latest.push((record.path, record.sha256)),
+        }
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let versions = workspace.join(".delta").join("versions");
+    let undone = versions.join(format!("undone-{stamp}"));
+    let (mut restored, mut removed, mut skipped) = (Vec::new(), Vec::new(), Vec::new());
+    // Newest first, so a file that is a folder's only content leaves its folder empty last.
+    for (path, recorded) in latest.iter().rev() {
+        let relative = Path::new(path);
+        let is_plain = !relative.as_os_str().is_empty()
+            && relative
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)));
+        let target = workspace.join(relative);
+        if !is_plain || target.starts_with(workspace.join(".delta")) {
+            skipped.push(json!({"path": path, "reason": "reserved"}));
+            continue;
+        }
+        if !target.is_file() {
+            skipped.push(json!({"path": path, "reason": "missing"}));
+            continue;
+        }
+        // Not what the run wrote any more: the user or a later run has changed it.
+        let unchanged =
+            crate::artifact::file_digest(&target).is_ok_and(|(sha, _)| sha == *recorded);
+        if !unchanged {
+            skipped.push(json!({"path": path, "reason": "changed_since"}));
+            continue;
+        }
+        let kept_original = versions.join(run_id).join(relative);
+        let keep_current = undone.join(relative);
+        if let Some(parent) = keep_current.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if kept_original.is_file() {
+            fs::copy(&target, &keep_current)?;
+            let bytes = fs::read(&kept_original)?;
+            atomic_write(&target, &bytes)?;
+            restored.push(json!(path));
+        } else {
+            if fs::rename(&target, &keep_current).is_err() {
+                fs::copy(&target, &keep_current)?;
+                fs::remove_file(&target)?;
+            }
+            removed.push(json!(path));
+        }
+    }
+    Ok(json!({"ok": true, "restored": restored, "removed": removed, "skipped": skipped}))
+}
+
 fn restore_version_in(
     workspace: &Path,
     backup: &str,
@@ -732,6 +820,89 @@ pub fn revert_session(
         .to_string();
     rewrite_messages(state_dir, session_id, &messages[..index])?;
     Ok(json!({"ok": true, "text": text}))
+}
+
+/// Start a new conversation from the end of one answer: copy the transcript up to and including
+/// message `index` into a new session that continues the same work. The branch keeps the
+/// workspace, the model, the extra folders and the reasoning effort. It does not inherit approvals
+/// the user granted, unattended mode, the pin, the archive flag or the compaction state: those
+/// belong to the original conversation. `title` names the branch; without one the branch is named
+/// from its first message. Only a finished answer can be the end of a branch: a message that asks
+/// for tool calls has results that would be cut off.
+pub fn branch_session(
+    state_dir: &Path,
+    session_id: &str,
+    index: usize,
+    title: Option<&str>,
+) -> Result<Value, ShadowReadError> {
+    let messages = load_messages(state_dir, session_id);
+    let Some(target) = messages.get(index) else {
+        return Ok(json!({"ok": false, "error": "message index is out of range"}));
+    };
+    let has_tool_calls = target
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .is_some_and(|calls| !calls.is_empty());
+    if target.get("role").and_then(Value::as_str) != Some("assistant") || has_tool_calls {
+        return Ok(json!({"ok": false, "error": "a branch can only end at a finished answer"}));
+    }
+    let conn = open_conn(&state_dir.join("core.db"))?;
+    let row = conn.query_row(
+        "SELECT workspace, model, extra_roots, reasoning_effort FROM sessions WHERE session_id = ?1",
+        params![session_id],
+        |row| {
+            Ok((
+                row.get::<_, Option<String>>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        },
+    );
+    let (workspace, model, extra_roots, effort) = match row {
+        Ok(row) => row,
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            return Ok(json!({"ok": false, "error": "session not found"}))
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let new_id: String = uuid::Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(12)
+        .collect();
+    let title = title.map(str::trim).filter(|value| !value.is_empty());
+    conn.execute(
+        "INSERT INTO sessions
+         (session_id, workspace, model, mode, title, renamed, agent, n_msgs, extra_roots,
+          reasoning_effort, updated_at)
+         VALUES (?1, ?2, ?3, 'interactive', ?4, ?5, 'delta', 0, ?6, ?7, CURRENT_TIMESTAMP)",
+        params![
+            new_id,
+            workspace.clone().unwrap_or_default(),
+            model.unwrap_or_default(),
+            title,
+            i64::from(title.is_some()),
+            extra_roots,
+            effort.unwrap_or_else(|| "auto".to_string()),
+        ],
+    )?;
+    rewrite_messages(state_dir, &new_id, &messages[..=index])?;
+    if title.is_none() {
+        let first = messages[..=index]
+            .iter()
+            .find(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+            .and_then(|message| message.get("content").and_then(Value::as_str));
+        if let Some(text) = first {
+            set_auto_title(state_dir, &new_id, text)?;
+        }
+    }
+    // The search index follows the transcript (ADR-0075); a failure there must not fail the branch.
+    if let Err(error) = crate::conversation_search::sync_session(state_dir, &new_id) {
+        eprintln!("conversation search: could not index a session: {error}");
+    }
+    Ok(json!({"ok": true, "session_id": new_id, "workspace": workspace.unwrap_or_default()}))
 }
 
 pub fn set_reasoning_effort(
@@ -1283,6 +1454,8 @@ pub fn read_artifact(
 /// Largest picture or PDF the artifact view loads whole. It travels to the window as one Base64
 /// text, so a bigger one is opened from its folder instead.
 const MAX_MEDIA_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
+/// Most rows of a worksheet the artifact view loads, the heading row included.
+const MAX_SHEET_PREVIEW_ROWS: usize = 501;
 /// Most text of a file the artifact view shows.
 const MAX_TEXT_PREVIEW_BYTES: usize = 2 * 1024 * 1024;
 
@@ -1317,6 +1490,37 @@ fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
         _ => None,
     };
     let size = fs::metadata(absolute)?.len();
+    // Word and PowerPoint files have no preview here (the view offers to open them); a workbook is
+    // read into rows, so a table is drawn from it and never its zipped bytes.
+    if matches!(extension.as_str(), "docx" | "pptx" | "doc" | "ppt" | "xls") {
+        return Ok(json!({"ok": true, "path": path, "kind": "office", "size": size}));
+    }
+    if matches!(extension.as_str(), "xlsx" | "xlsm") {
+        if size > MAX_MEDIA_PREVIEW_BYTES {
+            return Ok(json!({
+                "ok": false, "path": path, "kind": "unknown", "size": size,
+                "error": format!(
+                    "This workbook is {} MB, too large to preview here. Open it from its folder.",
+                    size / (1024 * 1024)
+                ),
+            }));
+        }
+        return Ok(
+            match crate::document::sheet_previews(&fs::read(absolute)?, MAX_SHEET_PREVIEW_ROWS) {
+                Ok(sheets) => json!({
+                    "ok": true, "path": path, "kind": "sheet",
+                    "sheets": sheets.iter().map(|sheet| json!({
+                        "name": sheet.name, "rows": sheet.rows,
+                        "total_rows": sheet.total_rows, "truncated": sheet.truncated,
+                    })).collect::<Vec<_>>(),
+                }),
+                Err(error) => json!({
+                    "ok": false, "path": path, "kind": "unknown",
+                    "error": format!("This workbook could not be read: {error}"),
+                }),
+            },
+        );
+    }
     if let Some(mime) = mime {
         if size > MAX_MEDIA_PREVIEW_BYTES {
             return Ok(json!({
@@ -1340,8 +1544,16 @@ fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
     let truncated = bytes.len() > MAX_TEXT_PREVIEW_BYTES;
     let content =
         String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_TEXT_PREVIEW_BYTES)]).to_string();
+    // The view renders markdown, web pages (in a locked frame) and CSV tables; every other text
+    // file stays plain text.
+    let kind = match extension.as_str() {
+        "md" | "markdown" => "markdown",
+        "html" | "htm" => "html",
+        "csv" => "csv",
+        _ => "text",
+    };
     Ok(json!({
-        "ok": true, "path": path, "kind": "text", "content": content,
+        "ok": true, "path": path, "kind": kind, "content": content,
         "truncated": truncated,
     }))
 }
@@ -1776,6 +1988,268 @@ mod tests {
         let pic = tmp.path().join("p.png");
         fs::write(&pic, [1_u8, 2, 3]).unwrap();
         assert_eq!(preview_file(&pic, "p.png").unwrap()["kind"], "image");
+
+        // A workbook is read into rows, and a Word or PowerPoint file is named so the view can say so.
+        let arguments = json!({"sheets": [
+            {"name": "Orders", "header": true, "rows": [["id", "total"], ["1", "5"]]},
+            {"name": "Empty", "header": false, "rows": [["only"]]}
+        ]});
+        let (_, workbook, _) = crate::document::create("book.xlsx", &arguments).unwrap();
+        let book = tmp.path().join("book.xlsx");
+        fs::write(&book, workbook).unwrap();
+        let shown = preview_file(&book, "book.xlsx").unwrap();
+        assert_eq!(shown["kind"], "sheet", "{shown}");
+        assert_eq!(shown["sheets"][0]["name"], "Orders");
+        assert_eq!(
+            shown["sheets"][0]["rows"],
+            json!([["id", "total"], ["1", "5"]])
+        );
+        assert_eq!(
+            (
+                shown["sheets"][0]["total_rows"].as_u64(),
+                shown["sheets"][0]["truncated"].as_bool()
+            ),
+            (Some(2), Some(false))
+        );
+        assert!(
+            shown.get("content").is_none(),
+            "the zipped bytes never reach the view"
+        );
+        let broken = tmp.path().join("broken.xlsx");
+        fs::write(&broken, "not a workbook").unwrap();
+        assert_eq!(preview_file(&broken, "broken.xlsx").unwrap()["ok"], false);
+        for name in ["a.docx", "a.pptx", "a.doc", "a.ppt", "a.xls"] {
+            let office = tmp.path().join(name);
+            fs::write(&office, [0_u8, 1, 2]).unwrap();
+            assert_eq!(
+                preview_file(&office, name).unwrap()["kind"],
+                "office",
+                "{name}"
+            );
+        }
+
+        // Markdown, web pages and CSV tables are named as such so the artifact view renders them.
+        for (name, kind) in [
+            ("notes.md", "markdown"),
+            ("NOTES.MD", "markdown"),
+            ("notes.markdown", "markdown"),
+            ("page.html", "html"),
+            ("page.HTM", "html"),
+            ("table.csv", "csv"),
+        ] {
+            let doc = tmp.path().join(name);
+            fs::write(&doc, "a,b").unwrap();
+            let shown = preview_file(&doc, name).unwrap();
+            assert_eq!(shown["kind"], kind, "{name}");
+            assert_eq!(shown["content"], "a,b");
+        }
+        assert_eq!(preview_file(&small, "a.txt").unwrap()["kind"], "text");
+    }
+
+    #[test]
+    fn a_branch_copies_the_transcript_up_to_a_finished_answer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = open_conn(&tmp.path().join("core.db")).unwrap();
+        conn.execute(
+            "INSERT INTO sessions (session_id, workspace, model, mode, title, agent, n_msgs, extra_roots, reasoning_effort, unattended, pinned, grants) \
+             VALUES ('s1', '/ws', 'gpt-5.5', 'unattended', 'Plan', 'delta', 5, '[\"/extra\"]', 'high', 1, 1, 'standing')",
+            params![],
+        )
+        .unwrap();
+        let messages = vec![
+            json!({"role": "user", "content": "first question"}),
+            json!({"role": "assistant", "content": "", "tool_calls": [{"id": "c1"}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "ok"}),
+            json!({"role": "assistant", "content": "first answer"}),
+            json!({"role": "user", "content": "second question"}),
+        ];
+        rewrite_messages(tmp.path(), "s1", &messages).unwrap();
+
+        // A message that asks for tools, a tool result and a user message cannot end a branch.
+        for index in [1, 2, 4, 9] {
+            let refused = branch_session(tmp.path(), "s1", index, None).unwrap();
+            assert_eq!(refused["ok"], false, "index {index}");
+        }
+        assert_eq!(
+            branch_session(tmp.path(), "missing", 3, None).unwrap()["ok"],
+            false
+        );
+
+        let branched = branch_session(tmp.path(), "s1", 3, Some("Plan (branch)")).unwrap();
+        assert_eq!(branched["ok"], true);
+        let new_id = branched["session_id"].as_str().unwrap().to_string();
+        assert_ne!(new_id, "s1");
+        assert!(safe_session_id(&new_id));
+        assert_eq!(branched["workspace"], "/ws");
+        // The copy stops at the chosen answer, and the original is untouched.
+        assert_eq!(load_messages(tmp.path(), &new_id), messages[..=3].to_vec());
+        assert_eq!(load_messages(tmp.path(), "s1"), messages);
+
+        let (title, renamed, mode, unattended, pinned, grants, roots, effort, count): (
+            String, i64, String, i64, i64, Option<String>, String, String, i64,
+        ) = conn
+            .query_row(
+                "SELECT title, renamed, mode, unattended, pinned, grants, extra_roots, reasoning_effort, n_msgs \
+                 FROM sessions WHERE session_id = ?1",
+                params![new_id],
+                |row| {
+                    Ok((
+                        row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                        row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!((title.as_str(), renamed), ("Plan (branch)", 1));
+        // Approvals, unattended mode and the pin stay with the original; folders and effort carry over.
+        assert_eq!(
+            (mode.as_str(), unattended, pinned, grants),
+            ("interactive", 0, 0, None)
+        );
+        assert_eq!(
+            (roots.as_str(), effort.as_str(), count),
+            ("[\"/extra\"]", "high", 4)
+        );
+
+        // Without a title the branch is named from its first message.
+        let unnamed = branch_session(tmp.path(), "s1", 3, None).unwrap();
+        let unnamed_id = unnamed["session_id"].as_str().unwrap();
+        let named: String = conn
+            .query_row(
+                "SELECT title FROM sessions WHERE session_id = ?1",
+                params![unnamed_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(named, "first question");
+    }
+
+    fn register_written_file(state: &Path, workspace: &Path, run: &str, path: &str, text: &str) {
+        let target = workspace.join(path);
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::write(&target, text).unwrap();
+        let (sha256, size) = crate::artifact::file_digest(&target).unwrap();
+        let ledger = crate::ledger::LedgerWriter::open(state.join("run_events.db")).unwrap();
+        crate::artifact::ArtifactRegistryWriter::new(&ledger)
+            .register(
+                &crate::artifact::ArtifactInput {
+                    path: path.to_owned(),
+                    name: path.to_owned(),
+                    kind: "file".to_owned(),
+                    size: size as i64,
+                    modified_at: 1.0,
+                    run_id: run.to_owned(),
+                    sha256,
+                    incomplete: false,
+                    registered_at: 1.0,
+                    status: crate::artifact::ArtifactStatus::PendingReview,
+                    lineage: Vec::new(),
+                },
+                1.0,
+                &workspace.to_string_lossy(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn undoing_a_run_restores_what_it_replaced_and_removes_what_it_created() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path();
+        let workspace = tmp.path().join("ws");
+        fs::create_dir_all(&workspace).unwrap();
+        let ws = workspace.canonicalize().unwrap();
+        let conn = open_conn(&state.join("core.db")).unwrap();
+        conn.execute(
+            "INSERT INTO sessions (session_id, workspace, model, mode, agent, n_msgs) VALUES ('s1', ?1, 'm', 'interactive', 'delta', 1)",
+            params![ws.to_string_lossy().to_string()],
+        )
+        .unwrap();
+        rewrite_messages(
+            state,
+            "s1",
+            &[json!({"role": "user", "content": "go", "run_id": "r1"})],
+        )
+        .unwrap();
+
+        // The run replaced notes.md (the runtime kept the original), created two files and wrote
+        // one that the user then edited by hand. Another run's file is not touched.
+        fs::create_dir_all(ws.join(".delta/versions/r1")).unwrap();
+        fs::write(ws.join(".delta/versions/r1/notes.md"), "original notes").unwrap();
+        register_written_file(state, &ws, "r1", "notes.md", "agent notes");
+        register_written_file(state, &ws, "r1", "out/report.md", "report");
+        register_written_file(state, &ws, "r1", "edited.md", "agent draft");
+        fs::write(ws.join("edited.md"), "the user changed this").unwrap();
+        register_written_file(state, &ws, "r1", "later.md", "v1");
+        register_written_file(state, &ws, "r1", "later.md", "v2");
+        register_written_file(state, &ws, "r2", "other-run.md", "keep me");
+
+        let undone = undo_run_files(state, "s1", "r1").unwrap();
+        assert_eq!(undone["ok"], true, "{undone}");
+        assert_eq!(
+            fs::read_to_string(ws.join("notes.md")).unwrap(),
+            "original notes"
+        );
+        assert!(!ws.join("out/report.md").exists());
+        assert!(
+            !ws.join("later.md").exists(),
+            "a file written twice is judged by its last version"
+        );
+        assert_eq!(
+            fs::read_to_string(ws.join("edited.md")).unwrap(),
+            "the user changed this"
+        );
+        assert_eq!(
+            fs::read_to_string(ws.join("other-run.md")).unwrap(),
+            "keep me"
+        );
+        let list = |key: &str| {
+            let mut items: Vec<String> = undone[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| {
+                    item.as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| item["path"].as_str().unwrap().to_owned())
+                })
+                .collect();
+            items.sort();
+            items
+        };
+        assert_eq!(list("restored"), ["notes.md"]);
+        assert_eq!(list("removed"), ["later.md", "out/report.md"]);
+        assert_eq!(undone["skipped"][0]["path"], "edited.md");
+        assert_eq!(undone["skipped"][0]["reason"], "changed_since");
+
+        // Nothing was deleted: the agent's versions are kept, and a second undo changes nothing.
+        let kept: Vec<_> = fs::read_dir(ws.join(".delta/versions"))
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("undone-"))
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(
+            fs::read_to_string(kept[0].path().join("notes.md")).unwrap(),
+            "agent notes"
+        );
+        assert_eq!(
+            fs::read_to_string(kept[0].path().join("out/report.md")).unwrap(),
+            "report"
+        );
+        let again = undo_run_files(state, "s1", "r1").unwrap();
+        assert!(
+            again["restored"].as_array().unwrap().is_empty()
+                && again["removed"].as_array().unwrap().is_empty(),
+            "{again}"
+        );
+        assert_eq!(
+            fs::read_to_string(ws.join("notes.md")).unwrap(),
+            "original notes"
+        );
+
+        // A run that is not this task's is refused.
+        assert_eq!(undo_run_files(state, "s1", "r2").unwrap()["ok"], false);
+        assert_eq!(undo_run_files(state, "other", "r1").unwrap()["ok"], false);
     }
 
     #[test]

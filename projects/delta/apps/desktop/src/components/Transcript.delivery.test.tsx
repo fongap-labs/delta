@@ -39,6 +39,52 @@ describe("delivery card", () => {
   });
 });
 
+describe("undoing a request's file changes", () => {
+  const request = (runId?: string): Item[] => [
+    { kind: "user", text: "make a report", ...(runId ? { runId } : {}) },
+    write("/w/report.docx"),
+    write("/w/data.csv"),
+    { kind: "assistant", text: "Done." },
+  ];
+
+  it("asks first, undoes the run it came from, and says what was done and what was left alone", async () => {
+    const undo = vi.fn().mockResolvedValue({ ok: true, restored: ["a"], removed: ["b", "c"], skipped: [{ path: "d", reason: "changed_since" }] });
+    render(wrap(<Transcript items={request("run-7")} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    fireEvent.click(screen.getByTestId("undo-run-files"));
+    // Nothing happens until it is confirmed, and the question can be declined.
+    expect(undo).not.toHaveBeenCalled();
+    expect(screen.getByTestId("delivery-undo").textContent).toContain("2 file(s)");
+    fireEvent.click(screen.getByTestId("undo-run-files-cancel"));
+    expect(screen.getByTestId("undo-run-files")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("undo-run-files"));
+    fireEvent.click(screen.getByTestId("undo-run-files-confirm"));
+    expect(undo).toHaveBeenCalledWith("run-7");
+    const result = await screen.findByTestId("undo-run-files-result");
+    expect(result.textContent).toBe("Restored 1, removed 2; 1 left alone because they changed since.");
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+  });
+
+  it("shows a failure's reason", async () => {
+    const undo = vi.fn().mockResolvedValue({ ok: false, error: "the workspace is unavailable" });
+    render(wrap(<Transcript items={request("run-7")} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    fireEvent.click(screen.getByTestId("undo-run-files"));
+    fireEvent.click(screen.getByTestId("undo-run-files-confirm"));
+    expect((await screen.findByTestId("undo-run-files-result")).textContent).toContain("workspace is unavailable");
+  });
+
+  it("is not offered without a run to undo, without files, or while the request is running", () => {
+    const undo = vi.fn();
+    const { rerender } = render(wrap(<Transcript items={request(undefined)} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+    rerender(wrap(<Transcript items={request("run-7")} running={true} onApprove={() => {}} onUndoFiles={undo} />));
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+    const none: Item[] = [{ kind: "user", text: "hi", runId: "run-7" }, { kind: "assistant", text: "Hello" }];
+    rerender(wrap(<Transcript items={none} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+  });
+});
+
 describe("steer receipt and failure actions", () => {
   it("marks a message sent during a run as added to the current task", () => {
     const items: Item[] = [{ kind: "user", text: "use the short path", steer: true }];
@@ -60,9 +106,30 @@ describe("starting points", () => {
     const onPick = vi.fn();
     render(wrap(<SessionIntro onPick={onPick} />));
     const buttons = screen.getAllByTestId("intro-example");
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(3);
     fireEvent.click(buttons[2]);
     expect(onPick).toHaveBeenCalledWith(buttons[2].textContent);
+  });
+
+  it("guides by kind of work: each kind shows its own examples, and the first kind is open", () => {
+    render(wrap(<SessionIntro onPick={() => {}} />));
+    expect(screen.getByTestId("intro-art")).toBeTruthy();
+    const kinds = screen.getAllByRole("tab");
+    expect(kinds).toHaveLength(3);
+    expect(kinds[0].getAttribute("aria-selected")).toBe("true");
+    const office = screen.getAllByTestId("intro-example").map((button) => button.textContent);
+    fireEvent.click(screen.getByTestId("intro-kind-research"));
+    const research = screen.getAllByTestId("intro-example").map((button) => button.textContent);
+    expect(research).toHaveLength(3);
+    expect(research.some((text) => office.includes(text))).toBe(false);
+    expect(screen.getByTestId("intro-kind-research").getAttribute("aria-selected")).toBe("true");
+    expect(kinds[0].getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("offers no starting points when nothing can receive them", () => {
+    render(wrap(<SessionIntro />));
+    expect(screen.queryAllByTestId("intro-example")).toHaveLength(0);
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 });
 

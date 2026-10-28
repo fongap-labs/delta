@@ -715,6 +715,8 @@ pub fn run() {
             runtime_ipc::set_local_only,
             runtime_ipc::set_path_rule,
             runtime_ipc::session_revert,
+            runtime_ipc::session_branch,
+            runtime_ipc::session_undo_files,
             runtime_ipc::restore_file_version,
             runtime_ipc::read_search_settings,
             runtime_ipc::write_search_settings,

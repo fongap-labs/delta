@@ -18,7 +18,13 @@ use sha2::{Digest, Sha256};
 use super::{parse_binding, parse_format, render, Binding};
 
 const OPEN: &str = "{{result:";
+const CITE_OPEN: &str = "{{cite:";
+const REFERENCES_OPEN: &str = "{{references:";
 const CLOSE: &str = "}}";
+/// The file `scholar_cite` writes: each reference, whether a published record backs it, and its
+/// citation text (ADR-0087).
+pub const REFERENCES_FORMAT: &str = "delta.references";
+pub const REFERENCES_VERSION: u64 = 1;
 pub const MANIFEST_FORMAT: &str = "delta.binding-manifest";
 pub const MANIFEST_VERSION: u64 = 1;
 /// The most bytes of a template, a report, a manifest or a result file read.
@@ -31,9 +37,25 @@ const MAX_LISTED_UNBOUND: usize = 20;
 /// Reads a file by the path a template or manifest names it with.
 pub type Reader<'a> = &'a dyn Fn(&str) -> Result<Vec<u8>, String>;
 
-/// One binding as rendered, as it is written in the manifest.
+/// What a binding stands for.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BindingKind {
+    /// A computed number, from a result file.
+    Number,
+    /// A numbered citation marker, from a reference file. `number` is its place in the report.
+    Citation { number: usize },
+    /// The list of the references cited from one reference file, with their numbers.
+    References {
+        ids: Vec<String>,
+        numbers: Vec<usize>,
+    },
+}
+
+/// One binding as rendered, as it is written in the manifest. For a citation `key` is the
+/// reference id; for a reference list it is empty.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RenderedBinding {
+    pub kind: BindingKind,
     pub artifact: String,
     pub sha256: String,
     pub key: String,
@@ -48,11 +70,23 @@ pub struct RenderedBinding {
 
 impl RenderedBinding {
     fn to_json(&self) -> Value {
-        json!({
-            "artifact": self.artifact, "sha256": self.sha256, "key": self.key,
-            "format": self.format, "raw": self.raw, "rendered": self.rendered,
-            "offset": self.offset, "section": self.section,
-        })
+        match &self.kind {
+            BindingKind::Number => json!({
+                "artifact": self.artifact, "sha256": self.sha256, "key": self.key,
+                "format": self.format, "raw": self.raw, "rendered": self.rendered,
+                "offset": self.offset, "section": self.section,
+            }),
+            BindingKind::Citation { number } => json!({
+                "kind": "cite", "artifact": self.artifact, "sha256": self.sha256, "id": self.key,
+                "number": number, "rendered": self.rendered,
+                "offset": self.offset, "section": self.section,
+            }),
+            BindingKind::References { ids, numbers } => json!({
+                "kind": "references", "artifact": self.artifact, "sha256": self.sha256,
+                "ids": ids, "numbers": numbers, "rendered": self.rendered,
+                "offset": self.offset, "section": self.section,
+            }),
+        }
     }
 }
 
@@ -123,6 +157,130 @@ fn load_value(
     Ok((sha256.clone(), number, *assurance))
 }
 
+/// One reference as a reference file records it.
+#[derive(Debug, Clone)]
+struct ReferenceEntry {
+    id: String,
+    found: bool,
+    title_matches: Option<bool>,
+    citation: String,
+}
+
+impl ReferenceEntry {
+    /// Whether a published record backs this reference, and the title it is cited under is the
+    /// recorded one. The reason when not.
+    fn backed(&self) -> Result<&str, String> {
+        if !self.found {
+            return Err(format!(
+                "no published record backs the reference {}",
+                self.id
+            ));
+        }
+        if self.title_matches == Some(false) {
+            return Err(format!(
+                "the title the reference {} is cited under is not the recorded title",
+                self.id
+            ));
+        }
+        if self.citation.trim().is_empty() {
+            return Err(format!("the reference {} has no citation text", self.id));
+        }
+        Ok(&self.citation)
+    }
+}
+
+type ReferenceFile = (String, Vec<ReferenceEntry>);
+
+fn load_references(
+    cache: &mut HashMap<String, Result<ReferenceFile, String>>,
+    read: Reader<'_>,
+    artifact: &str,
+) -> Result<ReferenceFile, String> {
+    cache
+        .entry(artifact.to_owned())
+        .or_insert_with(|| {
+            let bytes = read(artifact)?;
+            let sha256 = format!("{:x}", Sha256::digest(&bytes));
+            let value: Value = serde_json::from_slice(&bytes)
+                .map_err(|_| format!("{artifact} is not a JSON reference file"))?;
+            if value.get("format").and_then(Value::as_str) != Some(REFERENCES_FORMAT)
+                || value.get("version").and_then(Value::as_u64) != Some(REFERENCES_VERSION)
+            {
+                return Err(format!(
+                    "{artifact} is not a {REFERENCES_FORMAT} version {REFERENCES_VERSION} file"
+                ));
+            }
+            let entries = value
+                .get("references")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| {
+                            Some(ReferenceEntry {
+                                id: item.get("id")?.as_str()?.to_owned(),
+                                found: item.get("found").and_then(Value::as_bool).unwrap_or(false),
+                                title_matches: item.get("title_matches").and_then(Value::as_bool),
+                                citation: item
+                                    .get("citation")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                                    .to_owned(),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            Ok((sha256, entries))
+        })
+        .clone()
+}
+
+/// The reference list as written into a report: one paragraph per cited reference, numbered as the
+/// markers are.
+fn references_block(citations: &[(usize, String)]) -> String {
+    citations
+        .iter()
+        .map(|(number, citation)| format!("[{number}] {citation}"))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// The file and reference id in `{{cite:<file>#<id>}}`.
+fn parse_cite(source: &str) -> Result<(String, String), String> {
+    let inner = source
+        .trim()
+        .strip_prefix(CITE_OPEN)
+        .and_then(|rest| rest.strip_suffix(CLOSE))
+        .ok_or_else(|| "a citation has the form {{cite:<file>#<id>}}".to_owned())?;
+    let (path, id) = inner
+        .split_once('#')
+        .ok_or_else(|| "a citation names its reference after '#'".to_owned())?;
+    if path.trim().is_empty() || id.trim().is_empty() {
+        return Err("a citation names a reference file and a reference id".to_owned());
+    }
+    Ok((path.trim().to_owned(), id.trim().to_owned()))
+}
+
+fn parse_references(source: &str) -> Result<String, String> {
+    let path = source
+        .trim()
+        .strip_prefix(REFERENCES_OPEN)
+        .and_then(|rest| rest.strip_suffix(CLOSE))
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .ok_or_else(|| "a reference list has the form {{references:<file>}}".to_owned())?;
+    Ok(path.to_owned())
+}
+
+/// The next binding marker in `text`: where it starts, and which kind it is.
+fn next_marker(text: &str) -> Option<usize> {
+    [OPEN, CITE_OPEN, REFERENCES_OPEN]
+        .iter()
+        .filter_map(|marker| text.find(marker))
+        .min()
+}
+
 /// The heading text of the closest heading before `at` in `text`.
 fn section_at(text: &str, at: usize) -> Option<String> {
     text[..at]
@@ -136,11 +294,26 @@ fn section_at(text: &str, at: usize) -> Option<String> {
 /// Render `template`. Every problem found is returned together, not only the first.
 pub fn render_template(template: &str, read: Reader<'_>) -> Result<Rendered, Vec<String>> {
     let mut cache = HashMap::new();
+    let mut reference_cache = HashMap::new();
     let mut text = String::with_capacity(template.len());
     let mut bindings = Vec::new();
     let mut problems = Vec::new();
+    // A citation's number is its place among the distinct references cited, in the order the
+    // template first cites them.
+    let mut cited: Vec<(String, String)> = Vec::new();
+    let mut scan = template;
+    while let Some(start) = scan.find(CITE_OPEN) {
+        let after = &scan[start..];
+        let Some(end) = after.find(CLOSE) else { break };
+        if let Ok(pair) = parse_cite(&after[..end + CLOSE.len()]) {
+            if !cited.contains(&pair) {
+                cited.push(pair);
+            }
+        }
+        scan = &after[end + CLOSE.len()..];
+    }
     let mut rest = template;
-    while let Some(start) = rest.find(OPEN) {
+    while let Some(start) = next_marker(rest) {
         text.push_str(&rest[..start]);
         let after = &rest[start..];
         let Some(end) = after.find(CLOSE) else {
@@ -150,6 +323,87 @@ pub fn render_template(template: &str, read: Reader<'_>) -> Result<Rendered, Vec
         };
         let source = &after[..end + CLOSE.len()];
         rest = &after[end + CLOSE.len()..];
+        if source.starts_with(CITE_OPEN) {
+            let rendered = parse_cite(source).and_then(|(path, id)| {
+                let (sha256, entries) = load_references(&mut reference_cache, read, &path)?;
+                let entry = entries
+                    .iter()
+                    .find(|entry| entry.id == id)
+                    .ok_or_else(|| format!("{path} has no reference {id}"))?;
+                entry.backed()?;
+                let number = cited
+                    .iter()
+                    .position(|pair| *pair == (path.clone(), id.clone()));
+                Ok((path, id, sha256, number.map_or(0, |index| index + 1)))
+            });
+            match rendered {
+                Ok((path, id, sha256, number)) => {
+                    let marker = format!("[{number}]");
+                    let offset = text.chars().count();
+                    let section = section_at(&text, text.len());
+                    text.push_str(&marker);
+                    bindings.push(RenderedBinding {
+                        kind: BindingKind::Citation { number },
+                        artifact: path,
+                        sha256,
+                        key: id,
+                        format: String::new(),
+                        raw: 0.0,
+                        rendered: marker,
+                        offset,
+                        section,
+                    });
+                }
+                Err(error) => problems.push(format!("{source}: {error}")),
+            }
+            continue;
+        }
+        if source.starts_with(REFERENCES_OPEN) {
+            let rendered = parse_references(source).and_then(|path| {
+                let (sha256, entries) = load_references(&mut reference_cache, read, &path)?;
+                let mut ids = Vec::new();
+                let mut numbers = Vec::new();
+                let mut citations = Vec::new();
+                for (index, (file, id)) in cited.iter().enumerate() {
+                    if *file != path {
+                        continue;
+                    }
+                    // The citations were each checked where they are made.
+                    let citation = entries
+                        .iter()
+                        .find(|entry| entry.id == *id)
+                        .map(|entry| entry.backed().map(str::to_owned))
+                        .ok_or_else(|| format!("{path} has no reference {id}"))??;
+                    ids.push(id.clone());
+                    numbers.push(index + 1);
+                    citations.push((index + 1, citation));
+                }
+                if ids.is_empty() {
+                    return Err(format!("no reference from {path} is cited in this report"));
+                }
+                Ok((path, sha256, ids, numbers, references_block(&citations)))
+            });
+            match rendered {
+                Ok((path, sha256, ids, numbers, block)) => {
+                    let offset = text.chars().count();
+                    let section = section_at(&text, text.len());
+                    text.push_str(&block);
+                    bindings.push(RenderedBinding {
+                        kind: BindingKind::References { ids, numbers },
+                        artifact: path,
+                        sha256,
+                        key: String::new(),
+                        format: String::new(),
+                        raw: 0.0,
+                        rendered: block,
+                        offset,
+                        section,
+                    });
+                }
+                Err(error) => problems.push(format!("{source}: {error}")),
+            }
+            continue;
+        }
         let binding: Binding = match parse_binding(source) {
             Ok(binding) => binding,
             Err(error) => {
@@ -169,6 +423,7 @@ pub fn render_template(template: &str, read: Reader<'_>) -> Result<Rendered, Vec
                 let section = section_at(&text, text.len());
                 text.push_str(&rendered);
                 bindings.push(RenderedBinding {
+                    kind: BindingKind::Number,
                     artifact: binding.path,
                     sha256,
                     key: binding.key,
@@ -246,6 +501,129 @@ fn compile(pattern: &str) -> Result<Regex, String> {
         .map_err(|error| format!("allowed pattern {pattern:?} is not valid: {error}"))
 }
 
+/// The rendered text of a binding is where the manifest says, and does not overlap the one
+/// before it. The span it fills is added to `spans`.
+fn check_place(
+    check: &mut CheckReport,
+    at: &str,
+    chars: &[char],
+    rendered: &str,
+    offset: usize,
+    spans: &mut Vec<(usize, usize)>,
+    last_end: &mut usize,
+) {
+    let length = rendered.chars().count();
+    let found: String = chars
+        .get(offset..offset + length)
+        .map(|slice| slice.iter().collect())
+        .unwrap_or_default();
+    if found != rendered {
+        check.problems.push(format!(
+            "{at}: the report has {found:?} where the manifest says {rendered:?} (character {offset})"
+        ));
+    } else if offset < *last_end {
+        check
+            .problems
+            .push(format!("{at}: overlaps the binding before it"));
+    } else {
+        spans.push((offset, offset + length));
+        *last_end = offset + length;
+    }
+}
+
+/// Check a citation or reference-list entry of the manifest against the reference file as it is now:
+/// the file is the one that was rendered from, and every reference the report relies on is still
+/// backed by a published record.
+fn check_reference_entry(
+    check: &mut CheckReport,
+    at: &str,
+    kind: &str,
+    entry: &Value,
+    read: Reader<'_>,
+    cache: &mut HashMap<String, Result<ReferenceFile, String>>,
+    seen_artifacts: &mut std::collections::HashSet<String>,
+) -> Option<(String, usize)> {
+    let text = |name: &str| entry.get(name).and_then(Value::as_str);
+    let (Some(artifact), Some(sha256), Some(rendered), Some(offset)) = (
+        text("artifact"),
+        text("sha256"),
+        text("rendered"),
+        entry.get("offset").and_then(Value::as_u64),
+    ) else {
+        check
+            .problems
+            .push(format!("{at}: the manifest entry is incomplete"));
+        return None;
+    };
+    seen_artifacts.insert(artifact.to_owned());
+    let (ids, numbers): (Vec<String>, Vec<usize>) = if kind == "cite" {
+        match (text("id"), entry.get("number").and_then(Value::as_u64)) {
+            (Some(id), Some(number)) => (vec![id.to_owned()], vec![number as usize]),
+            _ => {
+                check
+                    .problems
+                    .push(format!("{at}: the manifest entry is incomplete"));
+                return None;
+            }
+        }
+    } else {
+        let ids = entry
+            .get("ids")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let numbers = entry
+            .get("numbers")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_u64)
+                    .map(|n| n as usize)
+                    .collect()
+            })
+            .unwrap_or_default();
+        (ids, numbers)
+    };
+    match load_references(cache, read, artifact) {
+        Err(error) => check.problems.push(format!("{at} ({artifact}): {error}")),
+        Ok((current_sha, entries)) => {
+            if current_sha != sha256 {
+                check.problems.push(format!(
+                    "{at} ({artifact}): the reference file has changed since the report was rendered"
+                ));
+            }
+            let mut citations = Vec::new();
+            for (id, number) in ids.iter().zip(numbers.iter()) {
+                match entries.iter().find(|entry| entry.id == *id) {
+                    None => check
+                        .problems
+                        .push(format!("{at} ({artifact}): the file has no reference {id}")),
+                    Some(found) => match found.backed() {
+                        Ok(citation) => citations.push((*number, citation.to_owned())),
+                        Err(reason) => check.problems.push(format!("{at} ({artifact}): {reason}")),
+                    },
+                }
+            }
+            if kind == "references"
+                && citations.len() == ids.len()
+                && references_block(&citations) != rendered
+            {
+                check.problems.push(format!(
+                    "{at} ({artifact}): the reference list no longer matches the reference file"
+                ));
+            }
+        }
+    }
+    Some((rendered.to_owned(), offset as usize))
+}
+
 /// Check `report` against `manifest`. `read` returns a result file's bytes. A formal report also
 /// may not hold a number outside its bindings except where one of `allowed` (regular expressions)
 /// or a default pattern covers it.
@@ -275,6 +653,7 @@ pub fn check_report(
         .unwrap_or_default();
     let chars: Vec<char> = report.chars().collect();
     let mut cache = HashMap::new();
+    let mut reference_cache = HashMap::new();
     let mut spans: Vec<(usize, usize)> = Vec::new();
     let mut seen_artifacts = std::collections::HashSet::new();
     let mut rejected_exploratory = std::collections::HashSet::new();
@@ -282,6 +661,29 @@ pub fn check_report(
     for (index, entry) in entries.iter().enumerate() {
         let at = format!("binding {}", index + 1);
         let text = |name: &str| entry.get(name).and_then(Value::as_str);
+        let kind = text("kind").unwrap_or("number");
+        if kind == "cite" || kind == "references" {
+            if let Some((rendered, offset)) = check_reference_entry(
+                &mut check,
+                &at,
+                kind,
+                entry,
+                read,
+                &mut reference_cache,
+                &mut seen_artifacts,
+            ) {
+                check_place(
+                    &mut check,
+                    &at,
+                    &chars,
+                    &rendered,
+                    offset,
+                    &mut spans,
+                    &mut last_end,
+                );
+            }
+            continue;
+        }
         let (Some(artifact), Some(sha256), Some(key), Some(format), Some(rendered)) = (
             text("artifact"),
             text("sha256"),
@@ -336,23 +738,15 @@ pub fn check_report(
             )),
             Err(error) => check.problems.push(format!("{at}: {error}")),
         }
-        let length = rendered.chars().count();
-        let found: String = chars
-            .get(offset..offset + length)
-            .map(|slice| slice.iter().collect())
-            .unwrap_or_default();
-        if found != rendered {
-            check.problems.push(format!(
-                "{at}: the report has {found:?} where the manifest says {rendered:?} (character {offset})"
-            ));
-        } else if offset < last_end {
-            check
-                .problems
-                .push(format!("{at}: overlaps the binding before it"));
-        } else {
-            spans.push((offset, offset + length));
-            last_end = offset + length;
-        }
+        check_place(
+            &mut check,
+            &at,
+            &chars,
+            rendered,
+            offset,
+            &mut spans,
+            &mut last_end,
+        );
     }
     check.bindings = entries.len();
     check.artifacts = seen_artifacts.len();

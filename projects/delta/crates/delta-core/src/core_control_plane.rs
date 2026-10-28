@@ -526,9 +526,15 @@ impl CoreControlPlane {
         automations
             .reconcile_terminal_sessions()
             .map_err(|error| error.to_string())?;
-        automations
+        let mut runs = automations
             .claim_due_runs()
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        // A folder that cannot be looked at must not hold back the scheduled runs.
+        match automations.claim_folder_runs() {
+            Ok(folder_runs) => runs.extend(folder_runs),
+            Err(error) => eprintln!("automation folder trigger failed: {error}"),
+        }
+        Ok(runs)
     }
 
     /// Start one scheduler-claimed automation through the same Core-owned
@@ -578,7 +584,7 @@ impl CoreControlPlane {
                 max_retries: None,
                 source: Some(json!({
                     "automation_id": run.get("task_id"),
-                    "trigger": "scheduled",
+                    "trigger": run.get("trigger").and_then(Value::as_str).unwrap_or("scheduled"),
                 })),
             },
             sink,
@@ -734,7 +740,51 @@ impl CoreControlPlane {
             );
         }
 
-        let mut prompt = DELTA_AGENT.system_prompt.to_string();
+        // A tool the egress level refuses for every call is not offered to the model (ADR-0061).
+        // An optional tool the session has no use for is left out too, to keep its definition out
+        // of every request.
+        let tool_workspace = workspace.clone().unwrap_or_default();
+        let facts = self.session_facts(&session_id, workspace.as_deref());
+        let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
+            if !crate::tool_surface::is_useful(&registration.tool_name, facts) {
+                return false;
+            }
+            let offered = serde_json::from_value::<ToolMetadata>(registration.metadata.clone())
+                .map(|metadata| {
+                    crate::egress::offered_to_model(
+                        &self.state_dir,
+                        &tool_workspace,
+                        &registration.tool_name,
+                        &metadata,
+                    )
+                })
+                .unwrap_or(false);
+            if !offered {
+                return false;
+            }
+            let Some(connector) = registration
+                .metadata
+                .get("connector")
+                .and_then(Value::as_str)
+            else {
+                return true;
+            };
+            self.application
+                .tool_available(connector, &registration.tool_name, Some(&session_id))
+                .unwrap_or(false)
+        });
+
+        // The prompt describes the tools this session offers and no others, so a tool that is
+        // switched off, refused by the egress level or not installed is neither listed nor
+        // mentioned. The offered set is the same on every turn unless the user changes it.
+        let offered_names: Vec<&str> = visible_tools
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| tool.pointer("/function/name").and_then(Value::as_str))
+            .collect();
+
+        let mut prompt = DELTA_AGENT.system_prompt(&offered_names);
         prompt.push_str(&crate::agent::environment_block(&config.model));
         if mode.as_deref() == Some("plan") {
             prompt.push_str("\n\nPlan mode is active. Inspect and reason, but do not perform writes until the user explicitly approves the plan.");
@@ -805,34 +855,6 @@ impl CoreControlPlane {
                 _ => {}
             }
         }
-
-        // A tool the egress level refuses for every call is not offered to the model (ADR-0061).
-        let workspace = config.workspace.clone().unwrap_or_default();
-        let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
-            let offered = serde_json::from_value::<ToolMetadata>(registration.metadata.clone())
-                .map(|metadata| {
-                    crate::egress::offered_to_model(
-                        &self.state_dir,
-                        &workspace,
-                        &registration.tool_name,
-                        &metadata,
-                    )
-                })
-                .unwrap_or(false);
-            if !offered {
-                return false;
-            }
-            let Some(connector) = registration
-                .metadata
-                .get("connector")
-                .and_then(Value::as_str)
-            else {
-                return true;
-            };
-            self.application
-                .tool_available(connector, &registration.tool_name, Some(&session_id))
-                .unwrap_or(false)
-        });
 
         let mut hosts = self
             .hosts
@@ -1285,6 +1307,39 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    /// The facts about a session that decide which optional tools it offers (`tool_surface`).
+    fn session_facts(
+        &self,
+        session_id: &str,
+        workspace: Option<&str>,
+    ) -> crate::tool_surface::SessionFacts {
+        let has_study = workspace
+            .is_some_and(|path| crate::tool_surface::workspace_has_study_record(Path::new(path)));
+        let has_statistics_runtime = self
+            .capabilities
+            .tool_schemas()
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| tool.pointer("/function/name").and_then(Value::as_str))
+            .any(|name| name.starts_with("statistics_explore_"));
+        let has_other_conversation = control_plane::list_sessions(&self.state_dir, workspace)
+            .ok()
+            .and_then(|listed| listed.get("sessions").and_then(Value::as_array).cloned())
+            .is_some_and(|sessions| {
+                sessions.iter().any(|session| {
+                    session.get("session_id").and_then(Value::as_str) != Some(session_id)
+                        && session.get("messages").and_then(Value::as_u64).unwrap_or(0) > 0
+                })
+            });
+        crate::tool_surface::SessionFacts {
+            has_analysis_work: has_study || has_statistics_runtime,
+            has_library_folder: self.library.roots().is_ok_and(|roots| !roots.is_empty()),
+            // A workspace-less session lists every conversation; only a named workspace scopes them.
+            has_other_conversation: workspace.is_some() && has_other_conversation,
+        }
+    }
+
     /// The local library (B1): the folders in it, indexing one, and taking one out. Indexing runs
     /// for as long as it needs (up to 30 minutes) and is meant for a background thread.
     pub fn library_roots(&self) -> Value {
@@ -1389,6 +1444,21 @@ impl CoreControlPlane {
 
     pub fn revert_session(&self, session_id: &str, index: usize) -> Result<Value, String> {
         control_plane::revert_session(&self.state_dir, session_id, index)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn branch_session(
+        &self,
+        session_id: &str,
+        index: usize,
+        title: Option<&str>,
+    ) -> Result<Value, String> {
+        control_plane::branch_session(&self.state_dir, session_id, index, title)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn undo_run_files(&self, session_id: &str, run_id: &str) -> Result<Value, String> {
+        control_plane::undo_run_files(&self.state_dir, session_id, run_id)
             .map_err(|error| error.to_string())
     }
 
@@ -1611,6 +1681,48 @@ mod statistics_run_tests {
         for name in names(&plane.statistics_tools()) {
             assert!(name.starts_with("statistics_explore_"), "{name}");
         }
+    }
+
+    #[test]
+    fn a_session_offers_the_optional_tools_only_when_it_has_something_for_them_to_work_on() {
+        let (state, plane) = open_plane();
+        let workspace = state.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let ws = workspace.to_string_lossy().to_string();
+        let facts = |plane: &CoreControlPlane| plane.session_facts("s1", Some(&ws));
+        assert_eq!(facts(&plane), crate::tool_surface::SessionFacts::default());
+
+        // A study record in the workspace.
+        std::fs::write(workspace.join("study.json"), "{}").unwrap();
+        assert!(facts(&plane).has_analysis_work);
+        std::fs::remove_file(workspace.join("study.json")).unwrap();
+
+        // Another conversation in the same workspace, with something said in it. The session's own
+        // messages, an empty conversation and one in another workspace do not count.
+        control_plane::ensure_session(state.path(), "s1", Some(&ws), "m").unwrap();
+        control_plane::append_session_message(
+            state.path(),
+            "s1",
+            &json!({"role": "user", "content": "hi"}),
+        )
+        .unwrap();
+        control_plane::ensure_session(state.path(), "empty", Some(&ws), "m").unwrap();
+        control_plane::ensure_session(state.path(), "elsewhere", Some("/other"), "m").unwrap();
+        control_plane::append_session_message(
+            state.path(),
+            "elsewhere",
+            &json!({"role": "user", "content": "hi"}),
+        )
+        .unwrap();
+        assert!(!facts(&plane).has_other_conversation);
+        control_plane::append_session_message(
+            state.path(),
+            "empty",
+            &json!({"role": "user", "content": "hello"}),
+        )
+        .unwrap();
+        assert!(facts(&plane).has_other_conversation);
+        assert!(!plane.session_facts("s1", None).has_other_conversation);
     }
 
     #[test]

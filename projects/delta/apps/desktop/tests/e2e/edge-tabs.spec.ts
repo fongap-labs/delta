@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, overrideMockCommand } from "./fixtures";
 
 // Each side panel has one handle on its edge: the same spot closes it and brings it back, and the
 // chevron points the way the panel will move.
@@ -42,4 +42,39 @@ test("side panel sections open by themselves only when they have something to sh
   await expect(page.getByTestId("access-section")).toBeVisible();
   await expect(page.locator(".rail-section-body")).toHaveCount(1);
   await expect(page.getByTestId("access-section").getByText("Connectors", { exact: true })).toBeVisible();
+});
+
+test("the side panel has no second toggle in the topbar once it is hidden", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("edge-tab-rail").click();
+  await expect(page.locator(".right-rail")).toHaveCount(0);
+  await expect(page.locator(".main-topbar-actions button")).toHaveCount(0);
+});
+
+test("the first-run chooser covers the edge tabs", async ({ page }) => {
+  await overrideMockCommand(
+    page,
+    "get_egress_settings",
+    `(args) => ({ ok: true, default_level: null, is_chosen: false, workspaces: [], endpoint_marks: [] })`,
+  );
+  await page.goto("/");
+  const chooser = page.getByTestId("egress-choice");
+  await expect(chooser).toBeVisible();
+  const zIndex = (selector: string) =>
+    page.locator(selector).first().evaluate((el) => Number(getComputedStyle(el).zIndex));
+  expect(await zIndex(".edge-tab-left")).toBeLessThan(await zIndex(".gate-overlay"));
+  expect(await zIndex(".edge-tab-right")).toBeLessThan(await zIndex(".gate-overlay"));
+});
+
+test("the sidebar's top row keeps every tool on one line", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".sidebar .brand")).toBeVisible();
+  const centres = await page.locator(".sidebar .brand > *").evaluateAll((els) =>
+    els.map((el) => {
+      const box = el.getBoundingClientRect();
+      return Math.round(box.top + box.height / 2);
+    }),
+  );
+  expect(centres.length).toBeGreaterThanOrEqual(4);
+  expect(new Set(centres).size).toBe(1);
 });

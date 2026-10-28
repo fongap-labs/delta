@@ -1,21 +1,23 @@
-// R6 left-nav polish: collapse (⌘B / brand button → reveal button docks it back) and the
+// R6 left-nav polish: collapse (⌘B / left edge tab → the same tab docks it back) and the
 // identity-collapsed Recent list, with no legacy persona grouping controls.
 import { expect } from "@playwright/test";
 import { test } from "./fixtures";
 
-test("collapse hides the sidebar and reclaims the width; reveal button docks it back", async ({
+test("collapse hides the sidebar and reclaims the width; the edge tab docks it back", async ({
   page,
 }) => {
   await page.goto("/");
   const app = page.locator(".app");
   await expect(page.locator(".sidebar")).toBeVisible();
 
-  // Collapse via the brand button.
-  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  // Collapse via the left edge tab, the only sidebar toggle besides ⌘B.
+  await expect(page.getByRole("button", { name: "Collapse sidebar" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Hide sidebar" }).click();
   await expect(app).toHaveClass(/nav-collapsed/);
-  // The floating reveal affordance appears; clicking it docks the nav back.
-  const reveal = page.getByRole("button", { name: "Show sidebar" }).first();
-  await expect(reveal).toBeVisible();
+  // Nothing else floats in to reveal it: the same tab, now saying "Show sidebar", docks it back.
+  await expect(page.locator(".nav-reveal-btn")).toHaveCount(0);
+  const reveal = page.getByRole("button", { name: "Show sidebar" });
+  await expect(reveal).toHaveCount(1);
   await reveal.click();
   await expect(app).not.toHaveClass(/nav-collapsed/);
 });

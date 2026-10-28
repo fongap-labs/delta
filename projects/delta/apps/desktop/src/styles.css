@@ -190,64 +190,48 @@ body {
   left: 0;
   bottom: 0;
   width: 14px;
-  z-index: 55;
+  z-index: 48; /* under the left edge tab, which peeks the nav on hover itself */
 }
-/* Edge tabs (EdgeTab): a slim handle on each side panel's edge, centred vertically. The left one
-   sits on the sidebar's right edge (or the window edge once collapsed); the right one on the right
-   panel's left edge (or the window edge once hidden). */
+/* Edge tabs (EdgeTab): a quiet hairline handle on each side panel's edge, centred vertically. The
+   left one sits on the sidebar's right edge (or the window edge once collapsed); the right one on
+   the right panel's left edge (or the window edge once hidden). The handle is deliberately thin:
+   a 1px outline, no fill at rest, no shadow, and a light chevron that firms up on hover. It sits
+   below the modal scrims (z-index 50 and up) so a dialog, such as the first-run chooser, covers it. */
 .edge-tab {
   position: fixed;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 58;
-  width: 14px;
-  height: 64px;
+  z-index: 49;
+  width: 11px;
+  height: 40px;
   display: grid;
   place-items: center;
   padding: 0;
-  color: var(--ink);
-  background: var(--selected);
+  color: var(--muted);
+  background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  opacity: 0.85;
   cursor: pointer;
-  transition: width 0.12s ease, background 0.12s ease, color 0.12s ease;
+  transition: width 0.12s ease, opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.edge-tab:hover, .edge-tab:focus-visible { width: 18px; color: var(--primary); background: var(--panel); }
-.edge-tab-left { left: 0; border-left: 0; border-radius: 0 8px 8px 0; }
+.edge-tab svg { stroke-width: 1.5; }
+.edge-tab:hover, .edge-tab:focus-visible { width: 14px; opacity: 1; color: var(--ink); border-color: var(--line-strong); }
+.edge-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.edge-tab-left { left: 0; border-left: 0; border-radius: 0 6px 6px 0; }
 .edge-tab-left.is-expanded, .app.nav-peek .edge-tab-left { left: var(--nav-w); }
-.edge-tab-right { right: 0; border-right: 0; border-radius: 8px 0 0 8px; }
+.edge-tab-right { right: 0; border-right: 0; border-radius: 6px 0 0 6px; }
 .edge-tab-right.is-expanded { right: var(--rail-w); }
 .edge-tab-flip { transform: scaleX(-1); }
 @media (prefers-reduced-motion: reduce) { .edge-tab { transition: none; } }
-/* Reveal button while collapsed. Positioned to land EXACTLY on the brand's pin button (.nav-pin-btn,
-   14px/14px inside the brand row) so peeking the nav puts the pin under the cursor — no travel. */
-.nav-reveal-btn {
-  position: fixed;
-  top: 10px; /* center (10+14) aligns with the topbar title in the browser build */
-  left: 14px;
-  z-index: 58;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--faint);
-  background: transparent;
-}
-.nav-reveal-btn:hover { color: var(--ink); background: var(--bg); }
-/* On desktop, both the brand row and the reveal button shift right to clear the traffic lights
-   (and down to align with them in their lowered position — see traffic_light_position in lib.rs). */
 /* Desktop overlay: the whole top strip sits lower (center ~30) to line up with the lowered
-   traffic lights — reveal/pin, the wordmark, and the topbar title all on that line. */
-.app.tauri-overlay .nav-reveal-btn { top: 13px; left: 84px; }
+   traffic lights — the sidebar tools, the wordmark, and the topbar title all on that line. */
 .app.tauri-overlay .main-topbar { padding-top: 9px; }
 /* The session topbar's collapsed-state cluster is INLINE (§22), so only the overlay build pads
    it — to clear the traffic lights. */
 .app.nav-collapsed.tauri-overlay .main-topbar { padding-left: 84px; }
-/* Full-page sub-navs (Settings / Connectors) start at the window top; while the main nav is
-   collapsed, the fixed reveal button (and, in the overlay build, the traffic lights) float over
-   that corner — push the sub-nav header below the strip so they never overlap. */
-.app.nav-collapsed .page-subnav { padding-top: 48px; }
+/* Full-page sub-navs (Settings / Connectors) start at the window top; in the overlay build the
+   traffic lights float over that corner while the main nav is collapsed — push the sub-nav
+   header below them. */
 .app.nav-collapsed.tauri-overlay .page-subnav { padding-top: 56px; }
 
 .tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 10px; }
@@ -469,8 +453,20 @@ body {
 .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
 /* Live run status at the foot of a running transcript: elapsed time over a hairline, then the wait. */
 .live-run-status { max-width: 760px; margin: 18px auto 0; display: flex; flex-direction: column; gap: 8px; }
-.live-run-elapsed { font-size: 12.5px; color: var(--faint); padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.live-run-line { align-self: flex-start; }
+.live-run-elapsed { font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* Messages typed during a run, waiting above the input (one row each). */
+.queued-messages { overflow: hidden; }
+.queued-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px 0 14px; color: var(--muted); }
+.queued-row + .queued-row { border-top: 1px solid var(--line); }
+.queued-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--ink); }
+.queued-btn { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.queued-btn:hover { color: var(--ink); background: var(--bg); }
+.queued-send { border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+.queued-send:hover { color: var(--on-primary); background: var(--primary); border-color: var(--primary); }
 .live-run-retry .thinking-dots span { background: var(--warn); }
+.live-run-awaiting { color: var(--ink); }
+.live-run-awaiting svg { color: var(--warn); }
 @keyframes thinking-dot {
   0%, 60%, 100% { opacity: 0.2; }
   30% { opacity: 1; }
@@ -483,9 +479,6 @@ body {
 .skeleton-row { animation: skeleton-breathe 1.2s ease-in-out infinite; }
 @keyframes skeleton-breathe { 50% { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .skeleton-row { animation: none; } }
-/* Run-status arc: one turn per second; static under "reduce motion" (the word still says Running). */
-.run-spin svg { animation: spin 1s linear infinite; transform-origin: 50% 50%; }
-@media (prefers-reduced-motion: reduce) { .run-spin svg { animation: none; } }
 
 .tool {
   border: 1px solid var(--line); border-radius: 9px; background: var(--panel);
@@ -888,19 +881,6 @@ button.btn.danger { color: var(--danger); }
 .intro .greeting .mark { color: var(--primary); }
 .intro-lede { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 8px 0 0; }
 
-/* Topbar "Artifacts (N)" affordance, shown when the side panel is hidden */
-.topbar-artifacts-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px; margin-right: 6px;
-  border: 1px solid var(--line-strong); border-radius: 8px;
-  background: var(--panel); color: var(--muted); cursor: pointer;
-  font: inherit; font-size: 12.5px;
-}
-.topbar-artifacts-btn:hover { color: var(--ink); border-color: var(--primary); }
-.topbar-artifacts-count {
-  min-width: 17px; padding: 0 5px; border-radius: 9px;
-  background: var(--primary); color: var(--on-primary); font-size: 11px; font-weight: 600; text-align: center;
-}
 /* request_directory prompt (agent-initiated) */
 .dirreq-card {
   background: var(--panel); border: 1px solid var(--primary); border-radius: 12px;
@@ -1769,12 +1749,38 @@ html[data-platform="linux"] ::-webkit-scrollbar-thumb:hover { background-color: 
 .delivery-open { margin-left: auto; font-size: 11.5px; color: var(--primary); flex-shrink: 0; }
 
 /* -- starting points on an empty task ------------------------------------------------ */
-.intro-examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 18px; }
+.intro-art { display: block; width: 188px; height: auto; margin: 0 auto 14px; }
+.intro-art .art-shadow { fill: var(--line); opacity: 0.7; }
+.intro-art .art-card { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1.2; }
+.intro-art .art-card-front { stroke: var(--primary); stroke-width: 1.5; }
+.intro-art .art-line { fill: var(--line-strong); }
+.intro-art .art-bar { fill: var(--primary); }
+.intro-art .art-bar-soft { opacity: 0.4; }
+.intro-art .art-bar-mid { opacity: 0.7; }
+.intro-art .art-dot { fill: none; stroke: var(--line-strong); stroke-width: 1.4; }
+.intro-art .art-dot-done { fill: var(--primary); stroke: var(--primary); }
+.intro-art .art-tick { fill: none; stroke: var(--on-primary); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.intro-art .art-badge { fill: var(--primary); stroke: var(--bg); stroke-width: 2; }
+.intro-art .art-spark { fill: var(--on-primary); }
+.intro .intro-lede { text-align: center; max-width: 460px; margin: 8px auto 0; }
+.intro-kinds { display: flex; justify-content: center; gap: 6px; margin-top: 20px; }
+.intro-kind {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font-size: 12.5px; color: var(--muted);
+  border: 1px solid transparent; border-radius: 999px; background: none; cursor: pointer;
+}
+.intro-kind:hover { color: var(--ink); background: var(--panel); }
+.intro-kind.is-active { color: var(--selected-ink); background: var(--selected); border-color: var(--line); }
+.intro-kind:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.intro-examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
 .intro-example {
   max-width: 100%; text-align: left; font-size: 12.5px; line-height: 1.4; color: var(--muted);
   border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 8px 12px; cursor: pointer;
 }
 .intro-example:hover { color: var(--ink); border-color: var(--primary); }
+@media (prefers-reduced-motion: no-preference) { .intro-example { transition: border-color 0.12s ease, color 0.12s ease; } }
+.delivery-undo { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.delivery-undo-confirm { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.delivery-undo-ok { color: var(--ink); }
 .delivery-skill {
   display: inline-block; margin-top: 4px; padding: 4px 10px; font-size: 12px; color: var(--primary);
   border: 1px solid var(--line); border-radius: 8px; background: none; cursor: pointer;

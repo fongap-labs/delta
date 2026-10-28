@@ -176,6 +176,20 @@ export function humanizeTool(name: string, args: any): HumanLine {
       };
     case "web_fetch":
       return { pre: "Read a web page — ", preKey: "humanize.webFetch", obj: trunc(urlHost(a.url), 50) };
+    case "table_reconcile":
+      return {
+        pre: "Compared two tables — ",
+        preKey: "humanize.tableReconcile",
+        obj: `${baseName(String(a.left?.path ?? ""))} ↔ ${baseName(String(a.right?.path ?? ""))}`,
+      };
+    case "table_check":
+      return { pre: "Checked a table — ", preKey: "humanize.tableCheck", obj: baseName(String(a.path ?? "")) };
+    case "scholar_search":
+      return { pre: "Searched the literature — ", preKey: "humanize.scholarSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "scholar_paper":
+      return { pre: "Read a paper's record — ", preKey: "humanize.scholarPaper", obj: trunc(String(a.id ?? ""), 50) };
+    case "scholar_cite":
+      return { pre: "Checked references — ", preKey: "humanize.scholarCite", obj: String(Array.isArray(a.references) ? a.references.length : 0) };
     case "explore":
       return {
         pre: "Sent a sub-agent to explore — ",
@@ -302,6 +316,12 @@ export function humanizeApprovalTitle(name: string, args: any): HumanLine {
       return { pre: "Read the web page ", preKey: "humanize.apWebFetch", obj: trunc(urlHost(a.url), 50) };
     case "web_search":
       return { pre: "Search the web for ", preKey: "humanize.apWebSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "scholar_search":
+      return { pre: "Search the literature for ", preKey: "humanize.apScholarSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "scholar_paper":
+      return { pre: "Read the record of the paper ", preKey: "humanize.apScholarPaper", obj: trunc(String(a.id ?? ""), 50) };
+    case "scholar_cite":
+      return { pre: "Check references against the published record: ", preKey: "humanize.apScholarCite", obj: String(Array.isArray(a.references) ? a.references.length : 0) };
     case "run_shell": {
       const desc = typeof a.description === "string" && a.description.trim() ? a.description.trim() : "";
       return {
@@ -366,6 +386,12 @@ export function humanizeAsk(name: string, args: any): HumanLine {
       return { pre: "Wanted to read the web page ", preKey: "humanize.askWebFetch", obj: trunc(urlHost(a.url), 50) };
     case "web_search":
       return { pre: "Wanted to search the web for ", preKey: "humanize.askWebSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "scholar_search":
+      return { pre: "Wanted to search the literature for ", preKey: "humanize.askScholarSearch", obj: `“${trunc(String(a.query ?? ""), 60)}”` };
+    case "scholar_paper":
+      return { pre: "Wanted to read the record of the paper ", preKey: "humanize.askScholarPaper", obj: trunc(String(a.id ?? ""), 50) };
+    case "scholar_cite":
+      return { pre: "Wanted to check references against the published record: ", preKey: "humanize.askScholarCite", obj: String(Array.isArray(a.references) ? a.references.length : 0) };
     case "send_message": {
       const { platform, tail } = messageTarget(String(a.target ?? ""));
       if (!tail) return { pre: "Wanted to send a message", preKey: "humanize.askSendMsg" };

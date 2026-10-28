@@ -112,10 +112,10 @@ test("long transcript content stays inside the chat while code and tables self-s
   // Hide/show the rail and collapse/restore the nav: every supported width combination stays bounded.
   await page.getByRole("button", { name: "Hide side panel" }).click();
   await expectContainedLayout(page);
-  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await page.getByRole("button", { name: "Hide sidebar" }).click();
   await expectContainedLayout(page);
   await page.getByRole("button", { name: "Show side panel" }).click();
   await expectContainedLayout(page);
-  await page.getByRole("button", { name: "Show sidebar" }).first().click();
+  await page.getByRole("button", { name: "Show sidebar" }).click();
   await expectContainedLayout(page);
 });

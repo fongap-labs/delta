@@ -202,6 +202,9 @@ pub struct Sheet {
     pub name: String,
     pub row_count: usize,
     pub lines: Vec<String>,
+    /// The same rows as cells: the sheet's own row number and the cell texts from column A, so a
+    /// reader that needs the cells does not have to split `lines` on its separator.
+    pub rows: Vec<(usize, Vec<String>)>,
 }
 
 /// Column index (A = 0) from a cell reference such as `AB12`.
@@ -310,6 +313,7 @@ pub(super) fn sheet_parts(archive: &mut Archive<'_>) -> Result<Vec<(String, Stri
 fn read_sheet(xml: &[u8], name: &str, strings: &[String]) -> Result<Sheet, String> {
     let mut reader = xml_reader(xml);
     let mut lines = Vec::new();
+    let mut rows: Vec<(usize, Vec<String>)> = Vec::new();
     let mut row_number = 0usize;
     let mut cells: Vec<(usize, String)> = Vec::new();
     let (mut kind, mut reference, mut value) = (String::new(), String::new(), String::new());
@@ -396,6 +400,7 @@ fn read_sheet(xml: &[u8], name: &str, strings: &[String]) -> Result<Sheet, Strin
                         line[column] = text;
                     }
                     lines.push(format!("{row_number}: {}", line.join(" | ")));
+                    rows.push((row_number, line));
                 }
                 _ => {}
             },
@@ -407,6 +412,7 @@ fn read_sheet(xml: &[u8], name: &str, strings: &[String]) -> Result<Sheet, Strin
         name: name.to_owned(),
         row_count: lines.len(),
         lines,
+        rows,
     })
 }
 

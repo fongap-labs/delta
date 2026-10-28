@@ -3,7 +3,6 @@ import { modelAfterSettings } from "./modelSync";
 import {
   announceInboxUnlock,
   finalizeAutomationRun,
-  getArtifacts,
   getHealth,
   getSessionMessages,
   getSessions,
@@ -20,6 +19,8 @@ import {
   deleteSession,
   renameSession,
   revertSession,
+  branchSession,
+  undoRunFiles,
   restoreFileVersion,
   getResumable,
   getRuntimeState,
@@ -40,6 +41,7 @@ import type {
   SessionInfo,
   SessionUsage,
   TodoItem,
+  UndoFilesResult,
   WsEvent,
 } from "./types";
 import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
@@ -58,8 +60,7 @@ import { shouldShowOverlay } from "./overlay";
 import { Icon } from "./components/Icon";
 import { EdgeTab } from "./components/EdgeTab";
 import { Sidebar } from "./components/Sidebar";
-import { Composer } from "./components/Composer";
-import { RunStatusBar } from "./components/RunStatusBar";
+import { Composer, type QueuedMessage } from "./components/Composer";
 import { interruptedAnchor, Transcript } from "./components/Transcript";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./components/Markdown";
 import { buildCompletionNotice, showCompletionNotice, type CompletionFile } from "./completionNotice";
@@ -348,9 +349,6 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleNav]);
-  // Count of files this Delta conversation has produced — surfaces an "Artifacts (N)" button in
-  // the topbar when the side panel is hidden, so produced files are never buried.
-  const [artifactCount, setArtifactCount] = useState(0);
   // Artifact traces per session, filled by `artifact_updated` frames for the Trace Logs panel.
   const [artifactTraces, setArtifactTraces] = useState<Record<string, ArtifactTrace[]>>({});
   // §32 deep link into the rail's Access section (the former Session-settings drawer): bumping
@@ -881,6 +879,10 @@ export function App() {
         case "turn_done":
           setRunning(false);
           setStepInfo(null);
+          // A run that ended on its own hands over to the next queued message; one the user
+          // stopped does not (the queue stays for them to send, change or drop).
+          if (stoppedByUserRef.current === sessionId) stoppedByUserRef.current = null;
+          else setDrainQueueFor(sessionId);
           notifyTurnDone();
           refreshSessions();
           // Re-pull the persisted thread: optimistic local items (the just-sent user
@@ -997,16 +999,6 @@ export function App() {
     if (atBottomRef.current) scrollToBottom();
   }, [items, streaming]);
 
-  // Track produced-file count for the topbar "Artifacts" affordance (works even when the rail is
-  // hidden, where the rail itself doesn't fetch). Refreshes on file writes and turn completion.
-  useEffect(() => {
-    if (surface !== "session") {
-      setArtifactCount(0);
-      return;
-    }
-    getArtifacts(sessionId).then((a) => setArtifactCount(a.length)).catch(() => {});
-  }, [surface, sessionId, browserRefreshKey]);
-
   // Keep the active session's pending Inbox items fresh (answer-in-context card). Loads on session
   // change + after each turn, plus a slow poll so an unattended agent's new question surfaces.
   useEffect(() => {
@@ -1020,19 +1012,43 @@ export function App() {
     return () => clearInterval(t);
   }, [surface, sessionId, browserRefreshKey, markUnattended]);
 
-  const runningStatusLabel = (_running: boolean): string => {
-    // R5.1 C3: human-readable lightweight run status, localized (the run-state word itself is
-    // rendered by RunStatusBar).
-    if (retryInfo)
-      return tr("run.detail.retrying", { n: retryInfo.attempt, max: retryInfo.max });
-    if (isStopping) return tr("run.detail.stopping");
-    if (stepInfo) return tr("run.detail.step", { n: stepInfo.n, label: stepInfo.label });
-    if (reasoningStream) return tr("run.detail.thinking");
-    if (streaming) return tr("run.detail.generating");
-    return tr("run.detail.executing");
+  // Messages typed during a run, per conversation. They wait for the run to end (see the effect
+  // below) unless the user interjects them into it.
+  const [queues, setQueues] = useState<Record<string, QueuedMessage[]>>({});
+  const queue = queues[sessionId] ?? [];
+  const [drainQueueFor, setDrainQueueFor] = useState<string | null>(null);
+  const stoppedByUserRef = useRef<string | null>(null);
+  const queueMessage = (text: string) =>
+    setQueues((all) => ({ ...all, [sessionId]: [...(all[sessionId] ?? []), { id: newId(), text }] }));
+  const removeQueued = (id: string) =>
+    setQueues((all) => ({ ...all, [sessionId]: (all[sessionId] ?? []).filter((item) => item.id !== id) }));
+  // Send queued messages now, in the order given, and then the draft. During a run each one
+  // interjects into it; with no run it starts one.
+  const interjectQueued = (ids: string[], draft?: string) => {
+    const picked = ids.flatMap((id) => queue.find((item) => item.id === id) ?? []);
+    setQueues((all) => ({
+      ...all,
+      [sessionId]: (all[sessionId] ?? []).filter((item) => !ids.includes(item.id)),
+    }));
+    for (const item of picked) send(item.text);
+    if (draft) send(draft);
   };
+  useEffect(() => {
+    if (!drainQueueFor) return;
+    if (drainQueueFor !== sessionId) {
+      setDrainQueueFor(null);
+      return;
+    }
+    if (isRunning) return;
+    const next = (queues[drainQueueFor] ?? [])[0];
+    setDrainQueueFor(null);
+    if (!next) return;
+    removeQueued(next.id);
+    send(next.text);
+  });
 
   const send = (text: string, attachments?: Attachment[], skill?: string) => {
+    stoppedByUserRef.current = null;
     setComposerNotice(null);
     // Force-run shows exactly what the user typed: "/name rest". Must match the server's
     // `display` sidecar formula so the turn_start dedupe recognizes the local echo.
@@ -1115,6 +1131,7 @@ export function App() {
     const targetSessionId = sessionId;
     if (!session || isStopping) return;
     setStopping(true);
+    stoppedByUserRef.current = targetSessionId;
     const result = await session.interrupt();
     if (foregroundSessionIdRef.current !== targetSessionId) return;
     if (!result.ok) {
@@ -1259,6 +1276,37 @@ export function App() {
     if (foregroundSessionIdRef.current !== targetSessionId) return;
     setItems(itemsFromMessages(messages));
     send(r.text, attachments);
+  };
+
+  // Branch in a new conversation: copy this thread up to the chosen answer into a new session and
+  // open it. The original is left as it was; the branch shares its workspace and model.
+  const branchFromAnswer = async (index: number) => {
+    if (!sessionId || isRunning) return;
+    const sourceId = sessionId;
+    const sourceTitle = sessions.find((s) => s.session_id === sourceId)?.title || tr("nav.newSession");
+    const result = await branchSession(sourceId, index, tr("transcript.branchTitle", { title: sourceTitle })).catch(
+      (): { ok: false; error: string; session_id?: string; workspace?: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (foregroundSessionIdRef.current !== sourceId) return;
+    if (!result.ok || !result.session_id) {
+      setItems((p) => [
+        ...p,
+        { kind: "notice", tone: "warn", text: tr("transcript.branchFailed", { error: result.error || "unknown" }) },
+      ]);
+      return;
+    }
+    refreshSessions();
+    await selectSession(result.session_id, result.workspace ?? "");
+  };
+
+  // Undo the files the last request wrote as one. The files change on disk, so the artifact list
+  // is read again.
+  const undoFiles = async (runId: string): Promise<UndoFilesResult> => {
+    const result = await undoRunFiles(sessionId, runId).catch(
+      (): UndoFilesResult => ({ ok: false, error: "unreachable" }),
+    );
+    setBrowserRefreshKey((k) => k + 1);
+    return result;
   };
 
   // Put back the version of a file the agent replaced; null when it worked, else the reason.
@@ -1542,20 +1590,6 @@ export function App() {
           testId="edge-tab-rail"
         />
       )}
-      {/* Explicit reveal affordance while collapsed (alongside hover-peek + ⌘B) — on every
-          surface EXCEPT the session view, whose topbar carries the [sidebar][+][search] cluster
-          instead (§22; no duplicate reveal buttons). */}
-      {navCollapsed && !isNavPeek && surface !== "session" && (
-        <button
-          className="nav-reveal-btn"
-          onClick={toggleNav}
-          onMouseEnter={() => setNavPeek(true)}
-          title="Show sidebar (⌘B)"
-          aria-label={tr("common.showSidebar")}
-        >
-          <Icon name="sidebar" size={16} />
-        </button>
-      )}
       {isEgressUnchosen && !isOnboarding && <EgressChoice onChosen={() => setEgressUnchosen(false)} />}
       {isOnboarding && (
         <Onboarding
@@ -1603,7 +1637,6 @@ export function App() {
         statisticsActive={surface === "statistics"}
         inboxActive={surface === "inbox"}
         collapsed={navCollapsed}
-        onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
         onResize={setNavWidth}
         resizeMaxWidth={maxNavWidth}
@@ -1640,9 +1673,9 @@ export function App() {
       ) : (
       <div className={"main" + (surface === "session" && !isRailHidden ? " rail-open" : "")}>
         <div className="main-topbar">
-          {/* Left: the contextual cluster — [sidebar] [+ new session] [search] — rendered ONLY
-              while the sidebar is collapsed (§22; the expanded sidebar already owns those
-              actions). Clicks must not start a window drag. */}
+          {/* Left: the contextual cluster — [+ new session] — rendered ONLY while the sidebar is
+              collapsed (§22; the expanded sidebar already owns that action). The sidebar toggle
+              is the left edge tab. Clicks must not start a window drag. */}
           <div className="main-topbar-side" onPointerDown={beginWindowDrag}>
             {navCollapsed && (
               <div
@@ -1650,14 +1683,6 @@ export function App() {
                 data-testid="topbar-cluster"
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                <button
-                  className="topbar-icon-btn"
-                  onClick={toggleNav}
-                  aria-label={tr("common.showSidebar")}
-                  title="Show sidebar (⌘B)"
-                >
-                  <Icon name="sidebar" size={16} />
-                </button>
                 <button
                   className="topbar-icon-btn"
                   onClick={() => startNewSession()}
@@ -1682,22 +1707,10 @@ export function App() {
               {activeTitle}
             </span>
           </div>
-          {/* Right: artifacts + the one session-panel toggle. Global search moved back into the
-              sidebar brand row (A2 revised) — the topbar drag surface had swallowed its clicks.
-              Model and mode controls stay in the composer (§22). */}
+          {/* Right: empty drag surface. The side-panel toggle is the right edge tab (§32), the one
+              entry; global search lives in the sidebar. Model and mode controls stay in the
+              composer (§22). */}
           <div className="main-topbar-side main-topbar-actions" onPointerDown={beginWindowDrag}>
-            {isRailHidden && artifactCount > 0 && (
-              <button
-                className="topbar-artifacts-btn"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setRailHidden(false)}
-                title={tr("artifacts.panelHint")}
-              >
-                <Icon name="file" size={14} />
-                <span>{tr("artifacts.title")}</span>
-                <span className="topbar-artifacts-count">{artifactCount}</span>
-              </button>
-            )}
           </div>
         </div>
         <div className={"main-workspace" + (isRailHidden ? " rail-hidden" : "")}>
@@ -1753,6 +1766,8 @@ export function App() {
                     onEditMessage={(index) => void editMessage(index)}
                     onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
                     onSendToMain={sendToMain}
+                    onBranch={(index) => void branchFromAnswer(index)}
+                    onUndoFiles={undoFiles}
                     // §33 ref #3: sub-threshold streamed text renders INSIDE the live turn
                     // group (header when collapsed, quiet line when expanded) — never as a
                     // floating paragraph.
@@ -1767,7 +1782,15 @@ export function App() {
                     !isCompacting &&
                     !reasoningStream &&
                     (!streaming || streamMode(streaming, items, isRunning) === "hold") &&
-                    !isLastAssistant(items) && <LiveRunStatus startedAt={turnStartedAt} retry={retryInfo} />}
+                    !isLastAssistant(items) && (
+                      <LiveRunStatus
+                        startedAt={turnStartedAt}
+                        retry={retryInfo}
+                        isAwaitingUser={isAwaitingUser}
+                        isStopping={isStopping}
+                        step={stepInfo}
+                      />
+                    )}
                   {streaming && streamMode(streaming, items, isRunning) === "answer" && (
                     <div className="transcript">
                       <div className="bubble-assistant">
@@ -1831,17 +1854,10 @@ export function App() {
               contextWindow={modelContextWindows[model]}
               contextBar={hasContextBar}
               placeholder={tr("composer.placeholderDelta")}
-              statusSlot={
-                isRunning ? (
-                  // The run is blocked on the user whenever an approval, folder request, plan or
-                  // question is pending: say so instead of "Running".
-                  <RunStatusBar
-                    state={isAwaitingUser ? "awaiting" : "running"}
-                    status={isAwaitingUser ? tr("run.detail.awaiting") : runningStatusLabel(isRunning)}
-                    active={isRunning}
-                  />
-                ) : null
-              }
+              queue={queue}
+              onQueue={queueMessage}
+              onQueueRemove={removeQueued}
+              onQueueInterject={interjectQueued}
               approvalSlot={
                 // Live inline cards are for ATTENDED sessions only; when Unattended the prompt is
                 // parked in the Inbox and surfaced via the answer-in-context card below.
@@ -1928,13 +1944,21 @@ function isLastAssistant(items: Item[]): boolean {
 }
 
 // The foot of a running transcript: how long the turn has run, over a hairline, then what it is
-// waiting on: a provider retry (with its attempt count) or the agent itself.
+// waiting on: the user's decision, a provider retry (with its attempt count), the step the agent is
+// on, or the agent itself. It is the one place the run's state is written out; the composer's
+// button says Stop or Stopping.
 function LiveRunStatus({
   startedAt,
   retry,
+  isAwaitingUser,
+  isStopping,
+  step,
 }: {
   startedAt: number | null;
   retry: { attempt: number; max: number } | null;
+  isAwaitingUser: boolean;
+  isStopping: boolean;
+  step: { n: number; label: string } | null;
 }) {
   const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
@@ -1949,19 +1973,29 @@ function LiveRunStatus({
       ? t("run.elapsed.minutes", { m: minutes, s: seconds % 60 }, `${minutes}m ${seconds % 60}s`)
       : t("run.elapsed.seconds", { s: seconds }, `${seconds}s`);
   return (
-    <div className="live-run-status" aria-live="polite">
-      {startedAt && <div className="live-run-elapsed">{t("run.processed", { time: elapsed }, `Processed ${elapsed}`)}</div>}
-      {retry ? (
-        <div className="waiting-row live-run-retry">
-          <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
-          <span>{t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)}</span>
-        </div>
-      ) : (
-        <div className="waiting-row">
-          <span className="spinner" aria-hidden="true" />
-          <span>{t("transcript.waitingForAgent", undefined, "Waiting for agent…")}</span>
-        </div>
-      )}
+    <div
+      className="live-run-status"
+      aria-live="polite"
+      data-testid="live-run-status"
+      data-run-state={isAwaitingUser ? "awaiting" : "running"}
+    >
+      <div className={"waiting-row live-run-line" + (retry && !isAwaitingUser ? " live-run-retry" : "")}>
+        {isAwaitingUser ? <Icon name="hand" size={14} /> : <span className="spinner" aria-hidden="true" />}
+        <span>
+          {isAwaitingUser
+            ? t("run.detail.awaiting", undefined, "Waiting for your decision")
+            : retry
+              ? t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)
+              : isStopping
+                ? t("run.detail.stopping", undefined, "Stopping…")
+                : step
+                  ? t("run.detail.step", { n: step.n, label: step.label }, `Step ${step.n} · ${step.label}`)
+                  : t("transcript.waitingForAgent", undefined, "Waiting for agent…")}
+        </span>
+        {startedAt && (
+          <span className="live-run-elapsed">· {t("run.takenTime", { time: elapsed }, `${elapsed} elapsed`)}</span>
+        )}
+      </div>
     </div>
   );
 }

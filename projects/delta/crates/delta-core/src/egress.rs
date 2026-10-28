@@ -771,15 +771,20 @@ pub fn path_key(tool_name: &str, metadata: &ToolMetadata) -> String {
     if tool_name.starts_with("browser_") {
         return "browser".to_owned();
     }
+    if tool_name.starts_with("scholar_") {
+        return "scholar".to_owned();
+    }
     tool_name.to_owned()
 }
 
 /// Paths a rule may name: the web tools, browser automation, opening an address, and MCP servers.
 fn is_path_key(path: &str) -> bool {
-    matches!(path, "web_search" | "web_fetch" | "browser" | "open_url")
-        || path
-            .strip_prefix("mcp:")
-            .is_some_and(|name| !name.trim().is_empty())
+    matches!(
+        path,
+        "web_search" | "web_fetch" | "scholar" | "browser" | "open_url"
+    ) || path
+        .strip_prefix("mcp:")
+        .is_some_and(|name| !name.trim().is_empty())
         || path
             .strip_prefix("connector:")
             .is_some_and(|name| !name.trim().is_empty())
@@ -968,6 +973,19 @@ fn outbound_refusal(level: EgressLevel, class: DestinationClass) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_scholarly_tools_share_one_rule_path() {
+        let metadata = ToolMetadata {
+            category: Some("web".to_owned()),
+            ..ToolMetadata::default()
+        };
+        for tool in ["scholar_search", "scholar_paper", "scholar_cite"] {
+            assert_eq!(path_key(tool, &metadata), "scholar", "{tool}");
+        }
+        assert!(is_path_key("scholar"));
+        assert_eq!(path_key("web_search", &metadata), "web_search");
+    }
+
     use super::*;
 
     fn target(class: DestinationClass, mark: Option<EndpointMark>) -> OutboundTarget {

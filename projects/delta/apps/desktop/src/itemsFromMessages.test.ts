@@ -44,7 +44,7 @@ describe("itemsFromMessages timestamps", () => {
 
     expect(items).toEqual([
       { kind: "user", text: "hi", ts: 1752969720, index: 0 },
-      { kind: "assistant", text: "hello", ts: 1752969724 },
+      { kind: "assistant", text: "hello", ts: 1752969724, index: 1 },
       { kind: "user", text: "old message", index: 2 },
     ]);
   });
@@ -62,7 +62,7 @@ describe("itemsFromMessages notices", () => {
 
     expect(items).toEqual([
       { kind: "user", text: "hi", index: 0 },
-      { kind: "assistant", text: "partial ans" },
+      { kind: "assistant", text: "partial ans", index: 1 },
       { kind: "notice", tone: "warn", text: "Interrupted." },
       { kind: "user", text: "again", index: 3 },
       { kind: "notice", tone: "warn", text: "Error: model down", retriable: true },
@@ -107,8 +107,32 @@ describe("itemsFromMessages reasoning", () => {
       { role: "assistant", content: "answer", reasoning: "let me think" },
       { role: "assistant", content: "", reasoning: "stopped mid-thought" },
     ] as any);
-    expect(items[1]).toEqual({ kind: "assistant", text: "answer", reasoning: "let me think" });
-    expect(items[2]).toEqual({ kind: "assistant", text: "", reasoning: "stopped mid-thought" });
+    expect(items[1]).toEqual({ kind: "assistant", text: "answer", reasoning: "let me think", index: 1 });
+    expect(items[2]).toEqual({ kind: "assistant", text: "", reasoning: "stopped mid-thought", index: 2 });
+  });
+});
+
+describe("itemsFromMessages answer index", () => {
+  it("numbers an answer by its stored message so a branch can end there", () => {
+    const items = itemsFromMessages([
+      { role: "user", content: "q" },
+      { role: "assistant", content: "", tool_calls: [{ id: "t1", function: { name: "web_search", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "t1", content: "r" },
+      { role: "assistant", content: "final" },
+    ] as any);
+    expect(items.filter((it) => it.kind === "assistant")).toEqual([{ kind: "assistant", text: "final", index: 3 }]);
+  });
+});
+
+describe("itemsFromMessages run ids", () => {
+  it("keeps the run a request started, so its file changes can be undone", () => {
+    const items = itemsFromMessages([
+      { role: "user", content: "make a report", run_id: "run-7" },
+      { role: "assistant", content: "Done." },
+      { role: "user", content: "no run recorded" },
+    ] as any);
+    expect(items[0]).toMatchObject({ kind: "user", runId: "run-7" });
+    expect((items[2] as any).runId).toBeUndefined();
   });
 });
 

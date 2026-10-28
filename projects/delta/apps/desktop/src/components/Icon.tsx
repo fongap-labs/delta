@@ -25,6 +25,7 @@ export type IconName =
   | "arrowLeft"
   | "copy"
   | "refresh"
+  | "branch"
   | "panelClose"
   | "panelOpen"
   | "plug"
@@ -113,6 +114,16 @@ export function Icon({
         <svg {...s}>
           <rect x="3.5" y="4.5" width="17" height="15" rx="4" />
           <path d="M9 4.5v15" />
+        </svg>
+      );
+    case "branch":
+      // A line that forks in two — "continue this thread somewhere new".
+      return (
+        <svg {...s}>
+          <circle cx="6" cy="12" r="2" />
+          <circle cx="18" cy="6" r="2" />
+          <circle cx="18" cy="18" r="2" />
+          <path d="M8 12h2.5c2.5 0 3.5-1.5 5.5-4.4M8 12h2.5c2.5 0 3.5 1.5 5.5 4.4" />
         </svg>
       );
     case "sidebarRight":

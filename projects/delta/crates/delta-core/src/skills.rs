@@ -80,6 +80,10 @@ const BUILTIN_SKILLS: &[(&str, &str)] = &[
         "short-video-pack",
         include_str!("../skills/short-video-pack/SKILL.md"),
     ),
+    (
+        "literature-review",
+        include_str!("../skills/literature-review/SKILL.md"),
+    ),
 ];
 
 /// What the user is told when they try to change or delete a built-in skill.
@@ -1499,7 +1503,12 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            ["five-image-note", "short-video-pack", "wechat-article"]
+            [
+                "five-image-note",
+                "literature-review",
+                "short-video-pack",
+                "wechat-article"
+            ]
         );
         for row in &rows {
             let name = row["name"].as_str().unwrap();
@@ -1612,7 +1621,7 @@ mod tests {
         let deleted = store.delete("wechat-article", None).unwrap();
         assert_eq!(deleted["ok"], false);
         assert!(deleted["error"].as_str().unwrap().contains("built-in"));
-        assert_eq!(builtin_rows(&store).len(), 3, "nothing was removed");
+        assert_eq!(builtin_rows(&store).len(), 4, "nothing was removed");
     }
 
     #[test]
@@ -1629,7 +1638,7 @@ mod tests {
             .unwrap();
         assert_eq!(mine["scope"], "global");
         assert_eq!(mine["instructions"], "My way.");
-        assert_eq!(builtin_rows(&store).len(), 2);
+        assert_eq!(builtin_rows(&store).len(), 3);
         assert_eq!(
             store
                 .update("wechat-article", &json!({"instructions": "Changed."}), None)
@@ -1637,7 +1646,7 @@ mod tests {
             true
         );
         assert_eq!(store.delete("wechat-article", None).unwrap()["ok"], true);
-        assert_eq!(builtin_rows(&store).len(), 3, "the built-in one is back");
+        assert_eq!(builtin_rows(&store).len(), 4, "the built-in one is back");
     }
 
     #[test]
@@ -1708,6 +1717,7 @@ mod tests {
                 let looks_like_tool = word.contains('_')
                     && [
                         "statistics_",
+                        "scholar_",
                         "report_",
                         "chart_",
                         "read_",

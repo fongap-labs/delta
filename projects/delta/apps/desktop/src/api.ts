@@ -1,4 +1,4 @@
-import type { GroupedQuestion, QuestionOption, SessionInfo, WsEvent } from "./types";
+import type { GroupedQuestion, QuestionOption, SessionInfo, UndoFilesResult, WsEvent } from "./types";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -73,6 +73,8 @@ import {
   directSessionRename,
   deleteSessionRoot,
   directSessionRevert,
+  directSessionBranch,
+  directUndoRunFiles,
   directRestoreVersion,
   directReadSearch,
   directWriteSearch,
@@ -524,6 +526,26 @@ export async function revertSession(
   index: number,
 ): Promise<{ ok: boolean; error?: string; text?: string }> {
   return await directSessionRevert(sessionId, index);
+}
+
+/**
+ * Start a new conversation from the end of an answer. `index` is the answer's message index; the
+ * result names the new session and the workspace it shares with the original.
+ */
+export async function branchSession(
+  sessionId: string,
+  index: number,
+  title?: string,
+): Promise<{ ok: boolean; error?: string; session_id?: string; workspace?: string }> {
+  return await directSessionBranch(sessionId, index, title);
+}
+
+/**
+ * Undo the files one run wrote: a file that replaced another gets its earlier version back, a file
+ * the run created is taken out of the workspace. A file changed since is left alone and reported.
+ */
+export async function undoRunFiles(sessionId: string, runId: string): Promise<UndoFilesResult> {
+  return await directUndoRunFiles(sessionId, runId);
 }
 
 /** Put back the earlier version the runtime kept when the agent replaced `target`. */
@@ -1726,7 +1748,15 @@ export interface Automation {
   title: string;
   instructions: string;
   schedule: string;
-  schedule_raw?: { kind: string; cron?: string | null; fire_at?: string | null; timezone?: string };
+  schedule_raw?: {
+    kind: string;
+    cron?: string | null;
+    fire_at?: string | null;
+    timezone?: string;
+    // A folder trigger: the watched folder (relative to the workspace) and the file-name pattern.
+    folder?: string;
+    pattern?: string | null;
+  };
   workspace: string;
   enabled: boolean;
   // Set when the circuit breaker paused this automation after repeated denials of one rule.
@@ -1810,6 +1840,11 @@ export async function createAutomation(payload: {
   cron?: string;
   fire_at?: string;
   timezone?: string;
+  // A folder trigger instead of a time: a run starts when a new file arrives in `watch_folder`
+  // (relative to `workspace`, "." for the workspace itself), optionally only for matching names.
+  workspace?: string;
+  watch_folder?: string;
+  watch_pattern?: string;
   // §25 standing grants (the creating surface rendered them; submit IS the consent).
   // Only target-bound write entries survive server-side validation.
   permissions?: { tool: string; target: string; access: "read" | "write" }[];

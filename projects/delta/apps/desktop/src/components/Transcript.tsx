@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import type { ApprovalDecision, Attachment, Item } from "../types";
+import type { ApprovalDecision, Attachment, Item, UndoFilesResult } from "../types";
 import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
@@ -576,6 +576,10 @@ interface Props {
   // refined; the work still happens in the task conversation. The receiver decides how to
   // present the carried text (quoted, editable) — the transcript only hands it over.
   onSendToMain?: (text: string) => void;
+  // Start a new conversation from the end of this answer (`index` is its stored message index).
+  onBranch?: (index: number) => void;
+  // Undo the files the last request wrote, as one (`runId` is its run). Resolves to what happened.
+  onUndoFiles?: (runId: string) => Promise<UndoFilesResult>;
 }
 
 // The transcript index whose notice gets the Retry button: the tail error notice, looking
@@ -603,7 +607,7 @@ export function interruptedAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, liveReasoning, onRetry,onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain }: Props) {
+export function Transcript({ items, running, streamingText, liveReasoning, onRetry,onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain, onBranch, onUndoFiles }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -851,6 +855,19 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
                           <Icon name="sparkle" size={11} />
                         </button>
                       )}
+                      {/* Only a stored answer can end a branch, and only while nothing is running:
+                          the copy is made from what the runtime has saved. */}
+                      {onBranch && !running && item.index !== undefined && (
+                        <button
+                          className="flex items-center cursor-pointer hover:text-muted"
+                          data-testid="bubble-branch"
+                          title={t("transcript.branch", undefined, "Branch in new conversation")}
+                          aria-label={t("transcript.branch", undefined, "Branch in new conversation")}
+                          onClick={() => onBranch(item.index!)}
+                        >
+                          <Icon name="branch" size={11} />
+                        </button>
+                      )}
                       {canRegenerate && item === items[lastAnswerPos] ? (
                         <button
                           className="flex items-center cursor-pointer hover:text-muted"
@@ -1001,6 +1018,7 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
         <DeliveryCard
           files={deliveredFiles}
           onRestoreVersion={onRestoreVersion}
+          onUndoAll={onUndoFiles && lastUser?.runId ? () => onUndoFiles(lastUser.runId!) : undefined}
           onSaveAsSkill={stepsInLastRequest >= SKILL_MIN_STEPS ? onSaveAsSkill : undefined}
         />
       )}
@@ -1076,12 +1094,17 @@ function DeliveryCard({
   files,
   onSaveAsSkill,
   onRestoreVersion,
+  onUndoAll,
 }: {
   files: DeliveredFile[];
   onSaveAsSkill?: () => void;
   onRestoreVersion?: (backup: string, target: string) => Promise<string | null>;
+  onUndoAll?: () => Promise<UndoFilesResult>;
 }) {
   const { t } = useI18n();
+  // Undoing every file is two steps (it removes files the request made), then says what it did.
+  const [undoStep, setUndoStep] = useState<"idle" | "confirm" | "working" | "done">("idle");
+  const [undoResult, setUndoResult] = useState<UndoFilesResult | null>(null);
   // path -> "restored" or an error message, once the user has tried to put the old version back.
   const [restored, setRestored] = useState<Record<string, string>>({});
   const baseName = (p: string) => p.replace(/\\/g, "/").split("/").pop() || p;
@@ -1128,6 +1151,58 @@ function DeliveryCard({
           )}
         </div>
       ))}
+      {onUndoAll && files.length > 0 && (
+        <div className="delivery-undo" data-testid="delivery-undo">
+          {undoStep === "idle" && (
+            <button
+              className="delivery-skill"
+              data-testid="undo-run-files"
+              title={t("transcript.undoFilesHint", undefined, "Put back the files this request replaced and take out the ones it made. Nothing is deleted: Delta keeps them in the task folder's .delta/versions.")}
+              onClick={() => setUndoStep("confirm")}
+            >
+              {t("transcript.undoFiles", undefined, "Undo these file changes")}
+            </button>
+          )}
+          {undoStep === "confirm" && (
+            <span className="delivery-undo-confirm">
+              <span>{t("transcript.undoFilesConfirm", { n: files.length }, `Undo the changes to ${files.length} file(s)?`)}</span>
+              <button
+                className="delivery-skill"
+                data-testid="undo-run-files-confirm"
+                onClick={async () => {
+                  setUndoStep("working");
+                  const result = await onUndoAll().catch(
+                    (): UndoFilesResult => ({ ok: false, error: "unreachable" }),
+                  );
+                  setUndoResult(result);
+                  setUndoStep("done");
+                }}
+              >
+                {t("transcript.undoFilesYes", undefined, "Undo")}
+              </button>
+              <button className="delivery-skill" data-testid="undo-run-files-cancel" onClick={() => setUndoStep("idle")}>
+                {t("transcript.undoFilesNo", undefined, "Keep")}
+              </button>
+            </span>
+          )}
+          {undoStep === "working" && <span className="rail-muted">{t("common.loading")}</span>}
+          {undoStep === "done" && undoResult && (
+            <span data-testid="undo-run-files-result" className={undoResult.ok ? "delivery-undo-ok" : "text-danger"}>
+              {undoResult.ok
+                ? t(
+                    "transcript.undoFilesDone",
+                    {
+                      restored: undoResult.restored?.length ?? 0,
+                      removed: undoResult.removed?.length ?? 0,
+                      skipped: undoResult.skipped?.length ?? 0,
+                    },
+                    "Restored {restored}, removed {removed}; {skipped} left alone because they changed since.",
+                  )
+                : undoResult.error || t("transcript.restoreFailed")}
+            </span>
+          )}
+        </div>
+      )}
       {onSaveAsSkill && (
         <button
           className="delivery-skill"

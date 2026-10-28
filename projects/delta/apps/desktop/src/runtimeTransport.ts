@@ -493,6 +493,10 @@ export const updateWorkspaceTrust = (path: string, isTrusted: boolean) =>
   invokeAuthority("update_workspace_trust", { path, isTrusted });
 export const directSessionRevert = (sessionId: string, index: number) =>
   invokeAuthority("session_revert", { sessionId, index });
+export const directSessionBranch = (sessionId: string, index: number, title?: string) =>
+  invokeAuthority("session_branch", { sessionId, index, title });
+export const directUndoRunFiles = (sessionId: string, runId: string) =>
+  invokeAuthority("session_undo_files", { sessionId, runId });
 export const directRestoreVersion = (sessionId: string, backup: string, target: string) =>
   invokeAuthority("restore_file_version", { sessionId, backup, target });
 export const directReadSearch = () => invokeAuthority("read_search_settings", {});

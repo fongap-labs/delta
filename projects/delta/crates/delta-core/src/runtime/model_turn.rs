@@ -275,7 +275,11 @@ impl RuntimeHost {
         ProviderRequest {
             protocol: self.config.protocol.clone(),
             model: self.config.model.clone(),
-            messages: Value::Array(self.outbound_messages()),
+            messages: Value::Array(with_turn_clock(
+                self.outbound_messages(),
+                &self.config.protocol,
+                &crate::agent::turn_clock_note(),
+            )),
             tools: if self.tools_refused() {
                 None
             } else {
@@ -933,6 +937,35 @@ impl RuntimeHost {
     }
 }
 
+/// Put the time of day at the very end of a request, on the newest user or tool message, and only
+/// in the copy that is sent: it is never stored. Everything before it is the same from one request
+/// to the next, which is what lets a provider reuse its cache of the conversation so far.
+fn with_turn_clock(mut messages: Vec<Value>, protocol: &str, note: &str) -> Vec<Value> {
+    let Some(last) = messages.last_mut() else {
+        return messages;
+    };
+    if !matches!(role_of(last), Some("user" | "tool")) {
+        return messages;
+    }
+    match last.get_mut("content") {
+        Some(Value::String(text)) => {
+            text.push_str("\n\n[");
+            text.push_str(note);
+            text.push(']');
+        }
+        Some(Value::Array(parts)) => {
+            let part_type = if protocol == "openai_responses" {
+                "input_text"
+            } else {
+                "text"
+            };
+            parts.push(json!({"type": part_type, "text": format!("[{note}]")}));
+        }
+        _ => {}
+    }
+    messages
+}
+
 fn role_of(message: &Value) -> Option<&str> {
     message.get("role").and_then(Value::as_str)
 }
@@ -1051,6 +1084,45 @@ pub(super) fn retry_delay_ms(base_ms: u64, retry: u32) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_clock_rides_the_newest_user_or_tool_message_and_nothing_else() {
+        let history = vec![
+            json!({"role": "system", "content": "rules"}),
+            json!({"role": "user", "content": "hi"}),
+            json!({"role": "assistant", "content": "hello"}),
+            json!({"role": "user", "content": "now?"}),
+        ];
+        let sent = with_turn_clock(history.clone(), "openai", "Local time: 2026-10-28 13:42");
+        // Everything before the newest message is exactly what was stored: the cacheable prefix.
+        assert_eq!(sent[..3], history[..3]);
+        assert_eq!(sent[3]["content"], "now?\n\n[Local time: 2026-10-28 13:42]");
+
+        let tool_tail = vec![
+            json!({"role": "user", "content": "go"}),
+            json!({"role": "tool", "tool_call_id": "c", "content": "done"}),
+        ];
+        let sent = with_turn_clock(tool_tail, "anthropic", "Local time: x");
+        assert_eq!(sent[1]["content"], "done\n\n[Local time: x]");
+
+        // A message made of parts gets a part of the type its protocol calls text.
+        let parts = vec![json!({"role": "user", "content": [{"type": "input_text", "text": "a"}]})];
+        let sent = with_turn_clock(parts.clone(), "openai_responses", "Local time: x");
+        assert_eq!(
+            sent[0]["content"][1],
+            json!({"type": "input_text", "text": "[Local time: x]"})
+        );
+        let sent = with_turn_clock(parts, "anthropic", "Local time: x");
+        assert_eq!(sent[0]["content"][1]["type"], "text");
+
+        // A tail that is not from the user or a tool, or no messages at all, is left alone.
+        let assistant_tail = vec![json!({"role": "assistant", "content": "x"})];
+        assert_eq!(
+            with_turn_clock(assistant_tail.clone(), "openai", "n"),
+            assistant_tail
+        );
+        assert!(with_turn_clock(Vec::new(), "openai", "n").is_empty());
+    }
 
     #[test]
     fn a_search_request_is_read_from_a_line_of_the_reply() {
