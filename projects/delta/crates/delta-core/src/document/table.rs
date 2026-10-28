@@ -18,6 +18,8 @@ use crate::capability::{
 
 /// Biggest table read, in bytes of the file.
 const MAX_TABLE_BYTES: u64 = 50 * 1024 * 1024;
+/// How many rows from the top are looked at to find the heading row.
+const HEADER_SEARCH_ROWS: usize = 10;
 /// Findings of each kind listed in an answer; the counts are always complete.
 const MAX_LISTED: usize = 100;
 
@@ -176,10 +178,29 @@ fn table_from_rows(name: &str, rows: Vec<Row>, header_row: Option<usize>) -> Res
             .iter()
             .position(|row| row.number == wanted)
             .ok_or_else(|| format!("{name} has no row {wanted} to use as the header"))?,
-        None => rows
-            .iter()
-            .position(|row| !is_blank(row))
-            .ok_or_else(|| format!("{name} has no rows with content"))?,
+        // A report usually opens with a title row (often one merged cell) above the headings, so
+        // the heading row is the first with about as many filled cells as the widest of the first
+        // few rows, not simply the first row with anything in it.
+        None => {
+            let filled = |row: &Row| {
+                row.cells
+                    .iter()
+                    .filter(|cell| !cell.trim().is_empty())
+                    .count()
+            };
+            let widest = rows
+                .iter()
+                .filter(|row| !is_blank(row))
+                .take(HEADER_SEARCH_ROWS)
+                .map(filled)
+                .max()
+                .ok_or_else(|| format!("{name} has no rows with content"))?;
+            rows.iter()
+                .position(|row| {
+                    !is_blank(row) && (widest < 2 || filled(row) * 2 >= widest && filled(row) >= 2)
+                })
+                .ok_or_else(|| format!("{name} has no rows with content"))?
+        }
     };
     let header: Vec<String> = rows[header_at]
         .cells
@@ -710,6 +731,19 @@ pub fn check_table(table: &Table, options: &CheckOptions, today: &str) -> Result
                     .and_then(|column| parse_number(table.cell(row, *column)))
             };
             let stated = parse_number(table.cell(row, target_column));
+            // A program that writes a workbook leaves a formula with no saved result; its text shows
+            // in place of a number. Say that, instead of "not a number".
+            if table.cell(row, target_column).starts_with('=') {
+                add(
+                    "uncalculated",
+                    row,
+                    json!({
+                        "rule": rule, "formula": table.cell(row, target_column),
+                        "note": "the cell holds a formula with no saved result; open the file in Excel and save it so the value is stored, then check again",
+                    }),
+                );
+                continue;
+            }
             match (stated, evaluate(&expression, &value_of)) {
                 (Some(stated), Some(expected)) => {
                     if (stated - expected).abs() > options.tolerance {
@@ -1320,6 +1354,44 @@ mod tests {
         let error = load_table(&path, Some("Missing"), None).unwrap_err();
         assert!(error.contains("\"Orders\", \"Other\""), "{error}");
         assert!(load_table(&dir.path().join("note.docx"), None, None).is_err());
+    }
+
+    #[test]
+    fn a_title_row_above_the_headings_is_not_taken_for_the_headings() {
+        let t = table(
+            "report.csv",
+            "October ledger,,,\n\nid,vendor,qty,amount\nA,Acme,2,10\nB,Beta,1,5\n",
+        );
+        assert_eq!(t.header, ["id", "vendor", "qty", "amount"]);
+        assert_eq!(
+            t.rows.iter().map(|row| row.number).collect::<Vec<_>>(),
+            [4, 5]
+        );
+        // A sheet with a single column keeps its first row as the heading.
+        assert_eq!(table("one.csv", "name\nx\ny\n").header, ["name"]);
+        // A heading row with a gap is still the heading row.
+        let gap = table("gap.csv", "Title\nid,,amount\n1,,2\n");
+        assert_eq!(gap.header, ["id", "", "amount"]);
+        // Asking for a row is always honoured.
+        let asked = table_from_text("ask.csv", b"a,b\nc,d\n", false, Some(2)).unwrap();
+        assert_eq!(asked.header, ["c", "d"]);
+    }
+
+    #[test]
+    fn a_formula_with_no_saved_result_is_named_as_that() {
+        let t = table("f.csv", "qty,price,amount\n2,3,=A2*B2\n1,2,2\n");
+        let options = CheckOptions {
+            rules: vec!["amount = qty * price".into()],
+            ..CheckOptions::default()
+        };
+        let report = check_table(&t, &options, "2026-10-28").unwrap();
+        assert_eq!(report["findings_total"], 1, "{report}");
+        assert_eq!(report["findings"][0]["kind"], "uncalculated");
+        assert_eq!(report["findings"][0]["formula"], "=A2*B2");
+        assert!(report["findings"][0]["note"]
+            .as_str()
+            .unwrap()
+            .contains("open the file in Excel"));
     }
 
     #[test]
