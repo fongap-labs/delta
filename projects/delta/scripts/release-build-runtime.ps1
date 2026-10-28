@@ -19,10 +19,11 @@ if ($Target -ne "x86_64-pc-windows-msvc") {
   throw "Unsupported runtime target: $Target"
 }
 
-# The pinned CPython 3.12 install_only archive. Set both values from the runtime-interpreter-pin
-# workflow's summary after review. The build refuses to run while either is empty.
-$InterpreterUrl = ""
-$InterpreterSha256 = ""
+# The pinned CPython 3.12 install_only archive: CPython 3.12.16 from python-build-standalone release
+# 20261026. The digest matches that release's SHA256SUMS, checked by the runtime-interpreter-pin workflow.
+# The build refuses to run while either value is empty.
+$InterpreterUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-x86_64-pc-windows-msvc-install_only.tar.gz"
+$InterpreterSha256 = "590dfcbe3a34c07301e6332e13e2188b98655cd072b08afa45a7998dc4c22bc5"
 if ([string]::IsNullOrEmpty($InterpreterUrl) -or [string]::IsNullOrEmpty($InterpreterSha256)) {
   throw "The CPython interpreter is not pinned yet. Run the Runtime interpreter pin workflow and record its digest."
 }

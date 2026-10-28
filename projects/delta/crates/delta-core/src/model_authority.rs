@@ -108,7 +108,60 @@ impl ModelAuthority {
         Ok(())
     }
 
+    /// The chat model's runtime config, with its picture handling: the vision bridge applies only
+    /// when this model is not marked as taking pictures and a vision model is configured.
     pub fn resolve_runtime_config(&self, requested_model: &str) -> Result<RuntimeConfig, String> {
+        let mut config = self.route_runtime_config(requested_model)?;
+        let file = self.read_authority()?;
+        let prefs = &file.prefs;
+        if crate::vision::model_supports_images(prefs, &config.model_id) {
+            return Ok(config);
+        }
+        let Some(settings) = crate::vision::bridge_settings(prefs) else {
+            return Ok(config);
+        };
+        config.vision = match self.vision_bridge(&settings) {
+            Ok(bridge) => crate::vision::VisionMode::Bridge(bridge),
+            Err(reason) => crate::vision::VisionMode::Unavailable(reason),
+        };
+        Ok(config)
+    }
+
+    /// Resolve the configured vision model. Its own route is resolved without a bridge, so the
+    /// bridge can never refer back to itself.
+    fn vision_bridge(
+        &self,
+        settings: &crate::vision::BridgeSettings,
+    ) -> Result<crate::vision::VisionBridge, String> {
+        let route = self
+            .route_runtime_config(&settings.model)
+            .map_err(|error| format!("the vision model could not be used: {error}"))?;
+        let protocol = if settings.protocol.is_empty() {
+            route.protocol
+        } else {
+            settings.protocol.clone()
+        };
+        Ok(crate::vision::VisionBridge {
+            model: route.model,
+            protocol,
+            api_key: route.api_key,
+            base_url: route.base_url,
+            max_image_bytes: settings.max_image_mb as usize * 1024 * 1024,
+            max_tokens: settings.max_tokens,
+            timeout_secs: settings.timeout_secs,
+            prompt: settings.prompt.clone(),
+        })
+    }
+
+    /// Apply a vision settings patch and return the saved state.
+    pub fn set_vision_settings(&self, patch: &Value) -> Result<Value, String> {
+        let mut file = self.read_authority()?;
+        ProductSettings::set_vision_settings(&mut file.prefs, patch)?;
+        self.write_authority(&file)?;
+        Ok(json!({"ok": true}))
+    }
+
+    fn route_runtime_config(&self, requested_model: &str) -> Result<RuntimeConfig, String> {
         let file = self.read_authority()?;
         let prefs = &file.prefs;
         let secrets = &file.secrets;
