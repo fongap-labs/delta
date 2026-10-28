@@ -39,6 +39,52 @@ describe("delivery card", () => {
   });
 });
 
+describe("undoing a request's file changes", () => {
+  const request = (runId?: string): Item[] => [
+    { kind: "user", text: "make a report", ...(runId ? { runId } : {}) },
+    write("/w/report.docx"),
+    write("/w/data.csv"),
+    { kind: "assistant", text: "Done." },
+  ];
+
+  it("asks first, undoes the run it came from, and says what was done and what was left alone", async () => {
+    const undo = vi.fn().mockResolvedValue({ ok: true, restored: ["a"], removed: ["b", "c"], skipped: [{ path: "d", reason: "changed_since" }] });
+    render(wrap(<Transcript items={request("run-7")} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    fireEvent.click(screen.getByTestId("undo-run-files"));
+    // Nothing happens until it is confirmed, and the question can be declined.
+    expect(undo).not.toHaveBeenCalled();
+    expect(screen.getByTestId("delivery-undo").textContent).toContain("2 file(s)");
+    fireEvent.click(screen.getByTestId("undo-run-files-cancel"));
+    expect(screen.getByTestId("undo-run-files")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("undo-run-files"));
+    fireEvent.click(screen.getByTestId("undo-run-files-confirm"));
+    expect(undo).toHaveBeenCalledWith("run-7");
+    const result = await screen.findByTestId("undo-run-files-result");
+    expect(result.textContent).toBe("Restored 1, removed 2; 1 left alone because they changed since.");
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+  });
+
+  it("shows a failure's reason", async () => {
+    const undo = vi.fn().mockResolvedValue({ ok: false, error: "the workspace is unavailable" });
+    render(wrap(<Transcript items={request("run-7")} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    fireEvent.click(screen.getByTestId("undo-run-files"));
+    fireEvent.click(screen.getByTestId("undo-run-files-confirm"));
+    expect((await screen.findByTestId("undo-run-files-result")).textContent).toContain("workspace is unavailable");
+  });
+
+  it("is not offered without a run to undo, without files, or while the request is running", () => {
+    const undo = vi.fn();
+    const { rerender } = render(wrap(<Transcript items={request(undefined)} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+    rerender(wrap(<Transcript items={request("run-7")} running={true} onApprove={() => {}} onUndoFiles={undo} />));
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+    const none: Item[] = [{ kind: "user", text: "hi", runId: "run-7" }, { kind: "assistant", text: "Hello" }];
+    rerender(wrap(<Transcript items={none} running={false} onApprove={() => {}} onUndoFiles={undo} />));
+    expect(screen.queryByTestId("undo-run-files")).toBeNull();
+  });
+});
+
 describe("steer receipt and failure actions", () => {
   it("marks a message sent during a run as added to the current task", () => {
     const items: Item[] = [{ kind: "user", text: "use the short path", steer: true }];

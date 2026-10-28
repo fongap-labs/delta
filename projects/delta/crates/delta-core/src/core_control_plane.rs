@@ -1451,6 +1451,11 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    pub fn undo_run_files(&self, session_id: &str, run_id: &str) -> Result<Value, String> {
+        control_plane::undo_run_files(&self.state_dir, session_id, run_id)
+            .map_err(|error| error.to_string())
+    }
+
     pub fn restore_file_version(
         &self,
         session_id: &str,

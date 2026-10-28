@@ -1778,6 +1778,9 @@ html[data-platform="linux"] ::-webkit-scrollbar-thumb:hover { background-color: 
 }
 .intro-example:hover { color: var(--ink); border-color: var(--primary); }
 @media (prefers-reduced-motion: no-preference) { .intro-example { transition: border-color 0.12s ease, color 0.12s ease; } }
+.delivery-undo { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.delivery-undo-confirm { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.delivery-undo-ok { color: var(--ink); }
 .delivery-skill {
   display: inline-block; margin-top: 4px; padding: 4px 10px; font-size: 12px; color: var(--primary);
   border: 1px solid var(--line); border-radius: 8px; background: none; cursor: pointer;

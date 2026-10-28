@@ -46,6 +46,8 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
       // `ts` (unix seconds) is the server's canonical-message stamp; older sessions have none.
       if (typeof m.ts === "number") user.ts = m.ts;
       user.index = msgIndex;
+      // The run this request started: its file changes can be undone as one.
+      if (typeof m.run_id === "string" && m.run_id) user.runId = m.run_id;
       if (user.text || user.attachments?.length) items.push(user);
     } else if (m.role === "assistant") {
       if (m.content || m.reasoning)

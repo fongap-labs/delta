@@ -1,4 +1,4 @@
-import type { GroupedQuestion, QuestionOption, SessionInfo, WsEvent } from "./types";
+import type { GroupedQuestion, QuestionOption, SessionInfo, UndoFilesResult, WsEvent } from "./types";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
@@ -74,6 +74,7 @@ import {
   deleteSessionRoot,
   directSessionRevert,
   directSessionBranch,
+  directUndoRunFiles,
   directRestoreVersion,
   directReadSearch,
   directWriteSearch,
@@ -537,6 +538,14 @@ export async function branchSession(
   title?: string,
 ): Promise<{ ok: boolean; error?: string; session_id?: string; workspace?: string }> {
   return await directSessionBranch(sessionId, index, title);
+}
+
+/**
+ * Undo the files one run wrote: a file that replaced another gets its earlier version back, a file
+ * the run created is taken out of the workspace. A file changed since is left alone and reported.
+ */
+export async function undoRunFiles(sessionId: string, runId: string): Promise<UndoFilesResult> {
+  return await directUndoRunFiles(sessionId, runId);
 }
 
 /** Put back the earlier version the runtime kept when the agent replaced `target`. */

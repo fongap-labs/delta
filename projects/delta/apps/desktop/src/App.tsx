@@ -20,6 +20,7 @@ import {
   renameSession,
   revertSession,
   branchSession,
+  undoRunFiles,
   restoreFileVersion,
   getResumable,
   getRuntimeState,
@@ -40,6 +41,7 @@ import type {
   SessionInfo,
   SessionUsage,
   TodoItem,
+  UndoFilesResult,
   WsEvent,
 } from "./types";
 import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
@@ -1297,6 +1299,16 @@ export function App() {
     await selectSession(result.session_id, result.workspace ?? "");
   };
 
+  // Undo the files the last request wrote as one. The files change on disk, so the artifact list
+  // is read again.
+  const undoFiles = async (runId: string): Promise<UndoFilesResult> => {
+    const result = await undoRunFiles(sessionId, runId).catch(
+      (): UndoFilesResult => ({ ok: false, error: "unreachable" }),
+    );
+    setBrowserRefreshKey((k) => k + 1);
+    return result;
+  };
+
   // Put back the version of a file the agent replaced; null when it worked, else the reason.
   const restoreVersion = async (backup: string, target: string): Promise<string | null> => {
     const result = await restoreFileVersion(sessionId, backup, target).catch(
@@ -1755,6 +1767,7 @@ export function App() {
                     onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
                     onSendToMain={sendToMain}
                     onBranch={(index) => void branchFromAnswer(index)}
+                    onUndoFiles={undoFiles}
                     // §33 ref #3: sub-threshold streamed text renders INSIDE the live turn
                     // group (header when collapsed, quiet line when expanded) — never as a
                     // floating paragraph.

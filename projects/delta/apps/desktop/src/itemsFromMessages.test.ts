@@ -124,6 +124,18 @@ describe("itemsFromMessages answer index", () => {
   });
 });
 
+describe("itemsFromMessages run ids", () => {
+  it("keeps the run a request started, so its file changes can be undone", () => {
+    const items = itemsFromMessages([
+      { role: "user", content: "make a report", run_id: "run-7" },
+      { role: "assistant", content: "Done." },
+      { role: "user", content: "no run recorded" },
+    ] as any);
+    expect(items[0]).toMatchObject({ kind: "user", runId: "run-7" });
+    expect((items[2] as any).runId).toBeUndefined();
+  });
+});
+
 describe("withUserIndexes", () => {
   it("gives an optimistic user bubble the index of its stored twin, newest match first", () => {
     const persisted = itemsFromMessages([

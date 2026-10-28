@@ -642,6 +642,94 @@ pub fn restore_file_version(
     restore_version_in(Path::new(&workspace), backup, target)
 }
 
+/// Undo the files one run of a session wrote through the artifact path (a document, a report, a
+/// text file): a file that replaced an earlier one gets the earlier version back, and a file the run
+/// created is taken out of the workspace. Nothing is deleted: what is undone is kept under
+/// `.delta/versions/undone-<time>/`, so the undo can be undone by hand.
+///
+/// A file is touched only if it is still exactly what the run wrote (its SHA-256 is the one the
+/// ledger recorded). One the user or a later run changed since is left alone and reported. Files
+/// that a shell command wrote are not registered artifacts, so they are not part of this.
+pub fn undo_run_files(
+    state_dir: &Path,
+    session_id: &str,
+    run_id: &str,
+) -> Result<Value, ShadowReadError> {
+    let fail = |message: &str| Ok(json!({"ok": false, "error": message}));
+    if !session_run_ids(state_dir, session_id)
+        .iter()
+        .any(|id| id == run_id)
+    {
+        return fail("that run does not belong to this task");
+    }
+    let workspace = session_workspace(state_dir, session_id)?;
+    let Ok(workspace) = Path::new(&workspace).canonicalize() else {
+        return fail("the workspace is unavailable");
+    };
+    let ledger_path = state_dir.join("run_events.db");
+    if !ledger_path.exists() {
+        return Ok(json!({"ok": true, "restored": [], "removed": [], "skipped": []}));
+    }
+    let reader = crate::artifact::ArtifactReader::open(ledger_path)?;
+    // The last record of a path is what the run left there; the first replacement kept the original.
+    let mut latest: Vec<(String, String)> = Vec::new();
+    for record in reader.list_for_run(run_id)? {
+        match latest.iter_mut().find(|(path, _)| *path == record.path) {
+            Some(entry) => entry.1 = record.sha256,
+            None => latest.push((record.path, record.sha256)),
+        }
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let versions = workspace.join(".delta").join("versions");
+    let undone = versions.join(format!("undone-{stamp}"));
+    let (mut restored, mut removed, mut skipped) = (Vec::new(), Vec::new(), Vec::new());
+    // Newest first, so a file that is a folder's only content leaves its folder empty last.
+    for (path, recorded) in latest.iter().rev() {
+        let relative = Path::new(path);
+        let is_plain = !relative.as_os_str().is_empty()
+            && relative
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)));
+        let target = workspace.join(relative);
+        if !is_plain || target.starts_with(workspace.join(".delta")) {
+            skipped.push(json!({"path": path, "reason": "reserved"}));
+            continue;
+        }
+        if !target.is_file() {
+            skipped.push(json!({"path": path, "reason": "missing"}));
+            continue;
+        }
+        // Not what the run wrote any more: the user or a later run has changed it.
+        let unchanged =
+            crate::artifact::file_digest(&target).is_ok_and(|(sha, _)| sha == *recorded);
+        if !unchanged {
+            skipped.push(json!({"path": path, "reason": "changed_since"}));
+            continue;
+        }
+        let kept_original = versions.join(run_id).join(relative);
+        let keep_current = undone.join(relative);
+        if let Some(parent) = keep_current.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if kept_original.is_file() {
+            fs::copy(&target, &keep_current)?;
+            let bytes = fs::read(&kept_original)?;
+            atomic_write(&target, &bytes)?;
+            restored.push(json!(path));
+        } else {
+            if fs::rename(&target, &keep_current).is_err() {
+                fs::copy(&target, &keep_current)?;
+                fs::remove_file(&target)?;
+            }
+            removed.push(json!(path));
+        }
+    }
+    Ok(json!({"ok": true, "restored": restored, "removed": removed, "skipped": skipped}))
+}
+
 fn restore_version_in(
     workspace: &Path,
     backup: &str,
@@ -1962,6 +2050,134 @@ mod tests {
             )
             .unwrap();
         assert_eq!(named, "first question");
+    }
+
+    fn register_written_file(state: &Path, workspace: &Path, run: &str, path: &str, text: &str) {
+        let target = workspace.join(path);
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::write(&target, text).unwrap();
+        let (sha256, size) = crate::artifact::file_digest(&target).unwrap();
+        let ledger = crate::ledger::LedgerWriter::open(state.join("run_events.db")).unwrap();
+        crate::artifact::ArtifactRegistryWriter::new(&ledger)
+            .register(
+                &crate::artifact::ArtifactInput {
+                    path: path.to_owned(),
+                    name: path.to_owned(),
+                    kind: "file".to_owned(),
+                    size: size as i64,
+                    modified_at: 1.0,
+                    run_id: run.to_owned(),
+                    sha256,
+                    incomplete: false,
+                    registered_at: 1.0,
+                    status: crate::artifact::ArtifactStatus::PendingReview,
+                    lineage: Vec::new(),
+                },
+                1.0,
+                &workspace.to_string_lossy(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn undoing_a_run_restores_what_it_replaced_and_removes_what_it_created() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = tmp.path();
+        let workspace = tmp.path().join("ws");
+        fs::create_dir_all(&workspace).unwrap();
+        let ws = workspace.canonicalize().unwrap();
+        let conn = open_conn(&state.join("core.db")).unwrap();
+        conn.execute(
+            "INSERT INTO sessions (session_id, workspace, model, mode, agent, n_msgs) VALUES ('s1', ?1, 'm', 'interactive', 'delta', 1)",
+            params![ws.to_string_lossy().to_string()],
+        )
+        .unwrap();
+        rewrite_messages(
+            state,
+            "s1",
+            &[json!({"role": "user", "content": "go", "run_id": "r1"})],
+        )
+        .unwrap();
+
+        // The run replaced notes.md (the runtime kept the original), created two files and wrote
+        // one that the user then edited by hand. Another run's file is not touched.
+        fs::create_dir_all(ws.join(".delta/versions/r1")).unwrap();
+        fs::write(ws.join(".delta/versions/r1/notes.md"), "original notes").unwrap();
+        register_written_file(state, &ws, "r1", "notes.md", "agent notes");
+        register_written_file(state, &ws, "r1", "out/report.md", "report");
+        register_written_file(state, &ws, "r1", "edited.md", "agent draft");
+        fs::write(ws.join("edited.md"), "the user changed this").unwrap();
+        register_written_file(state, &ws, "r1", "later.md", "v1");
+        register_written_file(state, &ws, "r1", "later.md", "v2");
+        register_written_file(state, &ws, "r2", "other-run.md", "keep me");
+
+        let undone = undo_run_files(state, "s1", "r1").unwrap();
+        assert_eq!(undone["ok"], true, "{undone}");
+        assert_eq!(
+            fs::read_to_string(ws.join("notes.md")).unwrap(),
+            "original notes"
+        );
+        assert!(!ws.join("out/report.md").exists());
+        assert!(
+            !ws.join("later.md").exists(),
+            "a file written twice is judged by its last version"
+        );
+        assert_eq!(
+            fs::read_to_string(ws.join("edited.md")).unwrap(),
+            "the user changed this"
+        );
+        assert_eq!(
+            fs::read_to_string(ws.join("other-run.md")).unwrap(),
+            "keep me"
+        );
+        let list = |key: &str| {
+            let mut items: Vec<String> = undone[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| {
+                    item.as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| item["path"].as_str().unwrap().to_owned())
+                })
+                .collect();
+            items.sort();
+            items
+        };
+        assert_eq!(list("restored"), ["notes.md"]);
+        assert_eq!(list("removed"), ["later.md", "out/report.md"]);
+        assert_eq!(undone["skipped"][0]["path"], "edited.md");
+        assert_eq!(undone["skipped"][0]["reason"], "changed_since");
+
+        // Nothing was deleted: the agent's versions are kept, and a second undo changes nothing.
+        let kept: Vec<_> = fs::read_dir(ws.join(".delta/versions"))
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("undone-"))
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(
+            fs::read_to_string(kept[0].path().join("notes.md")).unwrap(),
+            "agent notes"
+        );
+        assert_eq!(
+            fs::read_to_string(kept[0].path().join("out/report.md")).unwrap(),
+            "report"
+        );
+        let again = undo_run_files(state, "s1", "r1").unwrap();
+        assert!(
+            again["restored"].as_array().unwrap().is_empty()
+                && again["removed"].as_array().unwrap().is_empty(),
+            "{again}"
+        );
+        assert_eq!(
+            fs::read_to_string(ws.join("notes.md")).unwrap(),
+            "original notes"
+        );
+
+        // A run that is not this task's is refused.
+        assert_eq!(undo_run_files(state, "s1", "r2").unwrap()["ok"], false);
+        assert_eq!(undo_run_files(state, "other", "r1").unwrap()["ok"], false);
     }
 
     #[test]
