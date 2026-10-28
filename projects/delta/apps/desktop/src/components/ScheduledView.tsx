@@ -8,6 +8,7 @@ import {
   markAutomationSeen,
   setDenialThreshold,
   announceAutomationsChanged,
+  pickWorkspaceFolder,
   updateAutomation,
   type Automation,
   type AutomationRun,
@@ -22,6 +23,23 @@ import { useI18n } from "@delta/i18n/I18nContext";
 const CARD = "rounded-xl2 border border-line bg-panel";
 
 type Translate = ReturnType<typeof useI18n>["t"];
+
+const baseName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
+
+// A folder-triggered automation starts when a file arrives, not at a time.
+function isFolderTask(task: Pick<Automation, "schedule_raw">): boolean {
+  return task.schedule_raw?.kind === "folder";
+}
+
+// What starts an automation, in words: the time it repeats at, or the folder it watches.
+function triggerText(task: Pick<Automation, "schedule" | "schedule_raw" | "workspace">, t: Translate): string {
+  if (!isFolderTask(task)) return task.schedule;
+  const where = baseName(task.workspace || "") + (task.schedule_raw?.folder && task.schedule_raw.folder !== "." ? `/${task.schedule_raw.folder}` : "");
+  const pattern = task.schedule_raw?.pattern;
+  return pattern
+    ? t("scheduled.whenFilePattern", { folder: where, pattern })
+    : t("scheduled.whenFile", { folder: where });
+}
 
 // Why an automation is off: the circuit breaker pauses it after repeated denials of one rule.
 function pausedText(task: Pick<Automation, "paused_reason" | "paused_rule">, t: Translate): string {
@@ -161,6 +179,9 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
     title: string;
     instructions: string;
     cron?: string;
+    workspace?: string;
+    watch_folder?: string;
+    watch_pattern?: string;
     permissions?: { tool: string; target: string; access: "read" | "write" }[];
   }) => {
     setBusy(payload.title);
@@ -279,7 +300,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
               </div>
               <div className="flex items-center gap-1.5 text-[12px] text-muted">
                 <Icon name="clock" size={13} className="text-faint shrink-0" />
-                {task.enabled ? task.schedule : pausedText(task, t)} · {t("scheduled.next")} {fmt(task.next_run)} · {t("scheduled.runCount", { n: task.run_count, s: task.run_count === 1 ? "" : "s" })}
+                {task.enabled ? triggerText(task, t) : pausedText(task, t)}{isFolderTask(task) ? "" : ` · ${t("scheduled.next")} ${fmt(task.next_run)}`} · {t("scheduled.runCount", { n: task.run_count, s: task.run_count === 1 ? "" : "s" })}
                 {task.last_status ? ` · ${t("scheduled.last")} ${runStatus(task.last_status, t)}` : ""}
               </div>
             </div>
@@ -297,15 +318,26 @@ function NewAutomationForm({
 }: {
   busy: boolean;
   onCancel: () => void;
-  onCreate: (p: { title: string; instructions: string; cron?: string }) => void;
+  onCreate: (p: {
+    title: string;
+    instructions: string;
+    cron?: string;
+    workspace?: string;
+    watch_folder?: string;
+    watch_pattern?: string;
+  }) => void;
 }) {
   const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
   const [time, setTime] = useState("09:00");
   const [freq, setFreq] = useState("daily");
+  // What starts it: the time of day, or a file arriving in a folder (that folder is the workspace).
+  const [trigger, setTrigger] = useState<"time" | "folder">("time");
+  const [folder, setFolder] = useState("");
+  const [pattern, setPattern] = useState("");
 
-  const valid = title.trim() && instructions.trim();
+  const valid = title.trim() && instructions.trim() && (trigger === "time" || folder);
 
   return (
     <div className={CARD + " tmpl-form p-4 mb-4"}>
@@ -326,37 +358,91 @@ function NewAutomationForm({
       />
       <div className="tmpl-sched">
         <label className="tmpl-field">
-          <span>{t("scheduled.at")}</span>
-          <input
-            type="time"
-            className="tmpl-input tmpl-time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
-        </label>
-        <label className="tmpl-field">
-          <span>{t("scheduled.repeat")}</span>
+          <span>{t("scheduled.startsWhen")}</span>
           <select
             className="tmpl-input tmpl-select"
-            value={freq}
-            onChange={(e) => setFreq(e.target.value)}
+            data-testid="trigger-kind"
+            value={trigger}
+            onChange={(e) => setTrigger(e.target.value as "time" | "folder")}
           >
-            <option value="daily">{t("automation.dayDaily")}</option>
-            <option value="weekdays">{t("automation.dayWeekdays")}</option>
-            <option value="weekends">{t("automation.dayWeekends")}</option>
+            <option value="time">{t("scheduled.triggerTime")}</option>
+            <option value="folder">{t("scheduled.triggerFolder")}</option>
           </select>
         </label>
+        {trigger === "time" ? (
+          <>
+            <label className="tmpl-field">
+              <span>{t("scheduled.at")}</span>
+              <input
+                type="time"
+                className="tmpl-input tmpl-time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+              />
+            </label>
+            <label className="tmpl-field">
+              <span>{t("scheduled.repeat")}</span>
+              <select
+                className="tmpl-input tmpl-select"
+                value={freq}
+                onChange={(e) => setFreq(e.target.value)}
+              >
+                <option value="daily">{t("automation.dayDaily")}</option>
+                <option value="weekdays">{t("automation.dayWeekdays")}</option>
+                <option value="weekends">{t("automation.dayWeekends")}</option>
+              </select>
+            </label>
+          </>
+        ) : (
+          <>
+            <div className="tmpl-field">
+              <span>{t("scheduled.watchedFolder")}</span>
+              <button
+                className="btn sm"
+                type="button"
+                data-testid="choose-watch-folder"
+                onClick={async () => {
+                  const picked = await pickWorkspaceFolder().catch(() => null);
+                  if (picked) setFolder(picked);
+                }}
+              >
+                {folder ? baseName(folder) : t("scheduled.chooseFolder")}
+              </button>
+            </div>
+            <label className="tmpl-field">
+              <span>{t("scheduled.onlyNames")}</span>
+              <input
+                className="tmpl-input"
+                data-testid="watch-pattern"
+                placeholder="*.pdf, *.xlsx"
+                value={pattern}
+                onChange={(e) => setPattern(e.target.value)}
+              />
+            </label>
+          </>
+        )}
       </div>
+      {trigger === "folder" && (
+        <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
+          {t("scheduled.folderNote")}
+        </div>
+      )}
       <div className="tmpl-form-actions">
         <button
           className="btn-primary sm"
           disabled={!valid || busy}
           onClick={() =>
-            onCreate({
-              title: title.trim(),
-              instructions: instructions.trim(),
-              cron: toCron(time, freq),
-            })
+            onCreate(
+              trigger === "folder"
+                ? {
+                    title: title.trim(),
+                    instructions: instructions.trim(),
+                    workspace: folder,
+                    watch_folder: ".",
+                    ...(pattern.trim() ? { watch_pattern: pattern.trim() } : {}),
+                  }
+                : { title: title.trim(), instructions: instructions.trim(), cron: toCron(time, freq) },
+            )
           }
         >
           {busy ? t("automation.creating") : t("automation.createAutomation")}
@@ -441,7 +527,8 @@ function TaskDetail({
       await updateAutomation(id, {
         title: title.trim(),
         instructions: instructions.trim(),
-        cron: toCron(time, freq),
+        // A folder trigger has no time to change; sending one would turn it into a schedule.
+        ...(isFolderTask(task) ? {} : { cron: toCron(time, freq) }),
       });
       await refresh();
       setEditing(false);
@@ -498,7 +585,7 @@ function TaskDetail({
           </div>
         </div>
 
-        {isEditing ? (
+        {isEditing && !isFolderTask(task) ? (
           <div className="tmpl-sched sched-edit-sched">
             <label className="tmpl-field">
               <span>{t("scheduled.at")}</span>
@@ -519,7 +606,12 @@ function TaskDetail({
               <input type="checkbox" checked={task.enabled} onChange={toggle} />
               <span className="slider" />
             </label>{" "}
-            {task.enabled ? `${t("scheduled.activeNext")} ${fmt(task.next_run)}` : pausedText(task, t)} · {task.schedule}
+            {task.enabled
+              ? isFolderTask(task)
+                ? t("scheduled.activeWatching")
+                : `${t("scheduled.activeNext")} ${fmt(task.next_run)}`
+              : pausedText(task, t)}{" "}
+            · {triggerText(task, t)}
           </div>
         )}
 

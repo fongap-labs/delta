@@ -526,9 +526,15 @@ impl CoreControlPlane {
         automations
             .reconcile_terminal_sessions()
             .map_err(|error| error.to_string())?;
-        automations
+        let mut runs = automations
             .claim_due_runs()
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        // A folder that cannot be looked at must not hold back the scheduled runs.
+        match automations.claim_folder_runs() {
+            Ok(folder_runs) => runs.extend(folder_runs),
+            Err(error) => eprintln!("automation folder trigger failed: {error}"),
+        }
+        Ok(runs)
     }
 
     /// Start one scheduler-claimed automation through the same Core-owned
@@ -578,7 +584,7 @@ impl CoreControlPlane {
                 max_retries: None,
                 source: Some(json!({
                     "automation_id": run.get("task_id"),
-                    "trigger": "scheduled",
+                    "trigger": run.get("trigger").and_then(Value::as_str).unwrap_or("scheduled"),
                 })),
             },
             sink,

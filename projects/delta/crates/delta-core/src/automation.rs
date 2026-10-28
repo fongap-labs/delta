@@ -11,6 +11,8 @@ use serde_json::{json, Map, Value};
 
 use crate::{ShadowReadError, TaskStore};
 
+/// The most runs an hour one folder-triggered automation starts.
+const FOLDER_RUNS_PER_HOUR: usize = 6;
 /// Consecutive denials of one rule after which an automation is paused.
 pub const DEFAULT_DENIAL_THRESHOLD: u32 = 3;
 /// The most denials a user may allow before the pause (A3).
@@ -78,8 +80,43 @@ impl AutomationStore {
         let id = uuid::Uuid::new_v4().to_string();
         let cron = payload.get("cron").and_then(Value::as_str);
         let fire_at = payload.get("fire_at").and_then(Value::as_str);
-        let next_run = next_run(cron, fire_at);
-        let schedule_raw = if let Some(cron) = cron {
+        // A folder trigger starts a run when a new file arrives in a folder of the workspace.
+        let watch_folder = payload
+            .get("watch_folder")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|folder| !folder.is_empty());
+        let watch_pattern = payload
+            .get("watch_pattern")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|pattern| !pattern.is_empty());
+        let workspace_text = payload
+            .get("workspace")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let mut folder_label = None;
+        if let Some(folder) = watch_folder {
+            if cron.is_some_and(|value| !value.trim().is_empty())
+                || fire_at.is_some_and(|value| !value.trim().is_empty())
+            {
+                return Ok(
+                    json!({"ok": false, "error": "choose one trigger: a schedule or a folder"}),
+                );
+            }
+            match crate::folder_trigger::resolve_folder(workspace_text, folder) {
+                Ok((_, relative)) => folder_label = Some(relative),
+                Err(error) => return Ok(json!({"ok": false, "error": error})),
+            }
+        }
+        let next_run = if folder_label.is_some() {
+            None
+        } else {
+            next_run(cron, fire_at)
+        };
+        let schedule_raw = if let Some(folder) = &folder_label {
+            json!({"kind": "folder", "cron": null, "fire_at": null, "folder": folder, "pattern": watch_pattern, "timezone": "local"})
+        } else if let Some(cron) = cron {
             json!({"kind": "cron", "cron": cron, "fire_at": null, "timezone": payload.get("timezone").and_then(Value::as_str).unwrap_or("local")})
         } else {
             json!({"kind": "once", "cron": null, "fire_at": fire_at, "timezone": payload.get("timezone").and_then(Value::as_str).unwrap_or("local")})
@@ -88,7 +125,10 @@ impl AutomationStore {
             "id": id,
             "title": title,
             "instructions": instructions,
-            "schedule": cron.or(fire_at).unwrap_or("manual"),
+            "schedule": match &folder_label {
+                Some(folder) => format!("folder:{folder}"),
+                None => cron.or(fire_at).unwrap_or("manual").to_owned(),
+            },
             "schedule_raw": schedule_raw,
             "workspace": payload.get("workspace").and_then(Value::as_str).unwrap_or_default(),
             "enabled": true,
@@ -179,6 +219,11 @@ impl AutomationStore {
     }
 
     pub fn delete(&self, id: &str) -> Result<Value, ShadowReadError> {
+        // What the folder trigger remembered about this automation goes with it.
+        if let Ok(conn) = self.folder_connection() {
+            let _ = conn.execute("DELETE FROM folder_files WHERE task_id = ?", params![id]);
+            let _ = conn.execute("DELETE FROM folder_tasks WHERE task_id = ?", params![id]);
+        }
         Ok(json!({"ok": self.tasks.delete_task(id)?}))
     }
 
@@ -320,6 +365,177 @@ impl AutomationStore {
             }));
         }
         tx.commit()?;
+        Ok(prepared)
+    }
+
+    fn folder_connection(&self) -> Result<Connection, ShadowReadError> {
+        let conn = Connection::open(&self.db_path)?;
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS folder_tasks (
+                task_id TEXT PRIMARY KEY,
+                baselined INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS folder_files (
+                task_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                mtime INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                PRIMARY KEY (task_id, name)
+            );",
+        )?;
+        Ok(conn)
+    }
+
+    /// Claim a run for every folder-triggered automation whose folder has new files.
+    ///
+    /// The first look at a folder only records what is already there: files that existed before the
+    /// automation was made never start it. A new file starts a run once it has stayed the same size
+    /// and time across two looks (so one still being copied is waited for). Files that appear while
+    /// a run of the same automation is going are taken to be its own output and never start
+    /// another, and at most [`FOLDER_RUNS_PER_HOUR`] runs an hour are started, so a run that
+    /// writes into its own folder cannot start itself again and again.
+    pub fn claim_folder_runs(&self) -> Result<Vec<Value>, ShadowReadError> {
+        let conn = self.folder_connection()?;
+        let mut prepared = Vec::new();
+        for entry in self.tasks.list_tasks()? {
+            let raw = entry
+                .data
+                .get("schedule_raw")
+                .cloned()
+                .unwrap_or(Value::Null);
+            if !entry.enabled || raw.get("kind").and_then(Value::as_str) != Some("folder") {
+                continue;
+            }
+            let workspace = entry
+                .data
+                .get("workspace")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let folder = raw.get("folder").and_then(Value::as_str).unwrap_or(".");
+            let pattern = raw.get("pattern").and_then(Value::as_str);
+            // A folder that is gone (or moved out of the workspace) is skipped, not an error: it
+            // may be back by the next look.
+            let Ok((directory, relative)) =
+                crate::folder_trigger::resolve_folder(workspace, folder)
+            else {
+                continue;
+            };
+            let observed = crate::folder_trigger::scan(&directory, pattern);
+            let task_id = entry.id.as_str();
+
+            let baselined: bool = conn
+                .query_row(
+                    "SELECT baselined FROM folder_tasks WHERE task_id = ?",
+                    params![task_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map(|value| value != 0)
+                .unwrap_or(false);
+            let remember = |file: &crate::folder_trigger::Observation, state: &str| {
+                conn.execute(
+                    "INSERT INTO folder_files (task_id, name, size, mtime, state) VALUES (?, ?, ?, ?, ?)
+                     ON CONFLICT(task_id, name) DO UPDATE SET size = excluded.size, mtime = excluded.mtime, state = excluded.state",
+                    params![task_id, file.name, file.size as i64, file.mtime, state],
+                )
+            };
+            // A file that left the folder is forgotten, so one that comes back is new again.
+            let mut known: std::collections::HashMap<String, (i64, i64, String)> = {
+                let mut statement = conn.prepare(
+                    "SELECT name, size, mtime, state FROM folder_files WHERE task_id = ?",
+                )?;
+                let rows = statement.query_map(params![task_id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        (
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, i64>(2)?,
+                            row.get::<_, String>(3)?,
+                        ),
+                    ))
+                })?;
+                rows.collect::<Result<_, _>>()?
+            };
+            for name in known.keys().cloned().collect::<Vec<_>>() {
+                if !observed.iter().any(|file| file.name == name) {
+                    conn.execute(
+                        "DELETE FROM folder_files WHERE task_id = ? AND name = ?",
+                        params![task_id, name],
+                    )?;
+                    known.remove(&name);
+                }
+            }
+
+            if !baselined {
+                for file in &observed {
+                    remember(file, "seen")?;
+                }
+                conn.execute(
+                    "INSERT OR REPLACE INTO folder_tasks (task_id, baselined) VALUES (?, 1)",
+                    params![task_id],
+                )?;
+                continue;
+            }
+            let is_running = self
+                .tasks
+                .runs(task_id, 5)?
+                .iter()
+                .any(|run| run.data.get("status").and_then(Value::as_str) == Some("running"));
+            let mut ready = Vec::new();
+            for file in &observed {
+                match known.get(&file.name) {
+                    Some((_, _, state)) if state == "seen" => {}
+                    // While this automation runs, new files are its own work.
+                    _ if is_running => {
+                        remember(file, "seen")?;
+                    }
+                    Some((size, mtime, _)) if *size == file.size as i64 && *mtime == file.mtime => {
+                        ready.push(file.clone());
+                    }
+                    _ => {
+                        remember(file, "pending")?;
+                    }
+                }
+            }
+            if ready.is_empty() {
+                continue;
+            }
+            let hour_ago = now() - 3600.0;
+            let recent = self
+                .tasks
+                .runs(task_id, FOLDER_RUNS_PER_HOUR * 2)?
+                .iter()
+                .filter(|run| {
+                    run.data.get("trigger").and_then(Value::as_str) == Some("folder")
+                        && run
+                            .data
+                            .get("started_at")
+                            .and_then(Value::as_f64)
+                            .unwrap_or(0.0)
+                            > hour_ago
+                })
+                .count();
+            if recent >= FOLDER_RUNS_PER_HOUR {
+                // The files stay ready and are taken up when the hour has room again.
+                continue;
+            }
+            let mut run = self.prepare_trigger_run(task_id, "folder")?;
+            if run.get("ok").and_then(Value::as_bool) != Some(true) {
+                continue;
+            }
+            let instructions = run
+                .get("prompt")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            run["prompt"] = Value::String(format!(
+                "{instructions}\n\n{}",
+                crate::folder_trigger::describe_arrival(&relative, &ready)
+            ));
+            for file in &ready {
+                remember(file, "seen")?;
+            }
+            prepared.push(run);
+        }
         Ok(prepared)
     }
 
@@ -645,9 +861,10 @@ pub fn create_registration(
         capability_id: "automation.create".to_owned(),
         tool_name: "create_scheduled_task".to_owned(),
         description: "Create a scheduled automation from the user's request: a title, the \
-            instructions it should run with, and a schedule (a five-field cron expression, or \
-            one fire_at time in RFC 3339). The automation runs unattended later; name the \
-            permissions it needs only if the user asked for them."
+            instructions it should run with, and what starts it: a schedule (a five-field cron \
+            expression, or one fire_at time in RFC 3339) or a folder to watch (`watch_folder`, \
+            inside the workspace: a run starts when a new file arrives there). The automation \
+            runs unattended later; name the permissions it needs only if the user asked for them."
             .to_owned(),
         parameters: json!({
             "type": "object", "required": ["title", "instructions"],
@@ -657,6 +874,8 @@ pub fn create_registration(
                 "cron": {"type": "string", "description": "Five-field cron expression in local time (for example 0 9 * * 1 for Mondays at 09:00). Either cron or fire_at is required."},
                 "fire_at": {"type": "string", "description": "One-off run time in RFC 3339 (for example 2026-11-01T09:00:00+08:00)."},
                 "timezone": {"type": "string", "description": "IANA time zone for the schedule; defaults to local time."},
+                "watch_folder": {"type": "string", "description": "Instead of a schedule: a folder inside the workspace to watch (relative to it, or . for the workspace itself). A run starts when a new file arrives; files already there do not start it. Needs a workspace."},
+                "watch_pattern": {"type": "string", "description": "With watch_folder: only files whose names match, such as *.pdf or *.xlsx, *.csv."},
                 "workspace": {"type": "string", "description": "Workspace the automation runs in; defaults to none."},
                 "permissions": {
                     "type": "array",
@@ -689,20 +908,22 @@ pub fn create_registration(
                 };
                 let cron = text("cron");
                 let fire_at = text("fire_at");
-                if cron.is_empty() && fire_at.is_empty() {
+                let watch_folder = text("watch_folder");
+                if cron.is_empty() && fire_at.is_empty() && watch_folder.is_empty() {
                     return CapabilityResult::failed(
                         &job.job_id,
-                        "a schedule is required: give a cron expression or a fire_at time",
+                        "a trigger is required: give a cron expression, a fire_at time or a watch_folder",
                         Some("schedule_required"),
                     );
                 }
                 // Reuse the store's own parser: a schedule that would never fire
                 // is refused here instead of being filed as a manual task.
-                if next_run(
-                    (!cron.is_empty()).then_some(cron.as_str()),
-                    (!fire_at.is_empty()).then_some(fire_at.as_str()),
-                )
-                .is_none()
+                if watch_folder.is_empty()
+                    && next_run(
+                        (!cron.is_empty()).then_some(cron.as_str()),
+                        (!fire_at.is_empty()).then_some(fire_at.as_str()),
+                    )
+                    .is_none()
                 {
                     return CapabilityResult::failed(
                         &job.job_id,
@@ -716,6 +937,8 @@ pub fn create_registration(
                     "cron": cron,
                     "fire_at": fire_at,
                     "timezone": text("timezone"),
+                    "watch_folder": watch_folder,
+                    "watch_pattern": text("watch_pattern"),
                     "workspace": text("workspace"),
                     "permissions": job.arguments.get("permissions").cloned().unwrap_or_else(|| json!([])),
                 });
@@ -1048,6 +1271,248 @@ mod tests {
             .list()
             .unwrap();
         assert_eq!(listed.len(), 1);
+    }
+
+    // -- folder trigger (ADR-0090) ----------------------------------------------------------
+
+    fn folder_automation(
+        store: &AutomationStore,
+        workspace: &Path,
+        folder: &str,
+        pattern: &str,
+    ) -> String {
+        let created = store
+            .create(&json!({
+                "title": "Inbox", "instructions": "Summarize each new file.",
+                "workspace": workspace.to_string_lossy(), "watch_folder": folder,
+                "watch_pattern": pattern,
+            }))
+            .unwrap();
+        assert_eq!(created["ok"], true, "{created}");
+        created["task"]["id"].as_str().unwrap().to_owned()
+    }
+
+    fn finish(store: &mut AutomationStore, run: &Value) {
+        let finalized = store
+            .finalize_run(
+                run["task_id"].as_str().unwrap(),
+                run["run_id"].as_str().unwrap(),
+            )
+            .unwrap();
+        assert_eq!(finalized["ok"], true);
+    }
+
+    #[test]
+    fn a_folder_automation_is_filed_with_no_time_and_a_folder_inside_the_workspace() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let ws = temp.path().join("ws");
+        std::fs::create_dir_all(ws.join("inbox")).unwrap();
+        let id = folder_automation(&store, &ws, "inbox", "*.pdf");
+        let task = store.get(&id).unwrap()["task"].clone();
+        assert_eq!(task["schedule"], "folder:inbox");
+        assert_eq!(task["schedule_raw"]["kind"], "folder");
+        assert_eq!(task["schedule_raw"]["pattern"], "*.pdf");
+        assert!(task["next_run"].is_null());
+        // It is never due on a clock.
+        assert!(store.claim_due_runs().unwrap().is_empty());
+
+        let workspace = ws.to_string_lossy().to_string();
+        for (payload, expected) in [
+            (
+                json!({"workspace": workspace, "watch_folder": "../elsewhere"}),
+                "does not exist",
+            ),
+            (
+                json!({"workspace": workspace, "watch_folder": "inbox", "cron": "0 9 * * *"}),
+                "choose one trigger",
+            ),
+            (
+                json!({"watch_folder": "inbox"}),
+                "needs the automation to have a workspace",
+            ),
+            (
+                json!({"workspace": workspace, "watch_folder": ".delta"}),
+                "does not exist",
+            ),
+        ] {
+            let mut payload = payload;
+            payload["title"] = json!("Bad");
+            payload["instructions"] = json!("Run");
+            let refused = store.create(&payload).unwrap();
+            assert_eq!(refused["ok"], false, "{payload}");
+            assert!(
+                refused["error"].as_str().unwrap().contains(expected),
+                "{refused}"
+            );
+        }
+    }
+
+    #[test]
+    fn files_already_there_do_not_start_it_and_a_new_one_starts_it_once_it_has_settled() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let ws = temp.path().join("ws");
+        let inbox = ws.join("inbox");
+        std::fs::create_dir_all(&inbox).unwrap();
+        std::fs::write(inbox.join("old.pdf"), "old").unwrap();
+        folder_automation(&store, &ws, "inbox", "*.pdf");
+
+        // First look: what is there is only remembered.
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+
+        // A new file, and one that does not match the pattern.
+        std::fs::write(inbox.join("new.pdf"), "new!").unwrap();
+        std::fs::write(inbox.join("notes.txt"), "ignored").unwrap();
+        // First sighting: not yet, it may still be being written.
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+        // Unchanged since the last look: it starts a run, told which file arrived.
+        let runs = store.claim_folder_runs().unwrap();
+        assert_eq!(runs.len(), 1);
+        let prompt = runs[0]["prompt"].as_str().unwrap();
+        assert!(prompt.starts_with("Summarize each new file."), "{prompt}");
+        assert!(prompt.contains("- inbox/new.pdf (4 bytes)"), "{prompt}");
+        assert!(
+            !prompt.contains("old.pdf") && !prompt.contains("notes.txt"),
+            "{prompt}"
+        );
+        assert_eq!(runs[0]["workspace"], ws.to_string_lossy().to_string());
+        assert!(runs[0]["session_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("__run__"));
+        let recorded = store
+            .tasks
+            .runs(runs[0]["task_id"].as_str().unwrap(), 5)
+            .unwrap();
+        assert_eq!(recorded[0].data["trigger"], "folder");
+        finish(&mut store, &runs[0]);
+
+        // Each file starts a run once.
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_file_still_being_written_waits_until_it_stops_changing() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let ws = temp.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+        folder_automation(&store, &ws, ".", "");
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+
+        std::fs::write(ws.join("big.bin"), "12").unwrap();
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+        std::fs::write(ws.join("big.bin"), "123456").unwrap(); // grew since the last look
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+        let runs = store.claim_folder_runs().unwrap();
+        assert_eq!(runs.len(), 1);
+        assert!(runs[0]["prompt"]
+            .as_str()
+            .unwrap()
+            .contains("- big.bin (6 bytes)"));
+    }
+
+    #[test]
+    fn files_that_appear_while_the_run_is_going_are_its_own_output() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let ws = temp.path().join("ws");
+        std::fs::create_dir_all(ws.join("in")).unwrap();
+        folder_automation(&store, &ws, "in", "");
+        store.claim_folder_runs().unwrap();
+        std::fs::write(ws.join("in/a.txt"), "a").unwrap();
+        store.claim_folder_runs().unwrap();
+        let runs = store.claim_folder_runs().unwrap();
+        assert_eq!(runs.len(), 1);
+
+        // The run writes its result into the folder it is watching, while it is still running.
+        std::fs::write(ws.join("in/summary.md"), "result").unwrap();
+        for _ in 0..3 {
+            assert!(store.claim_folder_runs().unwrap().is_empty());
+        }
+        finish(&mut store, &runs[0]);
+        for _ in 0..3 {
+            assert!(
+                store.claim_folder_runs().unwrap().is_empty(),
+                "the output must not start the next run"
+            );
+        }
+        // A genuinely new file afterwards does.
+        std::fs::write(ws.join("in/b.txt"), "b").unwrap();
+        store.claim_folder_runs().unwrap();
+        assert_eq!(store.claim_folder_runs().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_paused_automation_or_a_missing_folder_starts_nothing_and_a_deleted_one_is_forgotten() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let ws = temp.path().join("ws");
+        std::fs::create_dir_all(ws.join("in")).unwrap();
+        let id = folder_automation(&store, &ws, "in", "");
+        store.claim_folder_runs().unwrap();
+        std::fs::write(ws.join("in/a.txt"), "a").unwrap();
+        store.update(&id, &json!({"enabled": false})).unwrap();
+        for _ in 0..3 {
+            assert!(store.claim_folder_runs().unwrap().is_empty());
+        }
+        store.update(&id, &json!({"enabled": true})).unwrap();
+        std::fs::rename(ws.join("in"), ws.join("moved")).unwrap();
+        assert!(store.claim_folder_runs().unwrap().is_empty());
+        std::fs::rename(ws.join("moved"), ws.join("in")).unwrap();
+        store.claim_folder_runs().unwrap();
+        assert_eq!(store.claim_folder_runs().unwrap().len(), 1);
+
+        store.delete(&id).unwrap();
+        let conn = store.folder_connection().unwrap();
+        let left: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM folder_files WHERE task_id = ?",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(left, 0);
+    }
+
+    #[test]
+    fn no_more_than_the_hourly_limit_of_runs_is_started() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let ws = temp.path().join("ws");
+        std::fs::create_dir_all(ws.join("in")).unwrap();
+        folder_automation(&store, &ws, "in", "");
+        store.claim_folder_runs().unwrap();
+        let mut started = 0;
+        for n in 0..(FOLDER_RUNS_PER_HOUR + 3) {
+            std::fs::write(ws.join(format!("in/f{n}.txt")), "x").unwrap();
+            store.claim_folder_runs().unwrap();
+            for run in store.claim_folder_runs().unwrap() {
+                started += 1;
+                finish(&mut store, &run);
+            }
+        }
+        assert_eq!(started, FOLDER_RUNS_PER_HOUR);
+    }
+
+    #[test]
+    fn the_create_tool_takes_a_folder_in_place_of_a_schedule() {
+        let temp = tempfile::tempdir().unwrap();
+        let ws = temp.path().join("ws");
+        std::fs::create_dir_all(ws.join("drop")).unwrap();
+        let result = run_tool(json!({
+            "title": "Drop box", "instructions": "File each document.",
+            "workspace": ws.to_string_lossy(), "watch_folder": "drop", "watch_pattern": "*.pdf"
+        }));
+        assert_eq!(
+            result.state,
+            crate::capability::CapabilityExitState::Completed
+        );
+        let none = run_tool(json!({"title": "x", "instructions": "y", "watch_folder": "drop"}));
+        assert_eq!(none.state, crate::capability::CapabilityExitState::Failed);
     }
 
     #[test]

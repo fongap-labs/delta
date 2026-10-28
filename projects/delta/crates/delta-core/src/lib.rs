@@ -26,6 +26,7 @@ pub mod document;
 pub mod durability;
 pub mod egress;
 pub mod extension_manifest;
+pub mod folder_trigger;
 pub mod idemlog;
 pub mod inbox;
 pub mod ledger;

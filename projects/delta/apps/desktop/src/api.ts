@@ -1748,7 +1748,15 @@ export interface Automation {
   title: string;
   instructions: string;
   schedule: string;
-  schedule_raw?: { kind: string; cron?: string | null; fire_at?: string | null; timezone?: string };
+  schedule_raw?: {
+    kind: string;
+    cron?: string | null;
+    fire_at?: string | null;
+    timezone?: string;
+    // A folder trigger: the watched folder (relative to the workspace) and the file-name pattern.
+    folder?: string;
+    pattern?: string | null;
+  };
   workspace: string;
   enabled: boolean;
   // Set when the circuit breaker paused this automation after repeated denials of one rule.
@@ -1832,6 +1840,11 @@ export async function createAutomation(payload: {
   cron?: string;
   fire_at?: string;
   timezone?: string;
+  // A folder trigger instead of a time: a run starts when a new file arrives in `watch_folder`
+  // (relative to `workspace`, "." for the workspace itself), optionally only for matching names.
+  workspace?: string;
+  watch_folder?: string;
+  watch_pattern?: string;
   // §25 standing grants (the creating surface rendered them; submit IS the consent).
   // Only target-bound write entries survive server-side validation.
   permissions?: { tool: string; target: string; access: "read" | "write" }[];
