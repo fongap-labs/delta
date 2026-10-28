@@ -587,7 +587,7 @@ function ArtifactViewer({
         ) : content.kind === "office" ? (
           <div className="artifact-open-prompt">
             <Icon name="panelOpen" size={28} />
-            <p>{t("artifacts.officeNoPreview", { type: /\.pptx?$/i.test(artifact.name) ? "PowerPoint" : "Word" })}</p>
+            <p>{t("artifacts.officeNoPreview", { type: /\.pptx?$/i.test(artifact.name) ? "PowerPoint" : /\.xlsx?$/i.test(artifact.name) ? "Excel" : "Word" })}</p>
             <button className="btn sm" onClick={() => revealArtifact(sessionId, artifact.path, "open")}>
               {t("artifacts.openInDefaultApp")}
             </button>

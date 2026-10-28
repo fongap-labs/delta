@@ -167,6 +167,48 @@ pub fn parse(kind: Kind, bytes: &[u8]) -> Result<Document, String> {
     Ok(Document { kind, blocks })
 }
 
+/// One worksheet as a preview: its rows as cell texts (the first row with content is the
+/// heading row), at most `max_rows` of them, and how many rows the sheet has in all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SheetPreview {
+    pub name: String,
+    pub rows: Vec<Vec<String>>,
+    pub total_rows: usize,
+    pub truncated: bool,
+}
+
+/// The sheets of an XLSX as previews. Every row is as wide as the widest one, so a table can be drawn
+/// from it without looking at the others.
+pub fn sheet_previews(bytes: &[u8], max_rows: usize) -> Result<Vec<SheetPreview>, String> {
+    Ok(ooxml::read_xlsx(bytes)?
+        .into_iter()
+        .map(|sheet| {
+            let total_rows = sheet.rows.len();
+            let width = sheet
+                .rows
+                .iter()
+                .map(|(_, cells)| cells.len())
+                .max()
+                .unwrap_or(0);
+            let rows = sheet
+                .rows
+                .into_iter()
+                .take(max_rows)
+                .map(|(_, mut cells)| {
+                    cells.resize(width, String::new());
+                    cells
+                })
+                .collect();
+            SheetPreview {
+                name: sheet.name,
+                rows,
+                total_rows,
+                truncated: total_rows > max_rows,
+            }
+        })
+        .collect())
+}
+
 /// Read and parse a file, refusing anything over [`MAX_FILE_BYTES`].
 pub fn read_file(path: &Path) -> Result<Document, String> {
     let kind = kind_of(path)?;

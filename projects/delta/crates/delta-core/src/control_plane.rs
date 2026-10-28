@@ -1454,6 +1454,8 @@ pub fn read_artifact(
 /// Largest picture or PDF the artifact view loads whole. It travels to the window as one Base64
 /// text, so a bigger one is opened from its folder instead.
 const MAX_MEDIA_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
+/// Most rows of a worksheet the artifact view loads, the heading row included.
+const MAX_SHEET_PREVIEW_ROWS: usize = 501;
 /// Most text of a file the artifact view shows.
 const MAX_TEXT_PREVIEW_BYTES: usize = 2 * 1024 * 1024;
 
@@ -1488,6 +1490,37 @@ fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
         _ => None,
     };
     let size = fs::metadata(absolute)?.len();
+    // Word and PowerPoint files have no preview here (the view offers to open them); a workbook is
+    // read into rows, so a table is drawn from it and never its zipped bytes.
+    if matches!(extension.as_str(), "docx" | "pptx" | "doc" | "ppt" | "xls") {
+        return Ok(json!({"ok": true, "path": path, "kind": "office", "size": size}));
+    }
+    if matches!(extension.as_str(), "xlsx" | "xlsm") {
+        if size > MAX_MEDIA_PREVIEW_BYTES {
+            return Ok(json!({
+                "ok": false, "path": path, "kind": "unknown", "size": size,
+                "error": format!(
+                    "This workbook is {} MB, too large to preview here. Open it from its folder.",
+                    size / (1024 * 1024)
+                ),
+            }));
+        }
+        return Ok(
+            match crate::document::sheet_previews(&fs::read(absolute)?, MAX_SHEET_PREVIEW_ROWS) {
+                Ok(sheets) => json!({
+                    "ok": true, "path": path, "kind": "sheet",
+                    "sheets": sheets.iter().map(|sheet| json!({
+                        "name": sheet.name, "rows": sheet.rows,
+                        "total_rows": sheet.total_rows, "truncated": sheet.truncated,
+                    })).collect::<Vec<_>>(),
+                }),
+                Err(error) => json!({
+                    "ok": false, "path": path, "kind": "unknown",
+                    "error": format!("This workbook could not be read: {error}"),
+                }),
+            },
+        );
+    }
     if let Some(mime) = mime {
         if size > MAX_MEDIA_PREVIEW_BYTES {
             return Ok(json!({
@@ -1955,6 +1988,45 @@ mod tests {
         let pic = tmp.path().join("p.png");
         fs::write(&pic, [1_u8, 2, 3]).unwrap();
         assert_eq!(preview_file(&pic, "p.png").unwrap()["kind"], "image");
+
+        // A workbook is read into rows, and a Word or PowerPoint file is named so the view can say so.
+        let arguments = json!({"sheets": [
+            {"name": "Orders", "header": true, "rows": [["id", "total"], ["1", "5"]]},
+            {"name": "Empty", "header": false, "rows": [["only"]]}
+        ]});
+        let (_, workbook, _) = crate::document::create("book.xlsx", &arguments).unwrap();
+        let book = tmp.path().join("book.xlsx");
+        fs::write(&book, workbook).unwrap();
+        let shown = preview_file(&book, "book.xlsx").unwrap();
+        assert_eq!(shown["kind"], "sheet", "{shown}");
+        assert_eq!(shown["sheets"][0]["name"], "Orders");
+        assert_eq!(
+            shown["sheets"][0]["rows"],
+            json!([["id", "total"], ["1", "5"]])
+        );
+        assert_eq!(
+            (
+                shown["sheets"][0]["total_rows"].as_u64(),
+                shown["sheets"][0]["truncated"].as_bool()
+            ),
+            (Some(2), Some(false))
+        );
+        assert!(
+            shown.get("content").is_none(),
+            "the zipped bytes never reach the view"
+        );
+        let broken = tmp.path().join("broken.xlsx");
+        fs::write(&broken, "not a workbook").unwrap();
+        assert_eq!(preview_file(&broken, "broken.xlsx").unwrap()["ok"], false);
+        for name in ["a.docx", "a.pptx", "a.doc", "a.ppt", "a.xls"] {
+            let office = tmp.path().join(name);
+            fs::write(&office, [0_u8, 1, 2]).unwrap();
+            assert_eq!(
+                preview_file(&office, name).unwrap()["kind"],
+                "office",
+                "{name}"
+            );
+        }
 
         // Markdown, web pages and CSV tables are named as such so the artifact view renders them.
         for (name, kind) in [
