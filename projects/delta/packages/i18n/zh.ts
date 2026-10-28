@@ -360,6 +360,7 @@ export const zh: Record<TranslationKey, string> = {
   "settings.about.title": "关于",
   "settings.about.sub": "本安装的产品信息。",
   "settings.about.version": "版本",
+  "settings.about.maker": "由 Fongap Labs 开发",
   "settings.about.editionHint": "安装并激活 Delta Suite 扩展后，这里会显示 Delta Pro。",
   "settings.library.title": "资料库",
   "settings.library.sub": "Delta 可以按内容搜索的文件夹。",

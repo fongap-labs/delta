@@ -359,6 +359,7 @@ export const en = {
   "settings.about.title": "About",
   "settings.about.sub": "Product information for this installation.",
   "settings.about.version": "Version",
+  "settings.about.maker": "Developed by Fongap Labs",
   "settings.about.editionHint": "Delta Pro appears when the Delta Suite extension is installed and active.",
   "settings.library.title": "Library",
   "settings.library.sub": "Folders Delta can search by content.",

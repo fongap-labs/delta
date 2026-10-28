@@ -32,6 +32,7 @@ import {
   checkForUpdate,
   installUpdate,
   isTauri,
+  openExternal,
   listenDictationDone,
   listenDictationProgress,
   markDictationPassed,
@@ -78,6 +79,8 @@ type SetTab =
   | "memory"
   | "about";
 
+// The maker of Delta and its official website, shown in About.
+const FONGAP_LABS_URL = "https://labs.fongap.com";
 const CARD = "rounded-xl2 border border-line bg-panel";
 const ZH_CN_LABEL = "简体中文";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
@@ -243,7 +246,22 @@ function AboutSection() {
             </div>
           </div>
         </div>
-        <p className="mt-4 text-[12.5px] text-muted">
+        <div className="mt-4 text-[12.5px] text-muted" data-testid="about-maker">
+          <span>{t("settings.about.maker", undefined, "Developed by Fongap Labs")}</span>
+          {" · "}
+          <a
+            href={FONGAP_LABS_URL}
+            className="text-ink underline underline-offset-2"
+            data-testid="about-website"
+            onClick={(event) => {
+              event.preventDefault();
+              openExternal(FONGAP_LABS_URL);
+            }}
+          >
+            {FONGAP_LABS_URL.replace(/^https:\/\//, "")}
+          </a>
+        </div>
+        <p className="mt-3 text-[12.5px] text-muted">
           {t(
             "settings.about.editionHint",
             undefined,
