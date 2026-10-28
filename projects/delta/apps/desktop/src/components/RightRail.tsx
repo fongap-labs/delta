@@ -45,7 +45,7 @@ function kindFromPath(path: string): string {
   const ext = (path.split(".").pop() || "").toLowerCase();
   if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext)) return "image";
   if (["html", "htm"].includes(ext)) return "html";
-  if (ext === "md") return "markdown";
+  if (ext === "md" || ext === "markdown") return "markdown";
   if (ext === "csv") return "csv";
   if (ext === "pdf") return "pdf";
   if (["py", "js", "ts", "tsx", "jsx", "json", "sh", "css"].includes(ext)) return "code";

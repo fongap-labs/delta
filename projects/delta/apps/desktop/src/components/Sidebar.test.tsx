@@ -138,9 +138,9 @@ describe("Delta sidebar layout", () => {
     api.getAutomations.mockResolvedValue([]);
   });
 
-  it("puts the collapse control and the four tool buttons in one top row", () => {
-    renderSidebar({ ...baseProps, onCollapse: vi.fn() });
-    const row = screen.getByLabelText("Collapse sidebar").parentElement;
+  it("puts the four tool buttons in one top row", () => {
+    renderSidebar({ ...baseProps });
+    const row = screen.getByTestId("sidebar-footer-inbox").parentElement;
     for (const testid of [
       "sidebar-footer-inbox",
       "sidebar-footer-activity",

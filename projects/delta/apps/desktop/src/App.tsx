@@ -1528,20 +1528,6 @@ export function App() {
           testId="edge-tab-rail"
         />
       )}
-      {/* Explicit reveal affordance while collapsed (alongside hover-peek + ⌘B) — on every
-          surface EXCEPT the session view, whose topbar carries the [sidebar][+][search] cluster
-          instead (§22; no duplicate reveal buttons). */}
-      {navCollapsed && !isNavPeek && surface !== "session" && (
-        <button
-          className="nav-reveal-btn"
-          onClick={toggleNav}
-          onMouseEnter={() => setNavPeek(true)}
-          title="Show sidebar (⌘B)"
-          aria-label={tr("common.showSidebar")}
-        >
-          <Icon name="sidebar" size={16} />
-        </button>
-      )}
       {isEgressUnchosen && !isOnboarding && <EgressChoice onChosen={() => setEgressUnchosen(false)} />}
       {isOnboarding && (
         <Onboarding
@@ -1589,7 +1575,6 @@ export function App() {
         statisticsActive={surface === "statistics"}
         inboxActive={surface === "inbox"}
         collapsed={navCollapsed}
-        onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
         onResize={setNavWidth}
         resizeMaxWidth={maxNavWidth}
@@ -1626,9 +1611,9 @@ export function App() {
       ) : (
       <div className={"main" + (surface === "session" && !isRailHidden ? " rail-open" : "")}>
         <div className="main-topbar">
-          {/* Left: the contextual cluster — [sidebar] [+ new session] [search] — rendered ONLY
-              while the sidebar is collapsed (§22; the expanded sidebar already owns those
-              actions). Clicks must not start a window drag. */}
+          {/* Left: the contextual cluster — [+ new session] — rendered ONLY while the sidebar is
+              collapsed (§22; the expanded sidebar already owns that action). The sidebar toggle
+              is the left edge tab. Clicks must not start a window drag. */}
           <div className="main-topbar-side" onPointerDown={beginWindowDrag}>
             {navCollapsed && (
               <div
@@ -1636,14 +1621,6 @@ export function App() {
                 data-testid="topbar-cluster"
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                <button
-                  className="topbar-icon-btn"
-                  onClick={toggleNav}
-                  aria-label={tr("common.showSidebar")}
-                  title="Show sidebar (⌘B)"
-                >
-                  <Icon name="sidebar" size={16} />
-                </button>
                 <button
                   className="topbar-icon-btn"
                   onClick={() => startNewSession()}

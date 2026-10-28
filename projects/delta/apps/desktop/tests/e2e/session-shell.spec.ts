@@ -1,4 +1,4 @@
-// Session-screen cleanup (§22): the contextual top-left cluster ([sidebar][+], rendered
+// Session-screen cleanup (§22): the contextual top-left cluster ([+], rendered
 // ONLY while the sidebar is collapsed), the title-only topbar, and the model picker in the
 // composer.
 import { expect } from "@playwright/test";
@@ -7,21 +7,21 @@ import { test } from "./fixtures";
 test("top-left cluster renders only while the sidebar is collapsed", async ({ page }) => {
   await page.goto("/");
 
-  // Expanded sidebar owns those actions — no duplicate cluster.
+  // Expanded sidebar owns the new-task action — no duplicate cluster.
   await expect(page.locator(".sidebar")).toBeVisible();
   await expect(page.getByTestId("topbar-cluster")).toHaveCount(0);
 
-  // Collapse → the cluster appears with both actions; the floating reveal button does NOT
-  // double up on the session surface (the cluster's sidebar button replaces it).
+  // Collapse → the cluster appears with only the new-task action. The sidebar toggle is the left
+  // edge tab, so neither the cluster nor a floating button carries a second one.
   await page.keyboard.press("Meta+b");
   const cluster = page.getByTestId("topbar-cluster");
   await expect(cluster).toBeVisible();
-  await expect(cluster.getByRole("button", { name: "Show sidebar" })).toBeVisible();
   await expect(cluster.getByRole("button", { name: "New task" })).toBeVisible();
+  await expect(cluster.getByRole("button", { name: "Show sidebar" })).toHaveCount(0);
   await expect(page.locator(".nav-reveal-btn")).toHaveCount(0);
 
-  // The cluster's sidebar button docks the nav back — and the cluster leaves with it.
-  await cluster.getByRole("button", { name: "Show sidebar" }).click();
+  // The edge tab docks the nav back — and the cluster leaves with it.
+  await page.getByTestId("edge-tab-nav").click();
   await expect(page.locator(".app")).not.toHaveClass(/nav-collapsed/);
   await expect(page.getByTestId("topbar-cluster")).toHaveCount(0);
 });

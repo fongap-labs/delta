@@ -75,6 +75,6 @@ test("the sidebar's top row keeps every tool on one line", async ({ page }) => {
       return Math.round(box.top + box.height / 2);
     }),
   );
-  expect(centres.length).toBeGreaterThanOrEqual(5);
+  expect(centres.length).toBeGreaterThanOrEqual(4);
   expect(new Set(centres).size).toBe(1);
 });

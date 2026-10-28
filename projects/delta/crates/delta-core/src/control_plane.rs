@@ -1340,8 +1340,14 @@ fn preview_file(absolute: &Path, path: &str) -> Result<Value, ShadowReadError> {
     let truncated = bytes.len() > MAX_TEXT_PREVIEW_BYTES;
     let content =
         String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_TEXT_PREVIEW_BYTES)]).to_string();
+    // Markdown is named so the view renders it; every other text file stays plain text.
+    let kind = if matches!(extension.as_str(), "md" | "markdown") {
+        "markdown"
+    } else {
+        "text"
+    };
     Ok(json!({
-        "ok": true, "path": path, "kind": "text", "content": content,
+        "ok": true, "path": path, "kind": kind, "content": content,
         "truncated": truncated,
     }))
 }
@@ -1776,6 +1782,16 @@ mod tests {
         let pic = tmp.path().join("p.png");
         fs::write(&pic, [1_u8, 2, 3]).unwrap();
         assert_eq!(preview_file(&pic, "p.png").unwrap()["kind"], "image");
+
+        // Markdown files are named as such so the artifact view renders them.
+        for name in ["notes.md", "NOTES.MD", "notes.markdown"] {
+            let doc = tmp.path().join(name);
+            fs::write(&doc, "# Title").unwrap();
+            let shown = preview_file(&doc, name).unwrap();
+            assert_eq!(shown["kind"], "markdown", "{name}");
+            assert_eq!(shown["content"], "# Title");
+        }
+        assert_eq!(preview_file(&small, "a.txt").unwrap()["kind"], "text");
     }
 
     #[test]

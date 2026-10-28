@@ -140,7 +140,6 @@ interface Props {
   conversationActive?: boolean;
   onNewSession?: () => void;
   collapsed?: boolean;
-  onCollapse?: () => void;
   onPeekLeave?: () => void;
   // Drag handle on the sidebar's right edge. The parent owns the width (see ColumnResizer).
   onResize?: (width: number) => void;
@@ -399,18 +398,8 @@ export function Sidebar(props: Props) {
 
   return (
     <div className="sidebar flex flex-col min-h-0 bg-panel border-r border-line" onMouseLeave={props.onPeekLeave}>
-      {/* Top row: the collapse control and the tool buttons, spread evenly across the rail. */}
+      {/* Top row: the tool buttons, spread evenly across the rail. The sidebar itself collapses from the left edge tab. */}
       <div className="brand px-3.5 pt-2.5 pb-3 flex items-center justify-between" data-tauri-drag-region>
-        {props.onCollapse && (
-          <button
-            className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-bg shrink-0"
-            title={props.collapsed ? t("nav.dockSidebar", undefined, "Dock sidebar (⌘B)") : t("nav.collapse", undefined, "Collapse sidebar (⌘B)")}
-            aria-label={props.collapsed ? t("nav.dockSidebar", undefined, "Dock sidebar") : t("nav.collapse", undefined, "Collapse sidebar")}
-            onClick={props.onCollapse}
-          >
-            <Icon name="sidebar" size={16} />
-          </button>
-        )}
         <SidebarToolIcon icon="inbox" label={t("nav.inbox", undefined, "Inbox")} active={props.inboxActive} onClick={props.onOpenInbox} badge={totalAttention || null} badgeTitle={totalAttention ? t("nav.inboxItemsNeedYou", { n: totalAttention }, `Inbox — ${totalAttention} items need you`) : undefined} testid="sidebar-footer-inbox" />
         <SidebarToolIcon icon="audit" label={t("nav.activity", undefined, "Activity")} active={props.auditActive} onClick={props.onOpenAudit} testid="sidebar-footer-activity" />
         {props.onOpenStatistics && (
