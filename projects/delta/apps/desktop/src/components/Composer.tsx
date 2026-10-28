@@ -81,8 +81,13 @@ interface Props {
   unattended?: boolean;
   onUnattendedChange?: (on: boolean) => void;
   approvalSlot?: ReactNode;
-  /** Run status, rendered directly above the input box (visual system v1: status sits above input). */
-  statusSlot?: ReactNode;
+  /** Messages typed during a run, waiting to be sent when it ends. Absent = no queue: a message
+   *  typed during a run interjects at once. */
+  queue?: QueuedMessage[];
+  onQueue?: (text: string) => void;
+  onQueueRemove?: (id: string) => void;
+  /** Send queued messages into the run now, in order, with the draft (if any) after them. */
+  onQueueInterject?: (ids: string[], draft?: string) => void;
   // Push text + attachments into the composer (e.g. a start-panel task card). The `nonce` makes
   // repeated identical prefills re-apply; the user can still edit before sending.
   prefill?: { text: string; attachments?: Attachment[]; nonce: number };
@@ -100,6 +105,11 @@ interface Props {
   contextBar?: boolean;
   externalNotice?: string | null;
   onExternalNoticeDismiss?: () => void;
+}
+
+export interface QueuedMessage {
+  id: string;
+  text: string;
 }
 
 export function Composer(props: Props) {
@@ -390,7 +400,9 @@ export function Composer(props: Props) {
     if (props.running) {
       const steer = text.trim();
       if (!steer || dictation?.recording || dictationBusy) return;
-      props.onSend(steer);
+      // With a queue the message waits for the run to end; without one it interjects at once.
+      if (props.onQueue) props.onQueue(steer);
+      else props.onSend(steer);
       setText("");
       return;
     }
@@ -422,6 +434,25 @@ export function Composer(props: Props) {
     setPendingSkill(null);
   };
 
+  const queued = props.queue ?? [];
+  const interject = () => {
+    const draft = text.trim();
+    if (dictation?.recording || dictationBusy) return;
+    if (props.onQueueInterject) {
+      if (!queued.length && !draft) return;
+      props.onQueueInterject(queued.map((item) => item.id), draft || undefined);
+    } else if (draft) {
+      props.onSend(draft);
+    }
+    setText("");
+  };
+  // Take a queued message back into the box to change it; a draft already there stays after it.
+  const editQueued = (item: QueuedMessage) => {
+    props.onQueueRemove?.(item.id);
+    setText((current) => (current.trim() ? `${item.text}\n${current}` : item.text));
+    textareaRef.current?.focus();
+  };
+
   const onKey = (e: React.KeyboardEvent) => {
     if (!props.running && slashQuery !== null) {
       if (e.key === "ArrowDown") {
@@ -445,6 +476,12 @@ export function Composer(props: Props) {
         if (chosen) pickSkill(chosen);
         return;
       }
+    }
+    // Cmd/Ctrl+Enter during a run: interject every queued message (and the draft) now.
+    if (props.running && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      interject();
+      return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -518,29 +555,78 @@ export function Composer(props: Props) {
   // stayed grey after picking a skill, reading as "stuck").
   const hasContent = text.trim().length > 0 || attachments.length > 0 || !!pendingSkill;
 
+  const queueList =
+    queued.length > 0 ? (
+        <div
+          className="queued-messages max-w-3xl mx-auto mb-2 rounded-2xl border border-line bg-panel"
+          data-testid="queued-messages"
+          role="list"
+          aria-label={t("composer.queueLabel", undefined, "Queued messages")}
+        >
+          {queued.map((item) => (
+            <div className="queued-row" role="listitem" key={item.id} data-testid="queued-message">
+              <Icon name="chat" size={15} className="shrink-0" />
+              <span className="queued-text" title={item.text}>{item.text}</span>
+              <button
+                className="queued-btn"
+                data-testid="queued-edit"
+                title={t("composer.queueEdit", undefined, "Edit")}
+                aria-label={t("composer.queueEdit", undefined, "Edit")}
+                onClick={() => editQueued(item)}
+              >
+                <Icon name="pencil" size={15} />
+              </button>
+              <button
+                className="queued-btn"
+                data-testid="queued-remove"
+                title={t("composer.queueRemove", undefined, "Remove from queue")}
+                aria-label={t("composer.queueRemove", undefined, "Remove from queue")}
+                onClick={() => props.onQueueRemove?.(item.id)}
+              >
+                <Icon name="trash" size={15} />
+              </button>
+              <button
+                className="queued-btn queued-send"
+                data-testid="queued-interject"
+                title={props.running ? t("composer.queueInterject", undefined, "Interject now") : t("composer.queueSendNow", undefined, "Send now")}
+                aria-label={props.running ? t("composer.queueInterject", undefined, "Interject now") : t("composer.queueSendNow", undefined, "Send now")}
+                onClick={() => props.onQueueInterject?.([item.id])}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+    ) : null;
+
   // Active run: keep ONE familiar composer instead of spawning a second steering box.
-  // Enter sends a steer into the current turn; Stop remains adjacent and explicit.
-  // Follow-up is intentionally not exposed until it has a distinct durable queue semantics.
+  // Enter queues the message for when the run ends; Cmd/Ctrl+Enter, or the arrow on a queued
+  // row, interjects it into the run now. Stop remains adjacent and explicit.
   if (props.running) {
     const canSteer = text.trim().length > 0;
     return (
       <div className="composer-wrap px-6 pb-5 pt-4">
         {props.approvalSlot}
-        {props.statusSlot}
+        {queueList}
         <div className="composer max-w-3xl mx-auto rounded-2xl border border-line bg-panel shadow-sm">
           <textarea
             ref={textareaRef}
             className="w-full block px-3.5 pt-3.5 pb-1.5 text-[14.5px]"
-            placeholder="输入对当前任务的调整…"
+            placeholder={
+              queued.length
+                ? t("composer.queueHint", undefined, "Cmd/Ctrl+Enter to interject all queued messages")
+                : t("composer.queuePlaceholder", undefined, "Queue a message for when this run ends")
+            }
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKey}
             onPaste={onPaste}
             rows={1}
-            aria-label="调整当前任务"
+            aria-label={t("composer.runLabel", undefined, "Message for the current run")}
           />
           <div className="px-2.5 pb-2.5 pt-1 flex items-center gap-1.5">
-            <span className="text-[11.5px] text-faint px-1">{"调整当前任务"}</span>
             <span className="ml-auto" />
             {/* The model of the run in progress. It cannot be switched mid-run, but it must stay
                 visible: hiding it made a running task look like it had no model at all. */}
@@ -579,8 +665,8 @@ export function Composer(props: Props) {
               }
               onClick={submit}
               disabled={!canSteer}
-              title="立即调整当前任务"
-              aria-label="立即调整当前任务"
+              title={props.onQueue ? t("composer.queueAdd", undefined, "Queue this message") : t("composer.interjectNow", undefined, "Interject now")}
+              aria-label={props.onQueue ? t("composer.queueAdd", undefined, "Queue this message") : t("composer.interjectNow", undefined, "Interject now")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 19V5M5 12l7-7 7 7" />
@@ -595,6 +681,7 @@ export function Composer(props: Props) {
   return (
     <div className="composer-wrap px-6 pb-5 pt-4">
       {props.approvalSlot}
+      {queueList}
 
       {dictationError && (
         <div className="max-w-3xl mx-auto mb-2 px-1 text-[12px] text-danger" role="alert">

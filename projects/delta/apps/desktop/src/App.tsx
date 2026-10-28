@@ -58,8 +58,7 @@ import { shouldShowOverlay } from "./overlay";
 import { Icon } from "./components/Icon";
 import { EdgeTab } from "./components/EdgeTab";
 import { Sidebar } from "./components/Sidebar";
-import { Composer } from "./components/Composer";
-import { RunStatusBar } from "./components/RunStatusBar";
+import { Composer, type QueuedMessage } from "./components/Composer";
 import { interruptedAnchor, Transcript } from "./components/Transcript";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./components/Markdown";
 import { buildCompletionNotice, showCompletionNotice, type CompletionFile } from "./completionNotice";
@@ -878,6 +877,10 @@ export function App() {
         case "turn_done":
           setRunning(false);
           setStepInfo(null);
+          // A run that ended on its own hands over to the next queued message; one the user
+          // stopped does not (the queue stays for them to send, change or drop).
+          if (stoppedByUserRef.current === sessionId) stoppedByUserRef.current = null;
+          else setDrainQueueFor(sessionId);
           notifyTurnDone();
           refreshSessions();
           // Re-pull the persisted thread: optimistic local items (the just-sent user
@@ -1007,19 +1010,43 @@ export function App() {
     return () => clearInterval(t);
   }, [surface, sessionId, browserRefreshKey, markUnattended]);
 
-  const runningStatusLabel = (_running: boolean): string => {
-    // R5.1 C3: human-readable lightweight run status, localized (the run-state word itself is
-    // rendered by RunStatusBar).
-    if (retryInfo)
-      return tr("run.detail.retrying", { n: retryInfo.attempt, max: retryInfo.max });
-    if (isStopping) return tr("run.detail.stopping");
-    if (stepInfo) return tr("run.detail.step", { n: stepInfo.n, label: stepInfo.label });
-    if (reasoningStream) return tr("run.detail.thinking");
-    if (streaming) return tr("run.detail.generating");
-    return tr("run.detail.executing");
+  // Messages typed during a run, per conversation. They wait for the run to end (see the effect
+  // below) unless the user interjects them into it.
+  const [queues, setQueues] = useState<Record<string, QueuedMessage[]>>({});
+  const queue = queues[sessionId] ?? [];
+  const [drainQueueFor, setDrainQueueFor] = useState<string | null>(null);
+  const stoppedByUserRef = useRef<string | null>(null);
+  const queueMessage = (text: string) =>
+    setQueues((all) => ({ ...all, [sessionId]: [...(all[sessionId] ?? []), { id: newId(), text }] }));
+  const removeQueued = (id: string) =>
+    setQueues((all) => ({ ...all, [sessionId]: (all[sessionId] ?? []).filter((item) => item.id !== id) }));
+  // Send queued messages now, in the order given, and then the draft. During a run each one
+  // interjects into it; with no run it starts one.
+  const interjectQueued = (ids: string[], draft?: string) => {
+    const picked = ids.flatMap((id) => queue.find((item) => item.id === id) ?? []);
+    setQueues((all) => ({
+      ...all,
+      [sessionId]: (all[sessionId] ?? []).filter((item) => !ids.includes(item.id)),
+    }));
+    for (const item of picked) send(item.text);
+    if (draft) send(draft);
   };
+  useEffect(() => {
+    if (!drainQueueFor) return;
+    if (drainQueueFor !== sessionId) {
+      setDrainQueueFor(null);
+      return;
+    }
+    if (isRunning) return;
+    const next = (queues[drainQueueFor] ?? [])[0];
+    setDrainQueueFor(null);
+    if (!next) return;
+    removeQueued(next.id);
+    send(next.text);
+  });
 
   const send = (text: string, attachments?: Attachment[], skill?: string) => {
+    stoppedByUserRef.current = null;
     setComposerNotice(null);
     // Force-run shows exactly what the user typed: "/name rest". Must match the server's
     // `display` sidecar formula so the turn_start dedupe recognizes the local echo.
@@ -1102,6 +1129,7 @@ export function App() {
     const targetSessionId = sessionId;
     if (!session || isStopping) return;
     setStopping(true);
+    stoppedByUserRef.current = targetSessionId;
     const result = await session.interrupt();
     if (foregroundSessionIdRef.current !== targetSessionId) return;
     if (!result.ok) {
@@ -1741,7 +1769,15 @@ export function App() {
                     !isCompacting &&
                     !reasoningStream &&
                     (!streaming || streamMode(streaming, items, isRunning) === "hold") &&
-                    !isLastAssistant(items) && <LiveRunStatus startedAt={turnStartedAt} retry={retryInfo} />}
+                    !isLastAssistant(items) && (
+                      <LiveRunStatus
+                        startedAt={turnStartedAt}
+                        retry={retryInfo}
+                        isAwaitingUser={isAwaitingUser}
+                        isStopping={isStopping}
+                        step={stepInfo}
+                      />
+                    )}
                   {streaming && streamMode(streaming, items, isRunning) === "answer" && (
                     <div className="transcript">
                       <div className="bubble-assistant">
@@ -1805,17 +1841,10 @@ export function App() {
               contextWindow={modelContextWindows[model]}
               contextBar={hasContextBar}
               placeholder={tr("composer.placeholderDelta")}
-              statusSlot={
-                isRunning ? (
-                  // The run is blocked on the user whenever an approval, folder request, plan or
-                  // question is pending: say so instead of "Running".
-                  <RunStatusBar
-                    state={isAwaitingUser ? "awaiting" : "running"}
-                    status={isAwaitingUser ? tr("run.detail.awaiting") : runningStatusLabel(isRunning)}
-                    active={isRunning}
-                  />
-                ) : null
-              }
+              queue={queue}
+              onQueue={queueMessage}
+              onQueueRemove={removeQueued}
+              onQueueInterject={interjectQueued}
               approvalSlot={
                 // Live inline cards are for ATTENDED sessions only; when Unattended the prompt is
                 // parked in the Inbox and surfaced via the answer-in-context card below.
@@ -1902,13 +1931,21 @@ function isLastAssistant(items: Item[]): boolean {
 }
 
 // The foot of a running transcript: how long the turn has run, over a hairline, then what it is
-// waiting on: a provider retry (with its attempt count) or the agent itself.
+// waiting on: the user's decision, a provider retry (with its attempt count), the step the agent is
+// on, or the agent itself. It is the one place the run's state is written out; the composer's
+// button says Stop or Stopping.
 function LiveRunStatus({
   startedAt,
   retry,
+  isAwaitingUser,
+  isStopping,
+  step,
 }: {
   startedAt: number | null;
   retry: { attempt: number; max: number } | null;
+  isAwaitingUser: boolean;
+  isStopping: boolean;
+  step: { n: number; label: string } | null;
 }) {
   const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
@@ -1923,19 +1960,29 @@ function LiveRunStatus({
       ? t("run.elapsed.minutes", { m: minutes, s: seconds % 60 }, `${minutes}m ${seconds % 60}s`)
       : t("run.elapsed.seconds", { s: seconds }, `${seconds}s`);
   return (
-    <div className="live-run-status" aria-live="polite">
-      {startedAt && <div className="live-run-elapsed">{t("run.processed", { time: elapsed }, `Processed ${elapsed}`)}</div>}
-      {retry ? (
-        <div className="waiting-row live-run-retry">
-          <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
-          <span>{t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)}</span>
-        </div>
-      ) : (
-        <div className="waiting-row">
-          <span className="spinner" aria-hidden="true" />
-          <span>{t("transcript.waitingForAgent", undefined, "Waiting for agent…")}</span>
-        </div>
-      )}
+    <div
+      className="live-run-status"
+      aria-live="polite"
+      data-testid="live-run-status"
+      data-run-state={isAwaitingUser ? "awaiting" : "running"}
+    >
+      <div className={"waiting-row live-run-line" + (retry && !isAwaitingUser ? " live-run-retry" : "")}>
+        {isAwaitingUser ? <Icon name="hand" size={14} /> : <span className="spinner" aria-hidden="true" />}
+        <span>
+          {isAwaitingUser
+            ? t("run.detail.awaiting", undefined, "Waiting for your decision")
+            : retry
+              ? t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)
+              : isStopping
+                ? t("run.detail.stopping", undefined, "Stopping…")
+                : step
+                  ? t("run.detail.step", { n: step.n, label: step.label }, `Step ${step.n} · ${step.label}`)
+                  : t("transcript.waitingForAgent", undefined, "Waiting for agent…")}
+        </span>
+        {startedAt && (
+          <span className="live-run-elapsed">· {t("run.takenTime", { time: elapsed }, `${elapsed} elapsed`)}</span>
+        )}
+      </div>
     </div>
   );
 }

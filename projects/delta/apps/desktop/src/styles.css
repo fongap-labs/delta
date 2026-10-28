@@ -453,8 +453,20 @@ body {
 .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
 /* Live run status at the foot of a running transcript: elapsed time over a hairline, then the wait. */
 .live-run-status { max-width: 760px; margin: 18px auto 0; display: flex; flex-direction: column; gap: 8px; }
-.live-run-elapsed { font-size: 12.5px; color: var(--faint); padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.live-run-line { align-self: flex-start; }
+.live-run-elapsed { font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* Messages typed during a run, waiting above the input (one row each). */
+.queued-messages { overflow: hidden; }
+.queued-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px 0 14px; color: var(--muted); }
+.queued-row + .queued-row { border-top: 1px solid var(--line); }
+.queued-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--ink); }
+.queued-btn { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.queued-btn:hover { color: var(--ink); background: var(--bg); }
+.queued-send { border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+.queued-send:hover { color: var(--on-primary); background: var(--primary); border-color: var(--primary); }
 .live-run-retry .thinking-dots span { background: var(--warn); }
+.live-run-awaiting { color: var(--ink); }
+.live-run-awaiting svg { color: var(--warn); }
 @keyframes thinking-dot {
   0%, 60%, 100% { opacity: 0.2; }
   30% { opacity: 1; }
@@ -467,9 +479,6 @@ body {
 .skeleton-row { animation: skeleton-breathe 1.2s ease-in-out infinite; }
 @keyframes skeleton-breathe { 50% { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .skeleton-row { animation: none; } }
-/* Run-status arc: one turn per second; static under "reduce motion" (the word still says Running). */
-.run-spin svg { animation: spin 1s linear infinite; transform-origin: 50% 50%; }
-@media (prefers-reduced-motion: reduce) { .run-spin svg { animation: none; } }
 
 .tool {
   border: 1px solid var(--line); border-radius: 9px; background: var(--panel);

@@ -50,7 +50,7 @@ describe("composer runtime controls", () => {
     expect(reasoning.textContent).toContain("Light");
     expect(reasoning.hasAttribute("disabled")).toBe(true);
 
-    const input = screen.getByLabelText("调整当前任务");
+    const input = screen.getByLabelText("Message for the current run");
     fireEvent.change(input, { target: { value: "use the shorter path" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
     expect(onSend).toHaveBeenCalledWith("use the shorter path");
@@ -71,6 +71,80 @@ describe("composer during a run", () => {
     const stop = screen.getByTestId("composer-stop") as HTMLButtonElement;
     expect(stop.textContent).toContain("Stopping");
     expect(stop.disabled).toBe(true);
+  });
+});
+
+describe("messages queued during a run", () => {
+  const queue = [
+    { id: "q1", text: "first queued" },
+    { id: "q2", text: "second queued" },
+  ];
+
+  it("queues a typed message instead of interjecting it", () => {
+    const onSend = vi.fn();
+    const onQueue = vi.fn();
+    renderComposer({ running: true, onSend, onQueue });
+    const input = screen.getByLabelText("Message for the current run");
+    fireEvent.change(input, { target: { value: "  next step  " } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    expect(onQueue).toHaveBeenCalledWith("next step");
+    expect(onSend).not.toHaveBeenCalled();
+    expect((input as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("interjects every queued message, then the draft, on Cmd/Ctrl+Enter", () => {
+    const onQueueInterject = vi.fn();
+    renderComposer({ running: true, queue, onQueue: vi.fn(), onQueueInterject });
+    const input = screen.getByLabelText("Message for the current run");
+    expect(input.getAttribute("placeholder")).toContain("Cmd/Ctrl+Enter");
+    fireEvent.change(input, { target: { value: "and this" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", ctrlKey: true });
+    expect(onQueueInterject).toHaveBeenCalledWith(["q1", "q2"], "and this");
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", metaKey: true });
+    expect(onQueueInterject).toHaveBeenLastCalledWith(["q1", "q2"], undefined);
+  });
+
+  it("does nothing on Cmd/Ctrl+Enter when there is nothing queued or typed", () => {
+    const onQueueInterject = vi.fn();
+    renderComposer({ running: true, onQueue: vi.fn(), onQueueInterject });
+    fireEvent.keyDown(screen.getByLabelText("Message for the current run"), { key: "Enter", ctrlKey: true });
+    expect(onQueueInterject).not.toHaveBeenCalled();
+  });
+
+  it("lists the queue and lets a row be changed, dropped or sent ahead", () => {
+    const onQueueRemove = vi.fn();
+    const onQueueInterject = vi.fn();
+    renderComposer({ running: true, queue, onQueue: vi.fn(), onQueueRemove, onQueueInterject });
+    const rows = screen.getAllByTestId("queued-message");
+    expect(rows.map((row) => row.textContent)).toEqual(["first queued", "second queued"]);
+
+    fireEvent.click(screen.getAllByTestId("queued-remove")[1]);
+    expect(onQueueRemove).toHaveBeenLastCalledWith("q2");
+
+    fireEvent.click(screen.getAllByTestId("queued-interject")[0]);
+    expect(onQueueInterject).toHaveBeenCalledWith(["q1"]);
+
+    // Editing takes the row back into the box, ahead of any draft already there.
+    const input = screen.getByLabelText("Message for the current run") as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "draft" } });
+    fireEvent.click(screen.getAllByTestId("queued-edit")[0]);
+    expect(onQueueRemove).toHaveBeenLastCalledWith("q1");
+    expect(input.value).toBe("first queued\ndraft");
+  });
+
+  it("keeps a queue left behind visible when no run is going, and sends a row on request", () => {
+    const onQueueInterject = vi.fn();
+    renderComposer({ running: false, queue, onQueueInterject });
+    expect(screen.getAllByTestId("queued-message")).toHaveLength(2);
+    const send = screen.getAllByTestId("queued-interject")[0];
+    expect(send.getAttribute("aria-label")).toBe("Send now");
+    fireEvent.click(send);
+    expect(onQueueInterject).toHaveBeenCalledWith(["q1"]);
+  });
+
+  it("shows no queue when nothing is queued", () => {
+    renderComposer({ running: true, onQueue: vi.fn() });
+    expect(screen.queryByTestId("queued-messages")).toBeNull();
   });
 });
 
