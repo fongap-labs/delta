@@ -495,7 +495,7 @@ export const directSessionRevert = (sessionId: string, index: number) =>
   invokeAuthority("session_revert", { sessionId, index });
 export const directSessionBranch = (sessionId: string, index: number, title?: string) =>
   invokeAuthority("session_branch", { sessionId, index, title });
-export const directUndoRunFiles = (sessionId: string, runId: string) =>
+export const directUndoFiles = (sessionId: string, runId: string) =>
   invokeAuthority("session_undo_files", { sessionId, runId });
 export const directRestoreVersion = (sessionId: string, backup: string, target: string) =>
   invokeAuthority("restore_file_version", { sessionId, backup, target });
@@ -566,10 +566,10 @@ export const directUpdateMemory = (id: number, content: string) =>
   invokeAuthority("memory_update", { id, content });
 export const directDeleteMemory = (id: number) =>
   invokeAuthority("memory_delete", { id });
-export const directListMemoryCandidates = () => invokeAuthority("memory_candidates");
-export const directAcceptMemoryCandidate = (id: number, content?: string) =>
+export const directListSuggestions = () => invokeAuthority("memory_candidates");
+export const directAcceptSuggestion = (id: number, content?: string) =>
   invokeAuthority("memory_candidate_accept", { id, content: content ?? null });
-export const directRejectMemoryCandidate = (id: number) =>
+export const directRejectSuggestion = (id: number) =>
   invokeAuthority("memory_candidate_reject", { id });
 export const directExportMemory = () => invokeAuthority("memory_export");
 export const directImportMemory = (document: unknown) =>

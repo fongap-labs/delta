@@ -835,7 +835,7 @@ fn build_anthropic_body(req: &ProviderRequest, should_stream: bool) -> Value {
         );
     }
     if is_cacheable {
-        add_anthropic_cache_breakpoints(&mut body);
+        add_cache_breakpoints(&mut body);
     }
     body
 }
@@ -852,7 +852,7 @@ fn anthropic_caching_applies(req: &ProviderRequest) -> bool {
 /// built) and of the last message, so each request reuses the cache of everything before the
 /// newest turn. The tools and the system prompt do not change while a session runs, and the
 /// history only grows at its end.
-fn add_anthropic_cache_breakpoints(body: &mut Value) {
+fn add_cache_breakpoints(body: &mut Value) {
     let mark = json!({"type": "ephemeral"});
     if let Some(last_tool) = body
         .get_mut("tools")

@@ -50,9 +50,9 @@ import {
   directRemoveModel,
   directRemoveProvider,
   directDeleteMemory,
-  directListMemoryCandidates,
-  directAcceptMemoryCandidate,
-  directRejectMemoryCandidate,
+  directListSuggestions,
+  directAcceptSuggestion,
+  directRejectSuggestion,
   directExportMemory,
   directImportMemory,
   clearMemory,
@@ -77,7 +77,7 @@ import {
   deleteSessionRoot,
   directSessionRevert,
   directSessionBranch,
-  directUndoRunFiles,
+  directUndoFiles,
   directRestoreVersion,
   directReadSearch,
   directWriteSearch,
@@ -548,7 +548,7 @@ export async function branchSession(
  * the run created is taken out of the workspace. A file changed since is left alone and reported.
  */
 export async function undoRunFiles(sessionId: string, runId: string): Promise<UndoFilesResult> {
-  return await directUndoRunFiles(sessionId, runId);
+  return await directUndoFiles(sessionId, runId);
 }
 
 /** Put back the earlier version the runtime kept when the agent replaced `target`. */
@@ -1584,18 +1584,18 @@ export async function updateMemory(
 }
 
 export async function getMemoryCandidates(): Promise<MemoryCandidate[]> {
-  return throwOnError(await directListMemoryCandidates()).candidates ?? [];
+  return throwOnError(await directListSuggestions()).candidates ?? [];
 }
 
 export async function acceptMemoryCandidate(
   id: number,
   content?: string,
 ): Promise<{ ok: boolean; memory_id?: number; error?: string }> {
-  return await directAcceptMemoryCandidate(id, content);
+  return await directAcceptSuggestion(id, content);
 }
 
 export async function rejectMemoryCandidate(id: number): Promise<{ ok: boolean; error?: string }> {
-  return await directRejectMemoryCandidate(id);
+  return await directRejectSuggestion(id);
 }
 
 export async function deleteMemory(id: number): Promise<{ ok: boolean; error?: string }> {

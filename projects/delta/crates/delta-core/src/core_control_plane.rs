@@ -1314,8 +1314,8 @@ impl CoreControlPlane {
         session_id: &str,
         workspace: Option<&str>,
     ) -> crate::tool_surface::SessionFacts {
-        let has_study = workspace
-            .is_some_and(|path| crate::tool_surface::workspace_has_study_record(Path::new(path)));
+        let has_study =
+            workspace.is_some_and(|path| crate::tool_surface::has_study_record(Path::new(path)));
         let has_statistics_runtime = self
             .capabilities
             .tool_schemas()

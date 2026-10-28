@@ -43,7 +43,7 @@ pub fn is_useful(tool_name: &str, facts: SessionFacts) -> bool {
 const STUDY_SCAN_LIMIT: usize = 200;
 
 /// Whether `study.json` is in the workspace folder or directly inside one of its folders.
-pub fn workspace_has_study_record(workspace: &Path) -> bool {
+pub fn has_study_record(workspace: &Path) -> bool {
     if workspace.join("study.json").is_file() {
         return true;
     }
@@ -126,18 +126,18 @@ mod tests {
     #[test]
     fn a_study_record_is_found_in_the_workspace_or_one_folder_down() {
         let tmp = tempfile::tempdir().unwrap();
-        assert!(!workspace_has_study_record(tmp.path()));
+        assert!(!has_study_record(tmp.path()));
         std::fs::create_dir_all(tmp.path().join("round-1/deeper")).unwrap();
         std::fs::write(tmp.path().join("round-1/deeper/study.json"), "{}").unwrap();
         assert!(
-            !workspace_has_study_record(tmp.path()),
+            !has_study_record(tmp.path()),
             "two folders down is not looked at"
         );
         std::fs::write(tmp.path().join("round-1/study.json"), "{}").unwrap();
-        assert!(workspace_has_study_record(tmp.path()));
+        assert!(has_study_record(tmp.path()));
         let direct = tempfile::tempdir().unwrap();
         std::fs::write(direct.path().join("study.json"), "{}").unwrap();
-        assert!(workspace_has_study_record(direct.path()));
-        assert!(!workspace_has_study_record(&direct.path().join("missing")));
+        assert!(has_study_record(direct.path()));
+        assert!(!has_study_record(&direct.path().join("missing")));
     }
 }
