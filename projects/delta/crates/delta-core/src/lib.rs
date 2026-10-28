@@ -57,6 +57,7 @@ pub mod taskstore;
 pub mod todo;
 pub mod tool_lifecycle;
 pub mod validation;
+pub mod vision;
 pub mod web;
 pub mod webhook;
 pub mod wire;

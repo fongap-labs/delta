@@ -137,6 +137,64 @@ impl ProductSettings {
         Ok(())
     }
 
+    /// Vision bridge settings. An empty `vision_model` turns the bridge off. `vision_support` maps
+    /// a model id to whether that model takes pictures itself; it is merged, not replaced.
+    pub(crate) fn set_vision_settings(
+        prefs: &mut Map<String, Value>,
+        patch: &Value,
+    ) -> Result<(), String> {
+        if let Some(model) = patch.get("vision_model").and_then(Value::as_str) {
+            prefs.insert("vision_model".to_string(), json!(model.trim()));
+        }
+        if let Some(protocol) = patch.get("vision_protocol").and_then(Value::as_str) {
+            let protocol = protocol.trim();
+            if !protocol.is_empty() && !crate::vision::PROTOCOLS.contains(&protocol) {
+                return Err(format!(
+                    "vision_protocol must be one of {}",
+                    crate::vision::PROTOCOLS.join(", ")
+                ));
+            }
+            prefs.insert("vision_protocol".to_string(), json!(protocol));
+        }
+        if let Some(value) = patch.get("vision_max_image_mb").and_then(Value::as_i64) {
+            prefs.insert("vision_max_image_mb".to_string(), json!(value.clamp(1, 8)));
+        }
+        if let Some(value) = patch.get("vision_max_tokens").and_then(Value::as_i64) {
+            prefs.insert("vision_max_tokens".to_string(), json!(value.clamp(1, 4096)));
+        }
+        if let Some(value) = patch.get("vision_timeout_secs").and_then(Value::as_f64) {
+            prefs.insert(
+                "vision_timeout_secs".to_string(),
+                json!(value.clamp(5.0, 300.0)),
+            );
+        }
+        if let Some(prompt) = patch.get("vision_prompt").and_then(Value::as_str) {
+            let prompt = prompt.trim();
+            if prompt.chars().count() > crate::vision::MAX_PROMPT_CHARS {
+                return Err(format!(
+                    "vision_prompt must be at most {} characters",
+                    crate::vision::MAX_PROMPT_CHARS
+                ));
+            }
+            prefs.insert("vision_prompt".to_string(), json!(prompt));
+        }
+        if let Some(support) = patch.get("vision_support").and_then(Value::as_object) {
+            let mut merged = prefs
+                .get("vision_support")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            for (model, takes_images) in support {
+                let flag = takes_images
+                    .as_bool()
+                    .ok_or_else(|| format!("vision_support.{model} must be true or false"))?;
+                merged.insert(model.clone(), json!(flag));
+            }
+            prefs.insert("vision_support".to_string(), Value::Object(merged));
+        }
+        Ok(())
+    }
+
     pub(crate) fn set_compaction_settings(
         prefs: &mut Map<String, Value>,
         patch: &Value,
