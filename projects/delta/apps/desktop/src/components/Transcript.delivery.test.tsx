@@ -60,9 +60,30 @@ describe("starting points", () => {
     const onPick = vi.fn();
     render(wrap(<SessionIntro onPick={onPick} />));
     const buttons = screen.getAllByTestId("intro-example");
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(3);
     fireEvent.click(buttons[2]);
     expect(onPick).toHaveBeenCalledWith(buttons[2].textContent);
+  });
+
+  it("guides by kind of work: each kind shows its own examples, and the first kind is open", () => {
+    render(wrap(<SessionIntro onPick={() => {}} />));
+    expect(screen.getByTestId("intro-art")).toBeTruthy();
+    const kinds = screen.getAllByRole("tab");
+    expect(kinds).toHaveLength(3);
+    expect(kinds[0].getAttribute("aria-selected")).toBe("true");
+    const office = screen.getAllByTestId("intro-example").map((button) => button.textContent);
+    fireEvent.click(screen.getByTestId("intro-kind-research"));
+    const research = screen.getAllByTestId("intro-example").map((button) => button.textContent);
+    expect(research).toHaveLength(3);
+    expect(research.some((text) => office.includes(text))).toBe(false);
+    expect(screen.getByTestId("intro-kind-research").getAttribute("aria-selected")).toBe("true");
+    expect(kinds[0].getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("offers no starting points when nothing can receive them", () => {
+    render(wrap(<SessionIntro />));
+    expect(screen.queryAllByTestId("intro-example")).toHaveLength(0);
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 });
 
