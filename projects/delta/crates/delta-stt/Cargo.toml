@@ -15,4 +15,4 @@ tar = "0.4"
 ureq = "3.4"
 # Local recognition runs SenseVoice through sherpa-onnx (ONNX Runtime, linked statically from
 # the project's prebuilt archive; set SHERPA_ONNX_LIB_DIR to build from a local copy).
-sherpa-onnx = "1.13.8"
+sherpa-onnx = "2.0.0"
