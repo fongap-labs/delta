@@ -1,1 +1,0 @@
-- 变更: 运行时包的 CPython 3.12 解释器固定为 python-build-standalone 20261026 中的 3.12.16，发布构建在使用前校验其 SHA-256。
