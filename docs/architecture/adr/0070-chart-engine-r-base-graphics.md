@@ -8,7 +8,7 @@
 
 1. **没有图表块。** `create_document` 不支持图表（测试断言 `unknown block type: chart`），也不支持插图。
 2. **可报告的数字由 R 计算**（ADR-0054）。Rust 通过 `find_rscript` 检查固定版本 R 4.6.0，并以 `Rscript --vanilla -e` 运行固定脚本，超时后强制结束（`statistics.rs`）。R 已是统计的必需依赖。
-3. **桌面应用不随附 Python**（ADR-0058、`packaging/portable/build-portable.ps1`），ADR-0054 已经取消了为统计引入 Python 的中间层。
+3. **桌面应用不随附 Python**（ADR-0058、`projects/delta/packaging/portable/build-portable.ps1`），ADR-0054 已经取消了为统计引入 Python 的中间层。
 4. **溯源要求。** 报告中的数字可追溯到结果文件与其 SHA-256（ADR-0055）。图表若由另一套引擎生成，图与数字之间就有一个不受核对的环节。
 
 ## 方案比较
@@ -59,7 +59,7 @@
 
 ## 实现记录
 
-- `crates/delta-core/src/statistics/chart.rs`：工具 `chart_render`，能力 `chart.render`，经审批，副作用 `local_write`，注册在 `CapabilityHost::product_defaults`。
+- `projects/delta/crates/delta-core/src/statistics/chart.rs`：工具 `chart_render`，能力 `chart.render`，经审批，副作用 `local_write`，注册在 `CapabilityHost::product_defaults`。
 - R 程序 `CHART_SCRIPT` 编译进二进制，通过 `run_rscript` 运行，参数走命令行，列名与标题不拼进程序文本。
 - 图片由 R 写入暂存目录，Rust 检查文件头为 PNG、计算哈希，并写入 `<chart_path>.figure.json`（`delta.figure`），两个文件都登记为产出物。
 - 参数检查在启动 R 之前完成：图表类型、每种图需要的列、`bins` 范围、`fit` 类型、标题为单行且不超过 120 字，`chart_path` 必须是工作区内的相对 `.png` 路径。

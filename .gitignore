@@ -10,10 +10,10 @@ dist/
 *.log
 
 # Build outputs (packaging staging and local release artifacts)
-apps/desktop/src-tauri/binaries/
-apps/desktop/src-tauri/target/release/bundle/
-packaging/build/
-packaging/portable/target/
+projects/delta/apps/desktop/src-tauri/binaries/
+projects/delta/apps/desktop/src-tauri/target/release/bundle/
+projects/delta/packaging/build/
+projects/delta/packaging/portable/target/
 releases/
 
 # Local secrets (live-smoke BYO keys) — never committed
@@ -26,7 +26,7 @@ releases/
 *.bak
 
 # Local portable release build output (generated; carries user DBs/logs/prefs)
-packaging/release/
+projects/delta/packaging/release/
 
 # Local ruff linter cache
 .ruff_cache/

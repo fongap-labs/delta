@@ -134,7 +134,7 @@ SHA-256 必须针对最终实际发布的 ZIP 生成。
 
 ## 脚手架（已实现，默认不生效）
 
-`packaging/portable/sign-windows.ps1` 在两个密钥都存在时才签名：
+`projects/delta/packaging/portable/sign-windows.ps1` 在两个密钥都存在时才签名：
 
 * `build-portable.ps1` 在复制出主程序与 Launcher 之后、自检与生成 ZIP 之前调用它，对 `Delta.exe`（Launcher）和 `App\Delta\Delta.exe`（主程序）做 SHA-256 签名并带时间戳，随后执行 `signtool verify /pa /all`。
 * `.github/scripts/release-build.ps1` 在解压最终 ZIP 后，对其中的两个可执行文件再验证一次（仅在密钥存在时）。
@@ -176,4 +176,4 @@ macOS：当前 `tauri.conf.json` 与 CI 都没有 `signingIdentity` 或公证（
 7. ZIP 在签名完成后生成
 8. SHA-256 基于最终 ZIP 生成
 
-签名逻辑应集中维护在 `packaging/portable/sign-windows.ps1` 中，由 `build-portable.ps1` 与 `.github/scripts/release-build.ps1` 统一调用，避免开发机和 CI 使用不同的正式发行流程。
+签名逻辑应集中维护在 `projects/delta/packaging/portable/sign-windows.ps1` 中，由 `build-portable.ps1` 与 `.github/scripts/release-build.ps1` 统一调用，避免开发机和 CI 使用不同的正式发行流程。

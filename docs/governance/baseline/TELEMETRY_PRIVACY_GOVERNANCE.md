@@ -6,7 +6,7 @@
 
 本文是 Delta 遥测与隐私的基线，说明隐私原则、数据类别、采集策略、用户控制、数据处理与留存，以及合规与审计要求。
 
-> **实施状态：** 当前版本的桌面端设置页已移除遥测 / 隐私卡片（见 `apps/desktop/src/components/SettingsView.tsx`），仅保留 `setCloudTelemetry` API 以备将来使用。本文所述的采集策略、用户控制、API 与公开产物均为**计划中的目标策略**。在相应控制重新上线之前，不得据此宣称已经提供了这些控制或已进行了相应采集。
+> **实施状态：** 当前版本的桌面端设置页已移除遥测 / 隐私卡片（见 `projects/delta/apps/desktop/src/components/SettingsView.tsx`），仅保留 `setCloudTelemetry` API 以备将来使用。本文所述的采集策略、用户控制、API 与公开产物均为**计划中的目标策略**。在相应控制重新上线之前，不得据此宣称已经提供了这些控制或已进行了相应采集。
 
 ---
 
@@ -86,7 +86,7 @@
 | `model.usage` | `model_family`、`request_tokens`、`response_tokens`、`latency_ms` |
 | `search.query` | `query_length`、`result_count`、`source_type` |
 
-`model.usage` 是遥测事件，与 Runtime 台账事件 `model.request` 不同名、字段不同、去向不同。`model.request` 的唯一权威定义在 `docs/architecture/runtime-public-contract.md`，遥测文档不得再用该名称定义字段（由 `crates/delta-core/tests/contract_wire.rs` 中的 `model_request_event_has_one_definition` 检查）。
+`model.usage` 是遥测事件，与 Runtime 台账事件 `model.request` 不同名、字段不同、去向不同。`model.request` 的唯一权威定义在 `docs/architecture/runtime-public-contract.md`，遥测文档不得再用该名称定义字段（由 `projects/delta/crates/delta-core/tests/contract_wire.rs` 中的 `model_request_event_has_one_definition` 检查）。
 
 ### 4.3 内容诊断（明确选择加入 + 范围 + 时效）
 

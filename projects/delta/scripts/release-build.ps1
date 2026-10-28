@@ -16,7 +16,8 @@ if ($Target -ne "x86_64-pc-windows-msvc") {
   throw "Unsupported Delta release target: $Target"
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+# The release job sets RELEASE_PRODUCT_ROOT to the product root; a local run uses this folder's parent.
+$repoRoot = if ($env:RELEASE_PRODUCT_ROOT) { $env:RELEASE_PRODUCT_ROOT } else { Resolve-Path (Join-Path $PSScriptRoot "..") }
 Set-Location $repoRoot
 
 # The release version is the one entered when the release was started; write it into the

@@ -32,7 +32,7 @@ Suite 只允许依赖一个**独立的合同包**（暂名 `delta-contracts`）�
 
 ### 3. Suite 的约束
 
-- Suite 不得依赖完整的 `delta` 发行版，不得导入 `delta_extension_api`、`integrations.*`、`packages.*`、`core.*` 或 `crates/delta-core`。
+- Suite 不得依赖完整的 `delta` 发行版，不得导入 `delta_extension_api`、`integrations.*`、`packages.*`、`core.*` 或 `projects/delta/crates/delta-core`。
 - Suite 不再固定 Foundation 的提交；只固定合同包的语义版本（以及 Capability ABI / Manifest 版本）。
 - Suite 的浏览器、Connector、CMC 与报告模板都在 Suite 内实现，不通过 Foundation 内部模块“借用”实现。
 - Suite 的测试在未安装 `delta` 的环境中可以运行。
@@ -67,8 +67,8 @@ Suite 只允许依赖一个**独立的合同包**（暂名 `delta-contracts`）�
 - 曾建立只含 Manifest 模型的 `delta_contracts` 原型，随后删除：以当前两个第一方仓库的规模，Suite 只需要公开 `delta-worker-sdk` 与 JSON Manifest，不需要额外的 Python 合同包。它不进入任何运行时路径。
 - Suite 已移除完整 `delta` 发行版与 `delta_extension_api`。浏览器、Connector、SecretStore、HTTP 地址守卫、邮箱校验与工具元数据改由 Suite 自己的 `advanced.extension_api` 提供。
 - Suite 现在只依赖 `delta-worker-sdk`、`httpx` 与 `playwright`；测试在未安装完整 `delta` 的环境中通过（44 passed, 2 skipped）。
-- `scripts/check_boundaries.py` 的 `CLEAN_CUT_DEBT` 为空；新的 Foundation 门面导入或完整 `delta` 依赖会失败。
-- Worker ABI 模型仍留在 `packages/delta_worker_sdk`；后续如果独立发布 SDK，再把 `foundation.git-ref` 换成 SDK 版本号。
+- `projects/delta/scripts/check_boundaries.py` 的 `CLEAN_CUT_DEBT` 为空；新的 Foundation 门面导入或完整 `delta` 依赖会失败。
+- Worker ABI 模型仍留在 `projects/delta/packages/delta_worker_sdk`；后续如果独立发布 SDK，再把 `foundation.git-ref` 换成 SDK 版本号。
 
 ## 未验证事项与未决事项
 

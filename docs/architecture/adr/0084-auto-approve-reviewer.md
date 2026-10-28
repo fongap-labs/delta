@@ -24,9 +24,9 @@
 
 ## 实现
 
-- `crates/delta-core/src/reviewer.rs`：纯函数，包括系统提示、消息构建（含脱敏与大小上限）、严格的答复解析。
-- `crates/delta-core/src/runtime/tool_execution.rs`：`review_call` 与 `latest_user_request`；审批分支在会话级授权之后、弹出审批卡之前调用审阅者。
-- `crates/delta-core/src/runtime/egress_gate.rs`：`gate_model_request` 与 `confirm_endpoint` 改为 `&self`。两者只读取自身状态，审批与记录方法本来就是 `&self`，因此这一改动不改变行为。
+- `projects/delta/crates/delta-core/src/reviewer.rs`：纯函数，包括系统提示、消息构建（含脱敏与大小上限）、严格的答复解析。
+- `projects/delta/crates/delta-core/src/runtime/tool_execution.rs`：`review_call` 与 `latest_user_request`；审批分支在会话级授权之后、弹出审批卡之前调用审阅者。
+- `projects/delta/crates/delta-core/src/runtime/egress_gate.rs`：`gate_model_request` 与 `confirm_endpoint` 改为 `&self`。两者只读取自身状态，审批与记录方法本来就是 `&self`，因此这一改动不改变行为。
 
 ## 测试
 

@@ -392,7 +392,7 @@ export async function directStatisticsTools(): Promise<unknown> {
   }
 }
 
-export async function directRuntimePackStatus(): Promise<unknown> {
+export async function directPackStatus(): Promise<unknown> {
   try {
     return await invoke("runtime_pack_status");
   } catch (e) {
@@ -400,7 +400,7 @@ export async function directRuntimePackStatus(): Promise<unknown> {
   }
 }
 
-export async function directRuntimePackInstall(): Promise<unknown> {
+export async function directPackInstall(): Promise<unknown> {
   try {
     return await invoke("runtime_pack_install");
   } catch (e) {

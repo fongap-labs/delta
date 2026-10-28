@@ -34,7 +34,9 @@ case "$SHARD" in
     ;;
 esac
 
-cd "$TARGET_ROOT"
+# Delta's product tree lives under projects/delta (ADR-0080 layout); every phase below runs there.
+# Changed-file paths from git stay repository-relative, and detect-ci-path.sh normalizes them.
+cd "$TARGET_ROOT/projects/delta"
 
 run_pool() {
   local limit="$1"

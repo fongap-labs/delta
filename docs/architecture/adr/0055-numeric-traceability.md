@@ -10,7 +10,7 @@
 
 现存情况（已核对，并非假设）：
 
-1. **校验规则。** `crates/delta-core/src/validation.rs` 针对工具的产出物评估标准：
+1. **校验规则。** `projects/delta/crates/delta-core/src/validation.rs` 针对工具的产出物评估标准：
    - 产出物数量；
    - 完整性；
    - 必需路径；
@@ -20,7 +20,7 @@
    - 有效引用的数量。
 
    `required_substrings` 直接读取文件的原始字节，因此它对 Markdown、CSV 等文本格式有意义，而对 DOCX（一个 ZIP 容器）则没有意义。
-2. **标准的来源。** `RuntimeHost::validate_tool_artifacts`（`runtime/tool_execution.rs`）使用工具结果提供的校验标准（`validation_criteria`）进行校验，若未提供，则使用默认值（`min_artifacts: 0`、`max_artifacts: 50`、`require_complete: true`）。能力宿主的结果目前总是传入 `validation_criteria: None`（`capability/host.rs`）。
+2. **标准的来源。** `RuntimeHost::validate_tool_artifacts`（`projects/delta/runtime/tool_execution.rs`）使用工具结果提供的校验标准（`validation_criteria`）进行校验，若未提供，则使用默认值（`min_artifacts: 0`、`max_artifacts: 50`、`require_complete: true`）。能力宿主的结果目前总是传入 `validation_criteria: None`（`capability/host.rs`）。
 3. **产出物登记。** 产出物按运行登记，包含路径、类型、大小与 SHA-256（`artifact.rs`，`ArtifactRegistryWriter`）。`ArtifactReader::list_for_run` 列出某次运行的产出物。
 4. **没有任何机制把报告中的数字与产生它的计算联系起来。**
 

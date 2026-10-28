@@ -16,7 +16,7 @@
 
 ### 1. 内置技能
 
-三个技能编译进二进制（`crates/delta-core/skills/<名字>/SKILL.md`，用 `include_str!` 引入）：`wechat-article`、`five-image-note`、`short-video-pack`。不需要安装，不需要网络。
+三个技能编译进二进制（`projects/delta/crates/delta-core/skills/<名字>/SKILL.md`，用 `include_str!` 引入）：`wechat-article`、`five-image-note`、`short-video-pack`。不需要安装，不需要网络。
 
 - 它们出现在技能列表里，范围为 `builtin`，来源为 `builtin`，默认开启；用户可以关闭。
 - **只读**：不能原地编辑或删除。要修改，用"复制一份"以另一个名字存成自己的技能。

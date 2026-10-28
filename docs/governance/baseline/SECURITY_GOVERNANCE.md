@@ -134,8 +134,8 @@ Delta **不会**对以下研究者提起法律诉讼：
 
 - CodeQL 分析（配置见 `.github/security-scan.json`）。
 - Python、npm、Rust 依赖的公告检查（`pip-audit`、`npm audit`、`cargo deny` 的 advisories 检查）。
-- 许可证策略校验（`cargo deny` 的 licenses 检查，以及 `scripts/check_license_policy.py`）。
-- 架构边界、命名与退役路径（retired-path）检查（`scripts/check_architecture_boundary.py`、`scripts/check_naming.py`、`scripts/check_retired_paths.py`）。仓库边界检查（`scripts/check_repository_boundary.py`）目前通过 pre-commit 运行，尚未接入中央 CI。
+- 许可证策略校验（`cargo deny` 的 licenses 检查，以及 `projects/delta/scripts/check_license_policy.py`）。
+- 架构边界、命名与退役路径（retired-path）检查（`projects/delta/scripts/check_architecture_boundary.py`、`projects/delta/scripts/check_naming.py`、`projects/delta/scripts/check_retired_paths.py`）。仓库边界检查（`projects/delta/scripts/check_repository_boundary.py`）目前通过 pre-commit 运行，尚未接入中央 CI。
 - 合同测试与 Rust 格式化、编译、Clippy 与测试。
 - Python 静态检查（Ruff、Pyright）与测试。
 - 桌面端 TypeScript 检查、单元测试与 E2E 测试。

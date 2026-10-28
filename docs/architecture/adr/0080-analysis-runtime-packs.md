@@ -43,7 +43,7 @@
 
 ### 5. 合同与校验
 
-- 环境清单、方法包清单与分析结果 v2 使用 `schemas/` 中的 JSON Schema。
+- 环境清单、方法包清单与分析结果 v2 使用 `projects/delta/schemas/` 中的 JSON Schema。
 - 结果记录引擎、环境摘要、方法、输入、参数、警告与限制；报告门禁按 ADR-0079。
 - 启动与运行前都做快速校验；校验失败时失败即关闭，不回退到另一个引擎。
 
@@ -57,12 +57,12 @@
 ## 分发（2026-10-27 决定）
 
 - Explore Runtime Pack 发布到固定仓库 `fongap-labs/external-vault` 的 GitHub Releases，标签 `explore-runtime-v<semver>`；Git 树中不提交归档。该仓库的规范即是把版本化产物放在 Releases 中。
-- 归档与清单由 `scripts/build_explore_runtime.py`（实现于 `packages/explore_pack/runtime_pack.py`）生成。归档是确定性的：同一源码两次构建的字节完全一致。清单列出每个文件的 SHA-256 以及归档的 SHA-256。
+- 归档与清单由 `projects/delta/scripts/build_explore_runtime.py`（实现于 `projects/delta/packages/explore_pack/runtime_pack.py`）生成。归档是确定性的：同一源码两次构建的字节完全一致。清单列出每个文件的 SHA-256 以及归档的 SHA-256。
 - 签名采用免费方案：cosign keyless（基于 GitHub OIDC）或 minisign。应用清单固定下载地址、归档 SHA-256 与签名身份。操作系统层面的代码签名（macOS 公证、Windows 证书）不在本决定范围内，暂不做。
 - 解释器不随 Pack 分发：要求系统 Python ≥3.11，并通过 `DELTA_EXPLORE_PYTHON` 显式指定。
 - 运行时校验：若 `DELTA_EXPLORE_ROOT` 指向的目录含有 `manifest.json`，Rust 在注册工具前逐文件核对 SHA-256。任何不一致、缺失或越界的路径都会使工具不注册（失败即关闭）。没有清单的目录视为开发检出，不做此校验。
 - 已知限制：清单本身在签名接入前不受保护；删除清单会使目录退回开发模式。签名步骤与 external-vault 的发布规则需要在源仓库和 Action Worker 中配置，尚未完成。
-- 发布声明（尚未提交）：Action Worker 的根级发布清单 `.github/release.manifest.json` 已属于 Delta 产品，且一个仓库只能采用一种布局（根级单产品，或 `projects/<product>/` 多产品）。因此 Explore Runtime 的清单在布局决定之前不提交，不覆盖 Delta 的清单。构建脚本为 `.github/scripts/build-explore-runtime.ps1`（Action Worker 要求 `.ps1`），计划在 `linux-standard` 运行器上调用 `scripts/build_explore_runtime.py`。版本只来自发布时的手动输入，构建会拒绝与 `PACK_VERSION` 不一致的版本。资产固定为 `explore-runtime.tar.gz` 与 `manifest.json`，名称中不含版本。
+- 发布声明（尚未提交）：Action Worker 的根级发布清单 `.github/release.manifest.json` 已属于 Delta 产品，且一个仓库只能采用一种布局（根级单产品，或 `projects/<product>/` 多产品）。因此 Explore Runtime 的清单在布局决定之前不提交，不覆盖 Delta 的清单。构建脚本为 `.github/scripts/build-explore-runtime.ps1`（Action Worker 要求 `.ps1`），计划在 `linux-standard` 运行器上调用 `projects/delta/scripts/build_explore_runtime.py`。版本只来自发布时的手动输入，构建会拒绝与 `PACK_VERSION` 不一致的版本。资产固定为 `explore-runtime.tar.gz` 与 `manifest.json`，名称中不含版本。
 - 尚未完成：发布清单的布局决定与提交、外部目标仓库策略（`external-vault` 未登记为发布目标）、运行器上的 `pwsh` 实测、签名步骤，以及 `external-vault` 中的工具元数据。这些需要维护者配置或后续阶段完成。
 
 ## 后果
@@ -82,10 +82,10 @@
 ## 实现记录（2026-10-27）
 
 - Foundation 的 R 统计、R CI 与 external-vault R 资产已立即移除（ADR-0081）。
-- Explore Pack 第一阶段（`packages/explore_pack/`）：标准库实现的描述统计、Welch t 检验、Pearson 相关与简单回归；CLI 写出 `delta.result` v2，`assurance` 固定为 `exploratory`，并以 `analysis-result.schema.json` 校验。依赖只新增开发期的 `jsonschema`，运行时不引入第三方包。
+- Explore Pack 第一阶段（`projects/delta/packages/explore_pack/`）：标准库实现的描述统计、Welch t 检验、Pearson 相关与简单回归；CLI 写出 `delta.result` v2，`assurance` 固定为 `exploratory`，并以 `analysis-result.schema.json` 校验。依赖只新增开发期的 `jsonschema`，运行时不引入第三方包。
 - 尚未实现：Rust 能力注册与审批接入、受控脚本模式、独立 Runtime Pack 的签名与三平台构建、统计页接入。这些是 P3 的后续工作。
 - Suite Validate Pack 的 R 方法包由 Suite 仓库另行交付，不在本次范围内。
-- 第二阶段：`packages/explore_pack/worker.py` 按能力 ABI v2 从 stdin 读取作业、向 stdout 写出结果；Rust 侧 `statistics_explore` 在配置 `DELTA_EXPLORE_PYTHON` 与 `DELTA_EXPLORE_ROOT` 后注册四个 `statistics.explore.*` 工具，统计页可在无模型时运行它们（ADR-0078 修订）。未配置时不注册任何工具。
+- 第二阶段：`projects/delta/packages/explore_pack/worker.py` 按能力 ABI v2 从 stdin 读取作业、向 stdout 写出结果；Rust 侧 `statistics_explore` 在配置 `DELTA_EXPLORE_PYTHON` 与 `DELTA_EXPLORE_ROOT` 后注册四个 `statistics.explore.*` 工具，统计页可在无模型时运行它们（ADR-0078 修订）。未配置时不注册任何工具。
 - 第二阶段仍未解决：Runtime Pack 的签名接入与发布（见上方"分发"一节）；受控脚本模式。
 - 统计运行的审计条目已在 `CoreControlPlane::audit_statistics_run` 实现（写入 `audit_events.db`，写入失败即拒绝运行），此前的待办已过时。
 

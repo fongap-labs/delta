@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="resources/brand/delta-logo-256x256.png" width="112" alt="Delta 标志">
+<img src="projects/delta/resources/brand/delta-logo-256x256.png" width="112" alt="Delta 标志">
 
 # Delta
 
 本地优先的个人 AI 工作助手，专注于日常办公、研究分析与内容创作。
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-286F78?style=flat-square&labelColor=1D3F45)](LICENSE) [![Python](https://img.shields.io/badge/Python-3.12-3E7F86?style=flat-square&labelColor=1D3F45)](.python-version) [![Node.js](https://img.shields.io/badge/Node.js-22-4E7C6F?style=flat-square&labelColor=1D3F45)](.nvmrc) [![Rust](https://img.shields.io/badge/Rust-stable-8C6D3F?style=flat-square&labelColor=1D3F45)](rust-toolchain.toml) [![Tauri](https://img.shields.io/badge/Tauri-2-2D5C6B?style=flat-square&labelColor=1D3F45)](apps/desktop) [![Status](https://img.shields.io/badge/Status-pre--release-7A5C2E?style=flat-square&labelColor=1D3F45)](CHANGELOG.md) [![Release](https://img.shields.io/github/v/release/fongap-labs/delta?label=Latest&display_name=tag&sort=semver&style=flat-square&labelColor=1D3F45)](https://github.com/fongap-labs/delta/releases/latest)
+[![License](https://img.shields.io/badge/License-Apache%202.0-286F78?style=flat-square&labelColor=1D3F45)](LICENSE) [![Python](https://img.shields.io/badge/Python-3.12-3E7F86?style=flat-square&labelColor=1D3F45)](projects/delta/.python-version) [![Node.js](https://img.shields.io/badge/Node.js-22-4E7C6F?style=flat-square&labelColor=1D3F45)](projects/delta/.nvmrc) [![Rust](https://img.shields.io/badge/Rust-stable-8C6D3F?style=flat-square&labelColor=1D3F45)](projects/delta/rust-toolchain.toml) [![Tauri](https://img.shields.io/badge/Tauri-2-2D5C6B?style=flat-square&labelColor=1D3F45)](projects/delta/apps/desktop) [![Status](https://img.shields.io/badge/Status-pre--release-7A5C2E?style=flat-square&labelColor=1D3F45)](CHANGELOG.md) [![Release](https://img.shields.io/github/v/release/fongap-labs/delta?label=Latest&display_name=tag&sort=semver&style=flat-square&labelColor=1D3F45)](https://github.com/fongap-labs/delta/releases/latest)
 
 [快速开始](#快速开始) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
 
@@ -114,7 +114,7 @@ Delta 提供两种使用方式：**便携包直接运行**（无需安装开发�
 git clone https://github.com/fongap-labs/delta.git
 cd delta
 uv sync --locked --extra dev   # 安装 Python 依赖，严格按锁文件版本
-cd apps/desktop
+cd projects/delta/apps/desktop
 npm install                    # 安装前端依赖
 npm run tauri dev              # 启动桌面应用（首次编译 Rust 需要几分钟）
 ```
@@ -174,12 +174,12 @@ flowchart TB
 
 | 目录 | 内容 |
 | --- | --- |
-| `apps/` | 桌面应用（`apps/desktop`） |
-| `crates/` | Rust 代码，包括运行时 |
-| `core/` | Python 核心包（`pdf_support.py`、`roots.py` 等文档处理工具） |
-| `integrations/`、`packages/` | 能力、连接器与共享包 |
-| `contracts/`、`schemas/`、`delta_extension_api/` | 合同、JSON Schema 与扩展接口 |
-| `packaging/`、`resources/`、`scripts/` | 打包、品牌资源与维护脚本 |
+| `projects/delta/apps/` | 桌面应用（`projects/delta/apps/desktop`） |
+| `projects/delta/crates/` | Rust 代码，包括运行时 |
+| `projects/delta/core/` | Python 核心包（`pdf_support.py`、`roots.py` 等文档处理工具） |
+| `projects/delta/integrations/`、`projects/delta/packages/` | 能力、连接器与共享包 |
+| `projects/delta/contracts/`、`projects/delta/schemas/`、`projects/delta/delta_extension_api/` | 合同、JSON Schema 与扩展接口 |
+| `projects/delta/packaging/`、`projects/delta/resources/`、`projects/delta/scripts/` | 打包、品牌资源与维护脚本 |
 | `docs/` | 产品、架构与治理文档 |
 
 ## 维护者参考
@@ -226,11 +226,11 @@ flowchart LR
 
 | 命令 | 作用 |
 | --- | --- |
-| `python scripts/check_brand_icons.py --verify` | 检查图标是否与品牌源文件一致 |
-| `python scripts/check_naming.py` | 检查文件命名 |
-| `python scripts/check_repository_boundary.py` | 检查扩展边界 |
-| `cd apps/desktop && npm test` | 桌面端单元测试 |
-| `cd apps/desktop && npm run e2e` | 桌面端端到端测试（需要浏览器） |
+| `python projects/delta/scripts/check_brand_icons.py --verify` | 检查图标是否与品牌源文件一致 |
+| `python projects/delta/scripts/check_naming.py` | 检查文件命名 |
+| `python projects/delta/scripts/check_repository_boundary.py` | 检查扩展边界 |
+| `cd projects/delta/apps/desktop && npm test` | 桌面端单元测试 |
+| `cd projects/delta/apps/desktop && npm run e2e` | 桌面端端到端测试（需要浏览器） |
 | 在对应 crate 目录内运行 `cargo test` | Rust 测试 |
 
 本仓库没有根级 `tests/` 目录。Python 合同测试位于 `fongap-labs/action-worker`，Rust 与桌面端测试与代码放在一起。
@@ -247,6 +247,6 @@ flowchart LR
 Delta 的 Foundation 源码采用 [Apache License 2.0](LICENSE)。第三方组件保留各自的许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。未修改的上游可以称为 Delta；修改后再发行须使用自有名称，详见 [商标与品牌治理](docs/governance/baseline/TRADEMARK_BRAND_GOVERNANCE.md)。
 
 > 🔧 **依赖版本统一**：为了确保构建可重现性，所有依赖版本均已锁定：
-> - Python: 3.12（匹配 `.python-version` 和 README 要求）
+> - Python: 3.12（匹配 `projects/delta/.python-version` 和 README 要求）
 > - uv: 0.12.3（精确版本，匹配安装指令）
-> 如需修改依赖版本，请同时更新 `README.md`、`.python-version`、`.nvmrc`、`rust-toolchain.toml` 和 `pyproject.toml` 以保持一致。
+> 如需修改依赖版本，请同时更新 `README.md`、`projects/delta/.python-version`、`projects/delta/.nvmrc`、`projects/delta/rust-toolchain.toml` 和 `projects/delta/pyproject.toml` 以保持一致。

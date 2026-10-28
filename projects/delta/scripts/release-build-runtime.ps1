@@ -27,7 +27,8 @@ if ([string]::IsNullOrEmpty($InterpreterUrl) -or [string]::IsNullOrEmpty($Interp
   throw "The CPython interpreter is not pinned yet. Run the Runtime interpreter pin workflow and record its digest."
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+# The release job sets RELEASE_PRODUCT_ROOT to the product root; a local run uses this folder's parent.
+$repoRoot = if ($env:RELEASE_PRODUCT_ROOT) { $env:RELEASE_PRODUCT_ROOT } else { Resolve-Path (Join-Path $PSScriptRoot "..") }
 Set-Location $repoRoot
 
 $work = Join-Path $env:RUNNER_TEMP "python-runtime"

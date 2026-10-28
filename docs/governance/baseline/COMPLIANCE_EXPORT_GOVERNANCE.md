@@ -102,7 +102,7 @@
 
 ### 4.2 应用商店与分发合规
 
-> 注：本仓库当前仅包含桌面端（`apps/desktop`）与 Windows Portable 发布。下表中的应用商店项目属于计划中的分发渠道，尚未实施。
+> 注：本仓库当前仅包含桌面端（`projects/delta/apps/desktop`）与 Windows Portable 发布。下表中的应用商店项目属于计划中的分发渠道，尚未实施。
 
 | 平台 | 要求 | Delta 合规措施（计划中） |
 |----------|--------------|------------------|
@@ -129,7 +129,7 @@
 
 ### 5.1 许可证合规（见源码许可治理）
 
-- **自动化：** CI 中已接入 `cargo-deny`（Rust 依赖许可证与公告检查）与 `scripts/check_license_policy.py`（根许可证、NOTICE、第三方声明校验）。`license-checker`、`pip-licenses` 尚未接入 CI（计划中）。
+- **自动化：** CI 中已接入 `cargo-deny`（Rust 依赖许可证与公告检查）与 `projects/delta/scripts/check_license_policy.py`（根许可证、NOTICE、第三方声明校验）。`license-checker`、`pip-licenses` 尚未接入 CI（计划中）。
 - **SBOM：** 每次发布生成 CycloneDX 格式 SBOM（Foundation + Suite）。当前已在 Windows Portable 发布流程中配置 SBOM 产物（Suite 部分计划中）。
 - **署名：** 所有二进制中包含 `NOTICE` 文件；应用内提供“Licenses”页面（计划中）。
 

@@ -14,7 +14,7 @@ Delta 以本地优先，但每一轮模型交互都会把内容发送到已配�
 
 对于研究与 CMC 工作，这些内容可能包括未公开的配方、批次数据或稳定性结果。现存情况（已核对，并非假设）：
 
-1. **端点解析。** `ModelAuthority::resolve_runtime_config`（`crates/delta-core/src/model_authority.rs`）把模型 id 解析为协议、`base_url` 与密钥。任何已配置的端点都可以用于任何工作区。
+1. **端点解析。** `ModelAuthority::resolve_runtime_config`（`projects/delta/crates/delta-core/src/model_authority.rs`）把模型 id 解析为协议、`base_url` 与密钥。任何已配置的端点都可以用于任何工作区。
 2. **没有模型请求的记录。** 运行 Ledger 记录工具调用、产出物、校验与 `source.read`，但没有"本次运行的内容被发送到端点 X"这类事件。信任条能说明一次运行读取了什么，却不能说明内容去了哪里。
 3. **工作区状态。** 工作区保存在 `core.db`（`workspaces` 表：路径、最近使用时间）中。工作区信任的权威数据是 `workspace_trust.json`（`control_plane.rs`）。两者都不包含敏感度等级。
 4. **审批已经约束其他对外动作**（聊天消息、文件、连接器调用）。模型请求没有被覆盖，因为它是 Agent 的工作方式，而不是它采取的动作。

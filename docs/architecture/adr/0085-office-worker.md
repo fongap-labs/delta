@@ -10,7 +10,7 @@
 
 ## 决定
 
-1. **生成引擎是 Python Office Worker。** 生成代码位于 `packages/office_worker/`，依赖 `python-docx==1.2.0`、`python-pptx==1.0.2`、`openpyxl==3.1.5`，以可选依赖组 `office` 的形式固定在 `pyproject.toml` 与 `uv.lock` 中。
+1. **生成引擎是 Python Office Worker。** 生成代码位于 `projects/delta/packages/office_worker/`，依赖 `python-docx==1.2.0`、`python-pptx==1.0.2`、`openpyxl==3.1.5`，以可选依赖组 `office` 的形式固定在 `pyproject.toml` 与 `uv.lock` 中。
 2. **权威留在 Rust 核心。** Worker 只把候选文件写入宿主分配的暂存目录，并返回候选声明（路径、大小、哈希）。Rust 负责路径检查、授权、哈希、结构校验、产物登记与台账。Worker 不写入工作区，也不创建正式产物。
 3. **工具以结构化内容表达，而不是版式指令。** 调用方提供 `path` 与 `content`（规格），由 Worker 按固定的成品样式排版。规格的字段、类型和上限在 `spec.py` 中统一校验，超限或不合法的规格整体拒绝，不留下半成品。
 4. **成品样式是固定的。** 每种格式只有一套样式，写在构建器里：
@@ -28,11 +28,11 @@
 
 ## 实现
 
-- `packages/office_worker/spec.py`：规格校验与上限（文本 32000 字符、单元格 200000、表格 64 列、2000 个块、50 个工作表、200 张幻灯片）。
-- `packages/office_worker/docx_build.py`、`pptx_build.py`、`xlsx_build.py`：三个构建器。
-- `packages/office_worker/worker.py`：能力 ABI v2 的主循环；校验路径扩展名与格式一致；候选文件命名为 `candidate.<ext>`，因为读取器按扩展名选择格式。
-- `crates/delta-core/src/office_worker.rs`：运行时发现、三个工具的注册，以及一个经宿主调用真实 Worker 的端到端测试（需要 `DELTA_OFFICE_PYTHON` 指向装有办公库的解释器）。
-- `crates/delta-core/src/core_control_plane.rs`：在 Explore 注册旁边收集 Office 注册。
+- `projects/delta/packages/office_worker/spec.py`：规格校验与上限（文本 32000 字符、单元格 200000、表格 64 列、2000 个块、50 个工作表、200 张幻灯片）。
+- `projects/delta/packages/office_worker/docx_build.py`、`pptx_build.py`、`xlsx_build.py`：三个构建器。
+- `projects/delta/packages/office_worker/worker.py`：能力 ABI v2 的主循环；校验路径扩展名与格式一致；候选文件命名为 `candidate.<ext>`，因为读取器按扩展名选择格式。
+- `projects/delta/crates/delta-core/src/office_worker.rs`：运行时发现、三个工具的注册，以及一个经宿主调用真实 Worker 的端到端测试（需要 `DELTA_OFFICE_PYTHON` 指向装有办公库的解释器）。
+- `projects/delta/crates/delta-core/src/core_control_plane.rs`：在 Explore 注册旁边收集 Office 注册。
 
 ## 测试
 
@@ -43,7 +43,7 @@
 
 ## 未完成的事项
 
-1. **运行时清单校验（已实现）。** `packages/office_worker/runtime_pack.py` 生成 `manifest.json`，列出 Worker 运行所需每个文件的 SHA-256。Rust 在注册工具前按 `runtime_pack::pack_problems` 逐文件核对（与 Explore 共用同一模块）。
+1. **运行时清单校验（已实现）。** `projects/delta/packages/office_worker/runtime_pack.py` 生成 `manifest.json`，列出 Worker 运行所需每个文件的 SHA-256。Rust 在注册工具前按 `runtime_pack::pack_problems` 逐文件核对（与 Explore 共用同一模块）。
    - 没有清单时严格拒绝，不注册 Office 工具。与 Explore 不同，删除清单不能绕过校验。
    - 开发检出需要显式设置 `DELTA_OFFICE_DEVELOPMENT=1`，此时会在标准错误中记录一行说明。开关只允许"没有清单"的目录通过：有清单的目录始终按清单校验，篡改后即使设置开关也会被拒绝。
    - 清单本身尚未签名（打包阶段处理），与 ADR-0080 记录的已知限制一致。
@@ -56,9 +56,9 @@
 
 ## 修订（2026-10-27）：运行时的分发
 
-- 便携版契约禁止把 Python 随安装包发布（`packaging/portable/build-portable.ps1`）。因此 Office 与 Explore 的运行时包（CPython 解释器 + 锁定依赖 + 清单）**在首次使用时下载**，不随安装包携带。
+- 便携版契约禁止把 Python 随安装包发布（`projects/delta/packaging/portable/build-portable.ps1`）。因此 Office 与 Explore 的运行时包（CPython 解释器 + 锁定依赖 + 清单）**在首次使用时下载**，不随安装包携带。
 - 解释器版本固定为 **CPython 3.12**。3.12 的安全更新期更长，三个办公库在其上的预编译轮子更稳定；CI 仍在 3.13 上运行，用于提前发现兼容问题。
-- 运行时包可以是 ZIP 或 tar.gz 归档（由 `PackSource.archive` 指定）。共享包采用 tar.gz：CPython 的可重定位构建依赖符号链接（如 `python3` 指向 `python3.12`），而 ZIP 路径拒绝符号链接。`crates/delta-core/src/runtime_install.rs` 实现安装：只在出口决定为 `Allow` 时获取；固定 HTTPS 地址；归档 SHA-256 与大小必须与应用内的描述一致；解压到暂存目录，用清单逐文件校验，通过后才原子移入 `<状态目录>/runtimes/<名称>-<版本>/`。任何一步失败都不留下半成品。
+- 运行时包可以是 ZIP 或 tar.gz 归档（由 `PackSource.archive` 指定）。共享包采用 tar.gz：CPython 的可重定位构建依赖符号链接（如 `python3` 指向 `python3.12`），而 ZIP 路径拒绝符号链接。`projects/delta/crates/delta-core/src/runtime_install.rs` 实现安装：只在出口决定为 `Allow` 时获取；固定 HTTPS 地址；归档 SHA-256 与大小必须与应用内的描述一致；解压到暂存目录，用清单逐文件校验，通过后才原子移入 `<状态目录>/runtimes/<名称>-<版本>/`。任何一步失败都不留下半成品。
 - 尚未完成：生产环境的 HTTPS 获取器（需经应用的代理设置）、出口决定的接线（需要用户的出口级别）、运行时包的构建与签名、以及在 external-vault 发布。这些在后续工作中完成。
 
 ## 修订（2026-10-27）：批准、接线与共享运行时
@@ -68,7 +68,7 @@
 - `ExploreRuntime::from_env` 与 `OfficeRuntime::from_env` 先读环境变量（开发用），再由 `register_python_tools` 查已安装且通过清单校验的共享包（`from_installed`）；未安装时不注册任何工具。
 - 生产获取器 `HttpsFetch` 经应用的代理设置获取，不跟随重定向，读取上限为已发布的大小。
 - tar.gz 解压的安全约束：路径上任一已存在的组成部分若为符号链接（含条目本身），整个条目被拒绝（`refuse_symlinked_path`）；符号链接的目标必须在词法上留在包内。若不做第一条，较早的链接可把后续条目写到包外。回归测试 `a_link_may_not_carry_a_later_entry_out_of_the_pack`。
-- 尚未完成：包的构建与签名、在 external-vault 发布，以及把真实描述填入 `runtime/packs.json`（当前为空，即"尚未发布"）。
+- 尚未完成：包的构建与签名、在 external-vault 发布，以及把真实描述填入 `projects/delta/runtime/packs.json`（当前为空，即"尚未发布"）。
 
 ## 修订（2026-10-27）：界面确认与热注册
 
@@ -79,12 +79,12 @@
 
 ## 修订（2026-10-27）：共享包的构建
 
-- 构建器位于 `packages/python_runtime/runtime_pack.py`，入口为 `scripts/build_python_runtime.py`。输入是调用方提供的 CPython 3.12 install_only 归档及其 SHA-256；构建器校验摘要，不自行下载。输出只有两个文件：归档 `delta-python-runtime.tar.gz` 与发布清单 `manifest.json`。
+- 构建器位于 `projects/delta/packages/python_runtime/runtime_pack.py`，入口为 `projects/delta/scripts/build_python_runtime.py`。输入是调用方提供的 CPython 3.12 install_only 归档及其 SHA-256；构建器校验摘要，不自行下载。输出只有两个文件：归档 `delta-python-runtime.tar.gz` 与发布清单 `manifest.json`。
 - 归档内的 `manifest.json` 与 `runtime_pack::pack_problems` 的格式一致（`delta.python-runtime`，版本 1），列出除自身外的每个文件（包括符号链接的目标）。发布清单在其之上附加归档的名称、SHA-256 与大小。
 - 办公库只取 `uv.lock` 中 `office` 额外依赖的闭包，不包含根项目的其他依赖（如网络搜索与 PDF 库）。环境标记保留给 `uv pip install --python-platform` 按目标平台求值。
 - 归档是确定性的：同一输入两次构建的 SHA-256 相同（在 Linux 试构建中已核对）。
-- 签名：见下文"发布路径与签名"修订（已由中央构建的 GitHub 证明取代 cosign）。应用不在安装时校验签名，信任根仍是 `runtime/packs.json` 中固定的 SHA-256。
-- 尚未完成：Windows x64 的 CPython 3.12 归档的固定地址与摘要（本次会话无法访问 GitHub 发布资源，需在 CI 中获取并记录）；`runtime/packs.json` 的真实描述。
+- 签名：见下文"发布路径与签名"修订（已由中央构建的 GitHub 证明取代 cosign）。应用不在安装时校验签名，信任根仍是 `projects/delta/runtime/packs.json` 中固定的 SHA-256。
+- 尚未完成：Windows x64 的 CPython 3.12 归档的固定地址与摘要（本次会话无法访问 GitHub 发布资源，需在 CI 中获取并记录）；`projects/delta/runtime/packs.json` 的真实描述。
 
 ## 修订（2026-10-27）：发布路径与签名
 
@@ -93,4 +93,4 @@
 - 签名：由中央构建的 GitHub 构建证明（`actions/attest-build-provenance`，基于 Sigstore 的 keyless 签名）提供，`attest_asset` 为运行时归档。核对方式是 `gh attestation verify`。不再使用 cosign。
 - 解释器固定：`runtime-interpreter-pin` 工作流（只读）获取 CPython 3.12 归档，核对 PBS 发布的 `SHA256SUMS` 后输出摘要。摘要由维护者核对后写入 `release-build-runtime.ps1`；未固定时构建直接失败。
 - 构建脚本 `release-build-runtime.ps1` 的参数与便携版相同（`-Target -Version -OutputDir`）。运行时包版本取自 `PACK_VERSION`，不取 Delta 的版本。
-- 尚未完成：摘要的固定与首次发布（需要维护者运行工作流并启动发布）；发布后把 `url`、`sha256`、`size` 填入 `runtime/packs.json`。
+- 尚未完成：摘要的固定与首次发布（需要维护者运行工作流并启动发布）；发布后把 `url`、`sha256`、`size` 填入 `projects/delta/runtime/packs.json`。
