@@ -1,0 +1,1 @@
+- 修复: 打包 Windows 便携版时找不到 LICENSE 导致构建失败（产品目录搬到 projects/delta 后，许可证文件仍在仓库根目录）。现在构建脚本会向上查找仓库根目录的 LICENSE。
