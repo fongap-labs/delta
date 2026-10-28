@@ -400,7 +400,7 @@ export function Sidebar(props: Props) {
   return (
     <div className="sidebar flex flex-col min-h-0 bg-panel border-r border-line" onMouseLeave={props.onPeekLeave}>
       {/* Top row: the collapse control and the tool buttons, spread evenly across the rail. */}
-      <div className="brand px-3.5 pt-2.5 pb-3 grid grid-cols-5 place-items-center" data-tauri-drag-region>
+      <div className="brand px-3.5 pt-2.5 pb-3 flex items-center justify-between" data-tauri-drag-region>
         {props.onCollapse && (
           <button
             className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-bg shrink-0"

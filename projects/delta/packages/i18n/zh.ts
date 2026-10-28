@@ -792,7 +792,6 @@ export const zh: Record<TranslationKey, string> = {
   "artifacts.showInFolder": "在文件夹中显示",
   "artifacts.showingRows": "显示前 {max} 行，共 {total} 行",
   "artifacts.title": "产物",
-  "artifacts.panelHint": "显示此会话产生的文件",
   "artifacts.trace.title": "追溯日志",
   "artifacts.trace.empty": "此产物没有记录任何来源文件。",
   "artifacts.trace.finalized": "已定稿",

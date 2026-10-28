@@ -31,7 +31,7 @@ export function EdgeTab({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
     >
-      <Icon name="chevronRight" size={14} className={pointsRight ? "" : "edge-tab-flip"} />
+      <Icon name="chevronRight" size={12} className={pointsRight ? "" : "edge-tab-flip"} />
     </button>
   );
 }

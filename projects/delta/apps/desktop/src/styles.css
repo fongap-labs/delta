@@ -190,32 +190,36 @@ body {
   left: 0;
   bottom: 0;
   width: 14px;
-  z-index: 55;
+  z-index: 48; /* under the left edge tab, which peeks the nav on hover itself */
 }
-/* Edge tabs (EdgeTab): a slim handle on each side panel's edge, centred vertically. The left one
-   sits on the sidebar's right edge (or the window edge once collapsed); the right one on the right
-   panel's left edge (or the window edge once hidden). */
+/* Edge tabs (EdgeTab): a quiet hairline handle on each side panel's edge, centred vertically. The
+   left one sits on the sidebar's right edge (or the window edge once collapsed); the right one on
+   the right panel's left edge (or the window edge once hidden). The handle is deliberately thin:
+   a 1px outline, no fill at rest, no shadow, and a light chevron that firms up on hover. It sits
+   below the modal scrims (z-index 50 and up) so a dialog, such as the first-run chooser, covers it. */
 .edge-tab {
   position: fixed;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 58;
-  width: 14px;
-  height: 64px;
+  z-index: 49;
+  width: 11px;
+  height: 40px;
   display: grid;
   place-items: center;
   padding: 0;
-  color: var(--ink);
-  background: var(--selected);
+  color: var(--muted);
+  background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  opacity: 0.85;
   cursor: pointer;
-  transition: width 0.12s ease, background 0.12s ease, color 0.12s ease;
+  transition: width 0.12s ease, opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.edge-tab:hover, .edge-tab:focus-visible { width: 18px; color: var(--primary); background: var(--panel); }
-.edge-tab-left { left: 0; border-left: 0; border-radius: 0 8px 8px 0; }
+.edge-tab svg { stroke-width: 1.5; }
+.edge-tab:hover, .edge-tab:focus-visible { width: 14px; opacity: 1; color: var(--ink); border-color: var(--line-strong); }
+.edge-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.edge-tab-left { left: 0; border-left: 0; border-radius: 0 6px 6px 0; }
 .edge-tab-left.is-expanded, .app.nav-peek .edge-tab-left { left: var(--nav-w); }
-.edge-tab-right { right: 0; border-right: 0; border-radius: 8px 0 0 8px; }
+.edge-tab-right { right: 0; border-right: 0; border-radius: 6px 0 0 6px; }
 .edge-tab-right.is-expanded { right: var(--rail-w); }
 .edge-tab-flip { transform: scaleX(-1); }
 @media (prefers-reduced-motion: reduce) { .edge-tab { transition: none; } }
@@ -888,19 +892,6 @@ button.btn.danger { color: var(--danger); }
 .intro .greeting .mark { color: var(--primary); }
 .intro-lede { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 8px 0 0; }
 
-/* Topbar "Artifacts (N)" affordance, shown when the side panel is hidden */
-.topbar-artifacts-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px; margin-right: 6px;
-  border: 1px solid var(--line-strong); border-radius: 8px;
-  background: var(--panel); color: var(--muted); cursor: pointer;
-  font: inherit; font-size: 12.5px;
-}
-.topbar-artifacts-btn:hover { color: var(--ink); border-color: var(--primary); }
-.topbar-artifacts-count {
-  min-width: 17px; padding: 0 5px; border-radius: 9px;
-  background: var(--primary); color: var(--on-primary); font-size: 11px; font-weight: 600; text-align: center;
-}
 /* request_directory prompt (agent-initiated) */
 .dirreq-card {
   background: var(--panel); border: 1px solid var(--primary); border-radius: 12px;

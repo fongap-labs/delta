@@ -792,7 +792,6 @@ export const en = {
   "artifacts.showInFolder": "Show in folder",
   "artifacts.showingRows": "Showing {max} of {total} rows",
   "artifacts.title": "Artifacts",
-  "artifacts.panelHint": "Show files this conversation produced",
   "artifacts.trace.title": "Trace Logs",
   "artifacts.trace.empty": "No source files were recorded for this artifact.",
   "artifacts.trace.finalized": "Finalized",

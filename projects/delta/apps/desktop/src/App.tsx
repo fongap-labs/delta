@@ -3,7 +3,6 @@ import { modelAfterSettings } from "./modelSync";
 import {
   announceInboxUnlock,
   finalizeAutomationRun,
-  getArtifacts,
   getHealth,
   getSessionMessages,
   getSessions,
@@ -348,9 +347,6 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleNav]);
-  // Count of files this Delta conversation has produced — surfaces an "Artifacts (N)" button in
-  // the topbar when the side panel is hidden, so produced files are never buried.
-  const [artifactCount, setArtifactCount] = useState(0);
   // Artifact traces per session, filled by `artifact_updated` frames for the Trace Logs panel.
   const [artifactTraces, setArtifactTraces] = useState<Record<string, ArtifactTrace[]>>({});
   // §32 deep link into the rail's Access section (the former Session-settings drawer): bumping
@@ -996,16 +992,6 @@ export function App() {
   useEffect(() => {
     if (atBottomRef.current) scrollToBottom();
   }, [items, streaming]);
-
-  // Track produced-file count for the topbar "Artifacts" affordance (works even when the rail is
-  // hidden, where the rail itself doesn't fetch). Refreshes on file writes and turn completion.
-  useEffect(() => {
-    if (surface !== "session") {
-      setArtifactCount(0);
-      return;
-    }
-    getArtifacts(sessionId).then((a) => setArtifactCount(a.length)).catch(() => {});
-  }, [surface, sessionId, browserRefreshKey]);
 
   // Keep the active session's pending Inbox items fresh (answer-in-context card). Loads on session
   // change + after each turn, plus a slow poll so an unattended agent's new question surfaces.
@@ -1682,22 +1668,10 @@ export function App() {
               {activeTitle}
             </span>
           </div>
-          {/* Right: artifacts + the one session-panel toggle. Global search moved back into the
-              sidebar brand row (A2 revised) — the topbar drag surface had swallowed its clicks.
-              Model and mode controls stay in the composer (§22). */}
+          {/* Right: empty drag surface. The side-panel toggle is the right edge tab (§32), the one
+              entry; global search lives in the sidebar. Model and mode controls stay in the
+              composer (§22). */}
           <div className="main-topbar-side main-topbar-actions" onPointerDown={beginWindowDrag}>
-            {isRailHidden && artifactCount > 0 && (
-              <button
-                className="topbar-artifacts-btn"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => setRailHidden(false)}
-                title={tr("artifacts.panelHint")}
-              >
-                <Icon name="file" size={14} />
-                <span>{tr("artifacts.title")}</span>
-                <span className="topbar-artifacts-count">{artifactCount}</span>
-              </button>
-            )}
           </div>
         </div>
         <div className={"main-workspace" + (isRailHidden ? " rail-hidden" : "")}>
