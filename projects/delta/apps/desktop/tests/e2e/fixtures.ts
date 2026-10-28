@@ -364,8 +364,11 @@ function commandSources(): Record<string, string> {
     memory_export: `(args) => ({ format: "delta.memory", version: 1, memories: [{ scope: "global", content: "Prefers short answers", created_at: "2026-10-24 09:00:00" }] })`,
     memory_import: `(args) => { $state.memoryImports = [...($state.memoryImports || []), args.document]; return { ok: true, imported: (args.document.memories || []).length, skipped: 0 }; }`,
     clear_memory: `(args) => ({ ok: true })`,
-    memory_settings: `(args) => ({ enabled: true, user_rules: "" })`,
-    update_memory_settings: `(args) => ({ ok: true })`,
+    memory_settings: `(args) => ({ enabled: $state.memoryEnabled ?? false, user_rules: $state.memoryRules || "" })`,
+    update_memory_settings: `(args) => { if (typeof args.patch.enabled === "boolean") $state.memoryEnabled = args.patch.enabled; if (typeof args.patch.user_rules === "string") $state.memoryRules = args.patch.user_rules; return { enabled: $state.memoryEnabled ?? false, user_rules: $state.memoryRules || "" }; }`,
+    memory_candidates: `(args) => ({ candidates: $state.memoryCandidates || [] })`,
+    memory_candidate_accept: `(args) => { const list = $state.memoryCandidates || []; if (!list.some((c) => c.id === args.id)) return { ok: false, error: "that suggestion is no longer waiting" }; $state.memoryCandidates = list.filter((c) => c.id !== args.id); $state.memoryAccepts = [...($state.memoryAccepts || []), { id: args.id, content: args.content }]; return { ok: true, memory_id: 100 + args.id }; }`,
+    memory_candidate_reject: `(args) => { const list = $state.memoryCandidates || []; if (!list.some((c) => c.id === args.id)) return { ok: false, error: "that suggestion is no longer waiting" }; $state.memoryCandidates = list.filter((c) => c.id !== args.id); $state.memoryRejects = [...($state.memoryRejects || []), args.id]; return { ok: true }; }`,
 
     automations_list: `(args) => ({ tasks: $state.automations })`,
     automation_get: `(args) => { const t = $state.automations.find((x) => x.id === args.id) || $state.automations[0]; return { task: t, runs: $state.automationRuns.filter((r) => r.task_id === t.id) }; }`,

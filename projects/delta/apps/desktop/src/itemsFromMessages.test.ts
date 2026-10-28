@@ -3,7 +3,7 @@
 // agent-visible content string carries no trace.
 import { describe, expect, it } from "vitest";
 import type { Item } from "./types";
-import { turnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { turnToolNames, itemsFromMessages, memorySuggestionFrom, withUserIndexes } from "./itemsFromMessages";
 
 describe("itemsFromMessages _display sidecar", () => {
   it("attaches hidden counts to the matching tool item", () => {
@@ -184,5 +184,63 @@ describe("turnToolNames", () => {
 
   it("is empty for a request that has not called a tool yet", () => {
     expect(turnToolNames([{ kind: "user", text: "hi" }])).toEqual([]);
+  });
+});
+
+describe("memory suggestions", () => {
+  const proposal = (result: unknown, failed = false) =>
+    [
+      { role: "user", content: "I always write in Chinese" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: "m1",
+            function: {
+              name: "memory_propose",
+              arguments: JSON.stringify({ content: "Writes reports in Chinese", evidence: "I always write in Chinese" }),
+            },
+          },
+        ],
+      },
+      { role: "tool", tool_call_id: "m1", content: JSON.stringify(result), ...(failed ? { error: "memory is switched off" } : {}) },
+    ] as any;
+
+  it("replays a filed suggestion as a card after its tool row", () => {
+    const items = itemsFromMessages(proposal({ ok: true, candidate_id: 7 }));
+    expect(items.map((it) => it.kind)).toEqual(["user", "tool", "memory_suggestion"]);
+    expect(items[2]).toEqual({
+      kind: "memory_suggestion",
+      candidateId: 7,
+      text: "Writes reports in Chinese",
+      quote: "I always write in Chinese",
+    });
+  });
+
+  it("makes no card when nothing was filed", () => {
+    for (const result of [{ ok: true, duplicate: "saved" }, { ok: true, duplicate: "declined" }, { ok: false, error: "x" }]) {
+      expect(itemsFromMessages(proposal(result)).some((it) => it.kind === "memory_suggestion")).toBe(false);
+    }
+    expect(itemsFromMessages(proposal({ ok: true, candidate_id: 7 }, true)).some((it) => it.kind === "memory_suggestion")).toBe(false);
+  });
+
+  it("asks once about a suggestion the model repeated", () => {
+    const twice = [...proposal({ ok: true, candidate_id: 7 }), ...proposal({ ok: true, candidate_id: 7, duplicate: "pending" }).slice(1)];
+    const cards = itemsFromMessages(twice).filter((it) => it.kind === "memory_suggestion");
+    expect(cards).toHaveLength(1);
+  });
+
+  it("reads the id from the live result text and ignores other tools", () => {
+    expect(memorySuggestionFrom("memory_propose", { content: " A fact " }, '{"candidate_id":3}')).toEqual({
+      kind: "memory_suggestion",
+      candidateId: 3,
+      text: "A fact",
+    });
+    expect(memorySuggestionFrom("web_search", { content: "x" }, '{"candidate_id":3}')).toBeNull();
+    expect(memorySuggestionFrom("memory_propose", { content: "x" }, "not json")).toBeNull();
+    expect(memorySuggestionFrom("memory_propose", { content: "" }, '{"candidate_id":3}')).toBeNull();
+    expect(memorySuggestionFrom("memory_propose", { content: "x" }, '{"candidate_id":0}')).toBeNull();
+    expect(memorySuggestionFrom("memory_propose", { content: "x" }, undefined)).toBeNull();
   });
 });

@@ -49,7 +49,7 @@ import { WorkspaceContext } from "./workspaceContext";
 import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
-import { turnToolNames, itemsFromMessages, withUserIndexes } from "./itemsFromMessages";
+import { turnToolNames, itemsFromMessages, memorySuggestionFrom, withUserIndexes } from "./itemsFromMessages";
 import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
@@ -774,17 +774,26 @@ export function App() {
         }
         case "tool_finished":
           setStepInfo(null);
-          setItems((p) =>
-            updateLastTool(
+          setItems((p) => {
+            const preview =
+              d.result_preview || d.reason || (typeof d.result === "string" ? d.result : d.result == null ? undefined : JSON.stringify(d.result));
+            const updated = updateLastTool(
               p,
               d.name,
               // The runtime sends `error`, not a status: a failed call must read as failed live, as it does after reload.
               d.error ? "error" : "ok",
-              d.result_preview || d.reason || (typeof d.result === "string" ? d.result : d.result == null ? undefined : JSON.stringify(d.result)),
+              preview,
               d.display?.hidden_by_filters,
               d.standing_rule,
-            ),
-          );
+            );
+            if (d.error || d.name !== "memory_propose") return updated;
+            // A memory suggestion is asked about right in the conversation, outside the collapsed steps.
+            const call = [...updated].reverse().find((it) => it.kind === "tool" && it.name === "memory_propose");
+            const suggestion = call?.kind === "tool" ? memorySuggestionFrom(d.name, call.args, preview) : null;
+            if (!suggestion || updated.some((it) => it.kind === "memory_suggestion" && it.candidateId === suggestion.candidateId))
+              return updated;
+            return [...updated, suggestion];
+          });
           // Refresh the right rail when something it shows may have changed: browser state, or a
           // file write that should appear under Artifacts immediately (not only after the turn).
           if (String(d.name || "").startsWith("browser_") || FILE_WRITE_TOOLS.has(d.name)) {

@@ -8,6 +8,28 @@
 import type { ConversationMessage } from "./api";
 import type { Attachment, Item } from "./types";
 
+// The suggestion card for a memory_propose call, or null when the call filed nothing (it failed, or
+// repeated something already saved, waiting or declined). The tool result carries the candidate's
+// id; the text and the user's words come from the call's own arguments.
+export function memorySuggestionFrom(
+  name: string | undefined,
+  args: any,
+  preview: string | undefined,
+): Extract<Item, { kind: "memory_suggestion" }> | null {
+  if (name !== "memory_propose" || !preview) return null;
+  let parsed: any;
+  try {
+    parsed = JSON.parse(preview);
+  } catch {
+    return null;
+  }
+  const candidateId = Number(parsed?.candidate_id ?? parsed?.result?.candidate_id);
+  const text = typeof args?.content === "string" ? args.content.trim() : "";
+  if (!Number.isInteger(candidateId) || candidateId <= 0 || !text) return null;
+  const quote = typeof args?.evidence === "string" ? args.evidence.trim() : "";
+  return { kind: "memory_suggestion", candidateId, text, ...(quote ? { quote } : {}) };
+}
+
 export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
   const items: Item[] = [];
   // Index tool results by tool_call_id so replayed tool rows can show their output
@@ -77,6 +99,15 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
           preview,
           ...(hidden ? { hidden } : {}),
         });
+        // A memory suggestion is asked about in the conversation, outside the collapsed steps.
+        const suggestion = failed.has(tc.id)
+          ? null
+          : memorySuggestionFrom(tc.function?.name, args, preview);
+        if (
+          suggestion &&
+          !items.some((it) => it.kind === "memory_suggestion" && it.candidateId === suggestion.candidateId)
+        )
+          items.push(suggestion);
       }
     } else if (m.role === "notice") {
       // Older builds stored each automatic retry as a notice; it was progress, not an outcome.

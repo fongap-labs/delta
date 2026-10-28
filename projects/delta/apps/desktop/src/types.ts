@@ -138,7 +138,10 @@ export type Item =
   // owner-hit 2026-07-28). Stays put. `previous` is set when an existing memory was
   // EDITED rather than a new one added (the update-don't-duplicate rule sends many
   // saves that way) — Undo restores that text instead of deleting the memory.
-  | { kind: "memory"; id: number; text: string; previous?: string; undone?: boolean };
+  | { kind: "memory"; id: number; text: string; previous?: string; undone?: boolean }
+  // A fact the model suggested remembering (memory_propose). Nothing is saved until the user
+  // accepts it; the card asks, and checks the store so a suggestion already decided shows nothing.
+  | { kind: "memory_suggestion"; candidateId: number; text: string; quote?: string };
 
 // -- ask_user question metadata (OPE-51) --------------------------------------
 // An option is a plain string (renders as today's pill) or a rich object: `label` is the answer

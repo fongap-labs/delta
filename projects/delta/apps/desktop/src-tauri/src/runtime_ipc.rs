@@ -1022,6 +1022,28 @@ pub fn memory_delete(state: State<'_, RuntimeRegistry>, id: i64) -> Value {
 }
 
 #[tauri::command]
+pub fn memory_candidates(state: State<'_, RuntimeRegistry>) -> Value {
+    match state.memory().candidates() {
+        Ok(candidates) => json!({"candidates": candidates}),
+        Err(error) => json!({"candidates": [], "error": error.to_string()}),
+    }
+}
+
+#[tauri::command]
+pub fn memory_candidate_accept(
+    state: State<'_, RuntimeRegistry>,
+    id: i64,
+    content: Option<String>,
+) -> Value {
+    authority_result(state.memory().accept_candidate(id, content.as_deref()))
+}
+
+#[tauri::command]
+pub fn memory_candidate_reject(state: State<'_, RuntimeRegistry>, id: i64) -> Value {
+    authority_result(state.memory().reject_candidate(id))
+}
+
+#[tauri::command]
 pub fn memory_export(state: State<'_, RuntimeRegistry>) -> Value {
     authority_result(state.memory().export())
 }

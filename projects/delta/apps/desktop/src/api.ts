@@ -50,6 +50,9 @@ import {
   directRemoveModel,
   directRemoveProvider,
   directDeleteMemory,
+  directListMemoryCandidates,
+  directAcceptMemoryCandidate,
+  directRejectMemoryCandidate,
   directExportMemory,
   directImportMemory,
   clearMemory,
@@ -1525,11 +1528,31 @@ export async function setLanguage(
 
 // -- Memory (MEMORY-SPEC §5.3/§6: the memory screen, user rules, toast Undo) ----
 
+// Where a memory came from: the conversation (and run) in which it was suggested, and the
+// user's own words that showed it. Absent for notes the user typed or imported.
+export interface MemorySource {
+  kind: string;
+  session_id?: string | null;
+  run_id?: string | null;
+  quote?: string | null;
+}
+
 export interface MemoryEntry {
   id: number;
   scope: string;
   content: string;
   summary: string;
+  created_at: string;
+  source?: MemorySource | null;
+  // "user" typed it, "candidate" was suggested by the model and accepted, "import" came from a file.
+  saved_by?: string;
+}
+
+// A fact the model suggested remembering. It is not a memory until the user accepts it.
+export interface MemoryCandidate {
+  id: number;
+  content: string;
+  source?: MemorySource | null;
   created_at: string;
 }
 
@@ -1551,11 +1574,28 @@ export async function getMemory(): Promise<MemoryEntry[]> {
   return throwOnError(await directListMemory()).memory ?? [];
 }
 
+// Correcting a memory keeps the old text as history and files the new text as a new memory, so
+// the id that comes back is not the id that went in.
 export async function updateMemory(
   id: number,
   content: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; id?: number; error?: string }> {
   return await directUpdateMemory(id, content);
+}
+
+export async function getMemoryCandidates(): Promise<MemoryCandidate[]> {
+  return throwOnError(await directListMemoryCandidates()).candidates ?? [];
+}
+
+export async function acceptMemoryCandidate(
+  id: number,
+  content?: string,
+): Promise<{ ok: boolean; memory_id?: number; error?: string }> {
+  return await directAcceptMemoryCandidate(id, content);
+}
+
+export async function rejectMemoryCandidate(id: number): Promise<{ ok: boolean; error?: string }> {
+  return await directRejectMemoryCandidate(id);
 }
 
 export async function deleteMemory(id: number): Promise<{ ok: boolean; error?: string }> {
