@@ -3,8 +3,9 @@
 // never pile up as "Plan (branch) (branch)".
 
 const NUMBER_SUFFIX = /\s*[（(]\s*\d+\s*[）)]\s*$/;
-// Branches made before the numbering existed ended in "(branch)" / "（分支）".
-const OLD_SUFFIX = /\s*[（(]\s*(?:分支|branch)\s*[）)]\s*$/i;
+// Branches made before the numbering existed ended in "(branch)", or in the same word in Chinese
+// (\u5206\u652f) inside full-width brackets.
+const OLD_SUFFIX = /\s*[（(]\s*(?:\u5206\u652f|branch)\s*[）)]\s*$/i;
 
 /** The title without any branch suffix, however many were stacked on it. */
 export function branchBase(title: string): string {
