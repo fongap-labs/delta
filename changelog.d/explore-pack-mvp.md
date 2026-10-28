@@ -1,1 +1,0 @@
-- 新增: Explore Pack 第一阶段（`packages/explore_pack/`）：描述统计、Welch t 检验、Pearson 相关与简单线性回归，CLI 写出 `delta.result` v2，结果固定为 `assurance: exploratory`，不能进入正式报告；运行时只使用标准库，并以 `analysis-result.schema.json` 校验输出。
