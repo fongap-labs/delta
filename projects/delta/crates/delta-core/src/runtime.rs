@@ -45,6 +45,7 @@ mod human_control;
 mod model_turn;
 mod outbound_gate;
 mod tool_execution;
+mod vision_turn;
 
 use human_control::InteractionController;
 
@@ -650,6 +651,9 @@ pub struct RuntimeConfig {
     /// before it gives up on that call. `None` waits for ever. An attended run is never timed
     /// out: its user is at the screen, and may step away and come back.
     pub unattended_wait: Option<Duration>,
+    /// How pictures reach the chat model: as they are, or described first by a vision model
+    /// when this chat model cannot read them (see `vision`).
+    pub vision: crate::vision::VisionMode,
     /// Execution mode drives the Plan-mode Trust constraint in the Policy
     /// layer. Default is `Execute`. `Plan` hard-rejects any non-read-only
     /// capability regardless of model behavior.
@@ -689,6 +693,7 @@ impl Default for RuntimeConfig {
             workspace: None,
             unattended: false,
             unattended_wait: Some(DEFAULT_UNATTENDED_WAIT),
+            vision: crate::vision::VisionMode::Native,
             mode: crate::policy::ExecutionMode::Execute,
             context_window_tokens: None,
             compaction_threshold_pct: 0.8,
@@ -952,7 +957,7 @@ fn office_note(attachment: &Value) -> String {
 
 /// Convert the canonical transcript attachment shape at the provider boundary.
 /// The transcript remains provider-neutral and therefore survives model changes.
-fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> Value {
+pub(crate) fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> Value {
     if protocol == "anthropic" {
         let mut blocks = Vec::new();
         if !text.is_empty() {
@@ -1813,6 +1818,9 @@ impl RuntimeHost {
         }
         if let Some(src) = &source {
             message["source"] = src.clone();
+        }
+        if let Some(notes) = self.vision_notes(&attachments)? {
+            message["vision_notes"] = notes;
         }
         self.messages.push(message);
         self.ledger_transition("run.started", "user", json!({"kind": "run"}))?;
