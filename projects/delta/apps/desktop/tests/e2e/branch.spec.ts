@@ -24,7 +24,8 @@ test("branching an answer opens a new conversation that ends at that answer", as
   // The branch is open: it has the first exchange only, under a title that says what it is.
   await expect(page.getByText("Echo: first question").first()).toBeVisible();
   await expect(page.getByText("Echo: second question")).toHaveCount(0);
-  await expect(page.locator(".main-title-text")).toContainText("(branch)");
+  await expect(page.locator(".main-title-text")).toContainText("(1)");
+  await expect(page.locator(".main-title-text")).not.toContainText("branch");
   const state = await readMockState<{ branchCalls?: { index: number }[] }>(page);
   expect(state.branchCalls?.length).toBe(1);
 });

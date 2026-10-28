@@ -1,4 +1,4 @@
-// UX-023: automations get sidebar presence — an "Automations" nav row under Search
+// UX-023: automations get sidebar presence — a "Scheduled tasks" nav row above Search
 // (aggregate unseen badge) and a "Scheduled" band with ONE entry per automation
 // (name + cadence + unseen-runs badge). Opening an automation's detail marks it
 // seen: the badge clears immediately via the AUTOMATIONS_CHANGED broadcast, and
@@ -11,11 +11,11 @@ test("nav row + Scheduled band render with unseen badges; runs stay out of Recen
 }) => {
   await page.goto("/");
 
-  // Nav row sits right under Search — no badge of its own (owner call: the
+  // Nav row sits right above Search — no badge of its own (owner call: the
   // Scheduled entry alone carries the count).
   const nav = page.getByTestId("nav-automations");
   await expect(nav).toBeVisible();
-  await expect(nav).toContainText("Automations");
+  await expect(nav).toContainText("Scheduled tasks");
   await expect(nav).not.toContainText("2");
 
   // Scheduled band: one entry PER AUTOMATION — never per run. The noisy task wears
@@ -48,7 +48,7 @@ test("opening a Scheduled entry lands on the detail, marks seen, clears the badg
 test("the nav row opens the Automations overview", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("nav-automations").click();
-  await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scheduled tasks" })).toBeVisible();
 });
 
 test("deleting an automation clears the band at once; nav re-entry lands on the list", async ({
@@ -67,6 +67,6 @@ test("deleting an automation clears the band at once; nav re-entry lands on the 
   // remembered detail target for a deleted automation once left "Loading…" forever.
   await page.getByTitle("Weekly plan 1").click();
   await page.getByTestId("nav-automations").click();
-  await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scheduled tasks" })).toBeVisible();
   await expect(page.getByText("Loading…")).toHaveCount(0);
 });

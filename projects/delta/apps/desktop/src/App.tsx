@@ -50,6 +50,7 @@ import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
 import type { Locale } from "@delta/i18n/types";
 import { en, type TranslationKey } from "@delta/i18n/en";
 import { turnToolNames, itemsFromMessages, memorySuggestionFrom, withUserIndexes } from "./itemsFromMessages";
+import { nextBranchTitle } from "./branchTitle";
 import { humanizeTool, resolveHumanLine } from "./humanize";
 import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
@@ -201,9 +202,8 @@ export function App() {
   // Provider failure the runtime is retrying on its own: "connecting, attempt N of M". Cleared by
   // whatever the run does next, so it never outlives the wait.
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
-  // The tool call in progress, numbered within the turn: "Step 3 · Read report.xlsx".
-  const [stepInfo, setStepInfo] = useState<{ n: number; label: string } | null>(null);
-  const stepCountRef = useRef(0);
+  // The tool call in progress, as one line: "Read report.xlsx".
+  const [stepInfo, setStepInfo] = useState<{ label: string } | null>(null);
   // The runtime's answer to "can this session resume an interrupted run?" (it decides; the UI asks).
   const [canResume, setCanResume] = useState(false);
   // Transient "Compacting context…" indicator (OPE-27): set by the `compacting` event,
@@ -637,7 +637,6 @@ export function App() {
           setRunning(true);
           lastAnswerRef.current = "";
           turnFilesRef.current = [];
-          stepCountRef.current = 0;
           setStepInfo(null);
           setStreaming("");
           setReasoningStream("");
@@ -701,10 +700,8 @@ export function App() {
           break;
         }
         case "tool_proposed": {
-          stepCountRef.current += 1;
           const line = resolveHumanLine(humanizeTool(d.name, d.arguments), humanT);
           setStepInfo({
-            n: stepCountRef.current,
             label: `${line.pre ?? ""}${line.obj ?? ""}${line.post ?? ""}`.trim(),
           });
         }
@@ -1293,7 +1290,12 @@ export function App() {
     if (!sessionId || isRunning) return;
     const sourceId = sessionId;
     const sourceTitle = sessions.find((s) => s.session_id === sourceId)?.title || tr("nav.newSession");
-    const result = await branchSession(sourceId, index, tr("transcript.branchTitle", { title: sourceTitle })).catch(
+    const branchTitle = nextBranchTitle(
+      sourceTitle,
+      sessions.map((s) => s.title || ""),
+      (title, n) => tr("transcript.branchTitle", { title, n }),
+    );
+    const result = await branchSession(sourceId, index, branchTitle).catch(
       (): { ok: false; error: string; session_id?: string; workspace?: string } => ({ ok: false, error: "unreachable" }),
     );
     if (foregroundSessionIdRef.current !== sourceId) return;
@@ -1695,8 +1697,8 @@ export function App() {
                 <button
                   className="topbar-icon-btn"
                   onClick={() => startNewSession()}
-                  aria-label={tr("nav.newSession")}
-                  title={tr("nav.newSession")}
+                  aria-label={tr("nav.conversations")}
+                  title={tr("nav.conversations")}
                 >
                   <Icon name="plus" size={16} />
                 </button>
@@ -1967,7 +1969,7 @@ function LiveRunStatus({
   retry: { attempt: number; max: number } | null;
   isAwaitingUser: boolean;
   isStopping: boolean;
-  step: { n: number; label: string } | null;
+  step: { label: string } | null;
 }) {
   const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
@@ -1998,7 +2000,7 @@ function LiveRunStatus({
               : isStopping
                 ? t("run.detail.stopping", undefined, "Stopping…")
                 : step
-                  ? t("run.detail.step", { n: step.n, label: step.label }, `Step ${step.n} · ${step.label}`)
+                  ? step.label
                   : t("transcript.waitingForAgent", undefined, "Waiting for agent…")}
         </span>
         {startedAt && (

@@ -1,9 +1,9 @@
 import { test, expect } from "./fixtures";
 
-// The sidebar's "New conversation" entry must open a blank conversation, not just re-show the
+// The sidebar's "Start chat" entry must open a blank conversation, not just re-show the
 // current one: after a turn has been sent, clicking it leaves an empty transcript and a ready composer.
 
-test("New conversation starts a blank conversation after a turn was sent", async ({ page }) => {
+test("Start chat starts a blank conversation after a turn was sent", async ({ page }) => {
   await page.goto("/");
   const box = page.getByPlaceholder(/Ask Delta/);
   await expect(box).toBeVisible();
