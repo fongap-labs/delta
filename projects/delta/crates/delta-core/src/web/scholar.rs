@@ -246,8 +246,8 @@ pub fn paper_from_crossref(message: &Value) -> Paper {
 }
 
 impl Paper {
-    /// The paper as the model reads it. `full` adds the long abstract.
-    pub fn to_json(&self, full: bool) -> Value {
+    /// The paper as the model reads it. `is_full` adds the long abstract.
+    pub fn to_json(&self, is_full: bool) -> Value {
         let mut authors: Vec<String> = self
             .authors
             .iter()
@@ -266,7 +266,7 @@ impl Paper {
             out["pmid"] = json!(pmid);
         }
         if let Some(text) = &self.abstract_text {
-            let limit = if full {
+            let limit = if is_full {
                 ABSTRACT_CHARS
             } else {
                 ABSTRACT_CHARS_IN_LIST

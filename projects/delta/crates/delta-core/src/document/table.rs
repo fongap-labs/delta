@@ -376,11 +376,11 @@ pub fn reconcile(left: &Table, right: &Table, options: &ReconcileOptions) -> Res
         }
         let other = candidates[0];
         matched += 1;
-        let mut differs = false;
+        let mut has_difference = false;
         for ((name, l), r) in compare.iter().zip(&left_compare).zip(&right_compare) {
             let (a, b) = (left.cell(row, *l), right.cell(other, *r));
             if !same_value(a, b, options.tolerance) {
-                differs = true;
+                has_difference = true;
                 difference_count += 1;
                 let mut entry = json!({
                     "key": key_text(left, row, &left_keys), "column": name,
@@ -392,7 +392,7 @@ pub fn reconcile(left: &Table, right: &Table, options: &ReconcileOptions) -> Res
                 differences.push(entry);
             }
         }
-        if differs {
+        if has_difference {
             differing_rows += 1;
         }
     }
