@@ -198,3 +198,95 @@ def test_a_path_with_the_wrong_extension_is_refused(staging: Path) -> None:
 
     assert result["diagnostics"]["error_code"] == "arguments"
     assert "must end with .xlsx" in result["diagnostics"]["error_message"]
+
+
+def _spec_with_placeholders() -> dict:
+    return {
+        "title": "Invoice {{number}}",
+        "blocks": [
+            {"type": "paragraph", "text": "Customer: {{customer}}"},
+            {
+                "type": "table",
+                "columns": ["Item", "Amount"],
+                "rows": [["Support", "{{amount}}"]],
+            },
+        ],
+    }
+
+
+def test_placeholders_are_filled_from_data(staging: Path) -> None:
+    job = _job(staging)
+    job["arguments"]["content"] = _spec_with_placeholders()
+    job["arguments"]["data"] = {"number": "1042", "customer": "Acme", "amount": 1200}
+
+    result = worker.run_job(job)
+
+    assert result["state"] == "completed", result["diagnostics"]
+    assert result["result"]["counts"]["tables"] == 1
+    from docx import Document
+
+    document = Document(str(staging / "candidate.docx"))
+    text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    assert "Invoice 1042" in text
+    assert "Customer: Acme" in text
+    assert "{{" not in text
+    assert document.tables[0].rows[1].cells[1].text == "1200"
+
+
+def test_a_placeholder_without_a_value_is_refused_and_leaves_no_file(staging: Path) -> None:
+    job = _job(staging)
+    job["arguments"]["content"] = _spec_with_placeholders()
+    job["arguments"]["data"] = {"number": "1042", "customer": "Acme"}
+
+    result = worker.run_job(job)
+
+    assert result["state"] == "failed"
+    assert result["diagnostics"]["error_code"] == "missing_value"
+    assert '"amount"' in result["diagnostics"]["error_message"]
+    assert not (staging / "candidate.docx").exists()
+
+
+def test_a_placeholder_without_any_data_is_refused(staging: Path) -> None:
+    job = _job(staging)
+    job["arguments"]["content"] = _spec_with_placeholders()
+
+    result = worker.run_job(job)
+
+    assert result["state"] == "failed"
+    assert result["diagnostics"]["error_code"] == "missing_value"
+
+
+def test_a_dry_run_checks_the_spec_and_registers_nothing(staging: Path) -> None:
+    job = _job(staging)
+    job["arguments"]["dry_run"] = True
+
+    result = worker.run_job(job)
+
+    assert result["state"] == "completed"
+    assert result["artifacts"] == []
+    assert result["result"]["dry_run"] is True
+    assert result["result"]["verification"]["status"] == "passed"
+    assert not (staging / "candidate.docx").exists()
+
+
+def test_a_dry_run_reports_an_invalid_spec_with_the_valid_range(staging: Path) -> None:
+    job = _job(staging)
+    job["arguments"]["dry_run"] = True
+    job["arguments"]["content"] = {"title": "Q3", "blocks": [{"type": "table", "columns": [], "rows": []}]}
+
+    result = worker.run_job(job)
+
+    assert result["state"] == "failed"
+    message = result["diagnostics"]["error_message"]
+    assert "needs at least one column" in message
+    assert "1 to 64" in message
+
+
+def test_the_data_argument_must_be_an_object(staging: Path) -> None:
+    job = _job(staging)
+    job["arguments"]["data"] = ["not", "an", "object"]
+
+    result = worker.run_job(job)
+
+    assert result["state"] == "failed"
+    assert result["diagnostics"]["error_code"] == "arguments"
