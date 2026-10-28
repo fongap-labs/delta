@@ -698,6 +698,13 @@ impl RuntimeHost {
                     self.messages.push(
                         json!({"role": "notice", "kind": "error", "text": &e, "ts": now_ts()}),
                     );
+                    // What the request looked like, so a failure that only some requests meet can
+                    // be told apart from one that every request meets. No content is recorded.
+                    let _ = self.ledger_append(
+                        "model.request_failed",
+                        "runtime",
+                        request_shape(&req, &e),
+                    );
                     self.emit_event(RuntimeEvent::Error {
                         error: e.clone(),
                         error_type: classify_transient_error(&e),
@@ -982,14 +989,18 @@ impl RuntimeHost {
     }
 }
 
-/// Put the time of day at the very end of a request, on the newest user or tool message, and only
-/// in the copy that is sent: it is never stored. Everything before it is the same from one request
-/// to the next, which is what lets a provider reuse its cache of the conversation so far.
+/// Put the time of day at the very end of a request, on the newest user message, and only in the
+/// copy that is sent: it is never stored. Everything before it is the same from one request to the
+/// next, which is what lets a provider reuse its cache of the conversation so far.
+///
+/// A request that ends with a tool result is sent exactly as stored. The tool result is the one
+/// message whose wording a gateway and the models behind it treat as data of a fixed shape, and the
+/// time was given with the user's message that started the turn.
 fn with_turn_clock(mut messages: Vec<Value>, protocol: &str, note: &str) -> Vec<Value> {
     let Some(last) = messages.last_mut() else {
         return messages;
     };
-    if !matches!(role_of(last), Some("user" | "tool")) {
+    if role_of(last) != Some("user") {
         return messages;
     }
     match last.get_mut("content") {
@@ -1009,6 +1020,37 @@ fn with_turn_clock(mut messages: Vec<Value>, protocol: &str, note: &str) -> Vec<
         _ => {}
     }
     messages
+}
+
+/// How a failed model request was shaped: its size, how many messages and tools it carried, which
+/// roles ended it and whether it held pictures. The ledger keeps this, never the messages.
+fn request_shape(req: &ProviderRequest, error: &str) -> Value {
+    let messages = req
+        .messages
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let mut ends_with: Vec<&str> = messages
+        .iter()
+        .rev()
+        .take(4)
+        .map(|message| role_of(message).unwrap_or("?"))
+        .collect();
+    ends_with.reverse();
+    let text = req.messages.to_string();
+    let has_pictures = ["\"image_url\"", "\"input_image\"", "\"type\":\"image\""]
+        .iter()
+        .any(|marker| text.contains(marker));
+    json!({
+        "model": req.model,
+        "protocol": req.protocol,
+        "messages": messages.len(),
+        "request_bytes": text.len(),
+        "tools": req.tools.as_ref().and_then(Value::as_array).map_or(0, Vec::len),
+        "ends_with": ends_with,
+        "has_pictures": has_pictures,
+        "error": error.chars().take(300).collect::<String>(),
+    })
 }
 
 fn role_of(message: &Value) -> Option<&str> {
@@ -1131,7 +1173,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_clock_rides_the_newest_user_or_tool_message_and_nothing_else() {
+    fn the_clock_rides_the_newest_user_message_and_nothing_else() {
         let history = vec![
             json!({"role": "system", "content": "rules"}),
             json!({"role": "user", "content": "hi"}),
@@ -1143,12 +1185,15 @@ mod tests {
         assert_eq!(sent[..3], history[..3]);
         assert_eq!(sent[3]["content"], "now?\n\n[Local time: 2026-10-28 13:42]");
 
+        // A request that ends with a tool result goes out as stored: no note on the result.
         let tool_tail = vec![
             json!({"role": "user", "content": "go"}),
             json!({"role": "tool", "tool_call_id": "c", "content": "done"}),
         ];
-        let sent = with_turn_clock(tool_tail, "anthropic", "Local time: x");
-        assert_eq!(sent[1]["content"], "done\n\n[Local time: x]");
+        assert_eq!(
+            with_turn_clock(tool_tail.clone(), "anthropic", "Local time: x"),
+            tool_tail
+        );
 
         // A message made of parts gets a part of the type its protocol calls text.
         let parts = vec![json!({"role": "user", "content": [{"type": "input_text", "text": "a"}]})];
@@ -1167,6 +1212,38 @@ mod tests {
             assistant_tail
         );
         assert!(with_turn_clock(Vec::new(), "openai", "n").is_empty());
+    }
+
+    #[test]
+    fn a_failed_request_is_described_by_its_shape_and_never_by_its_content() {
+        let req = ProviderRequest {
+            protocol: "openai_chat".to_string(),
+            model: "Max".to_string(),
+            messages: json!([
+                {"role": "system", "content": "SECRET-SYSTEM"},
+                {"role": "user", "content": "SECRET-QUESTION"},
+                {"role": "assistant", "content": null, "tool_calls": []},
+                {"role": "tool", "tool_call_id": "c", "content": "SECRET-RESULT"},
+            ]),
+            tools: Some(json!([{"type": "function"}, {"type": "function"}])),
+            settings: None,
+            api_key: "key".to_string(),
+            base_url: String::new(),
+            timeout_secs: None,
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: None,
+        };
+        let shape = request_shape(&req, "HTTP 504: gateway");
+        assert_eq!(shape["messages"], 4);
+        assert_eq!(shape["tools"], 2);
+        assert_eq!(
+            shape["ends_with"],
+            json!(["system", "user", "assistant", "tool"])
+        );
+        assert_eq!(shape["has_pictures"], false);
+        assert_eq!(shape["error"], "HTTP 504: gateway");
+        assert!(!shape.to_string().contains("SECRET"), "{shape}");
     }
 
     #[test]
