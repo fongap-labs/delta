@@ -467,6 +467,7 @@ browser = [
 dev = [
     { name = "httpx" },
     { name = "jsonschema" },
+    { name = "matplotlib" },
     { name = "openpyxl" },
     { name = "pip-audit" },
     { name = "pyright" },
@@ -489,6 +490,7 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
     { name = "jsonschema", marker = "extra == 'dev'", specifier = "==4.25.1" },
+    { name = "matplotlib", marker = "extra == 'dev'", specifier = "==3.11.2" },
     { name = "matplotlib", marker = "extra == 'office'", specifier = "==3.11.2" },
     { name = "openpyxl", marker = "extra == 'dev'", specifier = "==3.1.5" },
     { name = "openpyxl", marker = "extra == 'office'", specifier = "==3.1.5" },

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pptx import Presentation
+from pptx.shapes.graphfrm import GraphicFrame
 
 from packages.office_worker import pptx_build, spec, xlsx_build
 
@@ -87,10 +89,14 @@ def test_a_pptx_chart_slide_holds_the_series_as_data(tmp_path: Path) -> None:
 
     assert counts["charts"] == 1
     slide = Presentation(str(path)).slides[0]
-    chart_shapes = [shape for shape in slide.shapes if shape.has_chart]
+    chart_shapes = [
+        shape for shape in slide.shapes if isinstance(shape, GraphicFrame) and shape.has_chart
+    ]
     assert len(chart_shapes) == 1
     chart = chart_shapes[0].chart
-    assert list(chart.plots[0].categories) == ["Q1", "Q2", "Q3"]
+    # python-pptx's plot collection is not typed well enough for pyright to see its categories.
+    plot: Any = chart.plots[0]
+    assert list(plot.categories) == ["Q1", "Q2", "Q3"]
     assert list(chart.series[0].values) == [1.5, 2.0, 2.75]
 
 
