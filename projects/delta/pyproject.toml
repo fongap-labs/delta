@@ -10,7 +10,7 @@ license = "Apache-2.0"
 requires-python = ">=3.11"
 dependencies = [
     "httpx==0.28.1",
-    "ddgs==9.16.0",
+    "ddgs==9.16.1",
     # PDF fallback: pypdf extracts text; pypdfium2 rasterizes scanned pages without AGPL PyMuPDF.
     "pypdf==6.21.2",
     "pypdfium2==5.14.0",
