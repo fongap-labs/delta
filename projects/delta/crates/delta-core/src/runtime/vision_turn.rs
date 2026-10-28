@@ -53,6 +53,20 @@ impl RuntimeHost {
         Ok(Some(Value::Array(notes)))
     }
 
+    /// The `vision_notes` for the pictures a tool returned (a screenshot), or `None` when the chat
+    /// model reads pictures itself. The notes are stored with the tool's result, so every later
+    /// request sends the same words and the picture is described once.
+    pub(super) fn tool_picture_notes(&self, images: &[Value]) -> Result<Option<Value>, String> {
+        let pictures: Vec<Value> = images
+            .iter()
+            .filter_map(|image| self.screenshot_attachment(image))
+            .collect();
+        if pictures.is_empty() {
+            return Ok(None);
+        }
+        self.vision_notes(&pictures)
+    }
+
     /// Ask the vision model about one picture. The request passes the egress gate and uses this
     /// turn's proxy, like the summarizer's request does.
     fn describe_picture(

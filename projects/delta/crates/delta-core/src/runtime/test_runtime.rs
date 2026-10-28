@@ -1678,6 +1678,88 @@ fn a_tool_screenshot_reaches_the_model_as_one_image_message_after_all_tool_resul
     assert_eq!(responses[4]["content"][1]["type"], "input_image");
 }
 
+fn host_with_vision(
+    vision: crate::vision::VisionMode,
+    workspace: &Path,
+    messages: Vec<Value>,
+) -> RuntimeHost {
+    RuntimeHost::new(
+        "s1",
+        RuntimeConfig {
+            protocol: "openai_chat".to_string(),
+            workspace: Some(workspace.to_string_lossy().to_string()),
+            vision,
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_messages(messages)
+}
+
+#[test]
+fn a_model_that_cannot_read_pictures_gets_the_words_for_a_tool_screenshot_not_the_picture() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    fs::write(temp.path().join(".delta/screens/run/1.png"), b"png").unwrap();
+    let mut messages = screenshot_conversation(1);
+    messages[2]["vision_notes"] =
+        json!([{"index": 0, "text": "[image: 1.png]\nA login form with two fields."}]);
+    let host = host_with_vision(
+        crate::vision::VisionMode::Unavailable("no vision model".into()),
+        temp.path(),
+        messages,
+    );
+    let out = host.outbound_messages();
+    let roles: Vec<&str> = out.iter().map(|m| m["role"].as_str().unwrap()).collect();
+    assert_eq!(roles, ["user", "assistant", "tool", "tool", "user"]);
+    // No part of the request is a picture, and the words are what the model reads.
+    assert!(!Value::Array(out.clone()).to_string().contains("image_url"));
+    let text = out[4]["content"]
+        .as_str()
+        .expect("the words are plain text");
+    assert!(text.contains("A login form with two fields."), "{text}");
+    assert!(text.contains("cannot read pictures"), "{text}");
+    assert!(
+        out[2].get("vision_notes").is_none(),
+        "the notes are the runtime's own and are not sent as a field of the tool message"
+    );
+}
+
+#[test]
+fn a_screenshot_taken_before_the_model_changed_says_it_was_not_described() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    fs::write(temp.path().join(".delta/screens/run/1.png"), b"png").unwrap();
+    let bridge = crate::vision::VisionMode::Unavailable("x".into());
+    let out = host_with_vision(bridge, temp.path(), screenshot_conversation(1)).outbound_messages();
+    let text = out[4]["content"].as_str().unwrap();
+    assert!(text.contains("image not sent"), "{text}");
+    assert!(!Value::Array(out).to_string().contains("image_url"));
+}
+
+#[test]
+fn a_tool_screenshot_is_described_when_the_tool_returns_it_and_never_for_a_picture_reading_model() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join(".delta/screens/run")).unwrap();
+    fs::write(temp.path().join(".delta/screens/run/1.png"), b"png").unwrap();
+    let images = [json!({"path": ".delta/screens/run/1.png"})];
+
+    let native = host_with_vision(crate::vision::VisionMode::Native, temp.path(), Vec::new());
+    assert!(native.tool_picture_notes(&images).unwrap().is_none());
+
+    let unavailable = host_with_vision(
+        crate::vision::VisionMode::Unavailable("no vision model is set".into()),
+        temp.path(),
+        Vec::new(),
+    );
+    let notes = unavailable.tool_picture_notes(&images).unwrap().unwrap();
+    let text = notes[0]["text"].as_str().unwrap();
+    assert!(text.contains("no vision model is set"), "{text}");
+
+    // A path outside `.delta/screens` is not read, so there is nothing to describe.
+    let outside = [json!({"path": "secret.png"})];
+    assert!(unavailable.tool_picture_notes(&outside).unwrap().is_none());
+}
+
 #[test]
 fn only_the_newest_screenshots_are_sent_and_unsafe_or_missing_files_are_ignored() {
     let temp = tempfile::tempdir().unwrap();

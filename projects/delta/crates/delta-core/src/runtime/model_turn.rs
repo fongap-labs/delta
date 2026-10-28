@@ -162,19 +162,30 @@ impl RuntimeHost {
             .collect();
 
         let mut pending: Vec<Value> = Vec::new();
-        let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>| {
-            if pending.is_empty() {
-                return;
+        // What a model that cannot read pictures is told in their place.
+        let mut pending_notes: Vec<String> = Vec::new();
+        let is_native = matches!(self.config.vision, crate::vision::VisionMode::Native);
+        let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>, notes: &mut Vec<String>| {
+            if !pending.is_empty() {
+                let attachments = std::mem::take(pending);
+                out.push(json!({
+                    "role": "user",
+                    "content": provider_user_content(
+                        &self.config.protocol,
+                        "The picture the tool above returned:",
+                        &attachments,
+                    ),
+                }));
             }
-            let attachments = std::mem::take(pending);
-            out.push(json!({
-                "role": "user",
-                "content": provider_user_content(
-                    &self.config.protocol,
-                    "The picture the tool above returned:",
-                    &attachments,
-                ),
-            }));
+            if !notes.is_empty() {
+                out.push(json!({
+                    "role": "user",
+                    "content": format!(
+                        "The picture the tool above returned, in words because you cannot read pictures:\n\n{}",
+                        std::mem::take(notes).join("\n\n")
+                    ),
+                }));
+            }
         };
         for (index, m) in history.iter().enumerate() {
             let role = m.get("role").and_then(|r| r.as_str());
@@ -192,7 +203,7 @@ impl RuntimeHost {
             // Tool results must stay together right after the assistant turn that asked for
             // them, so the pictures follow the last of them.
             if role != Some("tool") {
-                flush(&mut out, &mut pending);
+                flush(&mut out, &mut pending, &mut pending_notes);
             }
             let mut message = without_sidecars(m);
             if role == Some("tool") {
@@ -219,17 +230,38 @@ impl RuntimeHost {
                 }
             }
             if role == Some("tool") && sent_images.contains(&index) {
-                if let Some(images) = m.get("images").and_then(Value::as_array) {
-                    pending.extend(
-                        images
-                            .iter()
-                            .filter_map(|image| self.screenshot_attachment(image)),
-                    );
+                if is_native {
+                    if let Some(images) = m.get("images").and_then(Value::as_array) {
+                        pending.extend(
+                            images
+                                .iter()
+                                .filter_map(|image| self.screenshot_attachment(image)),
+                        );
+                    }
+                } else {
+                    // The picture never goes to this model: it would be refused, and the request
+                    // with it. Use the words made when the tool returned it.
+                    let described: Vec<String> = m
+                        .get("vision_notes")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|note| note.get("text").and_then(Value::as_str))
+                        .map(str::to_string)
+                        .collect();
+                    if described.is_empty() {
+                        pending_notes.push(
+                            "[image not sent: this model cannot read pictures, and none was described when the tool returned it]"
+                                .to_string(),
+                        );
+                    } else {
+                        pending_notes.extend(described);
+                    }
                 }
             }
             out.push(message);
         }
-        flush(&mut out, &mut pending);
+        flush(&mut out, &mut pending, &mut pending_notes);
         if self.tools_refused() && self.web_search_offered() {
             out.insert(
                 0,
@@ -241,7 +273,7 @@ impl RuntimeHost {
 
     /// A tool's picture as a transcript attachment, read from the workspace. Only files under
     /// `.delta/screens/` count; anything else a tool names is ignored.
-    fn screenshot_attachment(&self, image: &Value) -> Option<Value> {
+    pub(super) fn screenshot_attachment(&self, image: &Value) -> Option<Value> {
         let relative = Path::new(image.get("path")?.as_str()?);
         let allowed = relative.starts_with(".delta/screens")
             && relative
@@ -764,6 +796,19 @@ impl RuntimeHost {
                     .filter(|images| images.as_array().is_some_and(|list| !list.is_empty()))
                 {
                     tool_message["images"] = images.clone();
+                    // A chat model that cannot read pictures gets the vision model's words for each
+                    // one, or the reason there are none, instead of the picture.
+                    let list = images.as_array().map(Vec::as_slice).unwrap_or_default();
+                    match self.tool_picture_notes(list) {
+                        Ok(Some(notes)) => tool_message["vision_notes"] = notes,
+                        Ok(None) => {}
+                        Err(error) => {
+                            tool_message["vision_notes"] = json!([{
+                                "index": 0,
+                                "text": format!("[image could not be read: {error}]"),
+                            }]);
+                        }
+                    }
                 }
                 self.messages.push(tool_message);
                 self.emit_event(RuntimeEvent::ToolFinished {
