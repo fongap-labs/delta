@@ -56,6 +56,7 @@ pub mod study;
 pub mod taskstore;
 pub mod todo;
 pub mod tool_lifecycle;
+pub mod tool_surface;
 pub mod validation;
 pub mod vision;
 pub mod web;
