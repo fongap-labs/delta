@@ -187,6 +187,16 @@ describe("turnToolNames", () => {
   });
 });
 
+describe("notices the runtime writes", () => {
+  it("replays the note that pictures were sent as words as a quiet notice, not an error", () => {
+    const items = itemsFromMessages([
+      { role: "user", content: "what is this?" },
+      { role: "notice", kind: "pictures_withheld", text: "This model did not accept the picture." },
+    ] as any);
+    expect(items[1]).toEqual({ kind: "notice", tone: "info", text: "This model did not accept the picture." });
+  });
+});
+
 describe("memory suggestions", () => {
   const proposal = (result: unknown, failed = false) =>
     [

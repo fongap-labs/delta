@@ -151,13 +151,13 @@ describe("Delta sidebar layout", () => {
     }
   });
 
-  it("lists the search field, then the conversation and automation destinations", () => {
+  it("lists the scheduled-task and conversation destinations, then the search field", () => {
     renderSidebar(baseProps);
     const search = screen.getByTestId("nav-search");
     const nav = screen.getByRole("navigation", { name: "Primary" });
     const names = within(nav).getAllByRole("button").map((b) => b.textContent);
-    expect(names).toEqual(["New conversation", "Automations"]);
-    expect(search.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(names).toEqual(["Scheduled tasks", "Start chat"]);
+    expect(nav.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("routes each destination to its surface", () => {

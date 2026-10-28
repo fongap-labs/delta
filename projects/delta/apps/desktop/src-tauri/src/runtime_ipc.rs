@@ -476,6 +476,28 @@ pub fn update_pdf_settings(state: State<'_, RuntimeRegistry>, patch: Value) -> V
 }
 
 #[tauri::command]
+pub fn vision_settings(state: State<'_, RuntimeRegistry>) -> Value {
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .vision_settings(),
+    )
+}
+
+#[tauri::command]
+pub fn update_vision_settings(state: State<'_, RuntimeRegistry>, patch: Value) -> Value {
+    authority_result(
+        state
+            .models()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_vision_settings(&patch),
+    )
+}
+
+#[tauri::command]
 pub fn update_compaction(state: State<'_, RuntimeRegistry>, patch: Value) -> Value {
     authority_result(
         state

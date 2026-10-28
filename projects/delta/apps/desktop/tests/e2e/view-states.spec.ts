@@ -78,7 +78,7 @@ test("Automations: a failed read says so and Retry loads the list", async ({ pag
     `(args) => { if ($state.automationsFail) throw new Error("boom"); return { tasks: $state.automations }; }`,
   );
   await page.evaluate(() => { (window as any).__DELTA_MOCK__.state.automationsFail = true; });
-  await page.getByRole("button", { name: /^Automations/ }).first().click();
+  await page.getByRole("button", { name: /^Scheduled tasks/ }).first().click();
   await expect(page.getByTestId("load-error")).toContainText("Couldn't load automations");
   await expect(page.getByText("New automation")).toBeVisible(); // header actions stay usable
 

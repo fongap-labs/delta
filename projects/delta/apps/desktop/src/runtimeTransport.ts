@@ -278,6 +278,9 @@ export const updateScratchBase = (path: string) =>
   invokeAuthority("update_scratch_base", { path });
 export const updatePdfSettings = (patch: Record<string, unknown>) =>
   invokeAuthority("update_pdf_settings", { patch });
+export const fetchVisionSettings = () => invokeAuthority("vision_settings");
+export const updateVisionSettings = (patch: Record<string, unknown>) =>
+  invokeAuthority("update_vision_settings", { patch });
 export const updateCompaction = (patch: Record<string, unknown>) =>
   invokeAuthority("update_compaction", { patch });
 // Network proxy (which route an outbound request takes). Read comes from the settings

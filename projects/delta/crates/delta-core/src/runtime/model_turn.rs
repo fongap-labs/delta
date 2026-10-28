@@ -162,19 +162,32 @@ impl RuntimeHost {
             .collect();
 
         let mut pending: Vec<Value> = Vec::new();
-        let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>| {
-            if pending.is_empty() {
-                return;
+        // What a model that cannot read pictures is told in their place.
+        let mut pending_notes: Vec<String> = Vec::new();
+        // Pictures go to the model only when it takes them and has not just refused one.
+        let is_native = matches!(self.config.vision, crate::vision::VisionMode::Native)
+            && !self.pictures_withheld;
+        let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>, notes: &mut Vec<String>| {
+            if !pending.is_empty() {
+                let attachments = std::mem::take(pending);
+                out.push(json!({
+                    "role": "user",
+                    "content": provider_user_content(
+                        &self.config.protocol,
+                        "The picture the tool above returned:",
+                        &attachments,
+                    ),
+                }));
             }
-            let attachments = std::mem::take(pending);
-            out.push(json!({
-                "role": "user",
-                "content": provider_user_content(
-                    &self.config.protocol,
-                    "The picture the tool above returned:",
-                    &attachments,
-                ),
-            }));
+            if !notes.is_empty() {
+                out.push(json!({
+                    "role": "user",
+                    "content": format!(
+                        "The picture the tool above returned, in words because you cannot read pictures:\n\n{}",
+                        std::mem::take(notes).join("\n\n")
+                    ),
+                }));
+            }
         };
         for (index, m) in history.iter().enumerate() {
             let role = m.get("role").and_then(|r| r.as_str());
@@ -192,7 +205,7 @@ impl RuntimeHost {
             // Tool results must stay together right after the assistant turn that asked for
             // them, so the pictures follow the last of them.
             if role != Some("tool") {
-                flush(&mut out, &mut pending);
+                flush(&mut out, &mut pending, &mut pending_notes);
             }
             let mut message = without_sidecars(m);
             if role == Some("tool") {
@@ -208,8 +221,14 @@ impl RuntimeHost {
             if role == Some("user") {
                 if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
                     if !attachments.is_empty() {
-                        let attachments =
+                        let mut attachments =
                             crate::vision::outbound_attachments(attachments, m.get("vision_notes"));
+                        if !is_native {
+                            attachments = crate::vision::withhold_pictures(
+                                attachments,
+                                "this model does not take pictures",
+                            );
+                        }
                         message["content"] = provider_user_content(
                             &self.config.protocol,
                             m.get("content").and_then(Value::as_str).unwrap_or_default(),
@@ -219,17 +238,38 @@ impl RuntimeHost {
                 }
             }
             if role == Some("tool") && sent_images.contains(&index) {
-                if let Some(images) = m.get("images").and_then(Value::as_array) {
-                    pending.extend(
-                        images
-                            .iter()
-                            .filter_map(|image| self.screenshot_attachment(image)),
-                    );
+                if is_native {
+                    if let Some(images) = m.get("images").and_then(Value::as_array) {
+                        pending.extend(
+                            images
+                                .iter()
+                                .filter_map(|image| self.screenshot_attachment(image)),
+                        );
+                    }
+                } else {
+                    // The picture never goes to this model: it would be refused, and the request
+                    // with it. Use the words made when the tool returned it.
+                    let described: Vec<String> = m
+                        .get("vision_notes")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|note| note.get("text").and_then(Value::as_str))
+                        .map(str::to_string)
+                        .collect();
+                    if described.is_empty() {
+                        pending_notes.push(
+                            "[image not sent: this model cannot read pictures, and none was described when the tool returned it]"
+                                .to_string(),
+                        );
+                    } else {
+                        pending_notes.extend(described);
+                    }
                 }
             }
             out.push(message);
         }
-        flush(&mut out, &mut pending);
+        flush(&mut out, &mut pending, &mut pending_notes);
         if self.tools_refused() && self.web_search_offered() {
             out.insert(
                 0,
@@ -241,7 +281,7 @@ impl RuntimeHost {
 
     /// A tool's picture as a transcript attachment, read from the workspace. Only files under
     /// `.delta/screens/` count; anything else a tool names is ignored.
-    fn screenshot_attachment(&self, image: &Value) -> Option<Value> {
+    pub(super) fn screenshot_attachment(&self, image: &Value) -> Option<Value> {
         let relative = Path::new(image.get("path")?.as_str()?);
         let allowed = relative.starts_with(".delta/screens")
             && relative
@@ -269,6 +309,25 @@ impl RuntimeHost {
                 base64::engine::general_purpose::STANDARD.encode(bytes)
             ),
         }))
+    }
+
+    /// What an accepted request shows about pictures. After a refusal and a retry without
+    /// pictures, the pictures were the cause; a request that carried pictures and was accepted
+    /// shows the model takes them. Either is remembered for the model when something is listening.
+    fn learn_from_reply(&mut self, has_pictures_sent: bool) {
+        let Some(learn) = self.config.learn_pictures.clone() else {
+            return;
+        };
+        if let Some(is_clear) = self.withheld_to_learn.take() {
+            if is_clear {
+                learn(false);
+            }
+            return;
+        }
+        if has_pictures_sent && self.config.pictures_unproven && !self.pictures_withheld {
+            learn(true);
+            self.config.pictures_unproven = false;
+        }
     }
 
     pub(super) fn build_request(&self) -> ProviderRequest {
@@ -528,6 +587,7 @@ impl RuntimeHost {
                     return Err(error);
                 }
             }
+            let has_pictures_sent = request_has_pictures(&req);
             let mut turn: Option<AssistantTurn> = None;
             let mut streamed_text: Vec<String> = Vec::new();
             let mut streamed_reasoning: Vec<String> = Vec::new();
@@ -542,6 +602,7 @@ impl RuntimeHost {
                 Ok(ProviderStreamOutcome::Completed) => {
                     self.ensure_event_delivery()?;
                     turn_retries = 0;
+                    self.learn_from_reply(has_pictures_sent);
                 }
                 Ok(ProviderStreamOutcome::Interrupted) => {
                     self.ensure_event_delivery()?;
@@ -597,6 +658,31 @@ impl RuntimeHost {
                         });
                         self.ensure_event_delivery()?;
                         continue;
+                    }
+                    // A model nothing speaks for may not take the pictures this request carries.
+                    // Send the same request again with words in their place: if that one is
+                    // accepted, it was the pictures. A clear refusal is remembered for the model;
+                    // a timeout or a gateway error only changes this session, because it can
+                    // have other causes.
+                    if self.config.pictures_unproven
+                        && !self.pictures_withheld
+                        && has_pictures_sent
+                        && streamed_text.is_empty()
+                        && streamed_reasoning.is_empty()
+                        && !self.cancel.load(Ordering::Relaxed)
+                    {
+                        if let Some(is_clear) = picture_refusal(&e) {
+                            self.pictures_withheld = true;
+                            self.withheld_to_learn = Some(is_clear);
+                            let notice = PICTURES_WITHHELD_NOTICE.to_string();
+                            self.messages.push(json!({
+                                "role": "notice", "kind": "pictures_withheld",
+                                "text": &notice, "ts": now_ts()
+                            }));
+                            self.emit_event(RuntimeEvent::Notice { text: notice });
+                            self.ensure_event_delivery()?;
+                            continue;
+                        }
                     }
                     // A provider that refuses a request parameter is not one that will accept
                     // the same body later. Re-send once without the optional parameters this
@@ -665,6 +751,13 @@ impl RuntimeHost {
                     }
                     self.messages.push(
                         json!({"role": "notice", "kind": "error", "text": &e, "ts": now_ts()}),
+                    );
+                    // What the request looked like, so a failure that only some requests meet can
+                    // be told apart from one that every request meets. No content is recorded.
+                    let _ = self.ledger_append(
+                        "model.request_failed",
+                        "runtime",
+                        request_shape(&req, &e),
                     );
                     self.emit_event(RuntimeEvent::Error {
                         error: e.clone(),
@@ -764,6 +857,19 @@ impl RuntimeHost {
                     .filter(|images| images.as_array().is_some_and(|list| !list.is_empty()))
                 {
                     tool_message["images"] = images.clone();
+                    // A chat model that cannot read pictures gets the vision model's words for each
+                    // one, or the reason there are none, instead of the picture.
+                    let list = images.as_array().map(Vec::as_slice).unwrap_or_default();
+                    match self.tool_picture_notes(list) {
+                        Ok(Some(notes)) => tool_message["vision_notes"] = notes,
+                        Ok(None) => {}
+                        Err(error) => {
+                            tool_message["vision_notes"] = json!([{
+                                "index": 0,
+                                "text": format!("[image could not be read: {error}]"),
+                            }]);
+                        }
+                    }
                 }
                 self.messages.push(tool_message);
                 self.emit_event(RuntimeEvent::ToolFinished {
@@ -937,14 +1043,18 @@ impl RuntimeHost {
     }
 }
 
-/// Put the time of day at the very end of a request, on the newest user or tool message, and only
-/// in the copy that is sent: it is never stored. Everything before it is the same from one request
-/// to the next, which is what lets a provider reuse its cache of the conversation so far.
+/// Put the time of day at the very end of a request, on the newest user message, and only in the
+/// copy that is sent: it is never stored. Everything before it is the same from one request to the
+/// next, which is what lets a provider reuse its cache of the conversation so far.
+///
+/// A request that ends with a tool result is sent exactly as stored. The tool result is the one
+/// message whose wording a gateway and the models behind it treat as data of a fixed shape, and the
+/// time was given with the user's message that started the turn.
 fn with_turn_clock(mut messages: Vec<Value>, protocol: &str, note: &str) -> Vec<Value> {
     let Some(last) = messages.last_mut() else {
         return messages;
     };
-    if !matches!(role_of(last), Some("user" | "tool")) {
+    if role_of(last) != Some("user") {
         return messages;
     }
     match last.get_mut("content") {
@@ -964,6 +1074,71 @@ fn with_turn_clock(mut messages: Vec<Value>, protocol: &str, note: &str) -> Vec<
         _ => {}
     }
     messages
+}
+
+const PICTURES_WITHHELD_NOTICE: &str = "This model did not accept the picture, so the rest of this conversation sends pictures to it as text. If the model does read pictures, mark it in Settings > Models > Pictures.";
+
+/// Whether any message of the request carries a picture part.
+fn request_has_pictures(req: &ProviderRequest) -> bool {
+    req.messages
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|message| message.get("content").and_then(Value::as_array))
+        .flatten()
+        .any(|part| {
+            matches!(
+                part.get("type").and_then(Value::as_str),
+                Some("image_url" | "input_image" | "image")
+            )
+        })
+}
+
+/// Whether a failure could be the model refusing a picture. `Some(true)` is a clear refusal of
+/// the request's content (worth remembering for the model); `Some(false)` is a gateway or server
+/// failure that a picture may or may not have caused (acted on for this session only). Anything
+/// else (a wrong key, a rate limit, a request too large, a dropped stream) says nothing about pictures.
+fn picture_refusal(error: &str) -> Option<bool> {
+    let digits: String = error
+        .split_once("HTTP ")?
+        .1
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    match digits.parse::<u16>().ok()? {
+        400 | 404 | 415 | 422 => Some(true),
+        500 | 502 | 503 | 504 => Some(false),
+        _ => None,
+    }
+}
+
+/// How a failed model request was shaped: its size, how many messages and tools it carried, which
+/// roles ended it and whether it held pictures. The ledger keeps this, never the messages.
+fn request_shape(req: &ProviderRequest, error: &str) -> Value {
+    let messages = req
+        .messages
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let mut ends_with: Vec<&str> = messages
+        .iter()
+        .rev()
+        .take(4)
+        .map(|message| role_of(message).unwrap_or("?"))
+        .collect();
+    ends_with.reverse();
+    let text = req.messages.to_string();
+    let has_pictures = request_has_pictures(req);
+    json!({
+        "model": req.model,
+        "protocol": req.protocol,
+        "messages": messages.len(),
+        "request_bytes": text.len(),
+        "tools": req.tools.as_ref().and_then(Value::as_array).map_or(0, Vec::len),
+        "ends_with": ends_with,
+        "has_pictures": has_pictures,
+        "error": error.chars().take(300).collect::<String>(),
+    })
 }
 
 fn role_of(message: &Value) -> Option<&str> {
@@ -1086,7 +1261,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_clock_rides_the_newest_user_or_tool_message_and_nothing_else() {
+    fn the_clock_rides_the_newest_user_message_and_nothing_else() {
         let history = vec![
             json!({"role": "system", "content": "rules"}),
             json!({"role": "user", "content": "hi"}),
@@ -1098,12 +1273,15 @@ mod tests {
         assert_eq!(sent[..3], history[..3]);
         assert_eq!(sent[3]["content"], "now?\n\n[Local time: 2026-10-28 13:42]");
 
+        // A request that ends with a tool result goes out as stored: no note on the result.
         let tool_tail = vec![
             json!({"role": "user", "content": "go"}),
             json!({"role": "tool", "tool_call_id": "c", "content": "done"}),
         ];
-        let sent = with_turn_clock(tool_tail, "anthropic", "Local time: x");
-        assert_eq!(sent[1]["content"], "done\n\n[Local time: x]");
+        assert_eq!(
+            with_turn_clock(tool_tail.clone(), "anthropic", "Local time: x"),
+            tool_tail
+        );
 
         // A message made of parts gets a part of the type its protocol calls text.
         let parts = vec![json!({"role": "user", "content": [{"type": "input_text", "text": "a"}]})];
@@ -1122,6 +1300,38 @@ mod tests {
             assistant_tail
         );
         assert!(with_turn_clock(Vec::new(), "openai", "n").is_empty());
+    }
+
+    #[test]
+    fn a_failed_request_is_described_by_its_shape_and_never_by_its_content() {
+        let req = ProviderRequest {
+            protocol: "openai_chat".to_string(),
+            model: "Max".to_string(),
+            messages: json!([
+                {"role": "system", "content": "SECRET-SYSTEM"},
+                {"role": "user", "content": "SECRET-QUESTION"},
+                {"role": "assistant", "content": null, "tool_calls": []},
+                {"role": "tool", "tool_call_id": "c", "content": "SECRET-RESULT"},
+            ]),
+            tools: Some(json!([{"type": "function"}, {"type": "function"}])),
+            settings: None,
+            api_key: "key".to_string(),
+            base_url: String::new(),
+            timeout_secs: None,
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: None,
+        };
+        let shape = request_shape(&req, "HTTP 504: gateway");
+        assert_eq!(shape["messages"], 4);
+        assert_eq!(shape["tools"], 2);
+        assert_eq!(
+            shape["ends_with"],
+            json!(["system", "user", "assistant", "tool"])
+        );
+        assert_eq!(shape["has_pictures"], false);
+        assert_eq!(shape["error"], "HTTP 504: gateway");
+        assert!(!shape.to_string().contains("SECRET"), "{shape}");
     }
 
     #[test]

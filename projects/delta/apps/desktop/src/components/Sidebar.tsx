@@ -409,7 +409,12 @@ export function Sidebar(props: Props) {
         <SidebarToolIcon icon="gear" label={t("nav.settings", undefined, "Settings")} onClick={props.onManage} testid="sidebar-footer-settings" />
       </div>
 
-      <div className="px-3 pt-1">
+      <nav className="px-2.5 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
+        <NavItem icon="clock" label={t("nav.scheduled", undefined, "Scheduled tasks")} active={props.scheduledActive} onClick={props.onOpenScheduled} testid="nav-automations" />
+        <NavItem icon="chat" label={t("nav.conversations", undefined, "Start chat")} active={props.conversationActive} onClick={() => props.onNewSession?.()} testid="nav-conversations" />
+      </nav>
+
+      <div className="px-3 pt-2">
         <button
           className="w-full h-8 flex items-center gap-2 px-2.5 rounded-lg border border-line bg-panel text-[13px] text-faint hover:border-line-strong"
           data-testid="nav-search"
@@ -432,11 +437,6 @@ export function Sidebar(props: Props) {
           />
         )}
       </div>
-
-      <nav className="px-2.5 mt-2 space-y-0.5" aria-label={t("nav.primary")} data-testid="nav-primary">
-        <NavItem icon="chat" label={t("nav.conversations")} active={props.conversationActive} onClick={() => props.onNewSession?.()} testid="nav-conversations" />
-        <NavItem icon="clock" label={t("nav.scheduled", undefined, "Automations")} active={props.scheduledActive} onClick={props.onOpenScheduled} testid="nav-automations" />
-      </nav>
 
       <div className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">
         <div className="space-y-4">

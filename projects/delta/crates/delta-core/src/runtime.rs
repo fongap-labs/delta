@@ -654,6 +654,12 @@ pub struct RuntimeConfig {
     /// How pictures reach the chat model: as they are, or described first by a vision model
     /// when this chat model cannot read them (see `vision`).
     pub vision: crate::vision::VisionMode,
+    /// True when pictures go to a chat model that nothing says takes them: the runtime then watches
+    /// the first request that carries one.
+    pub pictures_unproven: bool,
+    /// Called with what a request showed: `true` when a request with pictures was accepted,
+    /// `false` when pictures were refused and the same request without them was accepted.
+    pub learn_pictures: Option<std::sync::Arc<dyn Fn(bool) + Send + Sync>>,
     /// Execution mode drives the Plan-mode Trust constraint in the Policy
     /// layer. Default is `Execute`. `Plan` hard-rejects any non-read-only
     /// capability regardless of model behavior.
@@ -694,6 +700,8 @@ impl Default for RuntimeConfig {
             unattended: false,
             unattended_wait: Some(DEFAULT_UNATTENDED_WAIT),
             vision: crate::vision::VisionMode::Native,
+            pictures_unproven: false,
+            learn_pictures: None,
             mode: crate::policy::ExecutionMode::Execute,
             context_window_tokens: None,
             compaction_threshold_pct: 0.8,
@@ -727,6 +735,13 @@ pub struct RuntimeHost {
     /// per turn: if the reduced body is refused too, the failure is reported instead of stripping
     /// the request down to nothing.
     reduced_request: bool,
+    /// Set once a request with pictures was refused and the same request without them was not:
+    /// from then on this session sends the model words in place of pictures.
+    pictures_withheld: bool,
+    /// While pictures are withheld after a refusal: whether the refusal was clear enough to
+    /// remember for the model (`Some(true)`), or only to act on for this session (`Some(false)`).
+    /// Taken when the next request is accepted, which is what shows it was the pictures.
+    withheld_to_learn: Option<bool>,
     /// Tool calls the current turn has attempted, counted against `max_tool_calls`. Reset at the
     /// start of each turn, like the iteration count.
     tool_calls_this_turn: usize,
@@ -1276,6 +1291,8 @@ impl RuntimeHost {
             sink: Arc::new(NullSink),
             event_error: Arc::new(Mutex::new(None)),
             reduced_request: false,
+            pictures_withheld: false,
+            withheld_to_learn: None,
             tool_calls_this_turn: 0,
             turn_artifacts: Mutex::new(Vec::new()),
             refused_tools_model: None,
@@ -1475,6 +1492,12 @@ impl RuntimeHost {
         self.config.compaction_cap_tokens = config.compaction_cap_tokens;
         self.config.compaction_model = config.compaction_model;
         self.config.reviewer_enabled = config.reviewer_enabled;
+        // Pictures follow the model now answering: a text-only model must not inherit the
+        // picture handling of the vision model it replaced.
+        self.config.vision = config.vision;
+        self.config.pictures_unproven = config.pictures_unproven;
+        self.config.learn_pictures = config.learn_pictures;
+        self.pictures_withheld = false;
         if self.config.system_prompt != config.system_prompt {
             self.config.system_prompt = config.system_prompt.clone();
             if let Some(prompt) = config.system_prompt {

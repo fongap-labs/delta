@@ -108,23 +108,100 @@ impl ModelAuthority {
         Ok(())
     }
 
-    /// The chat model's runtime config, with its picture handling: the vision bridge applies only
-    /// when this model is not marked as taking pictures and a vision model is configured.
+    /// The chat model's runtime config, with its picture handling.
+    ///
+    /// A model that takes pictures gets them as they are. One that does not gets the vision
+    /// model's description of each picture when a vision model is set, and a note saying why there
+    /// is no picture when none is: a picture sent to a text-only model is refused, and the whole
+    /// request with it. A model nothing speaks for gets the vision model's description when one is
+    /// set, and otherwise the pictures themselves, with the runtime watching the first request that
+    /// carries one (see `RuntimeConfig::learn_pictures`).
     pub fn resolve_runtime_config(&self, requested_model: &str) -> Result<RuntimeConfig, String> {
+        use crate::vision::{ImageSupport, VisionMode};
         let mut config = self.route_runtime_config(requested_model)?;
         let file = self.read_authority()?;
         let prefs = &file.prefs;
-        if crate::vision::model_supports_images(prefs, &config.model_id) {
+        let (support, _) = crate::vision::image_support(prefs, &config.model_id);
+        if support == ImageSupport::Yes {
             return Ok(config);
         }
-        let Some(settings) = crate::vision::bridge_settings(prefs) else {
-            return Ok(config);
-        };
-        config.vision = match self.vision_bridge(&settings) {
-            Ok(bridge) => crate::vision::VisionMode::Bridge(bridge),
-            Err(reason) => crate::vision::VisionMode::Unavailable(reason),
+        config.vision = match crate::vision::bridge_settings(prefs) {
+            Some(settings) => match self.vision_bridge(&settings) {
+                Ok(bridge) => VisionMode::Bridge(bridge),
+                Err(reason) => VisionMode::Unavailable(reason),
+            },
+            None if support == ImageSupport::No => {
+                VisionMode::Unavailable(crate::vision::NO_BRIDGE_REASON.to_string())
+            }
+            None => {
+                config.pictures_unproven = true;
+                let authority = self.clone();
+                let model_id = config.model_id.clone();
+                config.learn_pictures = Some(std::sync::Arc::new(move |can_read| {
+                    // Remembering is a convenience; a failed write only means it is learned again.
+                    let _ = authority.record_picture_support(&model_id, can_read);
+                }));
+                VisionMode::Native
+            }
         };
         Ok(config)
+    }
+
+    /// Remember what a request showed about a model: it took pictures, or it refused them. The
+    /// user's own mark still wins over this, and clearing the mark brings it back into play.
+    pub fn record_picture_support(&self, model_id: &str, can_read: bool) -> Result<(), String> {
+        let mut file = self.read_authority()?;
+        let mut learned = file
+            .prefs
+            .get("vision_learned")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        learned.insert(model_id.to_string(), json!(can_read));
+        file.prefs
+            .insert("vision_learned".to_string(), Value::Object(learned));
+        self.write_authority(&file)
+    }
+
+    /// The picture settings as the settings page shows them: the vision model and its limits, and
+    /// for every model in the list whether it takes pictures and where that is known from.
+    pub fn vision_settings(&self) -> Result<Value, String> {
+        let file = self.read_authority()?;
+        let prefs = &file.prefs;
+        let models = self
+            .settings()?
+            .get("models")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let rows: Vec<Value> = models
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|model| {
+                let (support, source) = crate::vision::image_support(prefs, model);
+                json!({
+                    "model": model,
+                    "support": match support {
+                        crate::vision::ImageSupport::Yes => "yes",
+                        crate::vision::ImageSupport::No => "no",
+                        crate::vision::ImageSupport::Unknown => "unknown",
+                    },
+                    "source": source.map(crate::vision::SupportSource::as_str),
+                    "marked": prefs
+                        .get("vision_support")
+                        .and_then(Value::as_object)
+                        .and_then(|map| map.get(model))
+                        .and_then(Value::as_bool),
+                })
+            })
+            .collect();
+        let text = |key: &str| prefs.get(key).and_then(Value::as_str).unwrap_or("");
+        Ok(json!({
+            "vision_model": text("vision_model"),
+            "vision_protocol": text("vision_protocol"),
+            "vision_prompt": text("vision_prompt"),
+            "models": rows,
+        }))
     }
 
     /// Resolve the configured vision model. Its own route is resolved without a bridge, so the
@@ -673,6 +750,20 @@ impl ModelAuthority {
                 added.push(full);
             }
         }
+        // Remember what the provider declared about picture input, under the ids the models get here.
+        if let Some(declared) = probed.get("image_input").and_then(Value::as_object) {
+            let mut known = file
+                .prefs
+                .get("vision_declared")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            for (model, can_read) in declared {
+                known.insert(format!("{name}:{model}"), can_read.clone());
+            }
+            file.prefs
+                .insert("vision_declared".to_string(), Value::Object(known));
+        }
         self.write_authority(&file)?;
         Ok(json!({"ok": true, "alias": name, "models": models, "added": added}))
     }
@@ -925,14 +1016,26 @@ fn probe_provider(config: &ProbeConfig, should_include_models: bool) -> Value {
             }
             match response.into_json::<Value>() {
                 Ok(payload) => {
-                    let models: Vec<&str> = payload
+                    let entries: Vec<&Value> = payload
                         .get("data")
                         .and_then(Value::as_array)
                         .into_iter()
                         .flatten()
+                        .collect();
+                    let models: Vec<&str> = entries
+                        .iter()
                         .filter_map(|model| model.get("id").and_then(Value::as_str))
                         .collect();
-                    json!({"ok": true, "models": models})
+                    // What the provider says about picture input, for the models that say anything.
+                    let image_input: Map<String, Value> = entries
+                        .iter()
+                        .filter_map(|entry| {
+                            let id = entry.get("id").and_then(Value::as_str)?;
+                            let declared = crate::vision::declared_image_input(entry)?;
+                            Some((id.to_string(), json!(declared)))
+                        })
+                        .collect();
+                    json!({"ok": true, "models": models, "image_input": image_input})
                 }
                 Err(_) => json!({"ok": false, "error": "Provider returned invalid model data."}),
             }
@@ -1218,6 +1321,137 @@ mod tests {
             .unwrap()
             .to_string()
             .contains("office-gateway:model-a"));
+    }
+
+    /// An authority with a gateway whose models are named by the test.
+    fn authority_with_models(models: &[&str]) -> (tempfile::TempDir, ModelAuthority) {
+        let temp = tempfile::tempdir().unwrap();
+        let authority = ModelAuthority::open(temp.path()).unwrap();
+        authority
+            .set_provider(
+                "gw",
+                Some(OPENAI_PROTOCOL),
+                &json!({"api_key": "secret", "base_url": "https://example.test/v1"}),
+            )
+            .unwrap();
+        for model in models {
+            authority.add_model(&format!("gw:{model}")).unwrap();
+        }
+        (temp, authority)
+    }
+
+    #[test]
+    fn a_model_that_takes_pictures_gets_them_and_one_that_does_not_gets_words() {
+        use crate::vision::VisionMode;
+        let (_temp, authority) = authority_with_models(&["claude-x", "deepseek-chat"]);
+        let native = authority.resolve_runtime_config("gw:claude-x").unwrap();
+        assert!(matches!(native.vision, VisionMode::Native));
+        assert!(!native.pictures_unproven, "its name speaks for it");
+
+        // Known to be text-only, and no vision model to describe: a note, never the picture.
+        let text_only = authority
+            .resolve_runtime_config("gw:deepseek-chat")
+            .unwrap();
+        match &text_only.vision {
+            VisionMode::Unavailable(reason) => {
+                assert!(reason.contains("no vision model"), "{reason}")
+            }
+            _ => panic!("a text-only model must not be sent pictures"),
+        }
+    }
+
+    #[test]
+    fn a_model_nothing_speaks_for_is_sent_pictures_and_watched_until_a_vision_model_is_set() {
+        use crate::vision::VisionMode;
+        let (_temp, authority) = authority_with_models(&["Max", "vision-pro"]);
+        let unknown = authority.resolve_runtime_config("gw:Max").unwrap();
+        assert!(matches!(unknown.vision, VisionMode::Native));
+        assert!(unknown.pictures_unproven);
+        assert!(unknown.learn_pictures.is_some());
+
+        // What a request shows is remembered, and then the model is no longer unknown.
+        (unknown.learn_pictures.unwrap())(false);
+        let learned = authority.resolve_runtime_config("gw:Max").unwrap();
+        assert!(matches!(learned.vision, VisionMode::Unavailable(_)));
+        assert!(!learned.pictures_unproven);
+
+        // With a vision model set, an unknown or text-only model gets its descriptions.
+        authority
+            .set_vision_settings(&json!({"vision_model": "gw:vision-pro"}))
+            .unwrap();
+        let bridged = authority.resolve_runtime_config("gw:Max").unwrap();
+        assert!(matches!(bridged.vision, VisionMode::Bridge(_)));
+    }
+
+    #[test]
+    fn the_users_mark_beats_what_was_learned_and_clearing_it_forgets_both() {
+        use crate::vision::VisionMode;
+        let (_temp, authority) = authority_with_models(&["Max"]);
+        authority.record_picture_support("gw:Max", false).unwrap();
+        authority
+            .set_vision_settings(&json!({"vision_support": {"gw:Max": true}}))
+            .unwrap();
+        let marked = authority.resolve_runtime_config("gw:Max").unwrap();
+        assert!(matches!(marked.vision, VisionMode::Native));
+        assert!(!marked.pictures_unproven);
+
+        authority
+            .set_vision_settings(&json!({"vision_support": {"gw:Max": null}}))
+            .unwrap();
+        let again = authority.resolve_runtime_config("gw:Max").unwrap();
+        assert!(
+            again.pictures_unproven,
+            "back to unknown, as if never learned"
+        );
+        assert!(authority
+            .set_vision_settings(&json!({"vision_support": {"gw:Max": "yes"}}))
+            .is_err());
+    }
+
+    #[test]
+    fn the_settings_page_lists_every_model_with_what_is_known_and_from_where() {
+        let (_temp, authority) = authority_with_models(&["Max", "claude-x", "deepseek-chat"]);
+        authority.record_picture_support("gw:Max", true).unwrap();
+        authority
+            .set_vision_settings(&json!({"vision_support": {"gw:deepseek-chat": true}}))
+            .unwrap();
+        let settings = authority.vision_settings().unwrap();
+        let rows = settings["models"].as_array().unwrap();
+        let row = |model: &str| {
+            rows.iter()
+                .find(|row| row["model"] == model)
+                .unwrap_or_else(|| panic!("{model} is listed: {settings}"))
+                .clone()
+        };
+        assert_eq!(row("gw:Max")["support"], "yes");
+        assert_eq!(row("gw:Max")["source"], "learned");
+        assert_eq!(row("gw:Max")["marked"], Value::Null);
+        assert_eq!(row("gw:claude-x")["source"], "name");
+        assert_eq!(row("gw:deepseek-chat")["support"], "yes");
+        assert_eq!(row("gw:deepseek-chat")["source"], "manual");
+        assert_eq!(row("gw:deepseek-chat")["marked"], true);
+        assert_eq!(settings["vision_model"], "");
+    }
+
+    #[test]
+    fn what_a_provider_declares_about_pictures_is_kept_under_the_models_routed_ids() {
+        use crate::vision::{ImageSupport, SupportSource};
+        let (_temp, authority) = authority_with_models(&[]);
+        let probed = json!({
+            "ok": true,
+            "models": ["alpha", "beta"],
+            "image_input": {"alpha": true, "beta": false},
+        });
+        authority.add_fetched_models("gw", &probed).unwrap();
+        let file = authority.read_authority().unwrap();
+        assert_eq!(
+            crate::vision::image_support(&file.prefs, "gw:alpha"),
+            (ImageSupport::Yes, Some(SupportSource::Declared))
+        );
+        assert_eq!(
+            crate::vision::image_support(&file.prefs, "gw:beta"),
+            (ImageSupport::No, Some(SupportSource::Declared))
+        );
     }
 
     #[test]

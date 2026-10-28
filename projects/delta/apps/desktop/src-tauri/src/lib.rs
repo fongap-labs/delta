@@ -680,6 +680,8 @@ pub fn run() {
             runtime_ipc::update_session_peek,
             runtime_ipc::update_scratch_base,
             runtime_ipc::update_pdf_settings,
+            runtime_ipc::vision_settings,
+            runtime_ipc::update_vision_settings,
             runtime_ipc::update_compaction,
             runtime_ipc::update_proxy_settings,
             runtime_ipc::providers_list,
