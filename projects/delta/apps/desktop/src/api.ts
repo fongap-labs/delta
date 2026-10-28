@@ -73,6 +73,7 @@ import {
   directSessionRename,
   deleteSessionRoot,
   directSessionRevert,
+  directSessionBranch,
   directRestoreVersion,
   directReadSearch,
   directWriteSearch,
@@ -524,6 +525,18 @@ export async function revertSession(
   index: number,
 ): Promise<{ ok: boolean; error?: string; text?: string }> {
   return await directSessionRevert(sessionId, index);
+}
+
+/**
+ * Start a new conversation from the end of an answer. `index` is the answer's message index; the
+ * result names the new session and the workspace it shares with the original.
+ */
+export async function branchSession(
+  sessionId: string,
+  index: number,
+  title?: string,
+): Promise<{ ok: boolean; error?: string; session_id?: string; workspace?: string }> {
+  return await directSessionBranch(sessionId, index, title);
 }
 
 /** Put back the earlier version the runtime kept when the agent replaced `target`. */

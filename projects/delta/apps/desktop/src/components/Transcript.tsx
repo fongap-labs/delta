@@ -576,6 +576,8 @@ interface Props {
   // refined; the work still happens in the task conversation. The receiver decides how to
   // present the carried text (quoted, editable) — the transcript only hands it over.
   onSendToMain?: (text: string) => void;
+  // Start a new conversation from the end of this answer (`index` is its stored message index).
+  onBranch?: (index: number) => void;
 }
 
 // The transcript index whose notice gets the Retry button: the tail error notice, looking
@@ -603,7 +605,7 @@ export function interruptedAnchor(items: Item[]): number {
   return -1;
 }
 
-export function Transcript({ items, running, streamingText, liveReasoning, onRetry,onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain }: Props) {
+export function Transcript({ items, running, streamingText, liveReasoning, onRetry,onSwitchModel, onSaveAsSkill, onRestoreVersion, canResume, onResume, onUndoMemory, onEditMessage, onRegenerate, onSendToMain, onBranch }: Props) {
   const { t } = useI18n();
   // §33 grouping: a turn = the maximal run of assistant/tool/resolved-approval items between
   // breakers (user, connector, notices, plan/dir requests…). Trailing assistant texts are the
@@ -849,6 +851,19 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
                           onClick={() => onSendToMain(item.text)}
                         >
                           <Icon name="sparkle" size={11} />
+                        </button>
+                      )}
+                      {/* Only a stored answer can end a branch, and only while nothing is running:
+                          the copy is made from what the runtime has saved. */}
+                      {onBranch && !running && item.index !== undefined && (
+                        <button
+                          className="flex items-center cursor-pointer hover:text-muted"
+                          data-testid="bubble-branch"
+                          title={t("transcript.branch", undefined, "Branch in new conversation")}
+                          aria-label={t("transcript.branch", undefined, "Branch in new conversation")}
+                          onClick={() => onBranch(item.index!)}
+                        >
+                          <Icon name="branch" size={11} />
                         </button>
                       )}
                       {canRegenerate && item === items[lastAnswerPos] ? (

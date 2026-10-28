@@ -734,6 +734,89 @@ pub fn revert_session(
     Ok(json!({"ok": true, "text": text}))
 }
 
+/// Start a new conversation from the end of one answer: copy the transcript up to and including
+/// message `index` into a new session that continues the same work. The branch keeps the
+/// workspace, the model, the extra folders and the reasoning effort. It does not inherit approvals
+/// the user granted, unattended mode, the pin, the archive flag or the compaction state: those
+/// belong to the original conversation. `title` names the branch; without one the branch is named
+/// from its first message. Only a finished answer can be the end of a branch: a message that asks
+/// for tool calls has results that would be cut off.
+pub fn branch_session(
+    state_dir: &Path,
+    session_id: &str,
+    index: usize,
+    title: Option<&str>,
+) -> Result<Value, ShadowReadError> {
+    let messages = load_messages(state_dir, session_id);
+    let Some(target) = messages.get(index) else {
+        return Ok(json!({"ok": false, "error": "message index is out of range"}));
+    };
+    let has_tool_calls = target
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .is_some_and(|calls| !calls.is_empty());
+    if target.get("role").and_then(Value::as_str) != Some("assistant") || has_tool_calls {
+        return Ok(json!({"ok": false, "error": "a branch can only end at a finished answer"}));
+    }
+    let conn = open_conn(&state_dir.join("core.db"))?;
+    let row = conn.query_row(
+        "SELECT workspace, model, extra_roots, reasoning_effort FROM sessions WHERE session_id = ?1",
+        params![session_id],
+        |row| {
+            Ok((
+                row.get::<_, Option<String>>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        },
+    );
+    let (workspace, model, extra_roots, effort) = match row {
+        Ok(row) => row,
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            return Ok(json!({"ok": false, "error": "session not found"}))
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let new_id: String = uuid::Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(12)
+        .collect();
+    let title = title.map(str::trim).filter(|value| !value.is_empty());
+    conn.execute(
+        "INSERT INTO sessions
+         (session_id, workspace, model, mode, title, renamed, agent, n_msgs, extra_roots,
+          reasoning_effort, updated_at)
+         VALUES (?1, ?2, ?3, 'interactive', ?4, ?5, 'delta', 0, ?6, ?7, CURRENT_TIMESTAMP)",
+        params![
+            new_id,
+            workspace.clone().unwrap_or_default(),
+            model.unwrap_or_default(),
+            title,
+            i64::from(title.is_some()),
+            extra_roots,
+            effort.unwrap_or_else(|| "auto".to_string()),
+        ],
+    )?;
+    rewrite_messages(state_dir, &new_id, &messages[..=index])?;
+    if title.is_none() {
+        let first = messages[..=index]
+            .iter()
+            .find(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+            .and_then(|message| message.get("content").and_then(Value::as_str));
+        if let Some(text) = first {
+            set_auto_title(state_dir, &new_id, text)?;
+        }
+    }
+    // The search index follows the transcript (ADR-0075); a failure there must not fail the branch.
+    if let Err(error) = crate::conversation_search::sync_session(state_dir, &new_id) {
+        eprintln!("conversation search: could not index a session: {error}");
+    }
+    Ok(json!({"ok": true, "session_id": new_id, "workspace": workspace.unwrap_or_default()}))
+}
+
 pub fn set_reasoning_effort(
     state_dir: &Path,
     session_id: &str,
@@ -1801,6 +1884,84 @@ mod tests {
             assert_eq!(shown["content"], "a,b");
         }
         assert_eq!(preview_file(&small, "a.txt").unwrap()["kind"], "text");
+    }
+
+    #[test]
+    fn a_branch_copies_the_transcript_up_to_a_finished_answer() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = open_conn(&tmp.path().join("core.db")).unwrap();
+        conn.execute(
+            "INSERT INTO sessions (session_id, workspace, model, mode, title, agent, n_msgs, extra_roots, reasoning_effort, unattended, pinned, grants) \
+             VALUES ('s1', '/ws', 'gpt-5.5', 'unattended', 'Plan', 'delta', 5, '[\"/extra\"]', 'high', 1, 1, 'standing')",
+            params![],
+        )
+        .unwrap();
+        let messages = vec![
+            json!({"role": "user", "content": "first question"}),
+            json!({"role": "assistant", "content": "", "tool_calls": [{"id": "c1"}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "ok"}),
+            json!({"role": "assistant", "content": "first answer"}),
+            json!({"role": "user", "content": "second question"}),
+        ];
+        rewrite_messages(tmp.path(), "s1", &messages).unwrap();
+
+        // A message that asks for tools, a tool result and a user message cannot end a branch.
+        for index in [1, 2, 4, 9] {
+            let refused = branch_session(tmp.path(), "s1", index, None).unwrap();
+            assert_eq!(refused["ok"], false, "index {index}");
+        }
+        assert_eq!(
+            branch_session(tmp.path(), "missing", 3, None).unwrap()["ok"],
+            false
+        );
+
+        let branched = branch_session(tmp.path(), "s1", 3, Some("Plan (branch)")).unwrap();
+        assert_eq!(branched["ok"], true);
+        let new_id = branched["session_id"].as_str().unwrap().to_string();
+        assert_ne!(new_id, "s1");
+        assert!(safe_session_id(&new_id));
+        assert_eq!(branched["workspace"], "/ws");
+        // The copy stops at the chosen answer, and the original is untouched.
+        assert_eq!(load_messages(tmp.path(), &new_id), messages[..=3].to_vec());
+        assert_eq!(load_messages(tmp.path(), "s1"), messages);
+
+        let (title, renamed, mode, unattended, pinned, grants, roots, effort, count): (
+            String, i64, String, i64, i64, Option<String>, String, String, i64,
+        ) = conn
+            .query_row(
+                "SELECT title, renamed, mode, unattended, pinned, grants, extra_roots, reasoning_effort, n_msgs \
+                 FROM sessions WHERE session_id = ?1",
+                params![new_id],
+                |row| {
+                    Ok((
+                        row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                        row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!((title.as_str(), renamed), ("Plan (branch)", 1));
+        // Approvals, unattended mode and the pin stay with the original; folders and effort carry over.
+        assert_eq!(
+            (mode.as_str(), unattended, pinned, grants),
+            ("interactive", 0, 0, None)
+        );
+        assert_eq!(
+            (roots.as_str(), effort.as_str(), count),
+            ("[\"/extra\"]", "high", 4)
+        );
+
+        // Without a title the branch is named from its first message.
+        let unnamed = branch_session(tmp.path(), "s1", 3, None).unwrap();
+        let unnamed_id = unnamed["session_id"].as_str().unwrap();
+        let named: String = conn
+            .query_row(
+                "SELECT title FROM sessions WHERE session_id = ?1",
+                params![unnamed_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(named, "first question");
     }
 
     #[test]

@@ -335,6 +335,7 @@ function commandSources(): Record<string, string> {
     session_delete: `(args) => { $state.sessions = $state.sessions.filter((x) => x.session_id !== args.sessionId); delete $state.sessionMessages[args.sessionId]; return { ok: true }; }`,
     update_session_reasoning: `(args) => { const s = $state.sessions.find((x) => x.session_id === args.sessionId); if (s) s.reasoning_effort = args.effort; return { ok: true, reasoning_effort: args.effort }; }`,
     session_revert: `(args) => ({ ok: true })`,
+    session_branch: `(args) => { const source = $state.sessions.find((x) => x.session_id === args.sessionId); const messages = $state.sessionMessages[args.sessionId] || []; const target = messages[args.index]; if (!source || !target || target.role !== "assistant" || (target.tool_calls || []).length) return { ok: false, error: "a branch can only end at a finished answer" }; const id = "branch" + ($state.sessions.length + 1); $state.sessions.push({ ...source, session_id: id, title: args.title || source.title, messages: args.index + 1, pinned: false }); $state.sessionMessages[id] = messages.slice(0, args.index + 1); $state.branchCalls = ($state.branchCalls || []).concat([{ sessionId: args.sessionId, index: args.index, title: args.title }]); return { ok: true, session_id: id, workspace: source.workspace || "" }; }`,
     workspaces_recent: `(args) => ({ workspaces: [] })`,
     workspaces_trusted: `(args) => ({ workspaces: [] })`,
     update_workspace_trust: `(args) => ({ ok: true, path: args.path, trusted: !!args.isTrusted })`,

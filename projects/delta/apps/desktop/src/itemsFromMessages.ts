@@ -54,6 +54,8 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
           text: m.content || "",
           ...(typeof m.ts === "number" ? { ts: m.ts } : {}),
           ...(m.reasoning ? { reasoning: m.reasoning } : {}),
+          // The stored message index: a branch ends at this answer.
+          index: msgIndex,
         });
       for (const tc of m.tool_calls || []) {
         let args: any = {};

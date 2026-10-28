@@ -84,7 +84,7 @@ export type Item =
   // (ConnectorMessageCard) instead of a plain user bubble. Generalizes to any connector via the
   // registry — no per-connector special-casing.
   | { kind: "connector"; source: MessageSourceDto }
-  | { kind: "assistant"; text: string; ts?: number; reasoning?: string }
+  | { kind: "assistant"; text: string; ts?: number; reasoning?: string; index?: number }
   // `hidden` = results the user's privacy filters removed before the agent saw them
   // (from the tool message's `_display` sidecar; the agent-visible content has no trace).
   // `standingRule` = the task-scoped rule that auto-allowed this call ("tool → target").

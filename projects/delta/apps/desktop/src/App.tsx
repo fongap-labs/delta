@@ -19,6 +19,7 @@ import {
   deleteSession,
   renameSession,
   revertSession,
+  branchSession,
   restoreFileVersion,
   getResumable,
   getRuntimeState,
@@ -1247,6 +1248,27 @@ export function App() {
     send(r.text, attachments);
   };
 
+  // Branch in a new conversation: copy this thread up to the chosen answer into a new session and
+  // open it. The original is left as it was; the branch shares its workspace and model.
+  const branchFromAnswer = async (index: number) => {
+    if (!sessionId || isRunning) return;
+    const sourceId = sessionId;
+    const sourceTitle = sessions.find((s) => s.session_id === sourceId)?.title || tr("nav.newSession");
+    const result = await branchSession(sourceId, index, tr("transcript.branchTitle", { title: sourceTitle })).catch(
+      (): { ok: false; error: string; session_id?: string; workspace?: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (foregroundSessionIdRef.current !== sourceId) return;
+    if (!result.ok || !result.session_id) {
+      setItems((p) => [
+        ...p,
+        { kind: "notice", tone: "warn", text: tr("transcript.branchFailed", { error: result.error || "unknown" }) },
+      ]);
+      return;
+    }
+    refreshSessions();
+    await selectSession(result.session_id, result.workspace ?? "");
+  };
+
   // Put back the version of a file the agent replaced; null when it worked, else the reason.
   const restoreVersion = async (backup: string, target: string): Promise<string | null> => {
     const result = await restoreFileVersion(sessionId, backup, target).catch(
@@ -1704,6 +1726,7 @@ export function App() {
                     onEditMessage={(index) => void editMessage(index)}
                     onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
                     onSendToMain={sendToMain}
+                    onBranch={(index) => void branchFromAnswer(index)}
                     // §33 ref #3: sub-threshold streamed text renders INSIDE the live turn
                     // group (header when collapsed, quiet line when expanded) — never as a
                     // floating paragraph.

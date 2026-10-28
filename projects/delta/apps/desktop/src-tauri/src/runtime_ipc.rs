@@ -854,6 +854,17 @@ pub fn session_revert(
     authority_result(state.revert_session(&session_id, index))
 }
 
+/// Start a new conversation from the end of an answer (`index` is the answer's message index).
+#[tauri::command]
+pub fn session_branch(
+    state: State<'_, RuntimeRegistry>,
+    session_id: String,
+    index: usize,
+    title: Option<String>,
+) -> Value {
+    authority_result(state.branch_session(&session_id, index, title.as_deref()))
+}
+
 #[tauri::command]
 pub fn restore_file_version(
     state: State<'_, RuntimeRegistry>,

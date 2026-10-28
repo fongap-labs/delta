@@ -1392,6 +1392,16 @@ impl CoreControlPlane {
             .map_err(|error| error.to_string())
     }
 
+    pub fn branch_session(
+        &self,
+        session_id: &str,
+        index: usize,
+        title: Option<&str>,
+    ) -> Result<Value, String> {
+        control_plane::branch_session(&self.state_dir, session_id, index, title)
+            .map_err(|error| error.to_string())
+    }
+
     pub fn restore_file_version(
         &self,
         session_id: &str,
