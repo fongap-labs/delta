@@ -106,6 +106,10 @@ const TOOL_SECTIONS: &[PromptSection] = &[
         text: "- To find something said in an earlier conversation in this workspace, use conversation_search; it searches only the user's and your own text messages. A hit names the conversation and the line; say which conversation you are quoting.\n",
     },
     PromptSection {
+        tools: &["memory_propose"],
+        text: "- When the user tells you something lasting about themselves or how they like to work (a preference, a standing instruction, a fact about their job), you may call memory_propose once for it, with their own words as evidence. It only files a suggestion: the user decides, and nothing is remembered until they accept. Do not suggest secrets, file contents, or anything that matters only for this task, and do not suggest more than one thing at a time. If the user declines, do not suggest it again.\n",
+    },
+    PromptSection {
         tools: &["library_search", "library_index"],
         text: "- To find something in the user's own files, use library_search (it covers the folders the user put in the library). If it says a folder is not indexed, offer to run library_index. A hit is a lead: read the file before quoting it, and cite the path and place.\n",
     },
@@ -283,6 +287,7 @@ mod tests {
         "clipboard_write",
         "browser_navigate",
         "conversation_search",
+        "memory_propose",
         "library_search",
         "library_index",
         "scholar_search",

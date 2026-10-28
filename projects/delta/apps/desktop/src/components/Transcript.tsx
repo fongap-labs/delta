@@ -4,6 +4,7 @@ import { shortArgs } from "./ApprovalCard";
 import { humanizeAsk, humanizeTool, resolveHumanLine, type HumanLine } from "../humanize";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 import { ConnectorMessageCard } from "./ConnectorMessageCard";
+import { MemorySuggestion } from "./MemorySuggestion";
 import { Icon } from "./Icon";
 import { useI18n } from "@delta/i18n/I18nContext";
 
@@ -999,6 +1000,10 @@ export function Transcript({ items, running, streamingText, liveReasoning, onRet
                   </>
                 )}
               </div>
+            );
+          case "memory_suggestion":
+            return (
+              <MemorySuggestion key={bi} candidateId={item.candidateId} text={item.text} quote={item.quote} />
             );
           default:
             return null;

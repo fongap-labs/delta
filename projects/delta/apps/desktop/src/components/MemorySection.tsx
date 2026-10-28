@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  acceptMemoryCandidate,
   deleteAllMemory,
   deleteMemory,
   exportMemory,
   getMemory,
+  getMemoryCandidates,
   getMemorySettings,
   importMemory,
+  rejectMemoryCandidate,
   setMemorySettings,
   updateMemory,
   MEMORY_CHANGED,
+  type MemoryCandidate,
   type MemoryEntry,
   type MemorySettings,
 } from "../api";
@@ -20,8 +24,8 @@ import { useI18n } from "@delta/i18n/I18nContext";
 
 // MEMORY-SPEC §5.3: the one memory screen. A plain-language list of remembered facts
 // (edit/delete per row), the on/off toggle, delete-all, and the User Rules textarea —
-// no scope vocabulary, no markdown, no files. Everything else memory does happens in
-// chat (toast §5.1, attribution §5.2).
+// no scope vocabulary, no markdown, no files. Delta only SUGGESTS what to remember: a
+// suggestion waits here (and in the conversation) until the user accepts, edits or declines it.
 const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[12.5px] font-medium text-ink";
 const FIELD_HELP = "text-[12px] text-muted mt-1.5 leading-relaxed";
@@ -33,6 +37,7 @@ export function MemorySection() {
   const { t } = useI18n();
   const [settings, setSettings] = useState<MemorySettings | null>(null);
   const [entries, setEntries] = useState<MemoryEntry[] | null>(null);
+  const [candidates, setCandidates] = useState<MemoryCandidate[]>([]);
   // State-change copy (§5.3): shown under the toggle / list after an action.
   const [toggleMsg, setToggleMsg] = useState<string | null>(null);
   const [listMsg, setListMsg] = useState<string | null>(null);
@@ -44,6 +49,7 @@ export function MemorySection() {
     setFailed(false);
     getMemorySettings().then(setSettings).catch(() => setFailed(true));
     getMemory().then(setEntries).catch(() => setFailed(true));
+    getMemoryCandidates().then(setCandidates).catch(() => setCandidates([]));
   };
   useEffect(refresh, []);
   // Stay current while the screen is open: a save/edit landing in a conversation, or
@@ -65,21 +71,21 @@ export function MemorySection() {
     setSettings(next);
     setToggleMsg(
       next.enabled
-        ? t("memory.enabledMsg", undefined, "Details you share from future conversations will be remembered, so I can be more helpful over time.")
-        : t("memory.disabledMsg", undefined, "I'll stop remembering new things about you. What I already know is kept and still used — delete anything below you'd rather I forget."),
+        ? t("memory.enabledMsg", undefined, "Delta may now suggest things to remember. Nothing is saved until you accept it.")
+        : t("memory.disabledMsg", undefined, "Delta won’t suggest anything new. Notes you already saved stay here — delete any you’d rather not keep."),
     );
   };
 
   const wipeAll = async () => {
     if (
       !window.confirm(
-        t("memory.confirmDeleteAll", undefined, "Delete everything that's been remembered about you?\n\nThis can't be undone. Conversations you already have open still know what they knew — new conversations start with a clean slate."),
+        t("memory.confirmDeleteAll", undefined, "Delete everything Delta has saved about you, including the earlier wording of corrected notes and suggestions still waiting?\n\nThis can’t be undone."),
       )
     )
       return;
     await deleteAllMemory();
     setListMsg(
-      t("memory.deletedMsg", undefined, "Everything I remembered has been deleted. New conversations start fresh; ones you already have open still know what they knew when they started."),
+      t("memory.deletedMsg", undefined, "Everything Delta had saved about you has been deleted."),
     );
     refresh();
   };
@@ -129,17 +135,17 @@ export function MemorySection() {
     <section>
       <PanelHead
         title={t("memory.title", undefined, "Memory")}
-        sub={t("memory.sub", undefined, "Memory isn't switched on yet. Delta doesn't save anything from your conversations, and nothing on this page is sent to a model. You can already keep, edit and delete notes here.")}
+        sub={t("memory.sub", undefined, "Delta can suggest things worth remembering about you. Nothing is saved until you accept it, and saved notes aren’t sent to a model yet. You can keep, edit and delete notes here.")}
       />
 
       {/* On/off — one switch, no other setup (§5.4). */}
       <div className={CARD + " p-4 mb-4"} data-testid="memory-toggle-card">
         <div className="flex items-center gap-3">
-          <Toggle checked={false} disabled onChange={toggleEnabled} title={t("memory.toggleTitle", undefined, "Remember new things about you")} />
+          <Toggle checked={settings.enabled} onChange={() => void toggleEnabled()} title={t("memory.toggleTitle", undefined, "Remember new things about you")} />
           <div className="min-w-0 flex-1">
             <div className={FIELD_LABEL}>{t("memory.toggleLabel", undefined, "Remember new things about me")}</div>
             <div className="text-[12px] text-muted mt-0.5">
-              {t("memory.toggleHelp", undefined, "Not available yet. Saving things from chat hasn't been built, so this switch is off and does nothing today.")}
+              {t("memory.toggleHelp", undefined, "When this is on, Delta may suggest remembering something you tell it. You decide each one; nothing is saved without you.")}
             </div>
           </div>
         </div>
@@ -149,6 +155,21 @@ export function MemorySection() {
           </div>
         )}
       </div>
+
+      {/* Suggestions waiting for a decision: nothing here is remembered yet. */}
+      {candidates.length > 0 && (
+        <div className={CARD + " p-4 mb-4"} data-testid="memory-suggestions-card">
+          <div className={FIELD_LABEL}>{t("memory.suggestionsTitle", undefined, "Suggested by Delta")}</div>
+          <div className={FIELD_HELP}>
+            {t("memory.suggestionsHelp", undefined, "Things Delta thinks are worth remembering. Nothing is saved until you accept it.")}
+          </div>
+          <div className="mt-3 divide-y divide-line">
+            {candidates.map((candidate) => (
+              <CandidateRow key={candidate.id} candidate={candidate} onChanged={refresh} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* What I've learned (§5.3): directly under the toggle that governs it — the off
           message ("what I already know is kept, delete it below") points here. */}
@@ -186,7 +207,7 @@ export function MemorySection() {
           )}
         </div>
         <div className={FIELD_HELP}>
-          {t("memory.listHelp", undefined, "These notes are only stored on this computer for now, and Delta doesn't use them in conversations yet. Fix anything that's wrong — or delete it.")}
+          {t("memory.listHelp", undefined, "These notes are stored only on this computer, and Delta doesn’t use them in conversations yet. Fixing a note keeps its earlier wording as history here; deleting a note erases it and its earlier wording.")}
         </div>
         {listMsg && (
           <div className="text-[12.5px] text-muted mt-2.5" data-testid="memory-list-msg">
@@ -196,7 +217,7 @@ export function MemorySection() {
         {entries.length === 0 ? (
           !listMsg && (
             <div className="text-[12px] text-muted mt-3" data-testid="memory-empty">
-              {t("memory.empty", undefined, "Nothing yet. Notes you import appear here; nothing is saved from chat yet.")}
+              {t("memory.empty", undefined, "Nothing yet. Notes you accept or import appear here.")}
             </div>
           )
         ) : (
@@ -266,6 +287,84 @@ function UserRulesCard({
   );
 }
 
+function CandidateRow({ candidate, onChanged }: { candidate: MemoryCandidate; onChanged: () => void }) {
+  const { t } = useI18n();
+  const [isEditing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(candidate.content);
+  const quote = candidate.source?.quote;
+
+  const accept = async (content?: string) => {
+    await acceptMemoryCandidate(candidate.id, content).catch(() => {});
+    onChanged();
+  };
+  const decline = async () => {
+    await rejectMemoryCandidate(candidate.id).catch(() => {});
+    onChanged();
+  };
+
+  return (
+    <div className="py-2.5" data-testid={`memory-candidate-${candidate.id}`}>
+      {isEditing ? (
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          autoFocus
+          data-testid={`memory-candidate-input-${candidate.id}`}
+          className="w-full px-3 py-2 rounded-lg border border-line bg-bg text-[13px] text-ink outline-none focus:border-primary resize-y leading-relaxed"
+        />
+      ) : (
+        <div className="text-[13px] leading-relaxed">{candidate.content}</div>
+      )}
+      {quote && !isEditing && (
+        <div className="text-[12px] text-faint mt-0.5">
+          {t("memory.suggestionBecause", { quote }, `You said: “${quote}”`)}
+        </div>
+      )}
+      <div className="flex items-center gap-2.5 mt-1.5">
+        {isEditing ? (
+          <>
+            <button
+              className={BTN_ACCENT}
+              disabled={!draft.trim()}
+              data-testid={`memory-candidate-save-${candidate.id}`}
+              onClick={() => void accept(draft.trim())}
+            >
+              {t("common.save", undefined, "Save")}
+            </button>
+            <button className="text-[12.5px] text-muted hover:text-ink" onClick={() => setEditing(false)}>
+              {t("common.cancel", undefined, "cancel")}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className={BTN_ACCENT} data-testid={`memory-candidate-accept-${candidate.id}`} onClick={() => void accept()}>
+              {t("memorySuggestion.accept", undefined, "Remember")}
+            </button>
+            <button
+              className="text-[12.5px] text-muted hover:text-ink"
+              data-testid={`memory-candidate-edit-${candidate.id}`}
+              onClick={() => {
+                setDraft(candidate.content);
+                setEditing(true);
+              }}
+            >
+              {t("memorySuggestion.edit", undefined, "Edit")}
+            </button>
+            <button
+              className="text-[12.5px] text-muted hover:text-ink"
+              data-testid={`memory-candidate-decline-${candidate.id}`}
+              onClick={() => void decline()}
+            >
+              {t("memorySuggestion.decline", undefined, "No thanks")}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MemoryRow({ entry, onChanged }: { entry: MemoryEntry; onChanged: () => void }) {
   const { t } = useI18n();
   const [isEditing, setEditing] = useState(false);
@@ -312,7 +411,16 @@ function MemoryRow({ entry, onChanged }: { entry: MemoryEntry; onChanged: () => 
 
   return (
     <div className="py-2.5 flex items-start gap-2.5 group" data-testid={`memory-row-${entry.id}`}>
-      <div className="min-w-0 flex-1 text-[13px] leading-relaxed">{entry.content}</div>
+      <div className="min-w-0 flex-1 text-[13px] leading-relaxed">
+        {entry.content}
+        {entry.saved_by === "candidate" && (
+          <div className="text-[12px] text-faint mt-0.5" data-testid={`memory-origin-${entry.id}`}>
+            {entry.source?.quote
+              ? t("memory.suggestionBecause", { quote: entry.source.quote }, `You said: “${entry.source.quote}”`)
+              : t("memory.suggestedAccepted", undefined, "Suggested by Delta, accepted by you")}
+          </div>
+        )}
+      </div>
       <button
         className="text-faint hover:text-ink shrink-0 mt-0.5"
         title={t("memory.fixTitle", undefined, "Fix this")}

@@ -5,7 +5,8 @@
 //! (a study record sits in the workspace, a folder is in the library, an earlier conversation
 //! exists), never a guess about what the user will ask next: the same facts give the same tools on
 //! every turn, so the provider can keep reusing its cache of the request head. Tools that are
-//! generally useful, and tools the user switched on or off, are not decided here.
+//! generally useful, and tools the user switched on or off, are not decided here; the one switch read
+//! here is memory, because its tool has nothing to do while memory is off.
 
 use std::path::Path;
 
@@ -18,6 +19,8 @@ pub struct SessionFacts {
     pub has_library_folder: bool,
     /// The workspace holds another conversation that has messages.
     pub has_other_conversation: bool,
+    /// The user has switched memory on (a settings file that cannot be read counts as off).
+    pub memory_is_on: bool,
 }
 
 /// Whether `tool_name` can do anything in a session with these facts. A tool this module does not
@@ -30,6 +33,8 @@ pub fn is_useful(tool_name: &str, facts: SessionFacts) -> bool {
         "library_search" | "library_index" => facts.has_library_folder,
         // Searching earlier conversations has nothing to search in the first one.
         "conversation_search" => facts.has_other_conversation,
+        // Suggesting a memory is for a user who has switched memory on.
+        "memory_propose" => facts.memory_is_on,
         _ => true,
     }
 }
@@ -55,13 +60,14 @@ pub fn workspace_has_study_record(workspace: &Path) -> bool {
 mod tests {
     use super::*;
 
-    const ALL: [&str; 6] = [
+    const ALL: [&str; 7] = [
         "study_evaluate",
         "report_render",
         "report_check",
         "library_search",
         "library_index",
         "conversation_search",
+        "memory_propose",
     ];
 
     #[test]
@@ -85,6 +91,10 @@ mod tests {
             has_other_conversation: true,
             ..SessionFacts::default()
         };
+        let memory = SessionFacts {
+            memory_is_on: true,
+            ..SessionFacts::default()
+        };
         let offered = |facts| {
             ALL.into_iter()
                 .filter(|tool| is_useful(tool, facts))
@@ -96,6 +106,7 @@ mod tests {
         );
         assert_eq!(offered(library), ["library_search", "library_index"]);
         assert_eq!(offered(other), ["conversation_search"]);
+        assert_eq!(offered(memory), ["memory_propose"]);
     }
 
     #[test]

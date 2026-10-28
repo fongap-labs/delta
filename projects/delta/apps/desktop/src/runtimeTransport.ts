@@ -566,6 +566,11 @@ export const directUpdateMemory = (id: number, content: string) =>
   invokeAuthority("memory_update", { id, content });
 export const directDeleteMemory = (id: number) =>
   invokeAuthority("memory_delete", { id });
+export const directListMemoryCandidates = () => invokeAuthority("memory_candidates");
+export const directAcceptMemoryCandidate = (id: number, content?: string) =>
+  invokeAuthority("memory_candidate_accept", { id, content: content ?? null });
+export const directRejectMemoryCandidate = (id: number) =>
+  invokeAuthority("memory_candidate_reject", { id });
 export const directExportMemory = () => invokeAuthority("memory_export");
 export const directImportMemory = (document: unknown) =>
   invokeAuthority("memory_import", { document });

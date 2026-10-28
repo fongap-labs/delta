@@ -144,6 +144,7 @@ impl CoreControlPlane {
         capability_host.register(crate::conversation_search::tool_registration(
             state_dir.clone(),
         ))?;
+        capability_host.register(crate::memory::propose_registration(state_dir.clone()))?;
         let automations = Arc::new(Mutex::new(
             AutomationStore::open(&state_dir).map_err(|error| error.to_string())?,
         ));
@@ -1337,6 +1338,10 @@ impl CoreControlPlane {
             has_library_folder: self.library.roots().is_ok_and(|roots| !roots.is_empty()),
             // A workspace-less session lists every conversation; only a named workspace scopes them.
             has_other_conversation: workspace.is_some() && has_other_conversation,
+            memory_is_on: self
+                .memory
+                .settings()
+                .is_ok_and(|settings| settings["enabled"].as_bool().unwrap_or(false)),
         }
     }
 
@@ -1723,6 +1728,19 @@ mod statistics_run_tests {
         .unwrap();
         assert!(facts(&plane).has_other_conversation);
         assert!(!plane.session_facts("s1", None).has_other_conversation);
+
+        // Memory is off until the user switches it on, and off again when it is switched off.
+        assert!(!facts(&plane).memory_is_on);
+        plane
+            .memory()
+            .set_settings(&json!({"enabled": true}))
+            .unwrap();
+        assert!(facts(&plane).memory_is_on);
+        plane
+            .memory()
+            .set_settings(&json!({"enabled": false}))
+            .unwrap();
+        assert!(!facts(&plane).memory_is_on);
     }
 
     #[test]
