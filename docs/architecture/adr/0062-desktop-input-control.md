@@ -1,6 +1,6 @@
 # ADR-0062：桌面输入控制的同意机制（电脑能力第三步）
 
-状态：**已接受**（所有者，2026-10-15）。实现分两步：策略核心（`crates/delta-computer/src/control/policy.rs`，已实现并有测试）；Windows 注入、UI Automation、常驻提示、Esc 热键与审批界面（待在 Windows 上实现和验证）。
+状态：**已接受**（所有者，2026-10-15）。实现分两步：策略核心（`projects/delta/crates/delta-computer/src/control/policy.rs`，已实现并有测试）；Windows 注入、UI Automation、常驻提示、Esc 热键与审批界面（待在 Windows 上实现和验证）。
 
 ## 背景
 
@@ -82,7 +82,7 @@ ADR-0059 把鼠标与键盘控制列为第三步，并规定在所有者接受�
 
 ### 7. 实现位置与权威
 
-- 注入与 UI Automation 调用位于 `crates/delta-computer` 的新模块（如 `input`）。
+- 注入与 UI Automation 调用位于 `projects/delta/crates/delta-computer` 的新模块（如 `input`）。
 - 策略判断（程序列表、敏感规则、授权状态、动作限制）位于 Rust 运行时。模型与界面都不能绕过它。
 - 界面只显示提示与授权操作，不做安全判断。
 

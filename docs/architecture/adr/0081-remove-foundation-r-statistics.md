@@ -13,7 +13,7 @@
 
 ### 1. 移除 Foundation 的 R 统计能力
 
-删除 `crates/delta-core/src/statistics` 与以下工具注册：
+删除 `projects/delta/crates/delta-core/src/statistics` 与以下工具注册：
 
 - `statistics_describe`、`statistics_ttest`、`statistics_anova`、`statistics_chisq`、`statistics_correlation`、`statistics_regression`；
 - `statistics_ancova`、`statistics_shelf_life`、`statistics_doe`、`statistics_f2`、`statistics_record`；

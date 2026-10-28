@@ -22,6 +22,9 @@ rust_advisories=false
 full=false
 
 while IFS= read -r path; do
+  # The product tree lives under projects/delta; match its files by their product-relative path.
+  # Repository-level paths (.github/, docs/, changelog.d/) are matched as they are.
+  path="${path#projects/delta/}"
   case "$path" in
     # CI workflow and CI control changes (the execution manifest, the central CI scripts and the
     # test pack pin) are validated against the complete suite.

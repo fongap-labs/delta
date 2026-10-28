@@ -312,6 +312,10 @@ EXEMPT_FILES: dict[str, Exemption] = {
         frozenset({"server-packaging"}),
         "portable build contains a negative archive-content assertion for retired server names",
     ),
+    "scripts/release-build.ps1": Exemption(
+        frozenset({"server-packaging"}),
+        "release validation contains a negative archive-content assertion for retired server names",
+    ),
     ".github/workflows/release.yml": Exemption(
         frozenset({"server-packaging"}),
         "release validation contains a negative archive-content assertion for retired server names",

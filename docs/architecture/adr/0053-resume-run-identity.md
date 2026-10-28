@@ -6,7 +6,7 @@
 
 运行时公共合同（`runtime-public-contract.md`，第 2 节「Run」）规定「resume 保持原 `run_id`」，不变量 2 规定同一运行身份贯穿 Ledger、Artifact、Validation、SideEffect 与 Source。以下为撰写本 ADR 时的代码状态（已核对，并非假设）：
 
-1. `RuntimeHandle::resume`（`crates/delta-core/src/runtime/handle.rs`）生成一个**新的** `run_id`（`uuid_v4()`），交给 `RuntimeHost::set_run_id`；`RuntimeHost::resume` 在该新 id 下写入 `{"kind": "resume"}` 的 `run.started`。被中断的运行不受影响。`retry` 同样如此。
+1. `RuntimeHandle::resume`（`projects/delta/crates/delta-core/src/runtime/handle.rs`）生成一个**新的** `run_id`（`uuid_v4()`），交给 `RuntimeHost::set_run_id`；`RuntimeHost::resume` 在该新 id 下写入 `{"kind": "resume"}` 的 `run.started`。被中断的运行不受影响。`retry` 同样如此。
 2. Ledger 状态机已经允许原地恢复：`Ledger::transition` 接受从 `running`、`resumed` 与 `interrupted` 到 `run.resumed` 的转换（`ledger.rs`，ADR-042）；`open_runs` 把 `resumed` 视为开放。当时没有任何代码产生 `run.resumed`。
 3. 检查点同时携带两个 id（`CheckpointRecord` 含 `run_id` 与 `session_id`）；`CheckpointReader::list(None, Some(session_id))` 返回某个会话的检查点，因此运行时无需询问界面，即可找到会话最后处理的运行。
 4. `recover_interrupted_runs` 在重启时，以 `run.interrupted` 关闭执行中途的运行，并保持停在人工操作上的运行为开放状态。

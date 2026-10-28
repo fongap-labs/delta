@@ -6,16 +6,16 @@
 
 ADR-0057 为每个工作区提供用户选择的出境档位（开放、已批准端点、仅私有、每次询问），并在模型请求上强制执行。模型请求并不是内容离开本机的唯一途径。工具参数是由模型选择的文本，搜索查询或连接器查询可以携带与提示词相同的机密内容。现存情况（已核对，并非假设）：
 
-1. **网页工具。** `web_search` 与 `web_fetch` 被声明为 `risk_level="medium"`、`requires_approval=True`，类别为 `web`。自 ADR-0058（基础办公能力）起，它们是原生 Rust 工具（`crates/delta-core/src/web/mod.rs`）；`integrations/web/` 中较早的 Python 工具声明了相同的元数据。ADR-0060 新增的受控浏览器使用相同的地址守卫。
+1. **网页工具。** `web_search` 与 `web_fetch` 被声明为 `risk_level="medium"`、`requires_approval=True`，类别为 `web`。自 ADR-0058（基础办公能力）起，它们是原生 Rust 工具（`projects/delta/crates/delta-core/src/web/mod.rs`）；`projects/delta/integrations/web/` 中较早的 Python 工具声明了相同的元数据。ADR-0060 新增的受控浏览器使用相同的地址守卫。
    - 策略将需要审批的中风险工具（且不属于本地类别）映射为 L3（`policy.rs`，`band_level`）。
    - L3 只有在明确审批或常设策略授权（`restrict_grants`）下才被允许。因此，常设策略可以让网页搜索无需询问即可运行。
-   - `web_search` 发往一个固定的服务商主机（默认 DuckDuckGo；配置密钥后可用 Tavily 或 Brave，见 `integrations/web/providers.py`）。`web_fetch` 发往任何通过地址守卫检查的公共主机。
+   - `web_search` 发往一个固定的服务商主机（默认 DuckDuckGo；配置密钥后可用 Tavily 或 Brave，见 `projects/delta/integrations/web/providers.py`）。`web_fetch` 发往任何通过地址守卫检查的公共主机。
 2. **MCP 服务器。** 有两种传输方式（`mcp_runtime.rs`、`mcp.rs`）：
    - **HTTP：** 位于已配置 URL 的远程服务器。
    - **stdio：** 本地进程。该进程自身发出的任何网络访问，对 Delta 都不可见。
 
    每个服务器的工具默认 `requires_approval: true`，但服务器配置可以将其设为 `false`，使其成为低风险（`mcp_runtime.rs`）。
-3. **连接器。** 连接器工具（邮件、消息、Notion 及 `integrations/connectors/` 中的其他工具）发往固定的 SaaS 主机。
+3. **连接器。** 连接器工具（邮件、消息、Notion 及 `projects/delta/integrations/connectors/` 中的其他工具）发往固定的 SaaS 主机。
    - 读取类工具在无需审批时可以直接运行（当不需要审批时为 `risk_level="low"`）。
    - 发送类工具需要审批。
    - Suite 会增加更多连接器，以及一个可以访问任意主机的交互式浏览器。

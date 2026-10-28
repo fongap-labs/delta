@@ -2,7 +2,7 @@
 
 状态：**已接受**（所有者，2026-10-11）。
 
-**部分实现**：`study.json` 的读取、检查与锁定字段比较（`crates/delta-core/src/study.rs`），以及 `schemas/study.schema.json`，已经实现；2026-10-25 增加了序贯设计（见文末"实现记录（2026-10-25）"）。尚未实现的有：`study_schema` 校验规则（未接入校验流程）、`study.amend` 能力，以及按路径查询历史的只读接口（见 CHANGELOG）。
+**部分实现**：`study.json` 的读取、检查与锁定字段比较（`projects/delta/crates/delta-core/src/study.rs`），以及 `projects/delta/schemas/study.schema.json`，已经实现；2026-10-25 增加了序贯设计（见文末"实现记录（2026-10-25）"）。尚未实现的有：`study_schema` 校验规则（未接入校验流程）、`study.amend` 能力，以及按路径查询历史的只读接口（见 CHANGELOG）。
 
 ## 背景
 
@@ -43,7 +43,7 @@
 
 ## 决定：采用 A，有证据后再重新考虑 B
 
-1. **记录。** 研究记录为 `study.json`，依据 `schemas/study.schema.json` 进行校验。它包含：
+1. **记录。** 研究记录为 `study.json`，依据 `projects/delta/schemas/study.schema.json` 进行校验。它包含：
    - 研究目标；
    - 响应（response）及其目标或验收标准；
    - 因素及其当前范围；
@@ -75,7 +75,7 @@
 
 ## 后果
 
-- 新增 schema `schemas/study.schema.json`（公共合同，有版本）。
+- 新增 schema `projects/delta/schemas/study.schema.json`（公共合同，有版本）。
 - 新增校验规则 `study_schema`：schema 检查，以及与前一次登记进行的锁定字段比较。
 - 新增能力 `study.amend`（本地写入，需要审批）。
 - 产出物读取器新增按路径查询历史的只读接口。

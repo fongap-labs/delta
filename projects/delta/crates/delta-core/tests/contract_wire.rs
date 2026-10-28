@@ -426,7 +426,7 @@ fn governed_markdown_files() -> Vec<std::path::PathBuf> {
             }
         }
     }
-    let docs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let docs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../docs");
     let mut files = Vec::new();
     walk(&docs, &mut files);
     files
@@ -439,7 +439,7 @@ fn governed_markdown_files() -> Vec<std::path::PathBuf> {
 /// (opt-in telemetry uses `model.usage` for that reason).
 #[test]
 fn model_request_event_has_one_definition() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..");
     let contract =
         std::fs::read_to_string(root.join("docs/architecture/runtime-public-contract.md")).unwrap();
     let definition = contract

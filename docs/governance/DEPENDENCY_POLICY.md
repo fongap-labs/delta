@@ -187,8 +187,8 @@ Cargo.lock
 当前仓库中：
 
 - `uv.lock` 位于仓库根目录；
-- `Cargo.lock` 分布于各 Rust crate（如 `crates/delta-core/`）、`apps/desktop/src-tauri/` 与 `packaging/portable/launcher/`；
-- `package-lock.json` 位于 `apps/desktop/`。
+- `Cargo.lock` 分布于各 Rust crate（如 `projects/delta/crates/delta-core/`）、`projects/delta/apps/desktop/src-tauri/` 与 `projects/delta/packaging/portable/launcher/`；
+- `package-lock.json` 位于 `projects/delta/apps/desktop/`。
 
 不得手工伪造 Lockfile 兼容结果。
 

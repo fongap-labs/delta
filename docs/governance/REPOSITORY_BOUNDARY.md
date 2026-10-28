@@ -73,4 +73,4 @@ Foundation 绝不得在 Core 权威逻辑中编码可选扩展的标识符、实
 3. 扩展只能使用公开的 SDK / 扩展 API / 合同。
 4. 每个扩展都必须可以独立安装、移除和诊断。
 5. Runtime 权威始终留在 Foundation。
-6. 这些规则由检查脚本强制执行：架构边界检查（`scripts/check_architecture_boundary.py`）在 CI 中运行；仓库边界检查（`scripts/check_repository_boundary.py`）通过 pre-commit 运行。
+6. 这些规则由检查脚本强制执行：架构边界检查（`projects/delta/scripts/check_architecture_boundary.py`）在 CI 中运行；仓库边界检查（`projects/delta/scripts/check_repository_boundary.py`）通过 pre-commit 运行。

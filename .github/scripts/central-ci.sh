@@ -34,7 +34,9 @@ case "$SHARD" in
     ;;
 esac
 
-cd "$TARGET_ROOT"
+# Delta's product tree lives under projects/delta (ADR-0080 layout); every phase below runs there.
+# Changed-file paths from git stay repository-relative, and detect-ci-path.sh normalizes them.
+cd "$TARGET_ROOT/projects/delta"
 
 run_pool() {
   local limit="$1"
@@ -96,7 +98,7 @@ run_python_version() {
     UV_PYTHON="$version" uv pip check --python "$env_dir/bin/python"
     UV_PROJECT_ENVIRONMENT="$env_dir" \
       UV_PYTHON="$version" \
-      node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" delta "$TARGET_ROOT"
+      node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" delta "$TARGET_ROOT/projects/delta"
   )
 }
 
@@ -139,7 +141,7 @@ run_license_workspace() {
   (
     set -Eeuo pipefail
     cd "$workspace"
-    cargo deny --config "$TARGET_ROOT/deny.toml" check licenses
+    cargo deny --config "$TARGET_ROOT/projects/delta/deny.toml" check licenses
   )
 }
 
@@ -148,7 +150,7 @@ run_advisory_workspace() {
   (
     set -Eeuo pipefail
     cd "$workspace"
-    cargo deny --config "$TARGET_ROOT/deny.toml" check advisories
+    cargo deny --config "$TARGET_ROOT/projects/delta/deny.toml" check advisories
   )
 }
 

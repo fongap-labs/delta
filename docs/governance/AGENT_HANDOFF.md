@@ -69,7 +69,7 @@
 - 现状：本机与常规 Suite CI 没有固定 R 4.6.0，`tests/cmc/test_r_engine.py` 与 `tests/cmc/test_shelf_life_reference.py` 会 skip。skip 不是验证证据。
 - 目标：提供一个可重复的验证运行方式，记录 R 版本、方法包版本、提交 SHA、输入哈希与测试输出。
 - 建议做法（任选其一，需在 PR 中说明）：
-  - 专用验证脚本 `scripts/run_validation.py`，启动时强制校验 `Rscript --version` 为 4.6.0，缺失即失败；
+  - 专用验证脚本 `projects/delta/scripts/run_validation.py`，启动时强制校验 `Rscript --version` 为 4.6.0，缺失即失败；
   - 或在中央 CI 增加独立的验证分片，安装 R 4.6.0 后运行 `tests/cmc`。
 - 验收：
   - R 版本不是 4.6.0 时明确失败，不退化为 skip；
@@ -96,7 +96,7 @@
   - registry 写入完整 `validation` 块，证据哈希匹配；
   - 结果文件写出 `validation.report_id` / `scope` / `issued_at` / `evidence`；
   - Foundation `report_check` formal 模式接受一个绑定该结果的测试报告；
-  - `scripts/check_validation_claims.py` 通过。
+  - `projects/delta/scripts/check_validation_claims.py` 通过。
 - 不要做：不要在报告完成前改 `RESULT_ASSURANCE`；不要用单元测试或 mock 结果作为验证证据。
 
 **P2-2 `cmc.stability.shelf_life`**

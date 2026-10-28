@@ -10,10 +10,10 @@
 
 撰写本 ADR 时，Delta 尚无统计能力。现存情况如下（已核对，并非假设）：
 
-1. 能力 ABI 通过 `WorkerProcessRunner`（`crates/delta-core/src/capability/runners.rs`）运行进程型 Worker，它接受任意程序：Python、PowerShell 与 Shell 有辅助函数，"其他受控 Worker"则使用 `WorkerProcessRunner::new(program, arguments)`。
-2. 唯一的 Worker SDK 是 Python 的 `delta-worker-sdk`（`packages/delta_worker_sdk`）。
+1. 能力 ABI 通过 `WorkerProcessRunner`（`projects/delta/crates/delta-core/src/capability/runners.rs`）运行进程型 Worker，它接受任意程序：Python、PowerShell 与 Shell 有辅助函数，"其他受控 Worker"则使用 `WorkerProcessRunner::new(program, arguments)`。
+2. 唯一的 Worker SDK 是 Python 的 `delta-worker-sdk`（`projects/delta/packages/delta_worker_sdk`）。
 3. 蓝图在任务执行语言中列出了 Python、PowerShell 与 Shell（第 8.2 节）。R 未被列出。
-4. 桌面应用不随附 Python。`packaging/portable/build-portable.ps1` 声明 Python 不是应用依赖；ADR-0058 记录 Rust 运行时不调用 `integrations/` 下的 Python 工具。基础能力（文档、网页）是 `CapabilityHost::product_defaults` 中注册的 Rust 原生能力。
+4. 桌面应用不随附 Python。`projects/delta/packaging/portable/build-portable.ps1` 声明 Python 不是应用依赖；ADR-0058 记录 Rust 运行时不调用 `projects/delta/integrations/` 下的 Python 工具。基础能力（文档、网页）是 `CapabilityHost::product_defaults` 中注册的 Rust 原生能力。
 5. 没有统计能力，模型就会自行计算数字，或凭记忆给出数字。对制剂 / CMC 用户（稳定性货架期、溶出 f2、DOE）而言，若一个数字不是由确定性、带版本的引擎产出的，就不可用。
 
 所有者要求统计技术栈使用监管机构认可的库（2026-10-11）。这需要说得更精确，因为没有任何监管机构公布过经批准的统计库清单：

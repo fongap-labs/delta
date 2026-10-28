@@ -4,14 +4,18 @@ import json
 import pathlib
 import sys
 
+# The license texts and notices sit at the repository root; the product's own configuration (such as
+# deny.toml, which cargo-deny reads next to the crates) sits under projects/delta.
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 
 def read(path: str) -> str:
-    target = ROOT / path
-    if not target.is_file():
-        raise FileNotFoundError(path)
-    return target.read_text(encoding="utf-8")
+    for base in (ROOT, REPOSITORY_ROOT):
+        target = base / path
+        if target.is_file():
+            return target.read_text(encoding="utf-8")
+    raise FileNotFoundError(path)
 
 
 def main() -> int:

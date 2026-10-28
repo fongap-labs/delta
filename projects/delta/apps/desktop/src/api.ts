@@ -67,8 +67,8 @@ import {
   directSearchConversations,
   directStatisticsRun,
   directStatisticsTools,
-  directRuntimePackInstall,
-  directRuntimePackStatus,
+  directPackInstall,
+  directPackStatus,
   addSessionRoot,
   directSessionRename,
   deleteSessionRoot,
@@ -663,12 +663,12 @@ export type RuntimePack = {
 };
 
 export async function getRuntimePack(): Promise<RuntimePack> {
-  return (await directRuntimePackStatus()) as RuntimePack;
+  return (await directPackStatus()) as RuntimePack;
 }
 
 /// Installs the shared runtime. Call it only after the user has confirmed the download.
 export async function installRuntimePack(): Promise<RuntimePack> {
-  return (await directRuntimePackInstall()) as RuntimePack;
+  return (await directPackInstall()) as RuntimePack;
 }
 
 export async function searchConversations(workspace: string, query: string): Promise<ConversationHit[]> {

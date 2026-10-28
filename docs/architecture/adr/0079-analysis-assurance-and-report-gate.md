@@ -70,7 +70,7 @@ v1 文件继续可读，按 legacy 处理；新工具只写 v2。
 
 ## 后果
 
-- 新增 `schemas/analysis-result.schema.json`、`analysis-environment.schema.json`、`method-pack.schema.json` 与 `binding-manifest.schema.json`。
+- 新增 `projects/delta/schemas/analysis-result.schema.json`、`analysis-environment.schema.json`、`method-pack.schema.json` 与 `binding-manifest.schema.json`。
 - `report_check` 的 formal 模式增加保证等级检查。
 - 现有 R 统计结果继续作为 legacy；它们不因本 ADR 自动变成 validated。
 - 蓝图 §2.2、§6.3、§8.2，以及 ADR-0054、ADR-0068、ADR-0070、ADR-0071、ADR-0073、ADR-0074、ADR-0078 中与本 ADR 冲突的部分，需要后续修订；在本 ADR 覆盖范围内以本 ADR 为准。

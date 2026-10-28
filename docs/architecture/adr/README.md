@@ -51,9 +51,9 @@ ADR-0054、ADR-0068、ADR-0070、ADR-0071、ADR-0073、ADR-0074、ADR-0078 中�
 
 | ADR | 引用处所述主题 | 引用位置 |
 |---|---|---|
-| ADR-004 | 取消托管 OAuth，改为手动连接 | `apps/desktop/src` |
-| ADR-005 | 可靠的任务运行时（含 WS3：Validation） | `crates/delta-core/src/artifact.rs`、`validation.rs` |
-| ADR-009 | Delta 核心架构 | `crates/delta-core/src/lib.rs` |
+| ADR-004 | 取消托管 OAuth，改为手动连接 | `projects/delta/apps/desktop/src` |
+| ADR-005 | 可靠的任务运行时（含 WS3：Validation） | `projects/delta/crates/delta-core/src/artifact.rs`、`validation.rs` |
+| ADR-009 | Delta 核心架构 | `projects/delta/crates/delta-core/src/lib.rs` |
 | ADR-019 | R2 预埋：成果物注册表的影子读取器，验证的影子校验器 | `artifact.rs`、`validation.rs` |
 | ADR-020 | 成果物注册表的 Rust 写入权威 | `artifact.rs` |
 | ADR-022 | Rust 权威的工具幂等状态机 | `tool_lifecycle.rs` |

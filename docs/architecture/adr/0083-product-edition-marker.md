@@ -47,7 +47,7 @@
 
 - Foundation 用通用目录扫描读取标记，源码不出现 Suite 实现标识。
 - 同一个应用、同一个安装包可以显示 Delta 或 Delta Pro。
-- 新增 `schemas/product-edition.schema.json` 与关于界面的产品信息读取命令。
+- 新增 `projects/delta/schemas/product-edition.schema.json` 与关于界面的产品信息读取命令。
 - 伪造成本很低，但只影响显示；不作为安全或商业权益边界。
 
 ## 未验证事项

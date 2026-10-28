@@ -30,4 +30,4 @@ e2e/** linguist-detectable=false
 CHANGELOG.md merge=union
 
 # Real Office files used as edit fixtures: never convert line endings.
-crates/delta-core/tests/fixtures/office/* binary
+projects/delta/crates/delta-core/tests/fixtures/office/* binary

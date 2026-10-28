@@ -61,7 +61,7 @@ ADR-0058 让 Foundation 能读取 PDF、DOCX、XLSX 与 PPTX，并能创建新�
 - 内置工具增加到 `edit_document`；`product_registry_owns_stable_model_tool_schemas` 同步更新。
 - 系统提示词增加一句：修改已有文件用 `edit_document`，不要重新创建，先读后改并说明改了什么。
 - 桌面端把 `edit_document` 当作写入类工具显示（步骤、审批卡片与"改动过的文件"）。
-- 回归夹具：`crates/delta-core/tests/fixtures/office/` 下由 python-docx、openpyxl 与 python-pptx 生成的三个真实文件，覆盖默认模板、编号、页眉、表格、公式、合并单元格、条件格式与备注。
+- 回归夹具：`projects/delta/crates/delta-core/tests/fixtures/office/` 下由 python-docx、openpyxl 与 python-pptx 生成的三个真实文件，覆盖默认模板、编号、页眉、表格、公式、合并单元格、条件格式与备注。
 
 ## 未验证事项
 

@@ -8,7 +8,7 @@
 
 ## 决定
 
-桌面应用通过 Chrome DevTools Protocol 驱动真实的 Microsoft Edge 或 Google Chrome 窗口。代码位于 `crates/delta-computer/src/browser/`；`delta-core` 与无界面构建不包含它。它不向安装包中添加任何浏览器：Edge 随 Windows 提供，若找不到 Edge 则继续查找 Chrome。两者都没有时，工具会明确告知。
+桌面应用通过 Chrome DevTools Protocol 驱动真实的 Microsoft Edge 或 Google Chrome 窗口。代码位于 `projects/delta/crates/delta-computer/src/browser/`；`delta-core` 与无界面构建不包含它。它不向安装包中添加任何浏览器：Edge 随 Windows 提供，若找不到 Edge 则继续查找 Chrome。两者都没有时，工具会明确告知。
 
 | 工具 | 是否询问用户 | 功能 |
 |---|---|---|
