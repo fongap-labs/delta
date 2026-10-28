@@ -86,6 +86,10 @@ const TOOL_SECTIONS: &[PromptSection] = &[
         text: "- If web_search fails (every engine errored or returned nothing), report which engines failed and why, and let the user decide: retry, add a key, or open the page themselves. Do not hide the failure behind another tool.\n",
     },
     PromptSection {
+        tools: &["scholar_search", "scholar_paper", "scholar_cite"],
+        text: "- For academic literature, use scholar_search to find papers, scholar_paper to read one paper's record with what it cites and what cites it, and web_fetch on its open_access_url for the full text. Never write a reference or a DOI from memory: pass each one to scholar_cite and use the citation it returns. A reference with found false, or title_matches false, is not backed by the record: do not cite it, and tell the user. The abstract is not the paper: say when you only read the abstract.\n",
+    },
+    PromptSection {
         tools: &["screenshot", "open_file", "clipboard_write"],
         text: "- Look at the user's screen with screenshot only when seeing it is needed (an error on screen, a program with no other way in), never to hunt for passwords or private messages. Hand finished files to the user with open_file, and text with clipboard_write.\n",
     },
@@ -275,6 +279,9 @@ mod tests {
         "conversation_search",
         "library_search",
         "library_index",
+        "scholar_search",
+        "scholar_paper",
+        "scholar_cite",
         "study_evaluate",
         "report_render",
         "report_check",

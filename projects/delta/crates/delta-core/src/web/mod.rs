@@ -7,6 +7,7 @@ pub mod fetch;
 pub mod guard;
 pub mod html;
 pub mod markdown;
+pub mod scholar;
 pub mod search;
 
 pub use fetch::{fetch_page, fetch_page_with, Limits, Page, ReadOptions};

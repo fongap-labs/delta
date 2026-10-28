@@ -151,6 +151,9 @@ const IRREVERSIBLE_TOOLS: &[&str] = &["send_email"];
 const EGRESS_TOOLS: &[&str] = &[
     "web_fetch",
     "web_search",
+    "scholar_search",
+    "scholar_paper",
+    "scholar_cite",
     "browser_read_url",
     "browser_open_url",
 ];

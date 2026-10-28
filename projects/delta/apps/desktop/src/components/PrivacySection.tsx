@@ -156,6 +156,7 @@ export function PrivacySection() {
   const rulePaths: { path: string; label: string; destinationClass: string }[] = [
     { path: "web_search", label: t("egress.paths.webSearch"), destinationClass: "any_public" },
     { path: "web_fetch", label: t("egress.paths.webFetch"), destinationClass: "any_public" },
+    { path: "scholar", label: t("egress.paths.scholar"), destinationClass: "any_public" },
     { path: "browser", label: t("egress.paths.browser"), destinationClass: "any_public" },
     { path: "open_url", label: t("egress.paths.openUrl"), destinationClass: "any_public" },
     ...mcpServers.map((server) => ({
