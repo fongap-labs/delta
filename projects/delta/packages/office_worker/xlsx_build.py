@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -29,6 +30,9 @@ FORBIDDEN_IN_FORMULA = re.compile(
     re.IGNORECASE,
 )
 SHEET_NAME_FORBIDDEN = re.compile(r"[\[\]:*?/\\]")
+XLSX_CHART_TYPES = ("column", "bar", "line", "pie")
+MAX_CHARTS_PER_SHEET = 4
+CHART_ROWS = 20
 
 
 def _sheet_name(raw: Any, label: str, taken: set[str]) -> str:
@@ -98,6 +102,83 @@ def _fill_sheet(
     )
 
 
+def _charts(
+    sheet: Any,
+    sheet_spec: dict[str, Any],
+    headers: list[str],
+    rows: list[list[Any]],
+    label: str,
+) -> int:
+    """Native Excel charts that read the sheet's own columns, so they stay live when data changes."""
+    if sheet_spec.get("charts") is None:
+        return 0
+    specs = spec.items(sheet_spec.get("charts"), f"{label} charts", limit=MAX_CHARTS_PER_SHEET)
+    if specs and not rows:
+        raise ValueError(f"{label} charts need at least one row of data")
+    for index, chart_spec in enumerate(specs):
+        chart_label = f"{label} charts[{index}]"
+        if not isinstance(chart_spec, dict):
+            raise ValueError(f"{chart_label} must be an object")
+        kind = chart_spec.get("type")
+        if kind not in XLSX_CHART_TYPES:
+            raise ValueError(f"{chart_label} type must be one of {', '.join(XLSX_CHART_TYPES)}")
+        category = chart_spec.get("category_column")
+        if category not in headers:
+            raise ValueError(
+                f"{chart_label} category_column must be one of the column names: {', '.join(headers)}"
+            )
+        values = spec.items(
+            chart_spec.get("value_columns"),
+            f"{chart_label} value_columns",
+            limit=spec.MAX_CHART_SERIES,
+        )
+        if not values:
+            raise ValueError(f"{chart_label} needs at least one value column")
+        if kind == "pie" and len(values) != 1:
+            raise ValueError(f"{chart_label} pie charts take exactly one value column")
+        for name in values:
+            if name not in headers or name == category:
+                raise ValueError(
+                    f"{chart_label} value column {name!r} must be a different column of the sheet"
+                )
+            column = headers.index(name)
+            for row_index, row in enumerate(rows, start=2):
+                value = row[column]
+                if not (
+                    spec.is_number(value)
+                    or (isinstance(value, str) and value.startswith("="))
+                ):
+                    raise ValueError(
+                        f"{chart_label} value column {name!r} row {row_index} must be a number or a formula"
+                    )
+        chart_class = {"column": BarChart, "bar": BarChart, "line": LineChart, "pie": PieChart}[kind]
+        chart = chart_class()
+        if kind in ("column", "bar"):
+            chart.type = "col" if kind == "column" else "bar"
+        title = spec.text(
+            chart_spec.get("title"), f"{chart_label} title", is_required=False, max_chars=200
+        )
+        chart.title = title or None
+        last_row = len(rows) + 1
+        for name in values:
+            chart.add_data(
+                Reference(sheet, min_col=headers.index(name) + 1, min_row=1, max_row=last_row),
+                titles_from_data=True,
+            )
+        chart.set_categories(
+            Reference(
+                sheet,
+                min_col=headers.index(category) + 1,
+                min_row=2,
+                max_row=last_row,
+            )
+        )
+        chart.width, chart.height = 18, 9
+        anchor = f"{get_column_letter(len(headers) + 2)}{2 + index * CHART_ROWS}"
+        sheet.add_chart(chart, anchor)
+    return len(specs)
+
+
 def build(content: dict[str, Any], path: Path) -> dict[str, Any]:
     """Write the XLSX to `path` and return what it contains, for the result document."""
     title = spec.text(content.get("title"), "title", max_chars=512)
@@ -113,6 +194,7 @@ def build(content: dict[str, Any], path: Path) -> dict[str, Any]:
     ).replace(tzinfo=None)
     taken: set[str] = set()
     cells = 0
+    charts = 0
     for index, sheet_spec in enumerate(sheets):
         label = f"sheets[{index}]"
         if not isinstance(sheet_spec, dict):
@@ -131,5 +213,9 @@ def build(content: dict[str, Any], path: Path) -> dict[str, Any]:
         sheet = workbook.create_sheet(title=name)
         _fill_sheet(sheet, headers, rows, formats, label)
         cells += (len(rows) + 1) * len(headers)
+        charts += _charts(sheet, sheet_spec, headers, rows, label)
     workbook.save(str(path))
-    return {"sheets": len(sheets), "cells": cells}
+    counts = {"sheets": len(sheets), "cells": cells}
+    if charts:
+        counts["charts"] = charts
+    return counts
