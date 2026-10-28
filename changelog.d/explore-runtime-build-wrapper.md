@@ -1,2 +1,0 @@
-- 新增: Explore Runtime 的 PowerShell 构建包装 `.github/scripts/build-explore-runtime.ps1`；构建脚本接受 `--version`，并拒绝与 `PACK_VERSION` 不一致的版本。
-- 变更: 归档与清单的资产名固定为 `explore-runtime.tar.gz` 与 `manifest.json`，不再包含版本号。
