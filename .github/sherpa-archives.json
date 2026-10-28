@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "version": "1.13.8",
-  "url_prefix": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/",
+  "version": "2.0.0",
+  "url_prefix": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.0/",
   "archives": {
-    "sherpa-onnx-v1.13.8-linux-x64-static-lib.tar.bz2": "e1fdc5b67530e15741ef897fa5ffff297056f3bf0c6d829a27af9225a4c4b5a6",
-    "sherpa-onnx-v1.13.8-win-x64-static-MT-Release-lib.tar.bz2": "56ffcf3c454c1f14f7bc9887286cc8143e7e542dc632804e1c447d5f8d534eaf"
+    "sherpa-onnx-v2.0.0-linux-x64-static-lib.tar.bz2": "d9879a4b8b6abc6ad4168887d7428776c2eb04646b19b744e1307a597555bc17",
+    "sherpa-onnx-v2.0.0-win-x64-static-MT-Release-lib.tar.bz2": "13cbef1926eea3bc01c8eb59bbfa3806f02f904a76664c215c4e20989866704a"
   }
 }
