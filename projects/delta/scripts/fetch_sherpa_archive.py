@@ -23,7 +23,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PINS = ROOT / ".github" / "sherpa-archives.json"
+# The pins are a repository-level record kept in the root .github folder, above the product tree.
+REPOSITORY_ROOT = ROOT.parent.parent
+PINS = REPOSITORY_ROOT / ".github" / "sherpa-archives.json"
 CHUNK = 1024 * 1024
 
 
