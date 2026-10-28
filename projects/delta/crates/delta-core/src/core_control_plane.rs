@@ -734,7 +734,45 @@ impl CoreControlPlane {
             );
         }
 
-        let mut prompt = DELTA_AGENT.system_prompt.to_string();
+        // A tool the egress level refuses for every call is not offered to the model (ADR-0061).
+        let tool_workspace = workspace.clone().unwrap_or_default();
+        let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
+            let offered = serde_json::from_value::<ToolMetadata>(registration.metadata.clone())
+                .map(|metadata| {
+                    crate::egress::offered_to_model(
+                        &self.state_dir,
+                        &tool_workspace,
+                        &registration.tool_name,
+                        &metadata,
+                    )
+                })
+                .unwrap_or(false);
+            if !offered {
+                return false;
+            }
+            let Some(connector) = registration
+                .metadata
+                .get("connector")
+                .and_then(Value::as_str)
+            else {
+                return true;
+            };
+            self.application
+                .tool_available(connector, &registration.tool_name, Some(&session_id))
+                .unwrap_or(false)
+        });
+
+        // The prompt describes the tools this session offers and no others, so a tool that is
+        // switched off, refused by the egress level or not installed is neither listed nor
+        // mentioned. The offered set is the same on every turn unless the user changes it.
+        let offered_names: Vec<&str> = visible_tools
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| tool.pointer("/function/name").and_then(Value::as_str))
+            .collect();
+
+        let mut prompt = DELTA_AGENT.system_prompt(&offered_names);
         prompt.push_str(&crate::agent::environment_block(&config.model));
         if mode.as_deref() == Some("plan") {
             prompt.push_str("\n\nPlan mode is active. Inspect and reason, but do not perform writes until the user explicitly approves the plan.");
@@ -805,34 +843,6 @@ impl CoreControlPlane {
                 _ => {}
             }
         }
-
-        // A tool the egress level refuses for every call is not offered to the model (ADR-0061).
-        let workspace = config.workspace.clone().unwrap_or_default();
-        let visible_tools = self.capabilities.tool_schemas_filtered(|registration| {
-            let offered = serde_json::from_value::<ToolMetadata>(registration.metadata.clone())
-                .map(|metadata| {
-                    crate::egress::offered_to_model(
-                        &self.state_dir,
-                        &workspace,
-                        &registration.tool_name,
-                        &metadata,
-                    )
-                })
-                .unwrap_or(false);
-            if !offered {
-                return false;
-            }
-            let Some(connector) = registration
-                .metadata
-                .get("connector")
-                .and_then(Value::as_str)
-            else {
-                return true;
-            };
-            self.application
-                .tool_available(connector, &registration.tool_name, Some(&session_id))
-                .unwrap_or(false)
-        });
 
         let mut hosts = self
             .hosts

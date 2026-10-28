@@ -806,8 +806,14 @@ fn build_anthropic_body(req: &ProviderRequest, should_stream: bool) -> Value {
         "messages": messages,
         "max_tokens": 4096,
     });
+    let is_cacheable = anthropic_caching_applies(req);
     if !system.is_empty() {
-        body["system"] = Value::String(system.join("\n\n"));
+        body["system"] = if is_cacheable {
+            // A block, so it can carry a cache breakpoint: it is the same text on every turn.
+            json!([{"type": "text", "text": system.join("\n\n"), "cache_control": {"type": "ephemeral"}}])
+        } else {
+            Value::String(system.join("\n\n"))
+        };
     }
     if stream {
         body["stream"] = json!(true);
@@ -828,7 +834,50 @@ fn build_anthropic_body(req: &ProviderRequest, should_stream: bool) -> Value {
                 .collect(),
         );
     }
+    if is_cacheable {
+        add_anthropic_cache_breakpoints(&mut body);
+    }
     body
+}
+
+/// Anthropic reuses its cache of a request only where the request marks a breakpoint. Marks go on
+/// the real Anthropic API alone: a server that only speaks the same protocol may not know the
+/// field, and a request it refuses is worse than one it does not cache.
+fn anthropic_caching_applies(req: &ProviderRequest) -> bool {
+    let base = req.base_url.trim();
+    base.is_empty() || base.starts_with(crate::model_catalog::DEFAULT_ANTHROPIC_URL)
+}
+
+/// Mark the end of the tool list (the head of the request), of the system block (marked where it is
+/// built) and of the last message, so each request reuses the cache of everything before the
+/// newest turn. The tools and the system prompt do not change while a session runs, and the
+/// history only grows at its end.
+fn add_anthropic_cache_breakpoints(body: &mut Value) {
+    let mark = json!({"type": "ephemeral"});
+    if let Some(last_tool) = body
+        .get_mut("tools")
+        .and_then(Value::as_array_mut)
+        .and_then(|tools| tools.last_mut())
+    {
+        last_tool["cache_control"] = mark.clone();
+    }
+    let Some(last_message) = body
+        .get_mut("messages")
+        .and_then(Value::as_array_mut)
+        .and_then(|messages| messages.last_mut())
+    else {
+        return;
+    };
+    if let Some(text) = last_message.get("content").and_then(Value::as_str) {
+        last_message["content"] = json!([{"type": "text", "text": text}]);
+    }
+    if let Some(block) = last_message
+        .get_mut("content")
+        .and_then(Value::as_array_mut)
+        .and_then(|blocks| blocks.last_mut())
+    {
+        block["cache_control"] = mark;
+    }
 }
 
 fn anthropic_usage(u: &Value) -> Value {
@@ -1598,6 +1647,57 @@ mod tests {
         let error = streamed("openai_responses", body).unwrap_err();
         assert!(error.contains("upstream broke"), "{error}");
         assert!(crate::retry::is_retryable_failure(&error), "{error}");
+    }
+
+    fn anthropic_request(base_url: &str) -> ProviderRequest {
+        ProviderRequest {
+            protocol: "anthropic".to_string(),
+            model: "m".to_string(),
+            messages: json!([
+                {"role": "system", "content": "rules"},
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "hello"},
+                {"role": "user", "content": "again"},
+            ]),
+            tools: Some(json!([
+                {"type": "function", "function": {"name": "a", "description": "A", "parameters": {"type": "object"}}},
+                {"type": "function", "function": {"name": "b", "description": "B", "parameters": {"type": "object"}}},
+            ])),
+            settings: None,
+            api_key: "k".to_string(),
+            base_url: base_url.to_string(),
+            timeout_secs: None,
+            reduced: false,
+            pinned_addrs: Vec::new(),
+            proxy: None,
+        }
+    }
+
+    #[test]
+    fn the_anthropic_api_gets_cache_breakpoints_on_tools_system_and_the_newest_message() {
+        for base in ["", "https://api.anthropic.com"] {
+            let body = super::build_anthropic_body(&anthropic_request(base), false);
+            let mark = json!({"type": "ephemeral"});
+            assert_eq!(body["tools"][0].get("cache_control"), None);
+            assert_eq!(body["tools"][1]["cache_control"], mark, "{base}");
+            assert_eq!(body["system"][0]["cache_control"], mark, "{base}");
+            assert_eq!(body["system"][0]["text"], "rules");
+            let messages = body["messages"].as_array().unwrap();
+            assert_eq!(messages.len(), 3);
+            assert_eq!(messages[2]["content"][0]["text"], "again");
+            assert_eq!(messages[2]["content"][0]["cache_control"], mark);
+            // Earlier messages are untouched, so the prefix stays byte-identical turn to turn.
+            assert_eq!(messages[0], json!({"role": "user", "content": "hi"}));
+        }
+    }
+
+    #[test]
+    fn a_server_that_only_speaks_the_anthropic_protocol_gets_no_cache_fields() {
+        let body =
+            super::build_anthropic_body(&anthropic_request("https://proxy.example.com"), false);
+        assert_eq!(body["system"], "rules");
+        assert!(body["tools"][1].get("cache_control").is_none());
+        assert_eq!(body["messages"][2]["content"], "again");
     }
 
     #[test]
