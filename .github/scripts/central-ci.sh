@@ -232,6 +232,8 @@ fi
 if run_shard checks; then
   phase_begin checks
   bash scripts/test-ci-path.sh
+  # The checkout directory is itself named "target"; the self-test proves that does not hide files.
+  python3 scripts/check_naming.py --self-test
   python3 scripts/check_naming.py
 
   for d in surfaces coworker assets src stt; do

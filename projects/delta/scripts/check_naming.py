@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 import re
+import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,8 +17,14 @@ def parts(name: str) -> list[str]:
     return [p for p in re.split(r"[-_]+", name.strip("_-")) if p]
 
 
+def below_root(path: Path) -> tuple[str, ...]:
+    """The folders of a path under ROOT. The checkout's own location is not part of the product tree:
+    central CI checks the repository out into a directory named `target`, which must not hide the files."""
+    return path.relative_to(ROOT).parts
+
+
 def is_skipped(path: Path) -> bool:
-    return any(part in SKIP_DIRS for part in path.parts)
+    return any(part in SKIP_DIRS for part in below_root(path))
 
 
 def add(errors: list[str], path: Path, message: str) -> None:
@@ -41,7 +49,7 @@ def check_files(errors: list[str]) -> None:
             if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+){0,2}", path.stem):
                 add(errors, path, "shell file must be kebab-case with at most three segments")
 
-        if "docs" in path.parts and "governance" in path.parts and path.suffix == ".md":
+        if "docs" in below_root(path) and "governance" in below_root(path) and path.suffix == ".md":
             if path.name in {"README.md", "README_ZH.md"}:
                 continue
             if not re.fullmatch(r"[A-Z0-9]+(?:_[A-Z0-9]+){0,2}\.md", path.name):
@@ -70,7 +78,7 @@ def check_python(errors: list[str]) -> None:
         if not base.exists():
             continue
         for path in base.rglob("*.py"):
-            if is_skipped(path) or path.name.startswith("test_") or "tests" in path.parts:
+            if is_skipped(path) or path.name.startswith("test_") or "tests" in below_root(path):
                 continue
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -158,7 +166,7 @@ def check_rust(errors: list[str]) -> None:
         path
         for path in ROOT.rglob("*.rs")
         if not is_skipped(path)
-        and "tests" not in path.parts
+        and "tests" not in below_root(path)
         and not is_rust_test_file(path)
     ]
     fn_pattern = re.compile(
@@ -271,7 +279,7 @@ def check_typescript(errors: list[str]) -> None:
         for suffix in ("*.ts", "*.tsx")
         for path in ROOT.rglob(suffix)
         if not is_skipped(path)
-        and "tests" not in path.parts
+        and "tests" not in below_root(path)
         and ".test." not in path.name
         and ".spec." not in path.name
         and not path.name.endswith(".d.ts")
@@ -316,7 +324,30 @@ def check_typescript(errors: list[str]) -> None:
                 )
 
 
+def self_test() -> int:
+    """A tree checked out under a directory named `target` must still be checked."""
+    global ROOT
+    with tempfile.TemporaryDirectory() as tmp:
+        root = (Path(tmp) / "target" / "projects" / "demo").resolve()
+        source = root / "crates" / "demo" / "src"
+        source.mkdir(parents=True)
+        (source / "lib.rs").write_text("pub fn load_user_session_data() {}\n", encoding="utf-8")
+        saved, ROOT = ROOT, root
+        try:
+            errors: list[str] = []
+            check_rust(errors)
+        finally:
+            ROOT = saved
+    if not any("load_user_session_data" in error for error in errors):
+        print(f"check_naming self-test: a violation under a 'target' checkout was not found: {errors}")
+        return 1
+    print("check_naming self-test: ok")
+    return 0
+
+
 def main() -> int:
+    if "--self-test" in sys.argv[1:]:
+        return self_test()
     errors: list[str] = []
     check_files(errors)
     check_python(errors)
