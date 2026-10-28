@@ -100,3 +100,66 @@ def blocks(value: Any, label: str = "blocks") -> Sequence[dict[str, Any]]:
         if not isinstance(block, dict):
             raise ValueError(f"{label}[{index}] must be an object")
     return result
+
+
+CHART_TYPES = ("column", "bar", "line", "pie")
+MAX_CHART_POINTS = 200
+MAX_CHART_SERIES = 8
+
+
+def chart(value: Any, label: str) -> dict[str, Any]:
+    """One chart over a list of categories and one or more numeric series.
+
+    `column` and `bar` compare series across the categories, `line` shows a trend, and `pie`
+    takes exactly one series. Every series needs one value per category.
+    """
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be an object with type, categories and series")
+    kind = value.get("type")
+    if kind not in CHART_TYPES:
+        raise ValueError(f"{label} type must be one of {', '.join(CHART_TYPES)}")
+    categories = [
+        text(name, f"{label} category", max_chars=100)
+        for name in items(
+            value.get("categories"), f"{label} categories", limit=MAX_CHART_POINTS
+        )
+    ]
+    if not categories:
+        raise ValueError(
+            f"{label} needs at least one category: give 1 to {MAX_CHART_POINTS} names"
+        )
+    raw_series = items(value.get("series"), f"{label} series", limit=MAX_CHART_SERIES)
+    if not raw_series:
+        raise ValueError(f"{label} needs at least one series: give 1 to {MAX_CHART_SERIES}")
+    if kind == "pie" and len(raw_series) != 1:
+        raise ValueError(f"{label} pie charts take exactly one series")
+    series: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_series):
+        series_label = f"{label} series[{index}]"
+        if not isinstance(raw, dict):
+            raise ValueError(f"{series_label} must be an object with name and values")
+        values = items(raw.get("values"), f"{series_label} values", limit=MAX_CHART_POINTS)
+        if len(values) != len(categories):
+            raise ValueError(
+                f"{series_label} has {len(values)} values for {len(categories)} categories: "
+                "give one value per category"
+            )
+        numbers: list[float] = []
+        for value_index, number in enumerate(values):
+            if not is_number(number) or not math.isfinite(float(number)):
+                raise ValueError(
+                    f"{series_label} value {value_index} must be a finite number"
+                )
+            numbers.append(float(number))
+        series.append(
+            {
+                "name": text(raw.get("name"), f"{series_label} name", max_chars=100),
+                "values": numbers,
+            }
+        )
+    return {
+        "type": kind,
+        "title": text(value.get("title"), f"{label} title", is_required=False, max_chars=200),
+        "categories": categories,
+        "series": series,
+    }

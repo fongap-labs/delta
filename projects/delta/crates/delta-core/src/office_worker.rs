@@ -33,8 +33,11 @@ const CONTENT_DESCRIPTION: &str = "The document as structured content, not layou
     paragraph (text) | bullets (items) | numbered (items) | table (caption?, columns, rows) | \
     page_break}]}. \
     pptx: {title, slides: [{layout: title (title, subtitle?) | bullets (title, items) | \
-    table (title, columns, rows), notes?}]}. \
-    xlsx: {title, sheets: [{name, columns, rows, number_formats? (column name to format)}]}. \
+    table (title, columns, rows) | chart (title, chart: {type: column | bar | line | pie, \
+    title?, categories, series: [{name, values}]}), notes?}]}. \
+    xlsx: {title, sheets: [{name, columns, rows, number_formats? (column name to format), \
+    charts?: [{type: column | bar | line | pie, title?, category_column, value_columns}]}]}. \
+    An xlsx chart reads the sheet's own columns, so its value columns must hold numbers or formulas. \
     A table cell is text, a number, true/false or null. Text that begins with = in an xlsx cell is a formula.";
 
 /// The fixed Office runtime: an interpreter and the worker script it runs.
