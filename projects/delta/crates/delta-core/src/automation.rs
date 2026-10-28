@@ -1305,7 +1305,7 @@ mod tests {
     #[test]
     fn a_folder_automation_is_filed_with_no_time_and_a_folder_inside_the_workspace() {
         let temp = tempfile::tempdir().unwrap();
-        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let store = AutomationStore::open(temp.path().join("state")).unwrap();
         let ws = temp.path().join("ws");
         std::fs::create_dir_all(ws.join("inbox")).unwrap();
         let id = folder_automation(&store, &ws, "inbox", "*.pdf");
@@ -1397,7 +1397,7 @@ mod tests {
     #[test]
     fn a_file_still_being_written_waits_until_it_stops_changing() {
         let temp = tempfile::tempdir().unwrap();
-        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let store = AutomationStore::open(temp.path().join("state")).unwrap();
         let ws = temp.path().join("ws");
         std::fs::create_dir_all(&ws).unwrap();
         folder_automation(&store, &ws, ".", "");
@@ -1449,7 +1449,7 @@ mod tests {
     #[test]
     fn a_paused_automation_or_a_missing_folder_starts_nothing_and_a_deleted_one_is_forgotten() {
         let temp = tempfile::tempdir().unwrap();
-        let mut store = AutomationStore::open(temp.path().join("state")).unwrap();
+        let store = AutomationStore::open(temp.path().join("state")).unwrap();
         let ws = temp.path().join("ws");
         std::fs::create_dir_all(ws.join("in")).unwrap();
         let id = folder_automation(&store, &ws, "in", "");
