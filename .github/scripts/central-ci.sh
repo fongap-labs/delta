@@ -141,7 +141,7 @@ run_license_workspace() {
   (
     set -Eeuo pipefail
     cd "$workspace"
-    cargo deny --config "$TARGET_ROOT/deny.toml" check licenses
+    cargo deny --config "$TARGET_ROOT/projects/delta/deny.toml" check licenses
   )
 }
 
@@ -150,7 +150,7 @@ run_advisory_workspace() {
   (
     set -Eeuo pipefail
     cd "$workspace"
-    cargo deny --config "$TARGET_ROOT/deny.toml" check advisories
+    cargo deny --config "$TARGET_ROOT/projects/delta/deny.toml" check advisories
   )
 }
 
