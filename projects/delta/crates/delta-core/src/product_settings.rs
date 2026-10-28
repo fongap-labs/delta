@@ -184,13 +184,25 @@ impl ProductSettings {
                 .and_then(Value::as_object)
                 .cloned()
                 .unwrap_or_default();
+            // Clearing the user's mark also clears what was learned, so the model is judged afresh.
+            let mut learned = prefs
+                .get("vision_learned")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
             for (model, takes_images) in support {
+                if takes_images.is_null() {
+                    merged.remove(model);
+                    learned.remove(model);
+                    continue;
+                }
                 let flag = takes_images
                     .as_bool()
-                    .ok_or_else(|| format!("vision_support.{model} must be true or false"))?;
+                    .ok_or_else(|| format!("vision_support.{model} must be true, false or null"))?;
                 merged.insert(model.clone(), json!(flag));
             }
             prefs.insert("vision_support".to_string(), Value::Object(merged));
+            prefs.insert("vision_learned".to_string(), Value::Object(learned));
         }
         Ok(())
     }

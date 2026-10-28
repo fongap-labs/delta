@@ -105,15 +105,163 @@ pub fn bridge_settings(prefs: &Map<String, Value>) -> Option<BridgeSettings> {
     })
 }
 
-/// Whether the preferences say this model takes pictures itself. Unknown models do not.
-pub fn model_supports_images(prefs: &Map<String, Value>, model_id: &str) -> bool {
-    prefs
-        .get("vision_support")
-        .and_then(Value::as_object)
-        .and_then(|support| support.get(model_id))
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
+/// Whether a model reads pictures itself, and how that is known.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageSupport {
+    Yes,
+    No,
+    Unknown,
 }
+
+/// Where the answer about a model came from, strongest first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupportSource {
+    /// The user marked the model.
+    Manual,
+    /// A request showed it: pictures were refused, or accepted.
+    Learned,
+    /// The provider's own model list says which inputs the model takes.
+    Declared,
+    /// The model's name belongs to a family known to take pictures, or known not to.
+    Name,
+}
+
+impl SupportSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Learned => "learned",
+            Self::Declared => "declared",
+            Self::Name => "name",
+        }
+    }
+}
+
+fn flag(prefs: &Map<String, Value>, key: &str, model_id: &str) -> Option<bool> {
+    prefs
+        .get(key)
+        .and_then(Value::as_object)
+        .and_then(|map| map.get(model_id))
+        .and_then(Value::as_bool)
+}
+
+/// Whether this model takes pictures: the user's mark wins, then what a request showed, then what
+/// the provider declares, then the model's name. A model none of them speaks for is `Unknown`.
+pub fn image_support(
+    prefs: &Map<String, Value>,
+    model_id: &str,
+) -> (ImageSupport, Option<SupportSource>) {
+    let known = |value: bool, source| {
+        (
+            if value {
+                ImageSupport::Yes
+            } else {
+                ImageSupport::No
+            },
+            Some(source),
+        )
+    };
+    if let Some(value) = flag(prefs, "vision_support", model_id) {
+        return known(value, SupportSource::Manual);
+    }
+    if let Some(value) = flag(prefs, "vision_learned", model_id) {
+        return known(value, SupportSource::Learned);
+    }
+    if let Some(value) = flag(prefs, "vision_declared", model_id) {
+        return known(value, SupportSource::Declared);
+    }
+    match name_hint(model_id) {
+        Some(value) => known(value, SupportSource::Name),
+        None => (ImageSupport::Unknown, None),
+    }
+}
+
+/// Whether the preferences say this model takes pictures itself. Only a model something speaks for
+/// as taking them does; an unknown one is treated as not taking them.
+pub fn model_supports_images(prefs: &Map<String, Value>, model_id: &str) -> bool {
+    image_support(prefs, model_id).0 == ImageSupport::Yes
+}
+
+/// The part of a routed id (`alias:model`, `fireworks:accounts/x/models/qwen-vl`) that names the model.
+fn model_part(model_id: &str) -> String {
+    model_id
+        .rsplit(['/', ':'])
+        .next()
+        .unwrap_or(model_id)
+        .to_ascii_lowercase()
+}
+
+/// A guess from the model's name alone, for families that are clear. Anything else is `None`: a name
+/// like "Max" says nothing, and a wrong guess is worse than none.
+pub fn name_hint(model_id: &str) -> Option<bool> {
+    let name = model_part(model_id);
+    const TAKES_PICTURES: [&str; 14] = [
+        "claude-",
+        "gemini",
+        "gpt-4o",
+        "gpt-4.1",
+        "gpt-5",
+        "-vl",
+        "vl-",
+        "vision",
+        "llava",
+        "pixtral",
+        "qvq",
+        "internvl",
+        "glm-4v",
+        "minicpm-v",
+    ];
+    if TAKES_PICTURES.iter().any(|family| name.contains(family)) {
+        return Some(true);
+    }
+    const TEXT_ONLY: [&str; 4] = ["deepseek-", "gpt-3.5", "o1-mini", "o1-preview"];
+    if TEXT_ONLY.iter().any(|family| name.contains(family)) {
+        return Some(false);
+    }
+    None
+}
+
+/// What one entry of a provider's model list says about picture input, when it says anything.
+/// Providers describe this in different places: Anthropic under `capabilities.image_input`,
+/// OpenRouter under `architecture.input_modalities`, and gateways as `input_modalities`,
+/// `modalities`, `supports_vision` or `capabilities.vision`.
+pub fn declared_image_input(entry: &Value) -> Option<bool> {
+    if let Some(value) = entry
+        .pointer("/capabilities/image_input/supported")
+        .and_then(Value::as_bool)
+    {
+        return Some(value);
+    }
+    let mentions_image = |list: &Value| {
+        list.as_array().map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|kind| kind.eq_ignore_ascii_case("image"))
+        })
+    };
+    for pointer in [
+        "/architecture/input_modalities",
+        "/input_modalities",
+        "/supported_input_modalities",
+        "/modalities/input",
+        "/modalities",
+    ] {
+        if let Some(found) = entry.pointer(pointer).and_then(mentions_image) {
+            return Some(found);
+        }
+    }
+    for pointer in ["/capabilities/vision", "/supports_vision", "/vision"] {
+        if let Some(value) = entry.pointer(pointer).and_then(Value::as_bool) {
+            return Some(value);
+        }
+    }
+    None
+}
+
+/// Why a model that cannot read pictures gets none, shown in place of each picture.
+pub const NO_BRIDGE_REASON: &str =
+    "this model cannot read pictures and no vision model is set (Settings > Models > Pictures)";
 
 /// The token limit field each protocol takes. The Responses API renamed it.
 pub fn token_key(protocol: &str) -> &'static str {
@@ -192,6 +340,27 @@ pub fn outbound_attachments(attachments: &[Value], notes: Option<&Value>) -> Vec
                 }),
                 None => attachment.clone(),
             }
+        })
+        .collect()
+}
+
+/// The attachments with every picture that has no description replaced by a note saying it was not
+/// sent. A message written while the chat model took pictures keeps them, so a later request to a
+/// model that does not must not send them.
+pub fn withhold_pictures(attachments: Vec<Value>, reason: &str) -> Vec<Value> {
+    attachments
+        .into_iter()
+        .map(|attachment| {
+            if !is_picture(&attachment) {
+                return attachment;
+            }
+            json!({
+                "kind": "text",
+                "name": attachment.get("name").cloned().unwrap_or_else(|| json!("image")),
+                "text": format!(
+                    "[image not sent: {reason}]"
+                ),
+            })
         })
         .collect()
 }
@@ -278,12 +447,95 @@ mod tests {
     }
 
     #[test]
-    fn only_models_marked_as_taking_pictures_skip_the_bridge() {
-        let prefs = json!({"vision_support": {"gpt-vision": true, "text-only": false}});
+    fn a_models_picture_support_comes_from_the_strongest_source_that_knows() {
+        let prefs = json!({
+            "vision_support": {"marked-yes": true, "marked-no": false, "both": false},
+            "vision_learned": {"learned-no": false, "both": true, "marked-no": true},
+            "vision_declared": {"declared-yes": true, "learned-no": true},
+        });
         let prefs = prefs.as_object().unwrap();
-        assert!(model_supports_images(prefs, "gpt-vision"));
-        assert!(!model_supports_images(prefs, "text-only"));
-        assert!(!model_supports_images(prefs, "never-seen"));
+        let of = |model| image_support(prefs, model);
+        assert_eq!(
+            of("marked-yes"),
+            (ImageSupport::Yes, Some(SupportSource::Manual))
+        );
+        assert_eq!(
+            of("marked-no"),
+            (ImageSupport::No, Some(SupportSource::Manual))
+        );
+        // The user's mark beats what a request showed; what a request showed beats the provider's list.
+        assert_eq!(of("both"), (ImageSupport::No, Some(SupportSource::Manual)));
+        assert_eq!(
+            of("learned-no"),
+            (ImageSupport::No, Some(SupportSource::Learned))
+        );
+        assert_eq!(
+            of("declared-yes"),
+            (ImageSupport::Yes, Some(SupportSource::Declared))
+        );
+        assert_eq!(
+            of("claude-sonnet-4-6"),
+            (ImageSupport::Yes, Some(SupportSource::Name))
+        );
+        assert_eq!(of("Max"), (ImageSupport::Unknown, None));
+        assert!(model_supports_images(prefs, "marked-yes"));
+        assert!(!model_supports_images(prefs, "Max"));
+    }
+
+    #[test]
+    fn a_name_speaks_only_for_families_that_are_clear() {
+        for yes in [
+            "anthropic:claude-opus-4-7",
+            "gpt-4o-mini",
+            "fireworks:accounts/fireworks/models/qwen2p5-vl-72b-instruct",
+            "gemini-2.5-pro",
+            "glm-4v-plus",
+        ] {
+            assert_eq!(name_hint(yes), Some(true), "{yes}");
+        }
+        for no in ["deepseek-chat", "deepseek-reasoner", "gpt-3.5-turbo"] {
+            assert_eq!(name_hint(no), Some(false), "{no}");
+        }
+        for unclear in ["Max", "qwen-max", "kimi-k2", "glm-4.6", "my-gateway-model"] {
+            assert_eq!(name_hint(unclear), None, "{unclear}");
+        }
+        // A vision family inside an otherwise text-only provider's name still counts as pictures.
+        assert_eq!(name_hint("deepseek-vl2"), Some(true));
+    }
+
+    #[test]
+    fn a_providers_model_list_declares_picture_input_in_the_forms_in_use() {
+        let declared = |entry: Value| declared_image_input(&entry);
+        assert_eq!(
+            declared(json!({"capabilities": {"image_input": {"supported": true}}})),
+            Some(true)
+        );
+        assert_eq!(
+            declared(json!({"architecture": {"input_modalities": ["text", "image"]}})),
+            Some(true)
+        );
+        assert_eq!(
+            declared(json!({"architecture": {"input_modalities": ["text"]}})),
+            Some(false)
+        );
+        assert_eq!(
+            declared(json!({"input_modalities": ["Text", "IMAGE"]})),
+            Some(true)
+        );
+        assert_eq!(
+            declared(json!({"modalities": {"input": ["text"], "output": ["text"]}})),
+            Some(false)
+        );
+        assert_eq!(
+            declared(json!({"modalities": ["text", "image"]})),
+            Some(true)
+        );
+        assert_eq!(declared(json!({"supports_vision": false})), Some(false));
+        assert_eq!(
+            declared(json!({"capabilities": {"vision": true}})),
+            Some(true)
+        );
+        assert_eq!(declared(json!({"id": "plain"})), None);
     }
 
     #[test]

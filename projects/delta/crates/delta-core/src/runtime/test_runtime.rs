@@ -1798,6 +1798,170 @@ fn only_the_newest_screenshots_are_sent_and_unsafe_or_missing_files_are_ignored(
     }
 }
 
+// -- Pictures to a model nothing speaks for ------------------------------------------------------
+
+fn picture_attachment() -> Value {
+    json!({
+        "kind": "image", "name": "receipt.png", "mime": "image/png",
+        "data_url": "data:image/png;base64,iVBORw0KGgo=",
+    })
+}
+
+/// Run one message with a picture against `replies`. Returns the request bodies and what the
+/// runtime asked to remember about the model, in order.
+fn run_with_picture(
+    replies: Vec<RetryReply>,
+    is_unproven: bool,
+) -> (Vec<String>, Vec<bool>, RuntimeState, Vec<Value>) {
+    let provider = RetryMockProvider::start(replies);
+    let learned: Arc<Mutex<Vec<bool>>> = Arc::new(Mutex::new(Vec::new()));
+    let remember = learned.clone();
+    let temp = tempfile::tempdir().unwrap();
+    let sink = Arc::new(CaptureSink::default());
+    let host = RuntimeHost::new(
+        "session-pictures",
+        RuntimeConfig {
+            model: "unknown-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            api_key: "test-key".to_string(),
+            base_url: provider.base_url.clone(),
+            max_iterations: 3,
+            max_retries: 0,
+            pictures_unproven: is_unproven,
+            learn_pictures: is_unproven.then(|| {
+                Arc::new(move |takes: bool| remember.lock().unwrap().push(takes))
+                    as Arc<dyn Fn(bool) + Send + Sync>
+            }),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_authorities(authorities_at(temp.path()))
+    .with_event_sink(sink.clone());
+    let handle = RuntimeHandle::spawn(host).unwrap();
+    handle
+        .run_with_attachments(
+            "what is on this receipt?".to_string(),
+            vec![picture_attachment()],
+            None,
+        )
+        .unwrap();
+    wait_for_terminal(&handle);
+    let state = handle.state();
+    let bodies = provider.bodies.lock().unwrap().clone();
+    let frames = sink.frames.lock().unwrap().clone();
+    drop(handle);
+    let learned = learned.lock().unwrap().clone();
+    (bodies, learned, state, frames)
+}
+
+#[test]
+fn switching_to_a_model_that_cannot_read_pictures_stops_pictures_already_in_the_conversation() {
+    let history = vec![json!({
+        "role": "user", "content": "what is this?", "attachments": [picture_attachment()],
+    })];
+    let mut host = RuntimeHost::new(
+        "switching",
+        RuntimeConfig {
+            model: "vision-model".to_string(),
+            protocol: "openai_chat".to_string(),
+            ..RuntimeConfig::default()
+        },
+    )
+    .with_messages(history);
+    let sent = Value::Array(host.outbound_messages()).to_string();
+    assert!(
+        sent.contains("image_url"),
+        "the vision model gets the picture"
+    );
+
+    host.switch_runtime_config(RuntimeConfig {
+        model_id: "text-model".to_string(),
+        model: "text-model".to_string(),
+        protocol: "openai_chat".to_string(),
+        vision: crate::vision::VisionMode::Unavailable("no vision model".into()),
+        ..RuntimeConfig::default()
+    });
+    let sent = Value::Array(host.outbound_messages()).to_string();
+    assert!(
+        !sent.contains("image_url"),
+        "the text model must not inherit the picture: {sent}"
+    );
+    assert!(sent.contains("image not sent"), "{sent}");
+}
+
+#[test]
+fn a_clear_refusal_of_a_picture_is_retried_as_words_and_remembered() {
+    let (bodies, learned, state, frames) = run_with_picture(
+        vec![RetryReply::Status(400), RetryReply::Complete("a receipt")],
+        true,
+    );
+    assert_eq!(state, RuntimeState::Completed);
+    assert_eq!(bodies.len(), 2);
+    assert!(
+        bodies[0].contains("image_url"),
+        "the first request carries the picture"
+    );
+    assert!(
+        !bodies[1].contains("image_url"),
+        "the retry carries none: {}",
+        bodies[1]
+    );
+    assert!(bodies[1].contains("image not sent"), "{}", bodies[1]);
+    assert_eq!(
+        learned,
+        [false],
+        "the refusal is remembered once the retry is accepted"
+    );
+    assert!(
+        frames.iter().any(|f| f["type"] == "notice"),
+        "the user is told why the picture became words"
+    );
+}
+
+#[test]
+fn a_gateway_failure_with_a_picture_changes_this_session_but_is_not_remembered() {
+    let (bodies, learned, state, _) = run_with_picture(
+        vec![RetryReply::Status(504), RetryReply::Complete("a receipt")],
+        true,
+    );
+    assert_eq!(state, RuntimeState::Completed);
+    assert_eq!(bodies.len(), 2);
+    assert!(!bodies[1].contains("image_url"));
+    assert!(
+        learned.is_empty(),
+        "a 504 can have other causes, so nothing is remembered"
+    );
+}
+
+#[test]
+fn a_request_with_a_picture_that_is_accepted_shows_the_model_takes_pictures() {
+    let (bodies, learned, state, _) =
+        run_with_picture(vec![RetryReply::Complete("a receipt")], true);
+    assert_eq!(state, RuntimeState::Completed);
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0].contains("image_url"));
+    assert_eq!(learned, [true]);
+}
+
+#[test]
+fn a_model_that_is_already_known_is_never_second_guessed() {
+    let (bodies, learned, state, _) = run_with_picture(vec![RetryReply::Status(400)], false);
+    assert_eq!(
+        bodies.len(),
+        1,
+        "no retry without pictures for a known model"
+    );
+    assert!(learned.is_empty());
+    assert_ne!(state, RuntimeState::Completed);
+}
+
+#[test]
+fn a_rate_limit_is_not_taken_for_a_refused_picture() {
+    let (bodies, learned, _, _) = run_with_picture(vec![RetryReply::Status(429)], true);
+    assert_eq!(bodies.len(), 1);
+    assert!(learned.is_empty());
+}
+
 #[derive(Default)]
 struct CaptureSink {
     frames: Mutex<Vec<Value>>,
@@ -1891,6 +2055,8 @@ enum RetryReply {
 struct RetryMockProvider {
     base_url: String,
     requests: Arc<AtomicUsize>,
+    /// The body of every request, in the order they arrived.
+    bodies: Arc<Mutex<Vec<String>>>,
     worker: std::thread::JoinHandle<()>,
 }
 
@@ -1900,16 +2066,20 @@ impl RetryMockProvider {
         let address = listener.local_addr().expect("retry provider address");
         let requests = Arc::new(AtomicUsize::new(0));
         let captured = requests.clone();
+        let bodies = Arc::new(Mutex::new(Vec::new()));
+        let recorded = bodies.clone();
         let worker = std::thread::spawn(move || {
             let mut handlers = Vec::new();
             for reply in replies {
                 let (mut stream, _) = listener.accept().expect("accept retry request");
                 captured.fetch_add(1, Ordering::SeqCst);
+                let recorded = recorded.clone();
                 handlers.push(std::thread::spawn(move || {
                     stream
                         .set_read_timeout(Some(Duration::from_secs(2)))
                         .unwrap();
-                    let _ = read_http_request(&mut stream);
+                    let body = read_http_request(&mut stream);
+                    recorded.lock().unwrap().push(body);
                     match reply {
                         RetryReply::Status(code) => {
                             write!(
@@ -1984,6 +2154,7 @@ impl RetryMockProvider {
         Self {
             base_url: format!("http://{address}/v1"),
             requests,
+            bodies,
             worker,
         }
     }

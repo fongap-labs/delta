@@ -93,6 +93,8 @@ import {
   updateModelKey,
   directSetOnboarded,
   updatePdfSettings,
+  fetchVisionSettings,
+  updateVisionSettings,
   directSetProvider,
   updateScratchBase,
   updateSessionPeek,
@@ -1102,6 +1104,37 @@ export async function setPdfSettings(
   return updatePdfSettings(patch) as Promise<
     { ok: boolean; error?: string } & Partial<PdfSettings>
   >;
+}
+
+// -- Pictures: which models read them, and the vision model that describes them for the rest ----
+
+/** Where the answer for a model comes from, strongest first. */
+export type PictureSource = "manual" | "learned" | "declared" | "name";
+
+export interface PictureModelRow {
+  model: string;
+  support: "yes" | "no" | "unknown";
+  source: PictureSource | null;
+  /** The user's own mark; null means the model is judged automatically. */
+  marked: boolean | null;
+}
+
+export interface PictureSettings {
+  vision_model: string;
+  vision_protocol: string;
+  vision_prompt: string;
+  models: PictureModelRow[];
+}
+
+export async function getPictureSettings(): Promise<PictureSettings> {
+  return throwOnError(await fetchVisionSettings());
+}
+
+/** `vision_support[model]` is true, false, or null to hand the model back to automatic judging. */
+export async function setPictureSettings(
+  patch: { vision_model?: string; vision_support?: Record<string, boolean | null> },
+): Promise<{ ok: boolean; error?: string }> {
+  return await updateVisionSettings(patch);
 }
 
 export interface CompactionSettings {

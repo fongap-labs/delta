@@ -60,6 +60,7 @@ import { PrivacySection } from "./PrivacySection";
 import { LibrarySection } from "./LibrarySection";
 import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
+import { PicturesCard } from "./PicturesCard";
 import { SkillsTab } from "./SkillsTab";
 
 // Settings, restructured (Option 2) into a full-page surface that mirrors IntegrationsView's shell:
@@ -180,6 +181,7 @@ export function SettingsView({
               {/* Token savings is model-spend behavior, so it lives here (UX-021),
                   not under General. */}
               <div className="mt-6">
+                <PicturesCard />
                 <TokenSavingsCard />
                 <CompactionCard />
               </div>

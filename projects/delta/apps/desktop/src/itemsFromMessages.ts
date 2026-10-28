@@ -118,7 +118,7 @@ export function itemsFromMessages(messages: ConversationMessage[]): Item[] {
       items.push(
         m.kind === "interrupted"
           ? { kind: "notice", tone: "warn", text: "Interrupted." }
-          : m.kind === "tools_refused"
+          : m.kind === "tools_refused" || m.kind === "pictures_withheld"
             ? { kind: "notice", tone: "info", text: String(m.text || "") }
           : m.kind === "model_switch"
             ? { kind: "notice", tone: "info", text: m.text || "Model switched", modelSwitchModel: m.model as string | undefined, modelSwitchImageWarning: !!m.image_warning }

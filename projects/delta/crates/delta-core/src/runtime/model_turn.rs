@@ -164,7 +164,9 @@ impl RuntimeHost {
         let mut pending: Vec<Value> = Vec::new();
         // What a model that cannot read pictures is told in their place.
         let mut pending_notes: Vec<String> = Vec::new();
-        let is_native = matches!(self.config.vision, crate::vision::VisionMode::Native);
+        // Pictures go to the model only when it takes them and has not just refused one.
+        let is_native = matches!(self.config.vision, crate::vision::VisionMode::Native)
+            && !self.pictures_withheld;
         let flush = |out: &mut Vec<Value>, pending: &mut Vec<Value>, notes: &mut Vec<String>| {
             if !pending.is_empty() {
                 let attachments = std::mem::take(pending);
@@ -219,8 +221,14 @@ impl RuntimeHost {
             if role == Some("user") {
                 if let Some(attachments) = m.get("attachments").and_then(Value::as_array) {
                     if !attachments.is_empty() {
-                        let attachments =
+                        let mut attachments =
                             crate::vision::outbound_attachments(attachments, m.get("vision_notes"));
+                        if !is_native {
+                            attachments = crate::vision::withhold_pictures(
+                                attachments,
+                                "this model does not take pictures",
+                            );
+                        }
                         message["content"] = provider_user_content(
                             &self.config.protocol,
                             m.get("content").and_then(Value::as_str).unwrap_or_default(),
@@ -301,6 +309,25 @@ impl RuntimeHost {
                 base64::engine::general_purpose::STANDARD.encode(bytes)
             ),
         }))
+    }
+
+    /// What an accepted request shows about pictures. After a refusal and a retry without
+    /// pictures, the pictures were the cause; a request that carried pictures and was accepted
+    /// shows the model takes them. Either is remembered for the model when something is listening.
+    fn learn_from_reply(&mut self, has_pictures_sent: bool) {
+        let Some(learn) = self.config.learn_pictures.clone() else {
+            return;
+        };
+        if let Some(is_clear) = self.withheld_to_learn.take() {
+            if is_clear {
+                learn(false);
+            }
+            return;
+        }
+        if has_pictures_sent && self.config.pictures_unproven && !self.pictures_withheld {
+            learn(true);
+            self.config.pictures_unproven = false;
+        }
     }
 
     pub(super) fn build_request(&self) -> ProviderRequest {
@@ -560,6 +587,7 @@ impl RuntimeHost {
                     return Err(error);
                 }
             }
+            let has_pictures_sent = request_has_pictures(&req);
             let mut turn: Option<AssistantTurn> = None;
             let mut streamed_text: Vec<String> = Vec::new();
             let mut streamed_reasoning: Vec<String> = Vec::new();
@@ -574,6 +602,7 @@ impl RuntimeHost {
                 Ok(ProviderStreamOutcome::Completed) => {
                     self.ensure_event_delivery()?;
                     turn_retries = 0;
+                    self.learn_from_reply(has_pictures_sent);
                 }
                 Ok(ProviderStreamOutcome::Interrupted) => {
                     self.ensure_event_delivery()?;
@@ -629,6 +658,31 @@ impl RuntimeHost {
                         });
                         self.ensure_event_delivery()?;
                         continue;
+                    }
+                    // A model nothing speaks for may not take the pictures this request carries.
+                    // Send the same request again with words in their place: if that one is
+                    // accepted, it was the pictures. A clear refusal is remembered for the model;
+                    // a timeout or a gateway error only changes this session, because it can
+                    // have other causes.
+                    if self.config.pictures_unproven
+                        && !self.pictures_withheld
+                        && has_pictures_sent
+                        && streamed_text.is_empty()
+                        && streamed_reasoning.is_empty()
+                        && !self.cancel.load(Ordering::Relaxed)
+                    {
+                        if let Some(is_clear) = picture_refusal(&e) {
+                            self.pictures_withheld = true;
+                            self.withheld_to_learn = Some(is_clear);
+                            let notice = PICTURES_WITHHELD_NOTICE.to_string();
+                            self.messages.push(json!({
+                                "role": "notice", "kind": "pictures_withheld",
+                                "text": &notice, "ts": now_ts()
+                            }));
+                            self.emit_event(RuntimeEvent::Notice { text: notice });
+                            self.ensure_event_delivery()?;
+                            continue;
+                        }
                     }
                     // A provider that refuses a request parameter is not one that will accept
                     // the same body later. Re-send once without the optional parameters this
@@ -1022,6 +1076,42 @@ fn with_turn_clock(mut messages: Vec<Value>, protocol: &str, note: &str) -> Vec<
     messages
 }
 
+const PICTURES_WITHHELD_NOTICE: &str = "This model did not accept the picture, so the rest of this conversation sends pictures to it as text. If the model does read pictures, mark it in Settings > Models > Pictures.";
+
+/// Whether any message of the request carries a picture part.
+fn request_has_pictures(req: &ProviderRequest) -> bool {
+    req.messages
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|message| message.get("content").and_then(Value::as_array))
+        .flatten()
+        .any(|part| {
+            matches!(
+                part.get("type").and_then(Value::as_str),
+                Some("image_url" | "input_image" | "image")
+            )
+        })
+}
+
+/// Whether a failure could be the model refusing a picture. `Some(true)` is a clear refusal of
+/// the request's content (worth remembering for the model); `Some(false)` is a gateway or server
+/// failure that a picture may or may not have caused (acted on for this session only). Anything
+/// else (a wrong key, a rate limit, a request too large, a dropped stream) says nothing about pictures.
+fn picture_refusal(error: &str) -> Option<bool> {
+    let digits: String = error
+        .split_once("HTTP ")?
+        .1
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    match digits.parse::<u16>().ok()? {
+        400 | 404 | 415 | 422 => Some(true),
+        500 | 502 | 503 | 504 => Some(false),
+        _ => None,
+    }
+}
+
 /// How a failed model request was shaped: its size, how many messages and tools it carried, which
 /// roles ended it and whether it held pictures. The ledger keeps this, never the messages.
 fn request_shape(req: &ProviderRequest, error: &str) -> Value {
@@ -1038,9 +1128,7 @@ fn request_shape(req: &ProviderRequest, error: &str) -> Value {
         .collect();
     ends_with.reverse();
     let text = req.messages.to_string();
-    let has_pictures = ["\"image_url\"", "\"input_image\"", "\"type\":\"image\""]
-        .iter()
-        .any(|marker| text.contains(marker));
+    let has_pictures = request_has_pictures(req);
     json!({
         "model": req.model,
         "protocol": req.protocol,
