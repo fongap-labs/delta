@@ -25,20 +25,20 @@ def text(
     if value is None and not is_required:
         return ""
     if not isinstance(value, str):
-        raise ValueError(f"{label} must be a string")
+        raise ValueError(f"{label} must be a string (text in double quotes)")
     if is_required and not value.strip():
-        raise ValueError(f"{label} must not be empty")
+        raise ValueError(f"{label} must not be empty: give a value of 1 to {max_chars} characters")
     if len(value) > max_chars:
-        raise ValueError(f"{label} is longer than {max_chars} characters")
+        raise ValueError(f"{label} is longer than {max_chars} characters: shorten it to at most {max_chars}")
     return value
 
 
 def items(value: Any, label: str, *, limit: int = MAX_BLOCKS) -> list[Any]:
     """A bounded list."""
     if not isinstance(value, list):
-        raise ValueError(f"{label} must be a list")
+        raise ValueError(f"{label} must be a list (a JSON array)")
     if len(value) > limit:
-        raise ValueError(f"{label} has more than {limit} entries")
+        raise ValueError(f"{label} has more than {limit} entries: at most {limit} are allowed")
     return value
 
 
@@ -56,7 +56,7 @@ def cell(value: Any, label: str) -> str | int | float | bool | None:
         if len(value) > MAX_TEXT_CHARS:
             raise ValueError(f"{label} is longer than {MAX_TEXT_CHARS} characters")
         return value
-    raise ValueError(f"{label} must be text, a number, a boolean or empty")
+    raise ValueError(f"{label} must be text, a number, true or false, or null")
 
 
 def table(columns: Any, rows: Any, label: str) -> tuple[list[str], list[list[Any]]]:
@@ -66,7 +66,7 @@ def table(columns: Any, rows: Any, label: str) -> tuple[list[str], list[list[Any
         for name in items(columns, f"{label} columns", limit=MAX_TABLE_COLUMNS)
     ]
     if not headers:
-        raise ValueError(f"{label} needs at least one column")
+        raise ValueError(f"{label} needs at least one column: give 1 to {MAX_TABLE_COLUMNS} column names")
     body: list[list[Any]] = []
     for row_index, row in enumerate(items(rows, f"{label} rows", limit=MAX_CELLS)):
         if not isinstance(row, list) or len(row) != len(headers):

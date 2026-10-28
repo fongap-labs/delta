@@ -143,6 +143,17 @@ fn registration(runtime: &OfficeRuntime, format: &Format) -> CapabilityRegistrat
                     "description": format!("Where to create the file, relative to the workspace, ending in .{}.", format.extension),
                 },
                 "content": {"type": "object", "description": CONTENT_DESCRIPTION},
+                "data": {
+                    "type": "object",
+                    "description": "Values for {{key}} placeholders in the content, for filling one \
+                        template many times. Each value is text, a number, true or false, or null. \
+                        A placeholder without a value fails the call.",
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Check that the content builds and the file reopens, without \
+                        creating the file. Use it to find errors before the real call.",
+                },
             },
         }),
         metadata: json!({
