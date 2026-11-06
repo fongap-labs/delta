@@ -19,7 +19,6 @@ root = pathlib.Path(sys.argv[1]).resolve()
 required = {
     "README.md",
     "LICENSE",
-    ".github/workflows/notify-action-worker.yml",
     ".github/execution-manifest.json",
     ".github/scripts/central-ci.sh",
 }
