@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap CI only. Replace this gate with project-specific build and test
-# checks in the same PR that introduces the first product source files.
+# Governance-only bootstrap CI. When product sources arrive, replace this with real build/tests in the same PR.
 set -Eeuo pipefail
 
 TARGET_ROOT="${1:-}"
@@ -19,18 +18,25 @@ root = pathlib.Path(sys.argv[1]).resolve()
 required = {
     "README.md",
     "LICENSE",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "docs/GOVERNANCE.md",
+    "docs/ARCHITECTURE.md",
+    "docs/MIGRATION_PLAN.md",
+    "docs/BRAND.md",
     ".github/execution-manifest.json",
     ".github/scripts/central-ci.sh",
 }
-tracked = set(
+tracked = {
     item.decode("utf-8")
     for item in subprocess.check_output(["git", "-C", str(root), "ls-files", "-z"]).split(b"\0")
     if item
-)
+}
 missing = sorted(required - tracked)
 unexpected = sorted(tracked - required)
 if missing:
-    raise SystemExit(f"central-ci: required bootstrap files missing: {', '.join(missing)}")
+    raise SystemExit("central-ci: required governance file missing: " + ", ".join(missing))
 if unexpected:
     raise SystemExit(
         "central-ci: source/build files require real project CI in the same PR: "
@@ -40,7 +46,7 @@ if unexpected:
 for name in required:
     path = root / name
     if not path.is_file() or not path.read_bytes().strip():
-        raise SystemExit(f"central-ci: missing or empty file: {name}")
+        raise SystemExit("central-ci: missing or empty file: " + name)
 
 manifest = json.loads((root / ".github/execution-manifest.json").read_text(encoding="utf-8"))
 jobs = manifest.get("operations", {}).get("ci", {}).get("jobs")
@@ -54,5 +60,15 @@ if (
     or job.get("capability_requests") != ["source.read"]
 ):
     raise SystemExit("central-ci: bootstrap CI contract mismatch")
-print("central-ci: bootstrap structure validated; no product source is present")
+
+readme = (root / "README.md").read_text(encoding="utf-8")
+brand = (root / "docs/BRAND.md").read_text(encoding="utf-8")
+governance = (root / "docs/GOVERNANCE.md").read_text(encoding="utf-8")
+if "Delta Runtime" not in readme or "Harness Runtime" not in readme:
+    raise SystemExit("central-ci: missing two-runtime architecture contract")
+if "#286F78" not in brand or "#60B4BF" not in brand:
+    raise SystemExit("central-ci: missing original Delta brand colors")
+if "fongap-labs/action-worker" not in governance:
+    raise SystemExit("central-ci: organization governance reference is required")
+print("central-ci: governance-only baseline validated; product code requires real CI")
 PY
