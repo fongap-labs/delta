@@ -45,6 +45,56 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          dispatch_with_diagnostics() {
+            local payload="$1"
+            local response_body response_headers http_code message reason header name value
+            response_body="$(mktemp)"
+            response_headers="$(mktemp)"
+            if ! http_code="$(curl --silent --show-error \
+              --retry 2 --retry-delay 1 \
+              --output "$response_body" --dump-header "$response_headers" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $AW_DISPATCH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY_OWNER/action-worker/dispatches" \
+              --data "$payload")"; then
+              echo "::error::Central dispatch transport failure." >&2
+              rm -f "$response_body" "$response_headers"
+              return 1
+            fi
+            if [ "$http_code" = "204" ]; then
+              rm -f "$response_body" "$response_headers"
+              return 0
+            fi
+
+            # Classify a GitHub error, never print arbitrary API response content.
+            message="$(jq -r 'if (.message | type) == "string" then .message else "" end' "$response_body" 2>/dev/null || true)"
+            case "$message" in
+              *"secondary rate limit"*|*"abuse detection"*) reason="secondary-rate-limit" ;;
+              *"rate limit"*) reason="rate-limit" ;;
+              "Resource not accessible by personal access token"|"Resource not accessible by integration") reason="token-access-denied" ;;
+              "Bad credentials") reason="bad-credentials" ;;
+              *"SAML"*) reason="organization-authorization" ;;
+              *) reason="unknown" ;;
+            esac
+            echo "::error::Central dispatch failed: HTTP $http_code, reason=$reason." >&2
+            while IFS= read -r header; do
+              name="${header%%:*}"
+              value="${header#*:}"
+              value="${value//[[:space:]]/}"
+              case "${name,,}" in
+                x-ratelimit-remaining|x-ratelimit-limit|x-ratelimit-reset|retry-after)
+                  if [[ "$value" =~ ^[0-9]{1,12}$ ]]; then
+                    echo "::notice::${name,,}=$value" >&2
+                  fi
+                  ;;
+              esac
+            done < "$response_headers"
+            rm -f "$response_body" "$response_headers"
+            return 1
+          }
+
           set_status() {
             local state="$1"
             local description="$2"
@@ -95,15 +145,7 @@ jobs:
               }'
           )"
 
-          curl -fsS \
-            --retry 2 \
-            --retry-delay 1 \
-            --request POST \
-            --header "Authorization: Bearer $AW_DISPATCH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY_OWNER/action-worker/dispatches" \
-            --data "$payload"
+          dispatch_with_diagnostics "$payload"
 
       - name: Cancel central work for the closed pull request
         if: github.event.action == 'closed'
@@ -115,6 +157,56 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+
+          dispatch_with_diagnostics() {
+            local payload="$1"
+            local response_body response_headers http_code message reason header name value
+            response_body="$(mktemp)"
+            response_headers="$(mktemp)"
+            if ! http_code="$(curl --silent --show-error \
+              --retry 2 --retry-delay 1 \
+              --output "$response_body" --dump-header "$response_headers" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $AW_DISPATCH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY_OWNER/action-worker/dispatches" \
+              --data "$payload")"; then
+              echo "::error::Central dispatch transport failure." >&2
+              rm -f "$response_body" "$response_headers"
+              return 1
+            fi
+            if [ "$http_code" = "204" ]; then
+              rm -f "$response_body" "$response_headers"
+              return 0
+            fi
+
+            # Classify a GitHub error, never print arbitrary API response content.
+            message="$(jq -r 'if (.message | type) == "string" then .message else "" end' "$response_body" 2>/dev/null || true)"
+            case "$message" in
+              *"secondary rate limit"*|*"abuse detection"*) reason="secondary-rate-limit" ;;
+              *"rate limit"*) reason="rate-limit" ;;
+              "Resource not accessible by personal access token"|"Resource not accessible by integration") reason="token-access-denied" ;;
+              "Bad credentials") reason="bad-credentials" ;;
+              *"SAML"*) reason="organization-authorization" ;;
+              *) reason="unknown" ;;
+            esac
+            echo "::error::Central dispatch failed: HTTP $http_code, reason=$reason." >&2
+            while IFS= read -r header; do
+              name="${header%%:*}"
+              value="${header#*:}"
+              value="${value//[[:space:]]/}"
+              case "${name,,}" in
+                x-ratelimit-remaining|x-ratelimit-limit|x-ratelimit-reset|retry-after)
+                  if [[ "$value" =~ ^[0-9]{1,12}$ ]]; then
+                    echo "::notice::${name,,}=$value" >&2
+                  fi
+                  ;;
+              esac
+            done < "$response_headers"
+            rm -f "$response_body" "$response_headers"
+            return 1
+          }
 
           [ -n "$AW_DISPATCH_TOKEN" ] || {
             echo "::error::AW_DISPATCH_TOKEN is not configured." >&2
@@ -137,15 +229,7 @@ jobs:
               }'
           )"
 
-          curl -fsS \
-            --retry 2 \
-            --retry-delay 1 \
-            --request POST \
-            --header "Authorization: Bearer $AW_DISPATCH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY_OWNER/action-worker/dispatches" \
-            --data "$payload"
+          dispatch_with_diagnostics "$payload"
 
   main:
     name: Notify main change
@@ -161,17 +245,59 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          dispatch_with_diagnostics() {
+            local payload="$1"
+            local response_body response_headers http_code message reason header name value
+            response_body="$(mktemp)"
+            response_headers="$(mktemp)"
+            if ! http_code="$(curl --silent --show-error \
+              --retry 2 --retry-delay 1 \
+              --output "$response_body" --dump-header "$response_headers" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $AW_DISPATCH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY_OWNER/action-worker/dispatches" \
+              --data "$payload")"; then
+              echo "::error::Central dispatch transport failure." >&2
+              rm -f "$response_body" "$response_headers"
+              return 1
+            fi
+            if [ "$http_code" = "204" ]; then
+              rm -f "$response_body" "$response_headers"
+              return 0
+            fi
+
+            # Classify a GitHub error, never print arbitrary API response content.
+            message="$(jq -r 'if (.message | type) == "string" then .message else "" end' "$response_body" 2>/dev/null || true)"
+            case "$message" in
+              *"secondary rate limit"*|*"abuse detection"*) reason="secondary-rate-limit" ;;
+              *"rate limit"*) reason="rate-limit" ;;
+              "Resource not accessible by personal access token"|"Resource not accessible by integration") reason="token-access-denied" ;;
+              "Bad credentials") reason="bad-credentials" ;;
+              *"SAML"*) reason="organization-authorization" ;;
+              *) reason="unknown" ;;
+            esac
+            echo "::error::Central dispatch failed: HTTP $http_code, reason=$reason." >&2
+            while IFS= read -r header; do
+              name="${header%%:*}"
+              value="${header#*:}"
+              value="${value//[[:space:]]/}"
+              case "${name,,}" in
+                x-ratelimit-remaining|x-ratelimit-limit|x-ratelimit-reset|retry-after)
+                  if [[ "$value" =~ ^[0-9]{1,12}$ ]]; then
+                    echo "::notice::${name,,}=$value" >&2
+                  fi
+                  ;;
+              esac
+            done < "$response_headers"
+            rm -f "$response_body" "$response_headers"
+            return 1
+          }
+
           [ -n "$AW_DISPATCH_TOKEN" ] || {
             echo "::error::AW_DISPATCH_TOKEN is not configured." >&2
             exit 77
           }
 
-          curl -fsS \
-            --retry 2 \
-            --retry-delay 1 \
-            --request POST \
-            --header "Authorization: Bearer $AW_DISPATCH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY_OWNER/action-worker/dispatches" \
-            --data '{"event_type":"run-intake"}'
+          dispatch_with_diagnostics '{"event_type":"run-intake"}'
