@@ -21,6 +21,7 @@ required = {
     "LICENSE",
     ".github/execution-manifest.json",
     ".github/scripts/central-ci.sh",
+    ".github/workflows/notify-action-worker.yml",
 }
 tracked = set(
     item.decode("utf-8")
