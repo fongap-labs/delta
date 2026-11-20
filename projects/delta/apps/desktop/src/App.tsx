@@ -1,0 +1,2080 @@
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { modelAfterSettings } from "./modelSync";
+import {
+  announceInboxUnlock,
+  finalizeAutomationRun,
+  getHealth,
+  getSessionMessages,
+  getSessions,
+  announceAutomationsChanged,
+  announceMemoryChanged,
+  connectEvents,
+  deleteMemory,
+  updateMemory,
+  getSettings,
+  getEgressSettings,
+  getInbox,
+  getUnattended,
+  resolveInboxItem,
+  deleteSession,
+  renameSession,
+  revertSession,
+  branchSession,
+  undoRunFiles,
+  restoreFileVersion,
+  getResumable,
+  getRuntimeState,
+  setReasoningEffort,
+  runAutomation,
+  setSessionFlags,
+  setUnattended,
+  setLanguage,
+  Session,
+  type InboxItem,
+  type MessageSource,
+  type WorkspaceCommandTrust,
+} from "./api";
+import type {
+  ApprovalDecision,
+  Attachment,
+  Item,
+  SessionInfo,
+  SessionUsage,
+  TodoItem,
+  UndoFilesResult,
+  WsEvent,
+} from "./types";
+import { I18nProvider, useI18n } from "@delta/i18n/I18nContext";
+import { WorkspaceContext } from "./workspaceContext";
+import { dictionaries, normalizeLocale } from "@delta/i18n/dictionaries";
+import type { Locale } from "@delta/i18n/types";
+import { en, type TranslationKey } from "@delta/i18n/en";
+import { turnToolNames, itemsFromMessages, interruptActiveTools, memorySuggestionFrom, withUserIndexes } from "./itemsFromMessages";
+import { nextBranchTitle } from "./branchTitle";
+import { humanizeTool, resolveHumanLine } from "./humanize";
+import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
+import { finishToolCall, markToolStart } from "./toolTiming";
+import { streamMode } from "./streamGate";
+import { InboxItemCard } from "./components/InboxItemCard";
+import { isTauri, platformOS, startWindowDrag } from "./tauri";
+import { setThemePref } from "./theme";
+import { shouldShowOverlay } from "./overlay";
+import { Icon } from "./components/Icon";
+import { EdgeTab } from "./components/EdgeTab";
+import { Sidebar } from "./components/Sidebar";
+import { Composer, type QueuedMessage } from "./components/Composer";
+import { interruptedAnchor, Transcript } from "./components/Transcript";
+import { Markdown, OPEN_ARTIFACT_EVENT } from "./components/Markdown";
+import { buildCompletionNotice, showCompletionNotice, type CompletionFile } from "./completionNotice";
+import { SessionIntro } from "./components/SessionIntro";
+import { Onboarding } from "./components/Onboarding";
+import { UPDATER_FEED_PUBLISHED, UpdateBanner } from "./components/UpdateBanner";
+import { ScheduledView } from "./components/ScheduledView";
+import { RightRail } from "./components/RightRail";
+import { TraceLogsPanel } from "./components/TraceLogsPanel";
+import { parseArtifactUpdate, upsertArtifactTrace, type ArtifactTrace } from "./artifactTrace";
+import { IntegrationsView } from "./components/IntegrationsView";
+import { SettingsView } from "./components/SettingsView";
+import { AuditView } from "./components/AuditView";
+import { StatisticsView } from "./components/StatisticsView";
+import { InboxView } from "./components/InboxView";
+import { ApprovalCard } from "./components/ApprovalCard";
+import { ApprovalModal, useEgressLevel, useDialogPref, usesApprovalModal } from "./components/ApprovalModal";
+import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
+import { PlanCard } from "./components/PlanCard";
+import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
+import { EgressChoice } from "./components/EgressChoice";
+import { CENTER_MIN_WIDTH } from "./components/ColumnResizer";
+
+const newId = () => {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID().slice(0, 12);
+
+  // Older WebViews may not expose randomUUID, but getRandomValues is still a
+  // cryptographically secure source. Six bytes preserve the existing 12-char ID size.
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+};
+
+// Tools whose success means a new/changed file should show up under Artifacts right away.
+const FILE_WRITE_TOOLS = new Set(["write_file", "apply_patch", "apply_unified_diff", "replace_in_file"]);
+
+// Models sometimes pass todo items as bare strings instead of {content, status} objects (the
+// backend tool normalizes them the same way; the GUI reads the raw proposal args, so mirror it).
+function normalizeTodos(raw: unknown): TodoItem[] {
+  if (!Array.isArray(raw)) return [];
+  const statuses = new Set(["pending", "in_progress", "done"]);
+  return raw.map((entry: any) => {
+    if (entry && typeof entry === "object") {
+      const status = entry.status === "completed" ? "done" : entry.status; // common model alias
+      return {
+        content: String(entry.content ?? ""),
+        status: statuses.has(status) ? status : "pending",
+      };
+    }
+    return { content: String(entry ?? ""), status: "pending" as const };
+  });
+}
+
+const NAV_COLLAPSED_KEY = "delta:nav-collapsed:v1";
+const NAV_WIDTH_KEY = "delta:nav-width:v1";
+const RAIL_WIDTH_KEY = "delta:rail-width:v1";
+const ARTIFACT_RAIL_WIDTH_KEY = "delta:artifact-rail-width:v1";
+const DEFAULT_NAV_WIDTH = 264;
+const DEFAULT_RAIL_WIDTH = 332;
+
+// A stored column width in px, or null when the user has never dragged that column.
+function readStoredWidth(key: string): number | null {
+  try {
+    const width = Number(localStorage.getItem(key));
+    return Number.isFinite(width) && width > 0 ? width : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWidth(key: string, width: number) {
+  try { localStorage.setItem(key, String(Math.round(width))); } catch { /* best effort */ }
+}
+
+export function App() {
+  const [locale, setLocaleState] = useState<Locale>(() => normalizeLocale(navigator.language));
+  // App hosts the I18nProvider, so its own shell strings resolve straight from the locale's
+  // dictionary (mirrors useI18n().t with no fallback: keys are required in both locales).
+  const tr = (key: TranslationKey, vars?: Record<string, string | number>): string => {
+    const text: string = dictionaries[locale][key] ?? en[key];
+    return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
+  };
+  // Translator in the shape `humanize` expects (key, vars, English fallback).
+  const humanT = (key: string, vars?: Record<string, string | number>, fallback?: string): string => {
+    const text: string = (dictionaries[locale] as Record<string, string>)[key] ?? fallback ?? key;
+    return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : text;
+  };
+  // A finished task is easy to miss when the window is in the background: say so, once.
+  // What the turn just produced, for the notification: its last answer and the finished files.
+  const lastAnswerRef = useRef("");
+  const turnFilesRef = useRef<CompletionFile[]>([]);
+  const notifyTurnDone = () => {
+    try {
+      if (typeof Notification === "undefined" || !document.hidden) return;
+      showCompletionNotice(
+        buildCompletionNotice({ answer: lastAnswerRef.current, files: turnFilesRef.current, t: (key, vars) => tr(key as TranslationKey, vars) }),
+        (path) => window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path } })),
+      );
+    } catch {
+      // Notifications are a convenience; never let them break the run.
+    }
+  };
+  const [workspace, setWorkspace] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(null);
+  const [workspaceTrustRequest, setWorkspaceTrustRequest] =
+    useState<WorkspaceCommandTrust | null>(null);
+  // No hardcoded vendor/model default — the active model rides on the server-provided health
+  // (`getHealth().then(h => setModel(h.model))`) and on Settings ▸ Models. An empty default
+  // keeps the composer's "No model connected" chip honest until one resolves.
+  const [model, setModel] = useState("");
+  const [models, setModels] = useState<string[]>([]);
+  const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+  // {full model id → context window in tokens} from the curated matrix (verified only);
+  // drives the composer usage chip's context-fill meter.
+  const [modelContextWindows, setModelContextWindows] = useState<Record<string, number>>({});
+  // The context-fill bar defaults off if an older backend lacks the setting.
+  const [hasContextBar, setContextBar] = useState(false);
+  // Per-session token usage: rebuilt from the transcript on session load,
+  // accumulated live from assistant_message events, reset with the transcript.
+  const [usage, setUsage] = useState<SessionUsage>(emptyUsage());
+  const [mode, setMode] = useState("interactive");
+  const [isConnected, setConnected] = useState(false);
+  const [isRunning, setRunning] = useState(false);
+  // Ref mirror of `isRunning` for async flows (Edit-while-running waits for the stop to land).
+  const isRunningRef = useRef(false);
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+  // When the current turn started, for the "Processed m分ss秒" line. Kept while the turn runs and
+  // cleared when it ends; a turn re-attached mid-run starts counting from when we noticed it.
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  useEffect(() => {
+    setTurnStartedAt((started) => (isRunning ? started ?? Date.now() : null));
+  }, [isRunning]);
+  // Set from Stop until the run actually ends, so the button answers at once.
+  const [isStopping, setStopping] = useState(false);
+  // Provider failure the runtime is retrying on its own: "connecting, attempt N of M". Cleared by
+  // whatever the run does next, so it never outlives the wait.
+  const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
+  // The tool call in progress, as one line: "Read report.xlsx".
+  const [stepInfo, setStepInfo] = useState<{ label: string } | null>(null);
+  // The runtime's answer to "can this session resume an interrupted run?" (it decides; the UI asks).
+  const [canResume, setCanResume] = useState(false);
+  // Show compaction until the runtime emits its next event.
+  const [isCompacting, setCompacting] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
+  // Resolved approval decisions per session, kept for this app run. A finished turn re-reads its
+  // history, and history does not carry approvals, so the Permissions rail reads them from here.
+  const [approvalLog, setApprovalLog] = useState<Record<string, Item[]>>({});
+  const [composerNotice, setComposerNotice] = useState<string | null>(null);
+  const [streaming, setStreamingState] = useState("");
+  // Ref mirror of `streaming`: the WS handler closure is built once per socket and can't read
+  // fresh state — the interrupted/error flush below needs the live buffer at event time.
+  const streamingRef = useRef("");
+  const setStreaming = (value: string | ((s: string) => string)) => {
+    streamingRef.current = typeof value === "function" ? value(streamingRef.current) : value;
+    setStreamingState(streamingRef.current);
+  };
+  // The turn's live thinking text (reasoning_delta events) — same ref-mirror pattern.
+  // Folded onto the assistant item when the message finalizes; cleared on turn_start.
+  const [reasoningStream, setReasoningStreamState] = useState("");
+  const reasoningRef = useRef("");
+  const setReasoningStream = (value: string) => {
+    reasoningRef.current = value;
+    setReasoningStreamState(value);
+  };
+  const [todo, setTodo] = useState<TodoItem[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [reasoningOverrides, setReasoningOverrides] = useState<Record<string, string>>({});
+  const [sessionId, setSessionId] = useState<string>(newId());
+  // WebSocket handlers and transcript reads can outlive the visible conversation while React
+  // swaps sessions. Keep the foreground id in a ref so late events/responses from the old
+  // socket cannot overwrite the newly selected transcript or its running state.
+  const foregroundSessionIdRef = useRef(sessionId);
+  const activateSession = useCallback((id: string) => {
+    foregroundSessionIdRef.current = id;
+    setSessionId(id);
+  }, []);
+  // Tie an automation-run session to its task; missing metadata still permits a generic banner.
+  const [runContext, setRunContext] = useState<{ id: string; title: string } | null>(null);
+  // Clear the selected automation on navigation so deleted tasks cannot reopen.
+  const [scheduledOpenId, setScheduledOpenId] = useState<string | null>(null);
+  // Which Settings section the full-page Settings surface opens on (§ Settings-as-page).
+  const [settingsTab, setSettingsTab] = useState<
+    "appearance" | "models" | "privacy" | "skills" | "voice" | "memory"
+  >("appearance");
+  const openSettings = (
+    tab: "appearance" | "models" | "privacy" | "skills" | "voice" | "memory" = "appearance",
+  ) => {
+    setSettingsTab(tab);
+    setSurface("settings");
+  };
+  // Whether the default model's provider is actually configured (any provider). Drives the
+  // composer's "No model connected" chip. Default true so we don't flash the chip before settings
+  // load; corrected by loadSettings.
+  const [isModelReady, setModelReady] = useState(true);
+  const [surface, setSurface] = useState<
+    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "statistics" | "settings"
+  >("session");
+  // Approval dialog inputs: the default egress level (re-read when Settings closes) and the preference.
+  const egressLevel = useEgressLevel(surface);
+  const [importantOps] = useDialogPref();
+  // A remembered Scheduled-detail target must not outlive the surface (see the
+  // scheduledOpenId comment above): nav re-entry lands on the list, never a
+  // possibly-deleted automation's dead detail.
+  useEffect(() => {
+    if (surface !== "scheduled") setScheduledOpenId(null);
+  }, [surface]);
+  const [browserRefreshKey, setBrowserRefreshKey] = useState(0);
+  const [isRailHidden, setRailHidden] = useState(false);
+  // Left-nav collapse (⌘B): when collapsed the sidebar leaves the grid so content reclaims the
+  // width; hovering the left edge peeks it back as a floating overlay. Persisted per-device.
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(NAV_COLLAPSED_KEY) === "1"; } catch { return false; }
+  });
+  const [isNavPeek, setNavPeek] = useState(false);
+  // Column widths are set by dragging a column edge (or the arrow keys) and kept per device. Neither
+  // side column has a fixed ceiling: CENTER_MIN_WIDTH is what limits how far they can grow.
+  const [navWidth, setNavWidth] = useState(() => readStoredWidth(NAV_WIDTH_KEY) ?? DEFAULT_NAV_WIDTH);
+  const [railWidth, setRailWidth] = useState(() => readStoredWidth(RAIL_WIDTH_KEY) ?? DEFAULT_RAIL_WIDTH);
+  // The artifact reading panel keeps its own width; null means it has not been dragged yet.
+  const [artifactRailWidth, setArtifactRailWidth] = useState<number | null>(() => readStoredWidth(ARTIFACT_RAIL_WIDTH_KEY));
+  const [isArtifactOpen, setArtifactOpen] = useState(false);
+  useEffect(() => storeWidth(NAV_WIDTH_KEY, navWidth), [navWidth]);
+  useEffect(() => storeWidth(RAIL_WIDTH_KEY, railWidth), [railWidth]);
+  useEffect(() => {
+    if (artifactRailWidth !== null) storeWidth(ARTIFACT_RAIL_WIDTH_KEY, artifactRailWidth);
+  }, [artifactRailWidth]);
+  // While an artifact preview is open we auto-collapse the nav (#3). Remember the pre-preview
+  // collapse state so we can restore it on close — unless the user re-opened the nav meanwhile.
+  const navBeforePreview = useRef<boolean | null>(null);
+  const setNavCollapsedPersist = useCallback((v: boolean) => {
+    setNavCollapsed(v);
+    try { localStorage.setItem(NAV_COLLAPSED_KEY, v ? "1" : "0"); } catch { /* best effort */ }
+  }, []);
+  const toggleNav = useCallback(() => {
+    setNavPeek(false);
+    navBeforePreview.current = null; // a manual toggle takes control from the artifact auto-collapse
+    setNavCollapsedPersist(!navCollapsed);
+  }, [navCollapsed, setNavCollapsedPersist]);
+  // #3: collapse the nav while a full artifact preview is open, restore it on close (unless the
+  // user manually toggled meanwhile). The collapse is transient — it never overwrites the pref.
+  const onArtifactPreview = useCallback((open: boolean) => {
+    setArtifactOpen(open);
+    if (open) {
+      if (navBeforePreview.current === null) navBeforePreview.current = navCollapsed;
+      setNavPeek(false);
+      setNavCollapsed(true);
+    } else if (navBeforePreview.current !== null) {
+      setNavCollapsed(navBeforePreview.current);
+      navBeforePreview.current = null;
+    }
+  }, [navCollapsed]);
+  // startNewSession is declared further down; the handler reads it through a ref.
+  const newTaskRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleNav();
+      }
+      // ⌘/Ctrl+N — new task. ⌘/Ctrl+Shift+L — flip light/dark (Auto becomes an explicit pin).
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        newTaskRef.current();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setThemePref(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+      }
+      // Cmd/Ctrl+, opens Settings.
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        setSurface("settings");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleNav]);
+  // Artifact traces per session, filled by `artifact_updated` frames for the Trace Logs panel.
+  const [artifactTraces, setArtifactTraces] = useState<Record<string, ArtifactTrace[]>>({});
+  // Bumping the key opens and focuses Access; callers also show the rail.
+  const [accessKey, setAccessKey] = useState(0);
+  const openAccess = () => {
+    setRailHidden(false);
+    setAccessKey((k) => k + 1);
+  };
+  // Show the rail before opening an artifact from the transcript.
+  useEffect(() => {
+    const show = () => setRailHidden(false);
+    window.addEventListener("delta-open-artifact", show);
+    return () => window.removeEventListener("delta-open-artifact", show);
+  }, []);
+  // A pending composer prefill (text + attachments) pushed from the session start panel.
+  const [composerPrefill, setComposerPrefill] = useState<{ text: string; attachments?: Attachment[]; nonce: number }>();
+
+  // Pending Inbox items for the ACTIVE session — surfaced inline above the composer so an
+  // unattended session's blocking question/approval can be answered in context (resolving the
+  // same item the Inbox shows; first responder wins).
+  const [sessionInbox, setSessionInbox] = useState<InboxItem[]>([]);
+  // Whether the active session is Unattended — when true, the agent's prompts route to the Inbox,
+  // so we suppress the inline live cards (the Inbox / answer-in-context path shows them instead).
+  // A ref too, because the WS event handler closes over stale state.
+  const [isUnattended, setUnattendedState] = useState(false);
+  const unattendedRef = useRef(false);
+  const markUnattended = useCallback((isOn: boolean) => {
+    unattendedRef.current = isOn;
+    setUnattendedState(isOn);
+  }, []);
+  // Route unattended approvals to Inbox.
+  const toggleUnattended = async (isOn: boolean) => {
+    await setUnattended(sessionId, isOn);
+    markUnattended(isOn);
+    // Unlock the Inbox indicator when unattended mode is enabled.
+    if (isOn) announceInboxUnlock();
+  };
+  const resolveSessionInbox = async (id: string, resolution: string) => {
+    await resolveInboxItem(id, resolution);
+    getInbox(sessionId, "pending").then(setSessionInbox).catch(() => setSessionInbox([]));
+    refreshSessions(); // attention badge should drop right away
+  };
+  // The desktop tray's "Settings" item dispatches this on the window.
+  useEffect(() => {
+    const open = () => openSettings("appearance");
+    window.addEventListener("delta:open-settings", open);
+    return () => window.removeEventListener("delta:open-settings", open);
+  }, []);
+
+  // "Run setup again" (from Settings) re-opens the wizard.
+  useEffect(() => {
+    const open = () => {
+      setOnboarding(true);
+    };
+    window.addEventListener("delta:open-onboarding", open);
+    return () => window.removeEventListener("delta:open-onboarding", open);
+  }, []);
+
+  const sessionRef = useRef<Session | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // A prompt to auto-send once the next session connects (used by "Run now").
+  const pendingPromptRef = useRef<string | null>(null);
+  // The in-flight manual run to finalize after its first turn ({taskId, runId, sessionId}).
+  const activeRunRef = useRef<{ taskId: string; runId: string; sessionId: string } | null>(null);
+
+  // Fetch every Delta task so the sidebar stays in sync with the native store.
+  const refreshSessions = useCallback(() => {
+    // A sidecar restart or a transient local request failure must not make every background
+    // conversation vanish from the sidebar. Keep the last good snapshot until a fresh one lands.
+    getSessions().then(setSessions).catch(() => {});
+  }, []);
+
+  // initial: adopt the server's seed workspace if any, else force the gate.
+  // Retry health for a while: the desktop shell starts its sidecar in parallel, so the
+  // server may not answer for a second or two. Only fall back to the gate once it's truly up.
+  const [isBooting, setBooting] = useState(true);
+  const [isOnboarding, setOnboarding] = useState(false);
+  // ADR-0057: until a default egress level is chosen the runtime sends nothing to a model, so the
+  // choice is asked on first run and once after the upgrade that introduced it.
+  const [isEgressUnchosen, setEgressUnchosen] = useState(false);
+  // True once we've resumed a prior conversation on boot (drives the splash wording).
+  const [hasResumedExisting, setResumedExisting] = useState(false);
+  // Latched: keep the boot splash up until the restored session is actually CONNECTED (not just
+  // until `booting` clears), so an early click can't land on a session that's still settling.
+  const [isUiReady, setUiReady] = useState(false);
+
+  // On boot, reopen the most recent Delta task and preserve its transcript/workspace.
+  const resumeLast = async () => {
+    let loadedSessions: SessionInfo[] = [];
+    try {
+      loadedSessions = (await getSessions()).filter((s) => s.session_id && !s.session_id.startsWith("__"));
+      setSessions(loadedSessions);
+      const sess = loadedSessions;
+      const ts = (s: SessionInfo) => Date.parse(s.updated_at || "") || Number(s.updated_at) || 0;
+      const last = [...sess].sort((a, b) => ts(b) - ts(a))[0];
+      if (last) {
+        setResumedExisting(true);
+        if (last.workspace) {
+          setWorkspace(last.workspace);
+          setBranch(null);
+        }
+        try {
+          const messages = await getSessionMessages(last.session_id);
+          setItems(itemsFromMessages(messages));
+          setUsage(usageFromMessages(messages));
+        } catch {
+          setItems([]);
+          setUsage(emptyUsage());
+        }
+        activateSession(last.session_id);
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const attempt = (tries: number) => {
+      getHealth()
+        .then(async (h) => {
+          if (cancelled) return;
+          setModel(h.model);
+          // First-run setup wizard (desktop): show until the user completes/dismisses it.
+          if (isTauri()) {
+            getSettings()
+              .then((s) => !cancelled && !s.onboarded && setOnboarding(true))
+              .catch(() => {});
+            getEgressSettings()
+              .then((e) => !cancelled && !e.is_chosen && setEgressUnchosen(true))
+              .catch(() => {});
+          }
+          // Settle the active session BEFORE clearing `booting` (which unblocks the connection
+          // effect). resumeLastOrGate is async — if we cleared `booting` first, the throwaway
+          // initial sessionId would connect against an empty/stale workspace and the server
+          // would provision a junk per-conversation scratch dir for it before resume could
+          // flip to the real session.
+          await resumeLast();
+          // Re-read settings after runtime health responds to recover from cold-start races.
+          loadSettings();
+          if (!cancelled) setBooting(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (tries <= 0) {
+            setBooting(false);
+          } else {
+            setTimeout(() => attempt(tries - 1), 500);
+          }
+        });
+    };
+    attempt(40); // ~20s of 500ms retries
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Reveal the UI once boot has settled and the restored task is connected.
+  useEffect(() => {
+    if (isUiReady || isBooting) return;
+    if (isConnected) setUiReady(true);
+  }, [isUiReady, isBooting, isConnected]);
+  // Safety net: if the restored session never reports connected (backend slow/unreachable), reveal
+  // the UI anyway. Boot already passed the health check, so a live connect is sub-second; this only
+  // bites in the failure case, so keep it short.
+  useEffect(() => {
+    if (isUiReady || isBooting) return;
+    const t = setTimeout(() => setUiReady(true), 1500);
+    return () => clearTimeout(t);
+  }, [isUiReady, isBooting]);
+
+  // The default model last read from settings: a change to it reaches the composer (see modelAfterSettings).
+  const defaultModelRef = useRef("");
+  const loadSettings = () =>
+    getSettings()
+      .then((s) => {
+        setModels(s.models || []);
+        const nextDefault = s.model || "";
+        const previousDefault = defaultModelRef.current;
+        defaultModelRef.current = nextDefault;
+        setModel((current) => modelAfterSettings(current, previousDefault, nextDefault));
+        setModelLabels(s.model_labels || {});
+        setModelContextWindows(s.model_context_windows || {});
+        setContextBar(s.context_bar === true);
+        setModelReady(s.model_ready);
+        // Single Locale source of truth: the backend language setting wins once loaded.
+        if (s.language) setLocaleState(normalizeLocale(s.language));
+      })
+      .catch(() => {});
+
+  // Persist a user-chosen language so it survives restarts and drives runtime prompts.
+  const setLocale = useCallback(
+    (l: Locale) => {
+      setLocaleState(l);
+      setLanguage(l).catch(() => {});
+    },
+    [],
+  );
+
+  // Open Settings → Configure Models (from the composer's "No model connected" chip).
+  const openModelSetup = () => openSettings("models");
+
+  // Leaving Settings: pick up model changes for the composer.
+  useEffect(() => {
+    if (surface !== "settings") loadSettings();
+  }, [surface]);
+
+  useEffect(() => {
+    refreshSessions();
+    loadSettings();
+  }, [refreshSessions]);
+
+  // Poll the session list so the attention/liveness badges stay live and sessions created
+  // out-of-band (unattended work, messaging, automations) appear without a manual refresh.
+  useEffect(() => {
+    const t = setInterval(refreshSessions, 5000);
+    return () => clearInterval(t);
+  }, [refreshSessions]);
+
+  // Self-heal the foreground liveness: a turn that finished while its events were
+  // in flight (or one resumed from a cold start) leaves `isRunning` lying. Ask the
+  // runtime — it is the authority — instead of trusting the last frame we saw.
+  useEffect(() => {
+    if (!isRunning) return;
+    const t = setInterval(() => {
+      const id = foregroundSessionIdRef.current;
+      if (!id) return;
+      getRuntimeState(id)
+        .then(({ active }) => {
+          if (foregroundSessionIdRef.current === id && !active) setRunning(false);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(t);
+  }, [isRunning]);
+
+  // Reconnect when the workspace or task changes.
+  useEffect(() => {
+    if (isBooting) return; // wait until boot/resume settles the session before connecting
+    const handleEvent = (ev: WsEvent) => {
+      const d = ev.payload || {};
+      // An interrupted/errored turn never emits assistant_message, so its streamed partial
+      // would otherwise live only in the ephemeral buffer until the next turn_start wipes it
+      // (owner-hit 2026-07-22). Promote it to a durable transcript item — the engine persists
+      // the same text server-side, so the live view and a session reload now agree.
+      const flushPartialStream = () => {
+        const partial = streamingRef.current;
+        const thinking = reasoningRef.current;
+        if (!partial && !thinking) return;
+        setStreaming("");
+        setReasoningStream("");
+        setItems((p) => [
+          ...p,
+          {
+            kind: "assistant",
+            text: partial,
+            ts: Date.now() / 1000,
+            ...(thinking ? { reasoning: thinking } : {}),
+          },
+        ]);
+      };
+      // Any engine event after `compacting` means the summarizer finished (compacted /
+      // silent no-op / failure prompt) — the transient must never outlive it.
+      // Closing a session socket does not stop its server-side turn. Its remaining events may
+      // still arrive during the hand-off, so only the currently visible session may mutate the
+      // shared transcript state.
+      if (foregroundSessionIdRef.current !== sessionId) return;
+      if (ev.type !== "compacting") setCompacting(false);
+      if (ev.type !== "error" && ev.type !== "ready" && ev.type !== "inbound") setRetryInfo(null);
+      if (ev.type === "turn_done" || ev.type === "interrupted" || ev.type === "turn_start") setStopping(false);
+      switch (ev.type) {
+        case "ready":
+          setConnected(true);
+          if (d.model) setModel(d.model);
+          if (d.mode) setMode(d.mode);
+          if (d.command_trust?.required) setWorkspaceTrustRequest(d.command_trust);
+          // Delta: adopt the server-provisioned scratch dir (only when we don't already have one).
+          if (d.workspace) setWorkspace((cur) => cur || d.workspace);
+          break;
+        case "turn_start":
+          setRunning(true);
+          lastAnswerRef.current = "";
+          turnFilesRef.current = [];
+          setStepInfo(null);
+          setStreaming("");
+          setReasoningStream("");
+          // The runtime has stored the user message by now: give the local echo its raw-message
+          // index so Edit works during the run, not only after it ends.
+          getSessionMessages(sessionId)
+            .then((ms) => {
+              if (foregroundSessionIdRef.current !== sessionId) return;
+              const persisted = itemsFromMessages(ms);
+              setItems((p) => withUserIndexes(p, persisted));
+            })
+            .catch(() => {});
+          // Background-delivered turns (channel message, self-wake, durable resume) have no local
+          // send(), so the triggering message isn't in `items` yet — surface it. A connector message
+          // carries a structured `source` → render a rich card; otherwise show a plain user item.
+          // Foreground turns already appended it in send(); skip the duplicate.
+          if (d.source?.connector) {
+            const src = d.source as MessageSource;
+            setItems((p) => {
+              const last = p[p.length - 1];
+              return last && last.kind === "connector" && last.source.ts === src.ts && last.source.text === src.text
+                ? p
+                : [...p, { kind: "connector", source: src }];
+            });
+          } else if (typeof d.input === "string" && d.input) {
+            // `display` (force-run) is the user's literal "/name …" line; the framed
+            // `input` is model-facing. Surface/dedupe on what the user actually sees.
+            const shown = (typeof d.display === "string" && d.display) || (d.input as string);
+            setItems((p) => {
+              const last = p[p.length - 1];
+              return last && last.kind === "user" && last.text === shown
+                ? p
+                : [...p, { kind: "user", text: shown, ts: Date.now() / 1000 }];
+            });
+          }
+          break;
+        case "assistant_delta":
+          setStreaming((s) => s + (d.text || ""));
+          break;
+        case "reasoning_delta":
+          setReasoningStream(reasoningRef.current + (d.text || ""));
+          break;
+        case "assistant_message": {
+          if (d.text) lastAnswerRef.current = String(d.text);
+          if (d.usage) setUsage((u) => addTurnUsage(u, d.usage));
+          // The event's reasoning is authoritative (covers background-delivered turns);
+          // the local buffer is the fallback for older servers.
+          const reasoning = d.reasoning || reasoningRef.current;
+          if (d.text || reasoning)
+            setItems((p) => [
+              ...p,
+              {
+                kind: "assistant",
+                text: d.text || "",
+                ts: Date.now() / 1000,
+                ...(reasoning ? { reasoning } : {}),
+              },
+            ]);
+          setStreaming(""); // finalized into items (or empty tool-only turn)
+          setReasoningStream("");
+          break;
+        }
+        case "tool_proposed": {
+          const line = resolveHumanLine(humanizeTool(d.name, d.arguments), humanT);
+          setStepInfo({
+            label: `${line.pre ?? ""}${line.obj ?? ""}${line.post ?? ""}`.trim(),
+          });
+        }
+          if (d.name === "todo_write" && (d.arguments?.todos || d.arguments?.items))
+            setTodo(normalizeTodos(d.arguments.todos ?? d.arguments.items));
+          setItems((p) => [
+            ...p,
+            { kind: "tool", id: typeof d.tool_call_id === "string" && d.tool_call_id ? d.tool_call_id : newId(), name: d.name, args: d.arguments, status: "…" },
+          ]);
+          break;
+        case "tool_started":
+          setItems((p) => markToolStart(p, d.tool_call_id, d.at_ms));
+          break;
+        case "permission_required":
+          // Unattended → the backend parked it in the Inbox; don't also surface a live card.
+          if (unattendedRef.current) break;
+          setItems((p) => [
+            ...p,
+            {
+              kind: "approval",
+              name: d.name,
+              args: d.arguments,
+              reason: d.reason,
+              category: d.category,
+              standingTarget: d.standing_target || undefined,
+            },
+          ]);
+          break;
+        case "directory_requested":
+          if (unattendedRef.current) break;
+          setItems((p) => [
+            ...p,
+            { kind: "dirreq", reason: d.reason || "", path: d.path || "", writable: !!d.writable },
+          ]);
+          break;
+        case "plan_proposed":
+          if (unattendedRef.current) break;
+          setItems((p) => [...p, { kind: "planreq", plan: d.plan || "" }]);
+          break;
+        case "question_requested":
+          // ask_user in an attended session — answered inline (not routed to the Inbox).
+          setItems((p) => [
+            ...p,
+            {
+              kind: "question",
+              question: d.question || "",
+              options: d.options || [],
+              allow_text: d.allow_text !== false,
+              multi: !!d.multi,
+              header: d.header || "",
+              questions: d.questions || [],
+            },
+          ]);
+          break;
+        case "artifact_updated": {
+          const trace = parseArtifactUpdate(d);
+          if (trace && trace.status !== "drafting") {
+            turnFilesRef.current = [
+              ...turnFilesRef.current.filter((file) => file.path !== trace.path),
+              { path: trace.path, name: trace.name },
+            ];
+          }
+          if (trace) {
+            setArtifactTraces((prev) => ({
+              ...prev,
+              [sessionId]: upsertArtifactTrace(prev[sessionId] ?? [], trace),
+            }));
+          }
+          break;
+        }
+        case "tool_finished":
+          setStepInfo(null);
+          setItems((p) => {
+            const preview =
+              d.result_preview || d.reason || (typeof d.result === "string" ? d.result : d.result == null ? undefined : JSON.stringify(d.result));
+            const updated = finishToolCall(p, {
+              id: d.tool_call_id,
+              name: d.name,
+              status: d.error ? "error" : "ok",
+              preview,
+              hidden: d.display?.hidden_by_filters,
+              standingRule: d.standing_rule,
+              atMs: d.at_ms,
+            });
+            if (d.error || d.name !== "memory_propose") return updated;
+            // A memory suggestion is asked about right in the conversation, outside the collapsed steps.
+            const call = [...updated].reverse().find((it) => it.kind === "tool" && it.name === "memory_propose");
+            const suggestion = call?.kind === "tool" ? memorySuggestionFrom(d.name, call.args, preview) : null;
+            if (!suggestion || updated.some((it) => it.kind === "memory_suggestion" && it.candidateId === suggestion.candidateId))
+              return updated;
+            return [...updated, suggestion];
+          });
+          // Refresh the right rail when something it shows may have changed: browser state, or a
+          // file write that should appear under Artifacts immediately (not only after the turn).
+          if (String(d.name || "").startsWith("browser_") || FILE_WRITE_TOOLS.has(d.name)) {
+            setBrowserRefreshKey((k) => k + 1);
+          }
+          break;
+        case "turn_end":
+          if (d.status === "max_iterations_exceeded")
+            setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Stopped: max iterations reached." }]);
+          if (d.status === "tool_budget_exceeded")
+            setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Stopped: tool call limit for this run reached." }]);
+          break;
+        case "model_changed":
+          // Mid-session switch (server-applied): update the header fact and drop the
+          // persisted marker into the live transcript (replay renders it from history).
+          // `modelSwitchModel` mirrors the replay path so the notice localizes at render
+          // in both the live and the reloaded view (raw d.text stays on the item).
+          if (d.model) setModel(d.model);
+          setItems((p) => [
+            ...p,
+            {
+              kind: "notice",
+              tone: "info",
+              text: d.text || "Model switched",
+              ...(d.model ? { modelSwitchModel: String(d.model) } : {}),
+            },
+          ]);
+          break;
+        case "memory_saved":
+          // §5.1 save notice — inline in the transcript, where the user is already
+          // looking and where it keeps until they act (a corner toast disappeared
+          // before it could be read or undone — owner-hit 2026-07-28). Summary is the
+          // friendly one-liner; content is the fallback when the model skipped it.
+          setItems((p) => [
+            ...p,
+            {
+              kind: "memory",
+              id: Number(d.id),
+              text: String(d.summary || d.content || ""),
+              // Present when an existing memory was edited rather than added — the
+              // notice says so, and Undo restores this text instead of deleting.
+              ...(d.previous ? { previous: String(d.previous) } : {}),
+            },
+          ]);
+          announceMemoryChanged(); // Settings ▸ Memory, if open, is now stale
+          break;
+        case "compacting":
+          setCompacting(true);
+          break;
+        case "compacted":
+          // Compaction summarizes model context without modifying the stored transcript.
+          setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "Context compacted" }]);
+          break;
+        case "notice":
+          // A plain runtime line (e.g. the model cannot take tools): information, never an error.
+          setItems((p) => [...p, { kind: "notice", tone: "info", text: String(d.text || "") }]);
+          break;
+        case "interrupted":
+          flushPartialStream();
+          setItems((p) => [
+            ...interruptActiveTools(p),
+            { kind: "notice", tone: "warn", text: "Interrupted." },
+          ]);
+          break;
+        case "error":
+          // A transient failure the runtime retries by itself is progress, not an outcome: show
+          // "connecting, attempt N" in the status bar and keep the transcript free of errors.
+          if (d.terminal === false) {
+            setRetryInfo({ attempt: Number(d.attempt) || 2, max: Number(d.max_attempts) || Number(d.attempt) || 2 });
+            // The retried request thinks again from the start. Its failed attempt's partial thinking is
+            // dropped, so the one disclosure shows the attempt that produced the answer (as a reload does).
+            setReasoningStream("");
+            break;
+          }
+          setRetryInfo(null);
+          setStepInfo(null);
+          setStopping(false);
+          flushPartialStream();
+          setItems((p) => [
+            ...p,
+            { kind: "notice", tone: "warn", text: "Error: " + (d.error || "unknown"), retriable: true },
+          ]);
+          break;
+        case "input_rejected":
+          if (/attachment/i.test(String(d.error || ""))) {
+            setComposerNotice(tr("composer.attachmentRejected"));
+          } else {
+            setItems((p) => [
+              ...p,
+              { kind: "notice", tone: "warn", text: d.error || "That message was rejected." },
+            ]);
+          }
+          break;
+        case "turn_done":
+          setRunning(false);
+          setStepInfo(null);
+          // A run that ended on its own hands over to the next queued message; one the user
+          // stopped does not (the queue stays for them to send, change or drop).
+          if (stoppedByUserRef.current === sessionId) stoppedByUserRef.current = null;
+          else setDrainQueueFor(sessionId);
+          notifyTurnDone();
+          refreshSessions();
+          // Re-pull the persisted thread: optimistic local items (the just-sent user
+          // bubble, streamed texts) carry no raw-message index, so Edit/Retract would
+          // stay unavailable until a full reload. The server is authoritative now.
+          getSessionMessages(sessionId)
+            .then((ms) => {
+              if (foregroundSessionIdRef.current === sessionId) setItems(itemsFromMessages(ms));
+            })
+            .catch(() => {});
+          // Catch-all artifact refresh: files created via shell or on a brand-new session (whose
+          // record only exists after the first save) appear once the turn completes.
+          setBrowserRefreshKey((k) => k + 1);
+          // Finalize a manual run after its first turn completes (mark it ok in history).
+          {
+            const ar = activeRunRef.current;
+            if (ar && ar.sessionId === sessionId) {
+              activeRunRef.current = null;
+              finalizeAutomationRun(ar.taskId, ar.runId).catch(() => {});
+            }
+          }
+          break;
+      }
+    };
+
+    const session = new Session(sessionId, workspace || "", {
+      onEvent: handleEvent,
+      onGap: () => {
+        // The Rust Core persists authoritative transcript messages before emitting them.
+        // A dropped Tauri event cannot be replayed from the live stream, so rebuild
+        // from the Core rather than silently continuing from an incomplete view.
+        void getSessionMessages(sessionId)
+          .then((messages) => {
+            if (foregroundSessionIdRef.current === sessionId) {
+              setItems(itemsFromMessages(messages));
+            }
+          })
+          .catch((error) => console.warn("Could not restore session after an event gap", error));
+        void getRuntimeState(sessionId)
+          .then(({ active }) => {
+            if (foregroundSessionIdRef.current === sessionId) setRunning(active);
+          })
+          .catch(() => {});
+      },
+      onOpen: () => {
+        if (foregroundSessionIdRef.current !== sessionId) return;
+        setConnected(true);
+        // A turn outlives the socket that started it: switching conversations only
+        // detaches the foreground view, the runtime keeps running. Re-attaching to a
+        // session that is mid-turn must therefore render it as running — the
+        // `turn_start` that would normally set this was emitted while we were away.
+        void getRuntimeState(sessionId)
+          .then(({ active }) => {
+            if (foregroundSessionIdRef.current !== sessionId) return;
+            if (active) setRunning(true);
+          })
+          .catch(() => {});
+        // Auto-send the task prompt once a "Run now" session connects.
+        const p = pendingPromptRef.current;
+        if (p) {
+          pendingPromptRef.current = null;
+          setItems((prev) => [...prev, { kind: "user", text: p, ts: Date.now() / 1000 }]);
+          sessionRef.current?.userMessage(p);
+        }
+      },
+      onClose: () => {
+        if (foregroundSessionIdRef.current === sessionId) setConnected(false);
+      },
+    });
+    sessionRef.current = session;
+    return () => {
+      session.close();
+      if (sessionRef.current === session) sessionRef.current = null;
+    };
+    // NOTE: `workspace` is intentionally NOT a dependency. Every real workspace change
+    // (pick folder, select/switch session, new session) is paired with a `sessionId`
+    // change, so the socket still reconnects when it should. The one workspace-only change
+    // is the `ready` handler adopting the server's provisioned Delta scratch dir — listing
+    // `workspace` here made that adoption tear down and rebuild the socket immediately after
+    // first connect, dropping the user's first message (the "send twice" bug). The scratch
+    // dir is deterministic from `sessionId` server-side, so skipping that reconnect is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBooting, sessionId, refreshSessions]);
+
+  // Stream-following (FB-004): auto-scroll only while the user is AT the bottom, so scrolling
+  // up to read during a streaming turn sticks. `atBottomRef` is the live truth (per scroll
+  // event, no re-render); `following` mirrors it into state for the jump-to-latest pill.
+  // Programmatic smooth-scrolls fire scroll events of their own — while one is in flight
+  // (`autoScrollingRef`) they must not read as "the user scrolled up", or every stream tick
+  // would disengage its OWN follow. The animation only moves down, so a decreasing scrollTop
+  // mid-flight can only be the user taking over.
+  const atBottomRef = useRef(true);
+  const autoScrollingRef = useRef(false);
+  const lastScrollTopRef = useRef(0);
+  const [isFollowing, setFollowing] = useState(true);
+  const scrollToBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    autoScrollingRef.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
+  const followLatest = () => {
+    atBottomRef.current = true;
+    setFollowing(true);
+    scrollToBottom();
+  };
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const top = el.scrollTop;
+    const atBottom = el.scrollHeight - top - el.clientHeight < 48;
+    if (autoScrollingRef.current) {
+      if (atBottom) autoScrollingRef.current = false; // landed
+      else if (top >= lastScrollTopRef.current) {
+        lastScrollTopRef.current = top; // still animating down — not the user
+        return;
+      } else autoScrollingRef.current = false; // moved UP mid-flight — user takeover
+    }
+    lastScrollTopRef.current = top;
+    atBottomRef.current = atBottom;
+    setFollowing(atBottom);
+  };
+  // A different session is a fresh viewport — never inherit a scrolled-up state. Declared
+  // BEFORE the auto-scroll effect: when a session switch and its hydrated items land in one
+  // commit, the reset must run first or the stale ref would skip the initial bottom-scroll.
+  useEffect(() => {
+    atBottomRef.current = true;
+    setFollowing(true);
+  }, [sessionId]);
+  useEffect(() => {
+    if (atBottomRef.current) scrollToBottom();
+  }, [items, streaming]);
+
+  // Keep the active session's pending Inbox items fresh (answer-in-context card). Loads on session
+  // change + after each turn, plus a slow poll so an unattended agent's new question surfaces.
+  useEffect(() => {
+    if (surface !== "session") return;
+    const load = () => {
+      getInbox(sessionId, "pending").then(setSessionInbox).catch(() => setSessionInbox([]));
+      getUnattended(sessionId).then(markUnattended).catch(() => markUnattended(false));
+    };
+    load();
+    const t = setInterval(load, 4000);
+    return () => clearInterval(t);
+  }, [surface, sessionId, browserRefreshKey, markUnattended]);
+
+  // Messages typed during a run, per conversation. They wait for the run to end (see the effect
+  // below) unless the user interjects them into it.
+  const [queues, setQueues] = useState<Record<string, QueuedMessage[]>>({});
+  const queue = queues[sessionId] ?? [];
+  const [drainQueueFor, setDrainQueueFor] = useState<string | null>(null);
+  const stoppedByUserRef = useRef<string | null>(null);
+  const queueMessage = (text: string) =>
+    setQueues((all) => ({ ...all, [sessionId]: [...(all[sessionId] ?? []), { id: newId(), text }] }));
+  const removeQueued = (id: string) =>
+    setQueues((all) => ({ ...all, [sessionId]: (all[sessionId] ?? []).filter((item) => item.id !== id) }));
+  // Send queued messages now, in the order given, and then the draft. During a run each one
+  // interjects into it; with no run it starts one.
+  const interjectQueued = (ids: string[], draft?: string) => {
+    const picked = ids.flatMap((id) => queue.find((item) => item.id === id) ?? []);
+    setQueues((all) => ({
+      ...all,
+      [sessionId]: (all[sessionId] ?? []).filter((item) => !ids.includes(item.id)),
+    }));
+    for (const item of picked) send(item.text);
+    if (draft) send(draft);
+  };
+  useEffect(() => {
+    if (!drainQueueFor) return;
+    if (drainQueueFor !== sessionId) {
+      setDrainQueueFor(null);
+      return;
+    }
+    if (isRunning) return;
+    const next = (queues[drainQueueFor] ?? [])[0];
+    setDrainQueueFor(null);
+    if (!next) return;
+    removeQueued(next.id);
+    send(next.text);
+  });
+
+  const send = (text: string, attachments?: Attachment[], skill?: string) => {
+    stoppedByUserRef.current = null;
+    setComposerNotice(null);
+    // Show the force-run text in the server's display format to deduplicate turn_start.
+    const shown = skill ? `/${skill}${text ? ` ${text}` : ""}` : text;
+    setItems((p) => [
+      ...p,
+      { kind: "user", text: shown, attachments, ts: Date.now() / 1000, ...(isRunningRef.current ? { steer: true } : {}) },
+    ]);
+    // The visible model rides along with the message (single source of truth per turn).
+    sessionRef.current?.userMessage(text, attachments, model, skill);
+    followLatest(); // sending always re-engages stream-following, wherever the user had scrolled
+  };
+  // Resolving a LIVE prompt also resolves its parked Inbox mirror server-side, but the polled
+  // `sessionInbox` copy stays "pending" for up to a poll cycle — long enough for the docked
+  // answer-in-context card to flash the SAME request again right after the user answered it
+  // (tester catch 2026-07-12: a Slack send "asked twice"). Drop the mirror optimistically;
+  // the 4s poll restores anything genuinely still pending.
+  const dropSessionInbox = (kind: string) =>
+    setSessionInbox((cur) => cur.filter((it) => it.kind !== kind));
+  // ChatGPT's "continue in the main thread": a side conversation is where a plan gets
+  // refined, but the work still belongs to the task conversation. Carry the conclusion
+  // over as an EDITABLE PREFILL — never an automatic send. What was discussed is context
+  // for the next turn, not a command, and silently firing a turn on the user's behalf
+  // would take the decision out of their hands.
+  const sendToMain = (text: string) => {
+    const quoted = text
+      .split(/\r?\n/)
+      .map((line) => (line.trim() ? "> " + line : ">"))
+      .join("\n")
+      .slice(0, 4000);
+    prefillComposer(quoted + "\n\n", undefined);
+  };
+  // The sidebar row version of the same gesture: carry the CONCLUSION of a side
+  // conversation — its last assistant answer — into the task conversation. Read from the
+  // persisted thread rather than the live transcript, because that conversation is not
+  // open; a row with no answer yet carries nothing and says nothing rather than
+  // prefilling an empty quote.
+  const carryToTask = (id: string) => {
+    void getSessionMessages(id)
+      .then((messages) => {
+        const last = [...messages].reverse().find((m) => m.role === "assistant" && m.content);
+        const text = typeof last?.content === "string" ? last.content.trim() : "";
+        if (text) sendToMain(text);
+      })
+      .catch(() => {});
+  };
+  const approve = (decision: ApprovalDecision) => {
+    const decided = [...items].reverse().find((i) => i.kind === "approval" && !i.resolved);
+    if (decided?.kind === "approval") {
+      const record: Item = { ...decided, resolved: decision };
+      setApprovalLog((log) => ({ ...log, [sessionId]: [...(log[sessionId] ?? []), record] }));
+    }
+    setItems((p) => resolveLastApproval(p, decision));
+    dropSessionInbox("approval");
+    sessionRef.current?.approve(decision);
+  };
+  const respondPlan = (isApproved: boolean, mode?: string, feedback?: string) => {
+    setItems((p) => resolveLastPlan(p, isApproved ? "approved" : "rejected"));
+    dropSessionInbox("plan");
+    sessionRef.current?.respondPlan(isApproved, mode, feedback);
+    if (isApproved && mode) setMode(mode); // the server flips the live engine to this mode
+  };
+  const respondDirectory = (isGranted: boolean, path?: string, isWritable?: boolean) => {
+    setItems((p) => resolveDirRequest(p, isGranted ? "granted" : "denied"));
+    dropSessionInbox("directory");
+    sessionRef.current?.respondDirectory(isGranted, path, isWritable);
+  };
+  const answerQuestion = (answer: string) => {
+    setItems((p) => resolveLastQuestion(p, answer));
+    dropSessionInbox("question");
+    sessionRef.current?.respondQuestion(answer);
+  };
+  const prefillComposer = (text: string, attachments?: Attachment[]) =>
+    setComposerPrefill((p) => ({ text, attachments, nonce: (p?.nonce ?? 0) + 1 }));
+  // Stop answers at once ("Stopping…") and never fails silently: if the runtime says nothing was
+  // running, the view was stale, so settle it from the stored thread; if the request itself
+  // failed, say so instead of leaving a button that appears to do nothing.
+  const interrupt = async () => {
+    const session = sessionRef.current;
+    const targetSessionId = sessionId;
+    if (!session || isStopping) return;
+    setStopping(true);
+    stoppedByUserRef.current = targetSessionId;
+    const result = await session.interrupt();
+    if (foregroundSessionIdRef.current !== targetSessionId) return;
+    if (!result.ok) {
+      setStopping(false);
+      setComposerNotice(tr("composer.stopFailed"));
+    } else if (result.cancelled === false) {
+      setStopping(false);
+      setRunning(false);
+      getSessionMessages(targetSessionId)
+        .then((ms) => {
+          if (foregroundSessionIdRef.current === targetSessionId) setItems(itemsFromMessages(ms));
+        })
+        .catch(() => {});
+    }
+  };
+  // Ask the runtime whether the interrupted run can resume, only while the transcript ends in an
+  // "Interrupted." notice and nothing is running. A failed ask shows no button.
+  const hasInterruptedTail = interruptedAnchor(items) !== -1;
+  useEffect(() => {
+    if (!sessionId || isRunning || !hasInterruptedTail) {
+      setCanResume(false);
+      return;
+    }
+    let isCurrent = true;
+    getResumable(sessionId)
+      .then((isResumable) => {
+        if (isCurrent) setCanResume(isResumable);
+      })
+      .catch(() => {
+        if (isCurrent) setCanResume(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [sessionId, isRunning, hasInterruptedTail]);
+  const resume = () => {
+    setCanResume(false);
+    setRunning(true); // turn_start confirms; a refused resume still ends in turn_done
+    sessionRef.current?.resume();
+  };
+  const retry = () => {
+    // Optimistic running: turn_start confirms; a rejected retry still ends in turn_done.
+    setRunning(true);
+    sessionRef.current?.retry();
+  };
+  const changeMode = (m: string) => {
+    setMode(m);
+    sessionRef.current?.setMode(m);
+  };
+  const changeModel = (m: string) => {
+    if (isRunning) return; // the server refuses mid-turn rebinds — don't let the header lie
+    setModel(m);
+    sessionRef.current?.setModel(m);
+  };
+
+  const startNewSession = () => {
+    setSurface("session"); // return to the conversation view if we were on a sub-view
+    setItems([]);
+    setUsage(emptyUsage());
+    setStreaming("");
+    setTodo([]);
+    setRunning(false);
+    // Every task gets its own native workspace. The runtime adopts/provisions it on connect.
+    setWorkspace(null);
+    setBranch(null);
+    activateSession(newId());
+  };
+  newTaskRef.current = startNewSession;
+  // Inbox → task: the item carries its native workspace, so open it directly.
+  // Scheduled runs show a five-second toast via /ws/events; View run opens the live session.
+  const [runToast, setRunToast] = useState<{
+    title: string; sessionId: string; workspace: string; time: string;
+  } | null>(null);
+  useEffect(() => {
+    const stop = connectEvents((msg) => {
+      if (msg.type !== "automation_run_started") return;
+      const d = msg.payload as Record<string, string>;
+      setRunToast({
+        title: d.task_title || "Automation",
+        sessionId: d.session_id || "",
+        workspace: d.workspace || "",
+        time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+      });
+      announceAutomationsChanged(); // the Scheduled band's badge is now stale
+    });
+    return stop;
+  }, []);
+  useEffect(() => {
+    if (!runToast) return;
+    const t = window.setTimeout(() => setRunToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [runToast]);
+
+  // MEMORY-SPEC §5.1: undo a write the transcript just announced. A new memory is
+  // deleted; an EDIT is rolled back to its previous text (deleting there would throw
+  // away whatever the memory already held). The notice confirms in place either way.
+  const undoMemorySave = async (id: number, previous?: string) => {
+    if (previous) await updateMemory(id, previous).catch(() => {});
+    else await deleteMemory(id).catch(() => {});
+    announceMemoryChanged();
+    setItems((p) =>
+      p.map((it) => (it.kind === "memory" && it.id === id ? { ...it, undone: true } : it)),
+    );
+  };
+
+  // opencode-style revert: truncate the conversation from this user message onward,
+  // then prefill the composer with the original text for editing & re-send.
+  const editMessage = async (index: number) => {
+    if (!sessionId) return;
+    const targetSessionId = sessionId;
+    // A run in progress owns the thread: editing means stopping it first, and only a stopped
+    // run can be cut back.
+    if (isRunningRef.current) {
+      await interrupt();
+      for (let waited = 0; isRunningRef.current && waited < 5000; waited += 100) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (isRunningRef.current || foregroundSessionIdRef.current !== targetSessionId) return;
+    }
+    const r = await revertSession(sessionId, index).catch(
+      (): { ok: false; error: string; text?: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (!r.ok || foregroundSessionIdRef.current !== targetSessionId) return;
+    if (r.text) prefillComposer(r.text);
+    const messages = await getSessionMessages(targetSessionId);
+    if (foregroundSessionIdRef.current === targetSessionId) setItems(itemsFromMessages(messages));
+  };
+
+  // Regenerate the last reply: the same revert as Edit (the thread is cut back to before the
+  // user message), then the original text is sent again with its attachments, so the runtime
+  // produces a fresh answer through the normal run path. No new runtime semantics.
+  const regenerateReply = async (index: number, attachments?: Attachment[]) => {
+    if (!sessionId || isRunning) return;
+    const targetSessionId = sessionId;
+    const r = await revertSession(sessionId, index).catch(
+      (): { ok: false; error: string; text?: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (!r.ok || !r.text || foregroundSessionIdRef.current !== targetSessionId) return;
+    const messages = await getSessionMessages(targetSessionId);
+    if (foregroundSessionIdRef.current !== targetSessionId) return;
+    setItems(itemsFromMessages(messages));
+    send(r.text, attachments);
+  };
+
+  // Branch in a new conversation: copy this thread up to the chosen answer into a new session and
+  // open it. The original is left as it was; the branch shares its workspace and model.
+  const branchFromAnswer = async (index: number) => {
+    if (!sessionId || isRunning) return;
+    const sourceId = sessionId;
+    const sourceTitle = sessions.find((s) => s.session_id === sourceId)?.title || tr("nav.newSession");
+    const branchTitle = nextBranchTitle(
+      sourceTitle,
+      sessions.map((s) => s.title || ""),
+      (title, n) => tr("transcript.branchTitle", { title, n }),
+    );
+    const result = await branchSession(sourceId, index, branchTitle).catch(
+      (): { ok: false; error: string; session_id?: string; workspace?: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (foregroundSessionIdRef.current !== sourceId) return;
+    if (!result.ok || !result.session_id) {
+      setItems((p) => [
+        ...p,
+        { kind: "notice", tone: "warn", text: tr("transcript.branchFailed", { error: result.error || "unknown" }) },
+      ]);
+      return;
+    }
+    refreshSessions();
+    await selectSession(result.session_id, result.workspace ?? "");
+  };
+
+  // Undo the files the last request wrote as one. The files change on disk, so the artifact list
+  // is read again.
+  const undoFiles = async (runId: string): Promise<UndoFilesResult> => {
+    const result = await undoRunFiles(sessionId, runId).catch(
+      (): UndoFilesResult => ({ ok: false, error: "unreachable" }),
+    );
+    setBrowserRefreshKey((k) => k + 1);
+    return result;
+  };
+
+  // Put back the version of a file the agent replaced; null when it worked, else the reason.
+  const restoreVersion = async (backup: string, target: string): Promise<string | null> => {
+    const result = await restoreFileVersion(sessionId, backup, target).catch(
+      (): { ok: false; error: string } => ({ ok: false, error: "unreachable" }),
+    );
+    if (!result.ok) return result.error || tr("transcript.restoreFailed");
+    setBrowserRefreshKey((k) => k + 1);
+    return null;
+  };
+
+  const openInboxSession = (sid: string, ws: string) => selectSession(sid, ws);
+  // A finished automation's notice links to a file: open the run's session, then the file in it.
+  const [pendingArtifact, setPendingArtifact] = useState<{ sessionId: string; path: string } | null>(null);
+  const openInboxArtifact = (sid: string, ws: string, path: string) => {
+    setPendingArtifact({ sessionId: sid, path });
+    setRailHidden(false);
+    void selectSession(sid, ws);
+  };
+  useEffect(() => {
+    if (!pendingArtifact || surface !== "session" || sessionId !== pendingArtifact.sessionId || isRailHidden) return;
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent(OPEN_ARTIFACT_EVENT, { detail: { path: pendingArtifact.path } }));
+      setPendingArtifact(null);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [pendingArtifact, surface, sessionId, isRailHidden]);
+  const selectSession = async (id: string, ws: string) => {
+    setSurface("session"); // selecting a conversation always returns to the conversation view
+    setTodo([]);
+    setStreaming("");
+    setRunning(false);
+    // A turn keeps running while the user is elsewhere. Ask the runtime up front so the
+    // composer shows Stop and the stream keeps following the instant the view lands —
+    // `onOpen` confirms it a moment later, and the 5s poll corrects either answer.
+    getRuntimeState(id)
+      .then(({ active }) => {
+        if (foregroundSessionIdRef.current === id && active) setRunning(true);
+      })
+      .catch(() => {});
+    if (ws && ws !== workspace) {
+      setWorkspace(ws); // switch project to the session's folder
+      setBranch(null);
+    } else if (!ws) {
+      setWorkspace(null);
+      setBranch(null);
+    }
+    activateSession(id);
+    try {
+      const messages = await getSessionMessages(id);
+      if (foregroundSessionIdRef.current !== id) return;
+      setItems(itemsFromMessages(messages));
+      setUsage(usageFromMessages(messages));
+    } catch {
+      if (foregroundSessionIdRef.current !== id) return;
+      setItems([]);
+      setUsage(emptyUsage());
+    }
+  };
+  const renameConversation = async (id: string, title: string) => {
+    const res = await renameSession(id, title);
+    if (res.ok) refreshSessions();
+  };
+  const togglePinned = async (id: string, isPinned: boolean) => {
+    await setSessionFlags(id, { pinned: isPinned });
+    refreshSessions();
+  };
+  const setSessionReasoning = async (id: string, effort: string) => {
+    const result = await setReasoningEffort(id, effort);
+    if (!result.ok) return;
+    const saved = result.reasoning_effort || effort;
+    setReasoningOverrides((current) => ({ ...current, [id]: saved }));
+    // PATCH is authoritative for the current source tree. Reflect it immediately instead
+    // of waiting for the poll; the later refresh verifies persistence from the server.
+    setSessions((current) => {
+      if (!current.some((session) => session.session_id === id)) return current;
+      return current.map((session) =>
+        session.session_id === id ? { ...session, reasoning_effort: saved } : session,
+      );
+    });
+    void refreshSessions();
+  };
+  const toggleArchived = async (id: string, isArchived: boolean) => {
+    await setSessionFlags(id, { archived: isArchived });
+    refreshSessions();
+    // Archiving the open chat: leave it and start fresh (it moves to the Archived section).
+    if (isArchived && id === sessionId) {
+      setItems([]);
+      setUsage(emptyUsage());
+      setStreaming("");
+      setTodo([]);
+      setRunning(false);
+      activateSession(newId());
+    }
+  };
+  const deleteConversation = async (id: string) => {
+    const res = await deleteSession(id);
+    if (!res.ok) return;
+    refreshSessions();
+    if (id === sessionId) {
+      setItems([]);
+      setUsage(emptyUsage());
+      setStreaming("");
+      setTodo([]);
+      setRunning(false);
+      activateSession(newId());
+    }
+  };
+
+  // "Run now": prepare a manual run, open its session, and auto-send the task so the agent
+  // runs LIVE in the main view; finalize it in history once the first turn finishes.
+  const openRunSession = (
+    sessionId: string,
+    ws: string,
+    task?: { id: string; title: string },
+  ) => {
+    setRunContext(task ?? null);
+    setSurface("session");
+    selectSession(sessionId, ws);
+  };
+  const runTaskNow = async (taskId: string, title?: string) => {
+    const r = await runAutomation(taskId);
+    if (!r || !r.ok) return;
+    pendingPromptRef.current = r.prompt;
+    activeRunRef.current = { taskId, runId: r.run_id, sessionId: r.session_id };
+    openRunSession(r.session_id, r.workspace, { id: taskId, title: title || "" });
+  };
+
+  const idle = items.length === 0 && !streaming;
+  const pendingApproval = [...items].reverse().find((i) => i.kind === "approval" && !i.resolved);
+  // The dialog takes the consequential approvals on the conversation surface; all others stay inline.
+  const modalApproval =
+    surface === "session" && !isUnattended && pendingApproval?.kind === "approval" && usesApprovalModal(pendingApproval, { egressLevel, importantOps })
+      ? pendingApproval
+      : undefined;
+  const pendingDirReq = [...items].reverse().find((i) => i.kind === "dirreq" && !i.resolved);
+  const pendingPlan = [...items].reverse().find((i) => i.kind === "planreq" && !i.resolved);
+  const pendingQuestion = [...items].reverse().find((i) => i.kind === "question" && !i.resolved);
+  const isAwaitingUser = !!(pendingApproval || pendingDirReq || pendingPlan || pendingQuestion);
+  const activeInfo = sessions.find((s) => s.session_id === sessionId);
+  const activeTitle = activeInfo?.title || tr("nav.newSession");
+
+  // The right rail is only laid out on the session surface, and only while it is not hidden.
+  const railVisible = surface === "session" && !isRailHidden;
+  // The width the right rail takes now: the artifact panel's own width, or the rail's.
+  const railPx = isArtifactOpen ? (artifactRailWidth ?? window.innerWidth * 0.62) : railWidth;
+  const railCssWidth = isArtifactOpen && artifactRailWidth === null ? "62vw" : `${railPx}px`;
+  // Each side column may grow until the other one plus the centre column's minimum fill the window.
+  const maxNavWidth = () => window.innerWidth - (railVisible ? railPx : 0) - CENTER_MIN_WIDTH;
+  const maxRailWidth = () => window.innerWidth - (navCollapsed ? 0 : navWidth) - CENTER_MIN_WIDTH;
+
+  const desktop = isTauri();
+  // Dev-only: `?overlay=1` simulates the desktop overlay layout in the browser (adds the
+  // tauri-overlay class + draws fake traffic lights at the real position) so the top-left can be
+  // tuned in the preview without a DMG build. Never active in the real app (isTauri() short-circuits).
+  const simOverlay = !desktop && new URLSearchParams(window.location.search).has("overlay");
+  // The macOS title-bar overlay needs insets; native Windows/Linux bars do not.
+  const overlay = shouldShowOverlay(desktop, platformOS(), simOverlay);
+  const beginWindowDrag = (event: PointerEvent) => {
+    if (!desktop || event.button !== 0) return;
+    startWindowDrag();
+  };
+
+  if (isBooting || !isUiReady) {
+    return (
+      <div className={"app boot-splash" + (overlay ? " tauri-overlay" : "")}>
+        {/* overlay (not desktop): ?overlay=1 previews the splash's top-left in the browser
+            too — the wordmark/traffic-light alignment is exactly what it exists to tune. */}
+        {overlay && (
+          <div className="titlebar-drag" data-tauri-drag-region>
+            <span className="titlebar-brand brand-wordmark">
+              <Icon name="logo" size={13} className="mark" /> Delta
+            </span>
+          </div>
+        )}
+        {simOverlay && (
+          <div className="sim-traffic-lights" aria-hidden="true">
+            <span /><span /><span />
+          </div>
+        )}
+        {/* The real Delta mark (6-point star, same as the app/tray icon) — the old
+            ✦ text glyph was a 4-point sparkle that read as another product's logo. */}
+        <div className="boot-mark">
+          <Icon name="logo" size={38} />
+        </div>
+        <div className="boot-text">
+          {/* The splash renders before <I18nProvider>, so it resolves straight from the
+              locale dictionaries (same pattern as the `tr` shell helper above). */}
+          {hasResumedExisting ? tr("boot.restoring") : tr("boot.starting")}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <I18nProvider locale={locale} onLocaleChange={setLocale}>
+      <WorkspaceContext.Provider value={workspace}>
+    <div
+      className={
+        "app" +
+        (overlay ? " tauri-overlay" : "") +
+        (navCollapsed ? " nav-collapsed" : "") +
+        (navCollapsed && isNavPeek ? " nav-peek" : "")
+      }
+      style={{ "--nav-w": `${navWidth}px`, "--rail-w": railCssWidth } as CSSProperties}
+    >
+      {/* Dev-only fake traffic lights so ?overlay=1 previews the real desktop top-left. */}
+      {simOverlay && (
+        <div className="sim-traffic-lights" aria-hidden="true">
+          <span /><span /><span />
+        </div>
+      )}
+      {/* Desktop-only auto-update prompt (15s after boot, then every 30 min; inert in browser).
+          Gated off while no updater feed is published (see UPDATER_FEED_PUBLISHED). */}
+      {UPDATER_FEED_PUBLISHED && <UpdateBanner />}
+      {/* UX-026: automation-start toast — quiet panel, neutral dot/drain, accent only
+          on the action (rev 2); auto-dismisses with the 5s drain bar. */}
+      {runToast && (
+        <div
+          className="fixed top-3 right-3 z-[45] w-[290px] bg-panel border border-line rounded-xl shadow-lg px-3.5 pt-3 pb-2.5"
+          data-testid="automation-toast"
+        >
+          <div className="flex items-center gap-2 text-[12.5px] font-semibold">
+            <span className="w-[7px] h-[7px] rounded-full bg-faint toast-pulse" />
+            Automation started
+          </div>
+          <div className="text-[12.5px] text-muted mt-0.5 ml-[15px] truncate">
+            {runToast.title} · {runToast.time} run
+          </div>
+          <div className="flex items-center justify-between ml-[15px] mt-1.5">
+            <button
+              className="text-[12.5px] text-primary font-medium"
+              data-testid="toast-view-run"
+              onClick={() => {
+                selectSession(runToast.sessionId, runToast.workspace);
+                setRunToast(null);
+              }}
+            >
+              View run ›
+            </button>
+            <button
+              className="text-[12px] text-faint px-0.5"
+              data-testid="toast-dismiss"
+              title={tr("common.dismiss")}
+              onClick={() => setRunToast(null)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="absolute left-3 right-3 bottom-1 h-[2px] rounded bg-line overflow-hidden">
+            <span className="block h-full bg-faint toast-drain" />
+          </div>
+        </div>
+      )}
+      {/* When collapsed, a thin left-edge zone peeks the nav back as a floating overlay. */}
+      {navCollapsed && (
+        <div
+          className="nav-hover-zone"
+          onMouseEnter={() => setNavPeek(true)}
+          aria-hidden="true"
+        />
+      )}
+      {/* Edge tabs: one handle on each side panel's edge, the same spot to close and to reopen. The right tab is the single task-panel entry (§32). */}
+      <EdgeTab
+        side="left"
+        isExpanded={!navCollapsed}
+        label={navCollapsed ? tr("common.showSidebar") : tr("common.hideSidebar")}
+        onClick={toggleNav}
+        onMouseEnter={navCollapsed ? () => setNavPeek(true) : undefined}
+        testId="edge-tab-nav"
+      />
+      {surface === "session" && (
+        <EdgeTab
+          side="right"
+          isExpanded={!isRailHidden}
+          label={isRailHidden ? tr("common.showSidePanel") : tr("common.hideSidePanel")}
+          onClick={() => setRailHidden((hidden) => !hidden)}
+          testId="edge-tab-rail"
+        />
+      )}
+      {isEgressUnchosen && !isOnboarding && <EgressChoice onChosen={() => setEgressUnchosen(false)} />}
+      {isOnboarding && (
+        <Onboarding
+          onDone={(next) => {
+            setOnboarding(false);
+            getHealth().then((h) => setModel(h.model)).catch(() => {});
+            loadSettings(); // pick up a model connected during setup (clears the composer chip)
+            if (next === "automations") {
+              // "Create your first automation" opens the Automations quickstart.
+              setSurface("scheduled");
+            } else if (next === "work") {
+              // "Start working" opens a fresh session with the rail's
+              // Access section expanded. Bump after the session switch settles.
+              startNewSession();
+              setTimeout(openAccess, 80);
+            }
+          }}
+        />
+      )}
+      <Sidebar
+        sessions={sessions}
+        activeSession={sessionId}
+        onSelectSession={selectSession}
+        onRenameSession={renameConversation}
+        onDeleteSession={deleteConversation}
+        onArchiveSession={toggleArchived}
+        onTogglePin={togglePinned}
+        onSetReasoningEffort={setSessionReasoning}
+        onCarryToTask={carryToTask}
+        onManage={() => openSettings("appearance")}
+        onOpenScheduled={() => setSurface("scheduled")}
+        onOpenAutomation={(id) => {
+          setScheduledOpenId(id);
+          setSurface("scheduled");
+        }}
+        onOpenIntegrations={() => setSurface("integrations")}
+        onOpenAudit={() => setSurface("audit")}
+        onOpenInbox={() => setSurface("inbox")}
+        onOpenStatistics={() => setSurface("statistics")}
+        onNewSession={startNewSession}
+        conversationActive={surface === "session"}
+        scheduledActive={surface === "scheduled"}
+        integrationsActive={surface === "integrations"}
+        auditActive={surface === "audit"}
+        statisticsActive={surface === "statistics"}
+        inboxActive={surface === "inbox"}
+        collapsed={navCollapsed}
+        onPeekLeave={() => setNavPeek(false)}
+        onResize={setNavWidth}
+        resizeMaxWidth={maxNavWidth}
+      />
+      {surface === "scheduled" ? (
+        <ScheduledView
+          onOpenRun={openRunSession}
+          onRunNow={runTaskNow}
+          initialOpenId={scheduledOpenId}
+        />
+      ) : surface === "integrations" ? (
+        <IntegrationsView />
+      ) : surface === "settings" ? (
+        <SettingsView
+          initialTab={settingsTab}
+          onCreateSkill={(description) => {
+            // The Skills doorway (SKILLS-SPEC §5.2): creation is a conversation. Fresh
+            // session, description in the composer — the user reads and hits send. With
+            // no description, the prefill invites them to finish the sentence there.
+            startNewSession();
+            prefillComposer(
+              description
+                ? `Build a new skill for me: ${description}`
+                : "Build a new skill for me: (describe what the skill should do)",
+            );
+          }}
+        />
+      ) : surface === "audit" ? (
+        <AuditView onOpenSession={(sid) => selectSession(sid, sessions.find((s) => s.session_id === sid)?.workspace ?? "")} />
+      ) : surface === "statistics" ? (
+        <StatisticsView workspace={sessions.find((s) => s.session_id === sessionId)?.workspace || undefined} />
+      ) : surface === "inbox" ? (
+        <InboxView onOpenSession={openInboxSession} onOpenArtifact={openInboxArtifact} />
+      ) : (
+      <div className={"main" + (surface === "session" && !isRailHidden ? " rail-open" : "")}>
+        <div className="main-topbar">
+          {/* Left: the contextual cluster — [+ new session] — rendered ONLY while the sidebar is
+              collapsed (§22; the expanded sidebar already owns that action). The sidebar toggle
+              is the left edge tab. Clicks must not start a window drag. */}
+          <div className="main-topbar-side" onPointerDown={beginWindowDrag}>
+            {navCollapsed && (
+              <div
+                className="flex items-center gap-1"
+                data-testid="topbar-cluster"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="topbar-icon-btn"
+                  onClick={() => startNewSession()}
+                  aria-label={tr("nav.conversations")}
+                  title={tr("nav.conversations")}
+                >
+                  <Icon name="plus" size={16} />
+                </button>
+              </div>
+            )}
+            {/* §32: no session-settings row up here anymore — the §23 rest/hover/click glance
+                machinery retired with the drawer. "What can this touch" lives permanently on
+                the rail's Access section header; the panel toggle is the one entry. */}
+          </div>
+          {/* Center: the session title only. With the sidebar collapsed it remains the sole
+              session identifier; model controls stay in the composer. */}
+          <div className="main-title" onPointerDown={beginWindowDrag}>
+            <span
+              className={"main-title-text" + (activeInfo ? "" : " title-ghost")}
+              title={activeTitle}
+            >
+              {activeTitle}
+            </span>
+          </div>
+          {/* Right: empty drag surface. The side-panel toggle is the right edge tab (§32), the one
+              entry; global search lives in the sidebar. Model and mode controls stay in the
+              composer (§22). */}
+          <div className="main-topbar-side main-topbar-actions" onPointerDown={beginWindowDrag}>
+          </div>
+        </div>
+        <div className={"main-workspace" + (isRailHidden ? " rail-hidden" : "")}>
+          <div className="main-chat">
+            {/* Automation-run context (owner ask 2026-07-04): a __run__ session looked like any
+                other chat with no way back to the runs list. Lives INSIDE the chat column (which
+                is padded to clear the absolute glass topbar — rendering above .main-workspace put
+                it underneath the topbar; owner-reported CSS bug). */}
+            {sessionId.startsWith("__run__") && (
+              <div
+                className="flex items-center gap-2 px-4 py-2 mb-1 rounded-lg text-[12.5px] border border-line bg-selected/40"
+                data-testid="run-banner"
+              >
+                <Icon name="clock" size={14} className="text-primary shrink-0" />
+                <span className="truncate text-muted">
+                  Scheduled run
+                  {runContext?.title ? (
+                    <>
+                      {" — "}
+                      <span className="text-ink font-medium">{runContext.title}</span>
+                    </>
+                  ) : null}{" "}
+                  · started by an automation
+                </span>
+                <button
+                  className="ml-auto shrink-0 text-primary font-medium hover:underline"
+                  onClick={() => {
+                    if (runContext) setScheduledOpenId(runContext.id);
+                    setSurface("scheduled");
+                  }}
+                >
+                  ← Back to runs
+                </button>
+              </div>
+            )}
+            <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
+              {idle ? (
+                <SessionIntro onPick={(text) => prefillComposer(text)} />
+              ) : (
+                <>
+                  <Transcript
+                    items={items}
+                    onApprove={approve}
+                    running={isRunning}
+                    liveReasoning={isRunning ? reasoningStream : undefined}
+                    onRetry={retry}
+                    onSwitchModel={openModelSetup}
+                    onSaveAsSkill={() => send(tr("skill.savePrompt"))}
+                    onRestoreVersion={restoreVersion}
+                    canResume={canResume}
+                    onResume={resume}
+                    onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
+                    onEditMessage={(index) => void editMessage(index)}
+                    onRegenerate={(index, attachments) => void regenerateReply(index, attachments)}
+                    onSendToMain={sendToMain}
+                    onBranch={(index) => void branchFromAnswer(index)}
+                    onUndoFiles={undoFiles}
+                    // §33 ref #3: sub-threshold streamed text renders INSIDE the live turn
+                    // group (header when collapsed, quiet line when expanded) — never as a
+                    // floating paragraph.
+                    streamingText={streamMode(streaming, items, isRunning) === "quiet" ? streaming : undefined}
+                  />
+                  {/* Compaction runs between provider turns (nothing streams during it), so
+                      the transient takes over the waiting slot with a specific label. */}
+                  {isRunning && isCompacting && (
+        <WaitingForAgent label={tr("transcript.compacting")} />
+      )}
+                  {isRunning &&
+                    !isCompacting &&
+                    !reasoningStream &&
+                    (!streaming || streamMode(streaming, items, isRunning) === "hold") &&
+                    !isLastAssistant(items) && (
+                      <LiveRunStatus
+                        startedAt={turnStartedAt}
+                        retry={retryInfo}
+                        isAwaitingUser={isAwaitingUser}
+                        isStopping={isStopping}
+                        step={stepInfo}
+                      />
+                    )}
+                  {streaming && streamMode(streaming, items, isRunning) === "answer" && (
+                    <div className="transcript">
+                      <div className="bubble-assistant">
+                        <Markdown text={streaming} />
+                        <span className="stream-cursor">▍</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Scrolled up while the transcript is still growing → offer the way back down.
+                Zero-height strip keeps the pill floating over the scroll area, above the
+                composer, without reserving layout space. */}
+            {!isFollowing && (isRunning || !!streaming) && (
+              <div className="relative h-0 z-10">
+                <button
+                  className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2.5 py-1 rounded-full border border-line bg-panel shadow-sm text-[12px] text-muted hover:text-ink cursor-pointer whitespace-nowrap"
+                  data-testid="jump-to-latest"
+                  onClick={followLatest}
+                >
+                  <Icon name="chevronDown" size={13} />
+                  {tr("transcript.jumpToLatest")}
+                </button>
+              </div>
+            )}
+
+            <TraceLogsPanel traces={artifactTraces[sessionId] ?? []} />
+
+            <Composer
+              mode={mode}
+              model={model}
+              models={models}
+              modelLabels={modelLabels}
+              running={isRunning}
+              connected={isConnected}
+              modelReady={isModelReady}
+              onConnectModel={openModelSetup}
+              onConfigureVoiceInput={() => openSettings("voice")}
+              onSend={send}
+              onInterrupt={() => void interrupt()}
+              isStopping={isStopping}
+              onModeChange={changeMode}
+              onModelChange={changeModel}
+              reasoningEffort={
+                reasoningOverrides[sessionId] ||
+                sessions.find((session) => session.session_id === sessionId)?.reasoning_effort ||
+                "auto"
+              }
+              onReasoningEffortChange={(effort) => void setSessionReasoning(sessionId, effort)}
+              externalNotice={composerNotice}
+              onExternalNoticeDismiss={() => setComposerNotice(null)}
+              sessionId={sessionId}
+              workspace={workspace || ""}
+              unattended={isUnattended}
+              onUnattendedChange={toggleUnattended}
+              prefill={composerPrefill}
+              resetKey={sessionId}
+              usage={usage}
+              contextWindow={modelContextWindows[model]}
+              contextBar={hasContextBar}
+              placeholder={tr("composer.placeholderDelta")}
+              queue={queue}
+              onQueue={queueMessage}
+              onQueueRemove={removeQueued}
+              onQueueInterject={interjectQueued}
+              approvalSlot={
+                // Live inline cards are for ATTENDED sessions only; when Unattended the prompt is
+                // parked in the Inbox and surfaced via the answer-in-context card below.
+                !isUnattended && pendingPlan?.kind === "planreq" ? (
+                  <PlanCard item={pendingPlan} onRespond={respondPlan} />
+                ) : !isUnattended && pendingDirReq?.kind === "dirreq" ? (
+                  <DirectoryRequestCard item={pendingDirReq} onRespond={respondDirectory} />
+                ) : !isUnattended && pendingApproval?.kind === "approval" && !modalApproval ? (
+                  <ApprovalCard item={pendingApproval} onApprove={approve} runTask={runContext} compact />
+                ) : !isUnattended && pendingQuestion?.kind === "question" ? (
+                  // Live ask_user in an attended session — answer inline (reuses the Inbox card UI).
+                  <InboxItemCard
+                    item={{
+                      id: "live-question",
+                      session_id: sessionId,
+                      kind: "question",
+                      title: pendingQuestion.question,
+                      body: "",
+                      state: "pending",
+                      resolution: null,
+                      inbox: "default",
+                      created_at: "",
+                      resolved_at: null,
+                      options: pendingQuestion.options,
+                      allow_text: pendingQuestion.allow_text,
+                      multi: pendingQuestion.multi,
+                      header: pendingQuestion.header,
+                      questions: pendingQuestion.questions,
+                    }}
+                    onResolve={(_id, answer) => answerQuestion(answer)}
+                    compact
+                  />
+                ) : sessionInbox[0] ? (
+                  // Unattended session blocked on an Inbox item — answer it in context.
+                  <InboxItemCard item={sessionInbox[0]} onResolve={resolveSessionInbox} compact />
+                ) : undefined
+              }
+            />
+                  </div>
+          <RightRail
+            active={surface === "session" && !isRailHidden}
+            sessionId={sessionId}
+            refreshKey={browserRefreshKey}
+            toolNames={turnToolNames(items)}
+            todo={todo}
+            running={isRunning}
+            items={items}
+            usage={usage}
+            onPreviewChange={onArtifactPreview}
+            showArtifacts
+            branch={branch}
+            scratchPrimary
+            openAccessKey={accessKey}
+            onOpenIntegrations={() => setSurface("integrations")}
+            approvals={[...(approvalLog[sessionId] ?? []), ...items.filter((i) => i.kind === "approval" && !i.resolved)]}
+            onResize={(width) => (isArtifactOpen ? setArtifactRailWidth(width) : setRailWidth(width))}
+            resizeMaxWidth={maxRailWidth}
+          />
+        </div>
+      </div>
+      )}
+
+      {modalApproval && (
+        <ApprovalModal key={items.indexOf(modalApproval)} item={modalApproval} onApprove={approve} />
+      )}
+
+      {workspaceTrustRequest && (
+        <WorkspaceTrustPrompt
+          request={workspaceTrustRequest}
+          onClose={() => setWorkspaceTrustRequest(null)}
+        />
+      )}
+    </div>
+      </WorkspaceContext.Provider>
+    </I18nProvider>
+  );
+}
+
+function isLastAssistant(items: Item[]): boolean {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item.kind === "notice") continue;
+    return item.kind === "assistant";
+  }
+  return false;
+}
+
+// The foot of a running transcript: how long the turn has run, over a hairline, then what it is
+// waiting on: the user's decision, a provider retry (with its attempt count), the step the agent is
+// on, or the agent itself. It is the one place the run's state is written out; the composer's
+// button says Stop or Stopping.
+function LiveRunStatus({
+  startedAt,
+  retry,
+  isAwaitingUser,
+  isStopping,
+  step,
+}: {
+  startedAt: number | null;
+  retry: { attempt: number; max: number } | null;
+  isAwaitingUser: boolean;
+  isStopping: boolean;
+  step: { label: string } | null;
+}) {
+  const { t } = useI18n();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  const minutes = Math.floor(seconds / 60);
+  const elapsed =
+    minutes > 0
+      ? t("run.elapsed.minutes", { m: minutes, s: seconds % 60 }, `${minutes}m ${seconds % 60}s`)
+      : t("run.elapsed.seconds", { s: seconds }, `${seconds}s`);
+  return (
+    <div
+      className="live-run-status"
+      aria-live="polite"
+      data-testid="live-run-status"
+      data-run-state={isAwaitingUser ? "awaiting" : "running"}
+    >
+      <div className={"waiting-row live-run-line" + (retry && !isAwaitingUser ? " live-run-retry" : "")}>
+        {isAwaitingUser ? <Icon name="hand" size={14} /> : <span className="spinner" aria-hidden="true" />}
+        <span>
+          {isAwaitingUser
+            ? t("run.detail.awaiting", undefined, "Waiting for your decision")
+            : retry
+              ? t("run.detail.retrying", { n: retry.attempt, max: retry.max }, `Request failed · retrying (${retry.attempt}/${retry.max})`)
+              : isStopping
+                ? t("run.detail.stopping", undefined, "Stopping…")
+                : step
+                  ? step.label
+                  : t("transcript.waitingForAgent", undefined, "Waiting for agent…")}
+        </span>
+        {startedAt && (
+          <span className="live-run-elapsed">· {t("run.takenTime", { time: elapsed }, `${elapsed} elapsed`)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WaitingForAgent({ label }: { label?: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="waiting-transcript">
+      <div className="waiting-row" aria-live="polite">
+        <span>{label || t("transcript.waitingAgent", undefined, "Thinking…")}</span>
+        <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
+      </div>
+    </div>
+  );
+}
+
+function resolveLastApproval(items: Item[], decision: ApprovalDecision): Item[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i >= 0; i--) {
+    const it = copy[i];
+    if (it.kind === "approval" && !it.resolved) {
+      copy[i] = { ...it, resolved: decision };
+      break;
+    }
+  }
+  return copy;
+}
+
+function resolveDirRequest(items: Item[], resolved: "granted" | "denied"): Item[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i >= 0; i--) {
+    const it = copy[i];
+    if (it.kind === "dirreq" && !it.resolved) {
+      copy[i] = { ...it, resolved };
+      break;
+    }
+  }
+  return copy;
+}
+
+function resolveLastPlan(items: Item[], resolved: "approved" | "rejected"): Item[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i >= 0; i--) {
+    const it = copy[i];
+    if (it.kind === "planreq" && !it.resolved) {
+      copy[i] = { ...it, resolved };
+      break;
+    }
+  }
+  return copy;
+}
+
+function resolveLastQuestion(items: Item[], answer: string): Item[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i >= 0; i--) {
+    const it = copy[i];
+    if (it.kind === "question" && !it.resolved) {
+      copy[i] = { ...it, resolved: answer };
+      break;
+    }
+  }
+  return copy;
+}

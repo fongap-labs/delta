@@ -1,0 +1,27 @@
+name: 手动 · 私有发布预检
+
+# Runs in this private repository. It does not build, upload, deploy or publish.
+on:
+  workflow_dispatch:
+    inputs:
+      requested_version:
+        description: 正式版本 X.Y.Z 或测试版本 X.Y.Z-beta.N（仅预检，不发布）
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-release-preflight-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  private-release-check:
+    name: Validate source-owned release request
+    uses: fongap-labs/action-worker/.github/workflows/private-release-preflight.yml@1f46ad902cf0e9391ce4bf9f6394b776577405d8
+    with:
+      source_sha: ${{ github.sha }}
+      action_worker_sha: 1f46ad902cf0e9391ce4bf9f6394b776577405d8
+      product: delta
+      requested_version: ${{ inputs.requested_version }}

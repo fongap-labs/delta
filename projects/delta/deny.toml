@@ -1,0 +1,42 @@
+# cargo-deny policy for Delta.
+#
+# Security posture: vulnerabilities and unmaintained dependencies are denied by
+# default except for the narrowly documented informational advisories below.
+# License posture: Rust dependencies must resolve to an explicitly accepted SPDX
+# license family. New license families require a deliberate policy change.
+
+  [advisories]
+  unmaintained = "all"
+  ignore = [
+      { id = "RUSTSEC-2026-0543", reason = "chrono 0.4.45 is soft-deprecated, not a disclosed vulnerability; cron 0.15 and lopdf 0.45 also require chrono, and no patched chrono upgrade exists. Narrow transitional exception while migrating to jiff/time: private follow-up delta-legacy #488. Vulnerability/other unmaintained checks remain enabled." },
+      { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4, transitive build dep; unmaintained, no vulnerability" },
+      { id = "RUSTSEC-2026-0367", reason = "zip keeps SUID/SGID bits while extracting; Delta uses zip 2.4.2 (sherpa-onnx-sys, build-time only) and 4.6.1 (tauri-plugin-updater, which extracts signed update packages). The update extraction is user-initiated and runs with the application's own privileges; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0368", reason = "zip extract creates symlinks that point outside the destination; Delta uses zip 2.4.2 (sherpa-onnx-sys, build-time only) and 4.6.1 (tauri-plugin-updater, which extracts signed update packages). The update extraction is user-initiated and runs with the application's own privileges; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0369", reason = "zip extract applies Unix permissions through symlinks; Delta uses zip 2.4.2 (sherpa-onnx-sys, build-time only) and 4.6.1 (tauri-plugin-updater, which extracts signed update packages). The update extraction is user-initiated and runs with the application's own privileges; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0370", reason = "zvariant is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0371", reason = "zbus_names is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is unmaintained; it arrives through zbus 5, which the Tauri plugins Delta uses still require, and zbus 6 has no plugin support yet; no vulnerability; upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0381", reason = "webpki-roots 0.26.11 is the wrapper ureq 2.12.1 requires, and the lockfile now resolves webpki-roots 1.0.10, the fixed root store; the 0.26 line has no upstream release and the patched range starts at 1.0.10, so only moving to ureq 3 leaves this advisory behind; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0391", reason = "zstd 0.13.3 reuses a stream context without resetting it; build-time only: zstd arrives through zip 2.4.2, a build dependency of sherpa-onnx-sys, whose build script reads zip only for the iOS xcframework archive, and Delta code does not use zstd; the fixed range zstd >= 0.14.3 needs zip 9, so only sherpa-onnx 2.x leaves this advisory behind; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0398", reason = "zstd-safe 7.3.0 seekable decompress sets a Vec length beyond its capacity; build-time only: zstd-safe arrives through zip 2.4.2, a build dependency of sherpa-onnx-sys, whose build script reads zip only for the iOS xcframework archive, and Delta code does not use zstd; the fixed range zstd-safe >= 8.2.0 needs zip 9, so only sherpa-onnx 2.x leaves this advisory behind; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+      { id = "RUSTSEC-2026-0403", reason = "zstd-safe 7.3.0 exposes uninitialized memory when streaming decompression of a legacy frame fails; build-time only: zstd-safe arrives through zip 2.4.2, a build dependency of sherpa-onnx-sys, whose build script reads zip only for the iOS xcframework archive, and Delta code does not use zstd; the fixed range zstd-safe >= 8.2.0 needs zip 9, so only sherpa-onnx 2.x leaves this advisory behind; impact, mitigation and upgrade plan in docs/governance/OPEN_ITEMS.md" },
+  ]
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "CC0-1.0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+    "Unlicense",
+    "bzip2-1.0.6",
+]

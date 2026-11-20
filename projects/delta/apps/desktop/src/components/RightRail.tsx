@@ -1,0 +1,869 @@
+import { useEffect, useRef, useState } from "react";
+// Emits the asset URL only; the worker itself loads lazily with the pdfjs chunk.
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import {
+  getArtifacts,
+  getSessionMessages,
+  revealArtifact,
+  getApprovalRules,
+  getRunSources,
+  getSessionConnections,
+  type ArtifactContent,
+  type ArtifactInfo,
+  type RunSource,
+} from "../api";
+import { trustFromMessages, type ArtifactTrust } from "../artifactTrust";
+import { humanizeApprovalTitle } from "../humanize";
+import { useEscapeDismiss } from "../useEscapeDismiss";
+import type { Item, SessionUsage, TodoItem } from "../types";
+import { ActivitySummary } from "./ActivitySummary";
+import { AccessSection } from "./AccessSection";
+import { ApprovalRulesList } from "./ApprovalRulesList";
+import { useWorkspace } from "../workspaceContext";
+import { ColumnResizer, RAIL_MIN_WIDTH } from "./ColumnResizer";
+import { Icon } from "./Icon";
+import { IconButton } from "./ui/IconButton";
+import { Button } from "./ui/Button";
+import { SegmentedControl } from "./ui/SegmentedControl";
+import { DisclosureSection } from "./ui/DisclosureSection";
+import { TitleText } from "./ApprovalCard";
+import { useEgressLevel } from "./ApprovalModal";
+import { TrustStrip } from "./TrustStrip";
+import { useI18n } from "@delta/i18n/I18nContext";
+import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
+import { useArtifactPreview } from "./useArtifactPreview";
+import { PreviewFeedback } from "./ui/PreviewFeedback";
+import { ArtifactPreviewActions, ArtifactPreviewFacts } from "./ArtifactPreviewActions";
+import { ArtifactDeliveryReview } from "./ArtifactDeliveryReview";
+import { useArtifactInventory } from "../useArtifactInventory";
+import { ArtifactInventorySummary, ArtifactReviewMark } from "./ArtifactInventorySummary";
+import { useBulkIntegrity } from "../useArtifactBulkIntegrity";
+import { ArtifactBulkIntegrity, ArtifactBulkMark } from "./ArtifactBulkIntegrity";
+
+type Panel = "progress" | "permissions" | "artifacts";
+type ApprovalItem = Extract<Item, { kind: "approval" }>;
+
+// Quiet file-type icons for the artifact list (the colored kind pills read as noisy).
+function kindIcon(kind: string): "file" | "fileCode" | "image" | "table" {
+  if (kind === "image") return "image";
+  if (kind === "html" || kind === "code") return "fileCode";
+  if (kind === "csv" || kind === "sheet") return "table";
+  return "file"; // markdown, text, pdf, everything else
+}
+
+// Fallback kind for an artifact: link whose path isn't in the list (yet) — mirrors the
+// server's extension mapping closely enough for the viewer to pick a renderer.
+function kindFromPath(path: string): string {
+  const ext = (path.split(".").pop() || "").toLowerCase();
+  if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext)) return "image";
+  if (["html", "htm"].includes(ext)) return "html";
+  if (ext === "md" || ext === "markdown") return "markdown";
+  if (ext === "csv") return "csv";
+  if (ext === "pdf") return "pdf";
+  if (["py", "js", "ts", "tsx", "jsx", "json", "sh", "css"].includes(ext)) return "code";
+  return "text";
+}
+
+interface Props {
+  active: boolean;
+  sessionId: string;
+  refreshKey: number;
+  toolNames: string[];
+  todo: TodoItem[];
+  running: boolean;
+  /** Actual current-session events, used only for read-only activity stats. */
+  items?: Item[];
+  usage?: SessionUsage;
+  // Fires when a full artifact preview opens/closes, so the app can auto-collapse the left nav
+  // to give the preview (PDF/webpage/sheet) more room (#3).
+  onPreviewChange?: (open: boolean) => void;
+  // §32: the rail is the task's single progress, artifact, and access panel.
+  showArtifacts?: boolean;
+  branch?: string | null;
+  scratchPrimary?: boolean;
+  openAccessKey?: number;
+  onOpenIntegrations?: () => void;
+  // This session's approval items: the Permissions section lists their decisions.
+  approvals?: Item[];
+  // Drag handle on the rail's left edge. The parent owns the width (see ColumnResizer).
+  onResize?: (width: number) => void;
+  resizeMaxWidth?: () => number;
+}
+
+export function RightRail({
+  active,
+  sessionId,
+  refreshKey,
+  toolNames,
+  todo,
+  running,
+  items = [],
+  usage,
+  onPreviewChange,
+  showArtifacts = true,
+  branch,
+  scratchPrimary,
+  openAccessKey = 0,
+  onOpenIntegrations,
+  approvals = [],
+  onResize,
+  resizeMaxWidth,
+}: Props) {
+  // What the user chose per section; `null` means "not chosen": a section with nothing in it
+  // stays closed and opens by itself once it has content. A choice lasts for the conversation.
+  const [chosen, setChosen] = useState<Record<Panel, boolean | null>>({
+    progress: null,
+    permissions: null,
+    artifacts: null,
+  });
+  const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
+  const [selected, setSelected] = useState<ArtifactInfo | null>(null);
+  const [isAttentionOnly, setAttentionOnly] = useState(false);
+  const [isArtifactListExpanded, setArtifactListExpanded] = useState(false);
+  const { content, error: previewError, loading: previewLoading, reload: reloadPreview } = useArtifactPreview(sessionId, selected?.path);
+  const { t } = useI18n();
+  // How many things this session was allowed (rules the user granted, connectors switched on),
+  // read here so a closed Permissions section can still tell whether it has anything to show.
+  const [grantCount, setGrantCount] = useState(0);
+  const hasContent: Record<Panel, boolean> = {
+    progress: todo.length > 0 || running || toolNames.length > 0 || items.some((item) => item.kind === "tool") || !!usage && Object.keys(usage.byModel).length > 0,
+    permissions: approvals.length > 0 || grantCount > 0,
+    artifacts: artifacts.length > 0,
+  };
+  const open: Record<Panel, boolean> = {
+    progress: chosen.progress ?? hasContent.progress,
+    permissions: chosen.permissions ?? hasContent.permissions,
+    artifacts: chosen.artifacts ?? hasContent.artifacts,
+  };
+  const toggle = (panel: Panel) => setChosen({ ...chosen, [panel]: !open[panel] });
+  const inventory = useArtifactInventory(sessionId, artifacts, active && showArtifacts && open.artifacts && !selected);
+  const reviewedArtifacts = inventory.phase === "loaded" && isAttentionOnly
+    ? artifacts.filter((artifact) => inventory.review?.byPath[artifact.path] !== "passed") : artifacts;
+  const displayedArtifacts = isArtifactListExpanded ? reviewedArtifacts : reviewedArtifacts.slice(0, 16);
+  const bulk = useBulkIntegrity(sessionId, artifacts, active && showArtifacts && open.artifacts && !selected);
+  const accessRef = useRef<HTMLDivElement>(null);
+  const workspace = useWorkspace();
+
+  // Deep link into Access (intro "Configure ›", onboarding "Start working"): open the Permissions
+  // section, where Access lives, and bring it into view.
+  useEffect(() => {
+    if (!openAccessKey) return;
+    setChosen((current) => ({ ...current, permissions: true }));
+    const timer = setTimeout(() => accessRef.current?.scrollIntoView({ block: "nearest" }), 30);
+    return () => clearTimeout(timer);
+  }, [openAccessKey]);
+
+  useEffect(() => {
+    if (!active) return;
+    let isCurrent = true;
+    Promise.allSettled([getApprovalRules(sessionId, workspace ?? ""), getSessionConnections(sessionId)]).then(
+      ([rules, connections]) => {
+        if (!isCurrent) return;
+        const ruleCount =
+          rules.status === "fulfilled" ? (rules.value.session?.length ?? 0) + (rules.value.workspace?.length ?? 0) : 0;
+        const connectorCount = connections.status === "fulfilled" ? (connections.value.connected?.length ?? 0) : 0;
+        setGrantCount(ruleCount + connectorCount);
+      },
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, [active, sessionId, workspace, approvals.length]);
+
+  const refreshArtifacts = () => getArtifacts(sessionId).then(setArtifacts).catch(() => setArtifacts([]));
+
+  useEffect(() => {
+    if (!active) return;
+    if (showArtifacts) refreshArtifacts();
+  }, [active, sessionId, refreshKey, showArtifacts]);
+
+  // Switching conversations closes any open artifact — it belongs to the previous session's
+  // workspace, which the new session can't (and shouldn't) read.
+  useEffect(() => {
+    setSelected(null);
+    setAttentionOnly(false);
+    setArtifactListExpanded(false);
+    setChosen({ progress: null, permissions: null, artifacts: null });
+  }, [sessionId]);
+
+  // Notify the app when a preview opens/closes (drives the left-nav auto-collapse).
+  useEffect(() => {
+    onPreviewChange?.(!!selected);
+  }, [!!selected, onPreviewChange]);
+
+  const reloadSelected = reloadPreview;
+
+  // §34 (UX-016): [Title](artifact:path) chips in the transcript open the viewer directly.
+  // Resolve against the loaded list first; on a miss, refresh once (the file may be
+  // seconds old), then fall back to a minimal record — readArtifact validates the path.
+  useEffect(() => {
+    if (!active) return;
+    const minimal = (path: string): ArtifactInfo => ({
+      path,
+      name: path.split("/").pop() || path,
+      kind: kindFromPath(path),
+      size: 0,
+      modified_at: 0,
+    });
+    const match = (list: ArtifactInfo[], path: string) =>
+      list.find((a) => a.path === path || a.path.endsWith("/" + path) || a.name === path);
+    const onOpen = (e: Event) => {
+      const path = String((e as CustomEvent).detail?.path || "");
+      if (!path) return;
+      const found = match(artifacts, path);
+      if (found) {
+        setSelected(found);
+        return;
+      }
+      getArtifacts(sessionId)
+        .then((list) => {
+          setArtifacts(list);
+          setSelected(match(list, path) ?? minimal(path));
+        })
+        .catch(() => setSelected(minimal(path)));
+    };
+    window.addEventListener(OPEN_ARTIFACT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ARTIFACT_EVENT, onOpen);
+  }, [active, sessionId, artifacts]);
+
+  if (!active) return null;
+
+  return (
+    <aside className={"right-rail" + (selected ? " artifact-mode" : "")}>
+      {onResize && resizeMaxWidth && (
+        <ColumnResizer
+          edge="left"
+          label={t("rail.resize", undefined, "Resize right panel")}
+          minWidth={RAIL_MIN_WIDTH}
+          maxWidth={resizeMaxWidth}
+          onResize={onResize}
+        />
+      )}
+      {selected ? (
+        <ArtifactViewer
+          sessionId={sessionId}
+          artifact={selected}
+          content={content}
+          error={previewError}
+          loading={previewLoading}
+          onReload={reloadSelected}
+          onBack={() => setSelected(null)}
+          onOpenEntry={(path) =>
+            setSelected({
+              path,
+              name: path.split("/").pop() || path,
+              kind: kindFromPath(path),
+              size: 0,
+              modified_at: 0,
+            })
+          }
+        />
+      ) : (
+        <>
+          <DisclosureSection title={t("artifacts.progress")} isOpen={open.progress} onToggle={() => toggle("progress")}>
+            <ProgressSummary running={running} toolNames={toolNames} todo={todo} items={items} usage={usage} />
+          </DisclosureSection>
+
+          <DisclosureSection title={t("rail.permissions")} isOpen={open.permissions} onToggle={() => toggle("permissions")}>
+            <PermissionsSummary sessionId={sessionId} approvals={approvals as ApprovalItem[]} />
+            <ApprovalRulesList sessionId={sessionId} workspace={workspace} refreshKey={approvals.length * 1000 + approvals.filter((item) => !(item as ApprovalItem).resolved).length} />
+            {/* Access is part of the permissions: the sources and folders this session can touch.
+                key: its data ownership resets with the conversation, like the old row did. */}
+            <AccessSection
+              key={sessionId}
+              sectionRef={accessRef}
+              sessionId={sessionId}
+              branch={branch}
+              scratchPrimary={scratchPrimary}
+              onOpenIntegrations={onOpenIntegrations}
+            />
+          </DisclosureSection>
+
+          {showArtifacts && (
+          <DisclosureSection
+            title={`${t("artifacts.title")}${artifacts.length ? ` (${artifacts.length})` : ""}`}
+            isOpen={open.artifacts}
+            onToggle={() => toggle("artifacts")}
+            action={
+              <>
+                {artifacts.length > 0 && (
+                  <IconButton icon="folder" iconSize={13} className="rail-mini-btn"
+                    label={t("artifacts.showFolderTitle")}
+                    onClick={(e) => { e.stopPropagation(); revealArtifact(sessionId, artifacts[0].path, "reveal"); }}
+                  />
+                )}
+                <IconButton icon="refresh" iconSize={13} className="rail-mini-btn"
+                  label={t("artifacts.refreshArtifacts")}
+                  onClick={(e) => { e.stopPropagation(); refreshArtifacts(); }}
+                />
+              </>
+            }
+          >
+            {artifacts.length === 0 ? (
+              <div className="rail-muted">{t("artifacts.empty")}</div>
+            ) : (
+              <>
+                <ArtifactInventorySummary
+                  phase={inventory.phase}
+                  review={inventory.review}
+                  isAttentionOnly={isAttentionOnly}
+                  onAttentionChange={(value) => { setAttentionOnly(value); setArtifactListExpanded(false); }}
+                />
+                <ArtifactBulkIntegrity phase={bulk.phase} checked={bulk.checked} total={bulk.total}
+                  results={bulk.results} onStart={bulk.start} onStop={bulk.stop} />
+                <div className="artifact-list">
+                  {displayedArtifacts.map((a) => (
+                    <button type="button" className="artifact-row ds-rail-item" key={a.path} onClick={() => setSelected(a)}>
+                      <span className="artifact-ico" title={a.kind}>
+                        <Icon name={kindIcon(a.kind)} size={17} />
+                      </span>
+                      <span className="artifact-name">
+                        {a.name}
+                        <span className="artifact-row-meta">{formatBytes(a.size)} · {formatTime(a.modified_at)}</span>
+                      </span>
+                      {bulk.results[a.path] ? <ArtifactBulkMark status={bulk.results[a.path]} />
+                        : inventory.phase === "loaded" && inventory.review?.byPath[a.path] && (
+                          <ArtifactReviewMark status={inventory.review.byPath[a.path]} />
+                        )}
+                      <span className="artifact-open">{t("common.open")}</span>
+                    </button>
+                  ))}
+                  {reviewedArtifacts.length === 0 && (
+                    <div className="rail-muted" data-testid="artifact-inventory-no-attention">
+                      {t("artifacts.inventoryNoAttention", undefined, "No files need recorded-check review.")}
+                    </div>
+                  )}
+                </div>
+                {reviewedArtifacts.length > 16 && (
+                  <button
+                    type="button"
+                    data-testid="artifact-inventory-expand"
+                    className="w-full rounded-lg px-2 py-1.5 text-left text-[11.5px] text-muted hover:bg-surface-2"
+                    onClick={() => setArtifactListExpanded((value) => !value)}
+                  >
+                    {isArtifactListExpanded
+                      ? t("artifacts.inventoryLess", undefined, "Show fewer")
+                      : t("artifacts.inventoryMore", { n: reviewedArtifacts.length - 16 }, "Show " + (reviewedArtifacts.length - 16) + " more")}
+                  </button>
+                )}
+              </>
+            )}
+          </DisclosureSection>
+          )}
+        </>
+      )}
+    </aside>
+  );
+}
+
+// One line per approval decision this session, plus the workspace egress level. A pending row
+// jumps to the approval card. Reads only what the app already holds: no new API.
+function PermissionsSummary({ sessionId, approvals }: { sessionId: string; approvals: ApprovalItem[] }) {
+  const { t } = useI18n();
+  const level = useEgressLevel(sessionId);
+
+  const scrollToApproval = () => {
+    const cards = document.querySelectorAll<HTMLElement>(".approval");
+    cards[cards.length - 1]?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 px-1 py-1 text-[12.5px]" data-testid="rail-perm-egress">
+        <Icon name="shield" size={14} className="shrink-0 text-muted" />
+        <span className="flex-1 min-w-0 truncate">{t("rail.perm.egress")}</span>
+        <span className="text-[10.5px] px-2 py-px rounded-full border border-line text-muted shrink-0">
+          {level ? t(`egress.level.${level}`) : t("nav.trustUnset")}
+        </span>
+      </div>
+      {approvals.length === 0 && <div className="rail-muted px-1">{t("rail.permissionsEmpty")}</div>}
+      {approvals.map((item, index) => {
+        const pending = !item.resolved;
+        const revoked = item.resolved === "deny";
+        const state = pending ? "pending" : revoked ? "revoked" : "granted";
+        const icon = pending ? "hand" : revoked ? "cancelCircle" : "check";
+        const chipText = pending ? t("rail.perm.pending") : revoked ? t("rail.perm.revoked") : t("rail.perm.session");
+        const chipClass = {
+          pending: "text-warn bg-warn-soft border-warn-line",
+          revoked: "text-muted border-line",
+          granted: "text-ok bg-ok-soft border-ok-line",
+        }[state];
+        const body = (
+          <>
+            <span className={"shrink-0 " + (pending ? "text-warn" : revoked ? "text-muted" : "text-ok")}>
+              <Icon name={icon} size={14} />
+            </span>
+            <span className="flex-1 min-w-0 truncate text-[12.5px]">
+              <TitleText line={humanizeApprovalTitle(item.name, item.args)} />
+            </span>
+            <span className={"text-[10.5px] px-2 py-px rounded-full border shrink-0 " + chipClass}>{chipText}</span>
+          </>
+        );
+        return pending ? (
+          <button
+            key={index}
+            className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-bg"
+            data-testid="rail-perm-row"
+            data-state={state}
+            onClick={scrollToApproval}
+          >
+            {body}
+          </button>
+        ) : (
+          <div key={index} className="flex w-full items-center gap-2 px-1 py-1" data-testid="rail-perm-row" data-state={state}>
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProgressSummary({
+  running, toolNames, todo, items, usage,
+}: {
+  running: boolean; toolNames: string[]; todo: TodoItem[]; items: Item[]; usage?: SessionUsage;
+}) {
+  return (
+    <>
+      <ActivitySummary items={items} usage={usage} />
+      <PlanProgress running={running} toolNames={toolNames} todo={todo} />
+    </>
+  );
+}
+
+function PlanProgress({ running, toolNames, todo }: { running: boolean; toolNames: string[]; todo: TodoItem[] }) {
+  const { t } = useI18n();
+  if (todo.length) {
+    // This is a completion ratio of known plan steps, not a task ETA.
+    const done = todo.filter((item) => item.status === "done").length;
+    const ratio = done / todo.length * 100;
+    return (
+      <div className="rail-todo-list">
+        <div className="mb-3" data-testid="rail-plan-progress">
+          <div className="mb-1.5 flex items-center justify-between gap-2 text-[11.5px] text-muted">
+            <span>{t("artifacts.planStepsComplete", { done, total: todo.length }, done + "/" + todo.length + " plan steps completed")}</span>
+            <span className="shrink-0 tabular-nums" aria-hidden="true">{Math.round(ratio)}%</span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label={t("artifacts.planStepsProgress", undefined, "Plan steps completed")}
+            aria-valuemin={0}
+            aria-valuemax={todo.length}
+            aria-valuenow={done}
+            className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2"
+          >
+            <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: ratio + "%" }} />
+          </div>
+        </div>
+        {todo.map((item, index) => (
+          <div className={"rail-todo " + item.status} key={index}>
+            {/* Shape + accessible name per state, never colour alone (visual system v1). */}
+            <span className="rail-todo-mark" role="img" aria-label={t(`todo.status.${item.status}`, undefined, item.status)}>
+              <Icon name={item.status === "done" ? "check" : item.status === "in_progress" ? "spinner" : "circle"} size={15} />
+            </span>
+            <span>{item.content}</span>
+          </div>
+        ))}
+        {running && (
+          <div className="rail-muted">
+            {toolNames.length ? t("artifacts.toolCallsSoFar", { n: toolNames.length, s: toolNames.length === 1 ? "" : "s" }) : t("artifacts.working")}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (running) {
+    return (
+      <div className="rail-muted">
+        {toolNames.length ? t("artifacts.workingWithCalls", { n: toolNames.length }) : t("artifacts.workingOnTaskPlain")}
+      </div>
+    );
+  }
+  return (
+    <div className="rail-muted">
+      {t("artifacts.progressHint")}
+    </div>
+  );
+}
+
+function ArtifactViewer({
+  sessionId,
+  artifact,
+  content,
+  error,
+  loading,
+  onReload,
+  onBack,
+  onOpenEntry,
+}: {
+  sessionId: string;
+  artifact: ArtifactInfo;
+  content: ArtifactContent | null;
+  error: string | null;
+  loading: boolean;
+  onReload: () => Promise<void>;
+  onBack: () => void;
+  // Folder listings: open a child entry in the viewer (files and subfolders alike).
+  onOpenEntry?: (path: string) => void;
+}) {
+  const [reloadKey, setReloadKey] = useState(0);
+  const { t } = useI18n();
+  // Escape steps back from an open artifact to the list. Not while typing in a field.
+  useEscapeDismiss(true, onBack, { shouldIgnoreFields: true });
+  // Trust facts the runtime recorded on the tool result that produced this file (if any).
+  const [trust, setTrust] = useState<ArtifactTrust | null>(null);
+  const [checksLookup, setChecksLookup] = useState<"loading" | "loaded" | "unavailable">("loading");
+  // Sources the producing run read. A failed read shows no chip (it does not claim "none read").
+  const [sources, setSources] = useState<RunSource[]>([]);
+  useEffect(() => {
+    let isCurrent = true;
+    setTrust(null);
+    setSources([]);
+    setChecksLookup("loading");
+    getSessionMessages(sessionId)
+      .then((messages) => {
+        if (!isCurrent) return;
+        const found = trustFromMessages(messages, artifact.path);
+        setTrust(found);
+        setChecksLookup("loaded");
+        if (found?.runId) {
+          getRunSources(found.runId)
+            .then((read) => {
+              if (isCurrent) setSources(read);
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setTrust(null);
+          setChecksLookup("unavailable");
+        }
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [sessionId, artifact.path, artifact.modified_at]);
+
+  return (
+    <div className="artifact-viewer">
+      <div className="artifact-head">
+        <IconButton icon="arrowLeft" className="artifact-icon-btn" onClick={onBack}
+          label={t("artifacts.backToArtifacts")} title={t("common.back")} />
+        <div className="artifact-heading">
+          <div className="artifact-title"><span>{t("artifacts.title")}</span><span className="artifact-sep">/</span><span>{artifact.name}</span></div>
+          <div className="artifact-path">{artifact.path}</div>
+          <ArtifactPreviewFacts
+            artifact={artifact}
+            checksLookup={checksLookup}
+            hasRecordedChecks={!!trust?.checks?.length}
+            showMissingChecks={false}
+          />
+        </div>
+        <ArtifactPreviewActions
+          sessionId={sessionId}
+          artifact={artifact}
+          previewKind={content?.kind}
+          loading={loading}
+          onReload={onReload}
+          onReloaded={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+      {trust && <TrustStrip trust={trust} sources={sources} />}
+      <ArtifactDeliveryReview
+        preview={loading ? "loading" : error || content?.error || !content ? "unavailable" : "available"}
+        checksLookup={checksLookup}
+        trust={trust}
+        sessionId={sessionId}
+        path={artifact.path}
+      />
+      <div className="artifact-preview">
+        {loading ? (
+          <PreviewFeedback state="loading" message={t("common.loading")} />
+        ) : error || content?.error ? (
+          <PreviewFeedback state="error" message={error || content?.error || ""} onRetry={() => { void onReload(); }} />
+        ) : !content ? (
+          <PreviewFeedback state="error" message={t("artifacts.previewUnavailable", undefined, "Preview unavailable.")} onRetry={() => { void onReload(); }} />
+        ) : content.kind === "html" ? (
+          // Untrusted agent/user content: fully locked frame — no script, no same-origin.
+          // An escaped artifact must never reach the main webview's origin, where the
+          // sidecar token and the native bridge live (P0 security fix 2026-08-25).
+          <iframe
+            key={`${artifact.path}-${reloadKey}`}
+            sandbox=""
+            className="artifact-frame"
+            srcDoc={content.content || ""}
+            title={artifact.path}
+          />
+        ) : content.kind === "markdown" ? (
+          <div className="artifact-md">
+            <Markdown text={content.content || ""} />
+          </div>
+        ) : content.kind === "image" ? (
+          <img className="artifact-image" src={content.data_url} alt={artifact.name} />
+        ) : content.kind === "pdf" ? (
+          <PdfViewer dataUrl={content.data_url || ""} />
+        ) : content.kind === "csv" ? (
+          <CsvTable text={content.content || ""} />
+        ) : content.kind === "sheet" ? (
+          <SheetViewer sheets={content.sheets || []} />
+        ) : content.kind === "folder" ? (
+          // A linked directory (e.g. a skill package): render the listing, click through.
+          <div className="artifact-folderlist" data-testid="artifact-folder">
+            {(content.entries || []).map((e) => (
+              <button
+                key={e.name}
+                className="artifact-folder-row ds-rail-item"
+                onClick={() => onOpenEntry?.(`${artifact.path.replace(/\/+$/, "")}/${e.name}`)}
+              >
+                <Icon name={e.dir ? "folder" : "file"} size={14} />
+                <span className="artifact-folder-name">{e.name}</span>
+                {!e.dir && <span className="artifact-folder-size">{formatBytes(e.size)}</span>}
+              </button>
+            ))}
+            {!content.entries?.length && <div className="rail-muted">{t("artifacts.emptyFolder")}</div>}
+          </div>
+        ) : content.kind === "office" ? (
+          <div className="artifact-open-prompt">
+            <Icon name="panelOpen" size={28} />
+            <p>{t("artifacts.officeNoPreview", { type: /\.pptx?$/i.test(artifact.name) ? "PowerPoint" : /\.xlsx?$/i.test(artifact.name) ? "Excel" : "Word" })}</p>
+            <Button size="sm" onClick={() => revealArtifact(sessionId, artifact.path, "open")}>
+              {t("artifacts.openInDefaultApp")}
+            </Button>
+          </div>
+        ) : (
+          <pre className="artifact-code">{content.content}</pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const MAX_TABLE_ROWS = 500;
+
+function GridTable({ rows, note }: { rows: unknown[][]; note?: string }) {
+  const { t } = useI18n();
+  const [head, ...body] = rows;
+  return (
+    <div className="artifact-tablewrap">
+      <table className="artifact-table">
+        {head && (
+          <thead>
+            <tr>{head.map((c, i) => <th key={i}>{String(c ?? "")}</th>)}</tr>
+          </thead>
+        )}
+        <tbody>
+          {body.slice(0, MAX_TABLE_ROWS).map((r, i) => (
+            <tr key={i}>{r.map((c, j) => <td key={j}>{String(c ?? "")}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+      {(note || body.length > MAX_TABLE_ROWS) && (
+        <div className="rail-muted artifact-table-note">
+          {note}
+          {body.length > MAX_TABLE_ROWS ? t("artifacts.showingRows", { max: MAX_TABLE_ROWS, total: body.length }) : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Minimal RFC-4180-ish CSV parsing: isQuoted fields, escaped quotes, CRLF. TSV via tab sniffing.
+function parseCsv(text: string): string[][] {
+  const delim = text.includes("\t") && !text.split("\n")[0]?.includes(",") ? "\t" : ",";
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let isQuoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (isQuoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else isQuoted = false;
+      } else cell += ch;
+    } else if (ch === '"') isQuoted = true;
+    else if (ch === delim) {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell);
+      cell = "";
+      rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  if (cell !== "" || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((c) => c !== ""));
+}
+
+function CsvTable({ text }: { text: string }) {
+  const { t } = useI18n();
+  const rows = parseCsv(text);
+  if (!rows.length) return <div className="rail-muted artifact-table-note">{t("artifacts.emptyFile")}</div>;
+  return <GridTable rows={rows} />;
+}
+
+// xlsx/xls preview: the workbook is parsed server-side into a bounded JSON payload
+// (see services/server/sheet_preview.py) — this component only renders it. Sheet tabs +
+// a capped grid; real spreadsheet work belongs in Numbers/Excel via "Open in default app".
+// WKWebView has no inline PDF plugin (<embed> shows a gray pane in the Tauri shell), so we
+// rasterize pages with pdf.js onto stacked canvases (lazy-chunked like the sheet viewer).
+// Pages are VIRTUALIZED (IntersectionObserver, ±2 around the viewport): placeholder slots
+// reserve scroll space and only nearby pages rasterize, so a few-hundred-page document
+// doesn't allocate hundreds of full-page bitmaps up front.
+const PDF_RENDER_MARGIN = 2; // pages rendered beyond the visible one
+
+function PdfViewer({ dataUrl }: { dataUrl: string }) {
+  const { t } = useI18n();
+  const [error, setError] = useState("");
+  const [isLoading, setLoading] = useState(true);
+  const [retryKey, setRetryKey] = useState(0);
+  const holder = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let observer: IntersectionObserver | null = null;
+    let docRef: { destroy?: () => void } | null = null;
+    setError("");
+    setLoading(true);
+    const base64 = dataUrl.split(",")[1] || "";
+    import("pdfjs-dist")
+      .then(async (pdfjs) => {
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        // pdfjs-dist v5+: only the loading task has destroy(); the doc no longer does.
+        const loadingTask = pdfjs.getDocument({ data: bytes });
+        const doc = await loadingTask.promise;
+        const el = holder.current;
+        if (cancelled || !el) {
+          void loadingTask.destroy();
+          return;
+        }
+        docRef = loadingTask;
+        el.innerHTML = "";
+        const width = el.clientWidth || 640;
+        const dpr = window.devicePixelRatio || 1;
+
+        // Page 1 defines the slot geometry (aspect ratio) for every page — good
+        // enough scroll estimation without loading each page's real viewport.
+        const firstBase = (await doc.getPage(1)).getViewport({ scale: 1 });
+        const estHeight = Math.round((firstBase.height / firstBase.width) * width);
+        const slots = new Map<number, HTMLElement>();
+        const pending = new Set<number>();
+        const rendering = new Set<number>();
+        for (let i = 1; i <= doc.numPages; i++) {
+          const slot = document.createElement("div");
+          slot.className = "artifact-pdf-slot";
+          slot.style.height = `${estHeight}px`;
+          slot.dataset.page = String(i);
+          el.appendChild(slot);
+          slots.set(i, slot);
+          pending.add(i);
+        }
+        setLoading(false);
+
+        const renderPage = async (pageNum: number) => {
+          if (!pending.has(pageNum) || rendering.has(pageNum)) return;
+          rendering.add(pageNum);
+          try {
+            const page = await doc.getPage(pageNum);
+            if (cancelled) return;
+            const base = page.getViewport({ scale: 1 });
+            const scale = (width / base.width) * dpr;
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement("canvas");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            canvas.className = "artifact-pdf-page";
+            // pdfjs-dist v5+: render takes the canvas itself, not a 2D context.
+            await page.render({ canvas, viewport }).promise;
+            const slot = slots.get(pageNum);
+            if (cancelled || !slot) return;
+            slot.replaceChildren(canvas);
+            slot.style.height = `${Math.round(viewport.height / dpr)}px`;
+            pending.delete(pageNum);
+          } finally {
+            rendering.delete(pageNum);
+          }
+        };
+
+        observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              const pageNum = Number((entry.target as HTMLElement).dataset.page);
+              for (let p = pageNum - PDF_RENDER_MARGIN; p <= pageNum + PDF_RENDER_MARGIN; p++) {
+                void renderPage(p);
+              }
+            }
+          },
+          { root: el.closest(".rail-scroll, .artifact-pdfjs") ?? null, rootMargin: "200px" },
+        );
+        for (const slot of slots.values()) observer.observe(slot);
+      })
+      .catch((e) => !cancelled && setError(String(e?.message || e)));
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      docRef?.destroy?.();
+    };
+  }, [dataUrl, retryKey]);
+
+  if (error) return <PreviewFeedback state="error" message={t("artifacts.pdfError", { error })} onRetry={() => setRetryKey((v) => v + 1)} />;
+  return (
+    <div className="artifact-pdfjs">
+      {isLoading && <PreviewFeedback state="loading" message={t("artifacts.renderingPdf")} />}
+      <div ref={holder} />
+    </div>
+  );
+}
+
+function SheetViewer({ sheets }: { sheets: NonNullable<ArtifactContent["sheets"]> }) {
+  const { t } = useI18n();
+  const [active, setActive] = useState(0);
+  const sheet = sheets[active];
+  if (!sheet) return <div className="rail-muted artifact-table-note">{t("artifacts.emptySheet")}</div>;
+  return (
+    <div className="sheet-viewer">
+      {sheets.length > 1 && (
+        <div className="sheet-tabs">
+          <SegmentedControl
+            label={t("artifacts.sheets", undefined, "Sheets")}
+            className="ds-sheet-switch"
+            value={String(active)}
+            options={sheets.map((s, i) => ({ value: String(i), label: s.name }))}
+            onChange={(value) => setActive(Number(value))}
+          />
+        </div>
+      )}
+      {sheet.rows.length ? (
+        <GridTable
+          rows={sheet.rows}
+          note={sheet.truncated ? t("artifacts.showingRows", { max: MAX_TABLE_ROWS, total: sheet.total_rows - 1 }) : undefined}
+        />
+      ) : (
+        <div className="rail-muted artifact-table-note">{t("artifacts.emptySheet")}</div>
+      )}
+    </div>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatTime(epochSeconds: number): string {
+  if (!epochSeconds) return "";
+  return new Date(epochSeconds * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}

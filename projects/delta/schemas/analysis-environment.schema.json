@@ -1,0 +1,132 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/analysis-environment.schema.json",
+  "title": "Analysis environment",
+  "description": "A signed, versioned runtime pack used by an analysis engine (ADR-0080). The environment digest binds a result to the exact Python or R runtime, packages and platform that produced it.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "kind",
+    "engine",
+    "engine_version",
+    "pack_version",
+    "platform",
+    "lockfile",
+    "packages"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "delta.analysis-environment"
+    },
+    "version": {
+      "const": 1
+    },
+    "kind": {
+      "enum": [
+        "explore",
+        "validate"
+      ]
+    },
+    "engine": {
+      "enum": [
+        "python",
+        "r",
+        "external"
+      ]
+    },
+    "engine_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pack_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lockfile": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "required": [
+        "program"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "program": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "required": [
+        "key_id",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

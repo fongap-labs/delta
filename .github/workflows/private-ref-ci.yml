@@ -1,0 +1,22 @@
+name: Private main source CI
+run-name: private-ref-${{ github.sha }}
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-ref-ci-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify-private-main:
+    name: Private main source verification
+    uses: fongap-labs/action-worker/.github/workflows/private-ref-ci.yml@7cdde78b4c728f058aa36b731129d71715eca55b
+    with:
+      ref_sha: ${{ github.sha }}
+      before_sha: ${{ github.event.before }}
+      action_worker_sha: 7cdde78b4c728f058aa36b731129d71715eca55b

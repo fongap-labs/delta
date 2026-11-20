@@ -1,0 +1,53 @@
+import { test, expect, readMockState } from "./fixtures";
+
+// Guards the Settings-as-page refactor (§13, IA per UX-021): the ⚙ menu opens a full-page
+// surface with a left sub-nav — General · Models · Voice input — and each section renders.
+// Files is a card inside General; Personas is launch-flagged off.
+test("Settings opens as a full page and navigates sections", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByTestId("sidebar-footer-settings").click();
+
+  // Full-page: left sub-nav + the General section (no modal backdrop).
+  await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+  await expect(page.locator(".modal-backdrop")).toHaveCount(0);
+  for (const label of ["General", "Models", "Voice"]) {
+    await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
+  }
+  // Folded/hidden tabs: Files is a General card now; Personas is launch-flagged off.
+  await expect(page.getByRole("button", { name: "Files", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Personas", exact: true })).toHaveCount(0);
+
+  // The Files card lives inside General.
+  await expect(page.getByText("Each conversation gets its own folder")).toBeVisible();
+
+  await page.getByRole("button", { name: "Models", exact: true }).click();
+  // Models tab opens with the inline create form visible by default when no
+  // custom provider exists (ModelsTab: createOpen = !hasCustom || ...).
+  await expect(page.getByTestId("set-alias")).toBeVisible();
+});
+
+// Token savings (owner ask 2026-07-17; moved under Models by UX-021): the card renders with
+// the PDF fallback segmented control + attach thresholds, and edits POST through.
+test("Settings: Token savings card edits PDF fallback and thresholds", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("sidebar-footer-settings").click();
+  await page.getByRole("button", { name: "Models", exact: true }).click();
+
+  const card = page.getByTestId("token-savings-card");
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Token savings")).toBeVisible();
+
+  // Fallback mode: fixture says "text"; switching marks "Send page images" active.
+  const seg = page.getByTestId("pdf-fallback");
+  await expect(seg.getByRole("button", { name: "Extract text" })).toHaveClass(/active/);
+  await seg.getByRole("button", { name: "Send page images" }).click();
+  await expect.poll(async () => (await readMockState<any>(page)).settings.pdf_fallback).toBe("images");
+  await expect(seg.getByRole("button", { name: "Send page images" })).toHaveClass(/active/);
+
+  // Thresholds: fixture starts at 2 pages / 10 MB; editing pages POSTs the clamped value.
+  await expect(card.getByTestId("pdf-max-pages")).toHaveValue("2");
+  await expect(card.getByTestId("pdf-max-mb")).toHaveValue("10");
+  await card.getByTestId("pdf-max-pages").fill("30");
+  await expect.poll(async () => (await readMockState<any>(page)).settings.pdf_max_pages).toBe(30);
+});

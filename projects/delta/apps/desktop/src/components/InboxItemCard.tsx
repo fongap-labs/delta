@@ -1,0 +1,446 @@
+import { useState, type ReactNode } from "react";
+import type { InboxItem } from "../api";
+import type { QuestionOption } from "../types";
+import { humanizeApprovalTitle } from "../humanize";
+import { useI18n } from "@delta/i18n/I18nContext";
+import { Button } from "./ui/Button";
+import { FieldInput } from "./ui/FieldInput";
+import {
+  approvalActionLabels,
+  ConfirmCheck,
+  PreviewBlock,
+  SaveSkillPreview,
+  scopeNote,
+  TitleText,
+} from "./ApprovalCard";
+
+// One Inbox item, rendered identically in the Inbox list and inline in its own session view
+// (answer-in-context). Resolving either place hits the same item id — first responder wins.
+// Questions (ask_user) mirror Claude Code's AskUserQuestion: optional quick-reply options + an
+// always-available free-text escape, with optional multi-select. OPE-51 adds rich options
+// ({label, description, recommended, preview}) and grouped questions (a stepper) — plain-string
+// options and single questions render exactly as before.
+
+const SEC = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";
+
+// -- question normalization ---------------------------------------------------
+
+interface NormOption {
+  label: string;
+  description: string;
+  recommended: boolean;
+  preview: string;
+}
+
+const normOption = (o: QuestionOption): NormOption =>
+  typeof o === "string"
+    ? { label: o, description: "", recommended: false, preview: "" }
+    : {
+        label: o.label || "",
+        description: o.description || "",
+        recommended: !!o.recommended,
+        preview: o.preview || "",
+      };
+
+interface QSpec {
+  question: string;
+  header: string;
+  options: NormOption[];
+  allowText: boolean;
+  multi: boolean;
+}
+
+// The item's question steps: the grouped `questions` list, or the singular fields as one step.
+function specsFor(item: InboxItem): QSpec[] {
+  const grouped = item.questions || [];
+  if (grouped.length)
+    return grouped.map((q) => ({
+      question: q.question,
+      header: q.header || "",
+      options: (q.options || []).map(normOption),
+      allowText: q.allow_text !== false,
+      multi: !!q.multi,
+    }));
+  return [
+    {
+      question: item.title,
+      header: item.header || "",
+      options: (item.options || []).map(normOption),
+      allowText: item.allow_text !== false,
+      multi: !!item.multi,
+    },
+  ];
+}
+
+// -- one question (options + free-text escape) --------------------------------
+
+function QuestionBlock({ spec, onAnswer }: { spec: QSpec; onAnswer: (a: string) => void }) {
+  const { t } = useI18n();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [text, setText] = useState("");
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const { options, multi } = spec;
+  // Any description/preview upgrades pills to stacked rows; any preview adds the side pane.
+  const rich = options.some((o) => o.description || o.preview);
+  const hasPreview = options.some((o) => o.preview);
+
+  const pick = (o: NormOption) => {
+    if (multi)
+      setSelected((s) => (s.includes(o.label) ? s.filter((x) => x !== o.label) : [...s, o.label]));
+    else onAnswer(o.label); // single-select answers immediately (pill behavior, unchanged)
+  };
+
+  // The pane follows hover/focus, falls back to the selected option, then the first preview.
+  const selIdx = options.findIndex((o) => selected.includes(o.label));
+  const previewIdx =
+    hoverIdx ?? (selIdx >= 0 && options[selIdx].preview ? selIdx : options.findIndex((o) => o.preview));
+  const preview = previewIdx >= 0 ? options[previewIdx].preview : "";
+
+  const recommendedTag = (
+    <span className="text-[10px] uppercase tracking-[0.04em] font-semibold text-ok bg-ok-soft border border-ok-line rounded-full px-1.5 py-px shrink-0">
+      {t("inbox.question.recommended")}
+    </span>
+  );
+
+  const optionRows = (
+    <div className={hasPreview ? "flex flex-col gap-2 min-w-0 sm:w-[46%] shrink-0" : "flex flex-col gap-2 mt-2.5"}>
+      {options.map((o, i) => {
+        const on = selected.includes(o.label);
+        return (
+          <Button size="sm"
+            key={o.label + i}
+            className="inbox-option-row"
+            aria-pressed={multi ? on : undefined}
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx(null)}
+            onFocus={() => setHoverIdx(i)}
+            onBlur={() => setHoverIdx(null)}
+            onClick={() => pick(o)}
+          >
+            <span
+              className={
+                "flex items-center gap-2 text-[13px] " + (on ? "text-primary font-medium" : "text-ink font-medium")
+              }
+            >
+              {multi && on && <span className="text-primary text-[11px] leading-none">✓</span>}
+              <span className="min-w-0 truncate">{o.label}</span>
+              {o.recommended && recommendedTag}
+            </span>
+            {o.description && (
+              <span className="block text-[12px] text-muted mt-0.5 leading-snug">{o.description}</span>
+            )}
+          </Button>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <>
+      {options.length > 0 &&
+        (hasPreview ? (
+          // Two-pane: options left, preview right; stacks vertically on narrow widths.
+          <div className="flex flex-col sm:flex-row gap-3 mt-2.5">
+            {optionRows}
+            <pre
+              data-testid="question-preview"
+              className="flex-1 min-w-0 rounded-lg border border-line bg-bg p-3 text-[12px] leading-relaxed font-mono whitespace-pre overflow-auto max-h-72 text-ink"
+            >
+              {preview}
+            </pre>
+          </div>
+        ) : rich ? (
+          optionRows
+        ) : (
+          // Plain-string options: today's pills, untouched.
+          <div className="flex flex-wrap gap-2 mt-2.5">
+            {options.map((o) => {
+              const on = selected.includes(o.label);
+              return (
+                <Button size="sm"
+                  key={o.label}
+                  className="inbox-option-pill"
+                  aria-pressed={multi ? on : undefined}
+                  onClick={() => pick(o)}
+                >
+                  {multi && on && <span className="text-primary text-[11px] leading-none">✓</span>}
+                  {o.label}
+                </Button>
+              );
+            })}
+          </div>
+        ))}
+      {multi && options.length > 0 && (
+        <div className="mt-2.5">
+          <Button size="sm"
+            variant="primary"
+            disabled={!selected.length}
+            onClick={() => onAnswer(selected.join(", "))}
+          >
+            {selected.length ? t("inbox.question.sendCount", { n: selected.length }) : t("inbox.question.send")}
+          </Button>
+        </div>
+      )}
+      {(spec.allowText || options.length === 0) && (
+        <div className="flex items-center gap-2 mt-2.5">
+          <FieldInput
+            className="flex-1 min-w-0 text-[13px]"
+            aria-label={options.length ? t("inbox.question.orTypeOwn") : t("inbox.question.yourAnswer")}
+            placeholder={options.length ? t("inbox.question.orTypeOwn") : t("inbox.question.yourAnswer")}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && text.trim()) onAnswer(text);
+            }}
+          />
+          <Button size="sm" variant="primary" disabled={!text.trim()} onClick={() => onAnswer(text)}>
+            {t("inbox.question.send")}
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+// -- the question card (single, or grouped as a stepper) ----------------------
+
+function QuestionCard({
+  item,
+  onResolve,
+  chip,
+}: {
+  item: InboxItem;
+  onResolve: (id: string, resolution: string) => void;
+  chip?: ReactNode;
+}) {
+  const { t } = useI18n();
+  const specs = specsFor(item);
+  const grouped = (item.questions?.length ?? 0) > 0;
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const spec = specs[Math.min(step, specs.length - 1)];
+  const next = step + 1 < specs.length ? specs[step + 1] : null;
+  // The answer map is keyed by header (falling back to the question text) — the same key the
+  // server's answer_result() hands the agent.
+  const keyFor = (s: QSpec) => s.header || s.question;
+
+  const submit = (a: string) => {
+    if (!grouped) {
+      onResolve(item.id, a);
+      return;
+    }
+    const all = { ...answers, [keyFor(spec)]: a };
+    setAnswers(all);
+    if (step + 1 < specs.length) setStep(step + 1);
+    else onResolve(item.id, JSON.stringify(all));
+  };
+
+  return (
+    <>
+      {/* Stepper chips (grouped): "Chart style · 1 of 2 · Distribution ›" — ‹ steps back. */}
+      <div className={SEC + " flex items-center gap-1.5"} data-testid={grouped ? "question-stepper" : undefined}>
+        {grouped && step > 0 && (
+          <Button size="sm"
+            variant="ghost" className="inbox-step-back"
+            title={t("inbox.question.previous")}
+            aria-label={t("inbox.question.previous")}
+            onClick={() => setStep(step - 1)}
+          >
+            ‹
+          </Button>
+        )}
+        <span className={grouped ? "text-primary" : undefined}>
+          {spec.header || (grouped ? t("inbox.question.stepN", { n: step + 1 }) : t("inbox.question.label"))}
+        </span>
+        {grouped && (
+          <>
+            <span>·</span>
+            <span>
+              {t("inbox.question.stepOf", { current: step + 1, total: specs.length })}
+            </span>
+            {next && (
+              <>
+                <span>·</span>
+                <span>
+                  {next.header
+                    ? next.header + " ›"
+                    : t("inbox.question.nextStep", { next: step + 2 })}
+                </span>
+              </>
+            )}
+          </>
+        )}
+      </div>
+      <div className="text-[15px] font-semibold mt-0.5 leading-snug">{spec.question}</div>
+      {item.body ? (
+        <div className="text-[13px] text-muted mt-1 whitespace-pre-wrap">{item.body}</div>
+      ) : null}
+      {chip}
+      {/* key={step} resets selection/text/hover state when the stepper advances */}
+      <QuestionBlock key={step} spec={spec} onAnswer={submit} />
+    </>
+  );
+}
+
+export function InboxItemCard({
+  item,
+  onResolve,
+  chip,
+  compact,
+  onOpenArtifact,
+}: {
+  item: InboxItem;
+  onResolve: (id: string, resolution: string) => void;
+  chip?: ReactNode; // optional "go to session" affordance (shown in the Inbox list, not inline)
+  compact?: boolean;
+  /** A finished run's notice links to the files it made; a click opens one in its session. */
+  onOpenArtifact?: (path: string) => void;
+}) {
+  const { t } = useI18n();
+  const isQuestion = item.kind === "question";
+  const [isConfirmed, setConfirmed] = useState(false);
+  // Same rule as the live card: outbound actions are confirmed before either approving button.
+  const external =
+    item.kind === "approval" &&
+    !!item.data?.tool &&
+    scopeNote(t, item.data.tool, item.data.arguments, item.data.category).external;
+  const locked = external && !isConfirmed;
+  return (
+    <div
+      className={
+        compact
+          ? "max-w-3xl mx-auto mb-2.5 rounded-xl2 border border-line-strong bg-panel px-4 py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+          : "mb-2.5 rounded-xl2 border border-line bg-panel px-3.5 py-3"
+      }
+    >
+      {/* §35: parked approvals wear the SAME humanized dress as the live card — one
+          decision, one dialect. Items carry tool+arguments in data since 2026-07-14;
+          older rows fall back to the raw kind/title/body treatment below. */}
+      {item.kind === "approval" && item.data?.tool ? (
+        <div className="flex items-center justify-between gap-3">
+          <TitleText line={humanizeApprovalTitle(item.data.tool, item.data.arguments)} />
+          {(() => {
+            const s = scopeNote(t, item.data.tool, item.data.arguments);
+            return (
+              <span className={"text-[11px] whitespace-nowrap pt-0.5 " + (s.external ? "text-warn" : "text-faint")}>
+                {s.text}
+              </span>
+            );
+          })()}
+        </div>
+      ) : isQuestion ? null : ( // QuestionCard owns its header + title (stepper needs them)
+        <>
+          <div className={SEC}>{item.kind}</div>
+          <div className="text-[15px] font-semibold mt-0.5 leading-snug">{item.title}</div>
+        </>
+      )}
+      {item.kind === "approval" && item.data?.tool === "save_skill" ? (
+        // Parked skill proposals wear the same review surface as the live card (§5.2).
+        <SaveSkillPreview args={item.data.arguments} />
+      ) : item.kind === "approval" && item.data?.tool && typeof item.data.arguments?.content === "string" ? (
+        <PreviewBlock text={item.data.arguments.content} />
+      ) : item.kind === "approval" && item.data?.tool && typeof item.data.arguments?.command === "string" ? (
+        <PreviewBlock text={item.data.arguments.command} />
+      ) : !isQuestion && item.body ? (
+        <div className="text-[13px] text-muted mt-1 whitespace-pre-wrap">{item.body}</div>
+      ) : null}
+      {!isQuestion && chip}
+      {item.kind === "approval" ? (
+        <>
+        {external && <ConfirmCheck checked={isConfirmed} onChange={setConfirmed} />}
+        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+          <Button size="sm"
+            variant={item.data?.tool ? "default" : "primary"} className={item.data?.tool ? "inbox-approval-accent" : ""}
+            disabled={locked}
+            onClick={() => onResolve(item.id, "allow")}
+          >
+            {item.data?.tool ? approvalActionLabels(t, item.data.tool).allow : t("approval.approve")}
+          </Button>
+          {/* Task-persistent standing grant (§25) — present only when the approval was
+              raised inside an automation run AND the call can carry a tool+target rule.
+              In-app only by construction: Slack mirrors render Approve/Deny buttons. */}
+          {item.data?.task_id && item.data?.standing_target && (
+            <Button size="sm"
+              disabled={locked}
+              title={t("inbox.approval.alwaysAllow", {
+                target: item.data.standing_target,
+                title: item.data.task_title || t("inbox.approval.thisAutomation"),
+              })}
+              onClick={() => onResolve(item.id, "always_task")}
+            >
+              {t("inbox.approval.allowEveryTime")}
+            </Button>
+          )}
+          <Button size="sm"
+            variant={item.data?.tool ? "ghost" : "default"} className={item.data?.tool ? "ds-button-deny" : ""}
+            onClick={() => onResolve(item.id, "deny")}
+          >
+            {item.data?.tool ? approvalActionLabels(t, item.data.tool).deny : t("approval.deny")}
+          </Button>
+        </div>
+        </>
+      ) : item.kind === "notice" ? (
+        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+          {onOpenArtifact &&
+            (Array.isArray(item.data?.artifacts) ? (item.data!.artifacts as { path: string; name: string }[]) : [])
+              .slice(0, 5)
+              .map((file) => (
+                <Button size="sm"
+                  key={file.path}
+                  variant="primary"
+                  data-testid="inbox-artifact"
+                  title={file.path}
+                  onClick={() => onOpenArtifact(file.path)}
+                >
+                  {t("inbox.notice.openFile", { name: file.name })}
+                </Button>
+              ))}
+          <Button size="sm" onClick={() => onResolve(item.id, "dismissed")}>
+            {t("inbox.notice.dismiss")}
+          </Button>
+        </div>
+      ) : isQuestion ? (
+        <QuestionCard item={item} onResolve={onResolve} chip={chip} />
+      ) : item.kind === "directory" ? (
+        <div className="flex items-center gap-2 mt-2.5">
+          <Button size="sm"
+            variant="primary"
+            disabled={!item.data?.path}
+            title={item.data?.path || t("inbox.directory.noFolderSuggested")}
+            onClick={() =>
+              onResolve(
+                item.id,
+                JSON.stringify({ granted: true, path: item.data?.path || "", writable: !!item.data?.writable }),
+              )
+            }
+          >
+            {item.data?.path ? t("inbox.directory.grant") : t("inbox.directory.grantNoFolder")}
+          </Button>
+          <Button size="sm" onClick={() => onResolve(item.id, JSON.stringify({ granted: false }))}>
+            {t("approval.deny")}
+          </Button>
+        </div>
+      ) : item.kind === "plan" ? (
+        <div className="flex items-center gap-2 mt-2.5">
+          <Button size="sm"
+            variant="primary"
+            onClick={() => onResolve(item.id, JSON.stringify({ approved: true, mode: "interactive" }))}
+          >
+            {t("approval.approve")}
+          </Button>
+          <Button size="sm"
+            onClick={() => onResolve(item.id, JSON.stringify({ approved: false, feedback: "" }))}
+          >
+            {t("approval.reject")}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mt-2.5">
+          <Button size="sm" onClick={() => onResolve(item.id, "seen")}>
+            {t("common.dismiss")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

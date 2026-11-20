@@ -1,0 +1,10 @@
+{
+  "worker_id": "file-reader",
+  "capabilities": [
+    {
+      "capability_id": "file.read",
+      "permissions": ["fs.read"],
+      "timeout_seconds": 30
+    }
+  ]
+}

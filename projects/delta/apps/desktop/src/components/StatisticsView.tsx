@@ -1,0 +1,215 @@
+import { useEffect, useState } from "react";
+import { listStatisticsTools, runStatisticsTool, type StatisticsTool } from "../api";
+import { useI18n } from "@delta/i18n/I18nContext";
+import { RuntimePackPrompt } from "./RuntimePackPrompt";
+import { Button } from "./ui/Button";
+import { FieldInput } from "./ui/FieldInput";
+
+// Statistics without a model (ADR-0078): pick a tool, fill its arguments, run it on a CSV file in
+// the workspace. The tools are read-only and local, so this works with no AI gateway configured.
+// The arguments form is generated from each tool's JSON Schema; nothing here computes a figure.
+// The R engine was removed from Foundation (ADR-0081); until the Python Explore Pack lands, the
+// list is empty and the page says so.
+
+type Fields = Record<string, string>;
+
+type Scalar = string | number | boolean | null;
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "number") return String(Number.isInteger(value) ? value : Number(value.toPrecision(8)));
+  if (typeof value === "string" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value, null, 2);
+}
+
+export function StatisticsView({ workspace }: { workspace?: string }) {
+  const { t } = useI18n();
+  const [tools, setTools] = useState<StatisticsTool[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selected, setSelected] = useState("");
+  const [fields, setFields] = useState<Fields>({});
+  const [isRunning, setRunning] = useState(false);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [toolsVersion, setToolsVersion] = useState(0);
+
+  useEffect(() => {
+    let isAlive = true;
+    listStatisticsTools()
+      .then((list) => {
+        if (!isAlive) return;
+        setTools(list);
+        setSelected(list[0]?.name ?? "");
+      })
+      .catch((error) => {
+        if (isAlive) setLoadError(String(error));
+      });
+    return () => {
+      isAlive = false;
+    };
+  }, [toolsVersion]);
+
+  const tool = tools.find((item) => item.name === selected);
+  const specs = Object.entries(tool?.parameters.properties ?? {});
+  const required = new Set(tool?.parameters.required ?? []);
+  const missing = [...required].filter((key) => !(fields[key] ?? "").trim());
+  const canRun = Boolean(tool && workspace && missing.length === 0 && !isRunning);
+
+  const choose = (name: string) => {
+    setSelected(name);
+    setFields({});
+    setResult(null);
+  };
+
+  const run = async () => {
+    if (!tool || !workspace) return;
+    setRunning(true);
+    const args: Record<string, unknown> = {};
+    for (const [key, spec] of specs) {
+      const raw = (fields[key] ?? "").trim();
+      if (raw === "") continue;
+      const numeric = spec.type === "number" || spec.type === "integer";
+      args[key] = numeric ? Number(raw) : raw;
+    }
+    setResult(await runStatisticsTool(tool.name, args, workspace));
+    setRunning(false);
+  };
+
+  const scalars = result
+    ? Object.entries(result).filter(([key, value]) => key !== "ok" && key !== "error" && typeof value !== "object")
+    : [];
+  const structured = result ? Object.entries(result).filter(([, value]) => typeof value === "object" && value !== null) : [];
+
+  return (
+    <div className="flex h-full min-h-0" data-testid="statistics-view">
+      <aside className="w-[220px] shrink-0 border-r border-line overflow-y-auto hairline-scroll p-3">
+        <div className="px-2 pb-2 text-[11px] uppercase tracking-[0.05em] text-faint font-semibold">
+          {t("statistics.tools", undefined, "Tools")}
+        </div>
+        {loadError && <div role="alert" className="px-2 text-[12.5px] text-danger">{loadError}</div>}
+        {tools.map((item) => (
+          <Button
+            key={item.name}
+            variant="ghost"
+            size="sm"
+            aria-pressed={item.name === selected}
+            className={
+              "w-full justify-start text-left text-[13px] " +
+              (item.name === selected ? "bg-selected text-ink" : "")
+            }
+            onClick={() => choose(item.name)}
+          >
+            {item.name}
+          </Button>
+        ))}
+      </aside>
+
+      <section className="min-w-0 flex-1 overflow-y-auto hairline-scroll p-6">
+        <h2 className="text-[18px] font-semibold text-ink">{t("statistics.title", undefined, "Statistics")}</h2>
+        {!workspace && (
+          <p className="mt-2 text-[13px] text-muted">
+            {t("statistics.noWorkspace", undefined, "Open a conversation in a workspace first; the data file is read from there.")}
+          </p>
+        )}
+        {!loadError && tools.length === 0 && (
+          <p className="mt-2 text-[13px] text-muted">
+            {t(
+              "statistics.none",
+              undefined,
+              "No local statistics engine is available in this build. Delta Suite provides validated analysis."
+            )}
+          </p>
+        )}
+        {!loadError && tools.length === 0 && (
+          <RuntimePackPrompt onInstalled={() => setToolsVersion((version) => version + 1)} />
+        )}
+        {tool && (
+          <>
+            <p className="mt-2 text-[13px] text-muted">{tool.description}</p>
+
+            <div className="mt-4 grid gap-3 max-w-[560px]">
+              {specs.map(([key, spec]) => (
+                <label key={key} className="grid gap-1">
+                  <span className="text-[12.5px] text-ink">
+                    {key}
+                    {required.has(key) ? " *" : ""}
+                  </span>
+                  {spec.enum ? (
+                    <select
+                      className="ds-field w-full"
+                      value={fields[key] ?? ""}
+                      onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
+                    >
+                      <option value="">{spec.default !== undefined ? `default: ${String(spec.default)}` : ""}</option>
+                      {spec.enum.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <FieldInput
+                      className="w-full"
+                      type={spec.type === "number" || spec.type === "integer" ? "number" : "text"}
+                      value={fields[key] ?? ""}
+                      placeholder={spec.description}
+                      onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
+                    />
+                  )}
+                  {spec.description && <span className="text-[11.5px] text-faint">{spec.description}</span>}
+                </label>
+              ))}
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              className="mt-4"
+              disabled={!canRun}
+              aria-busy={isRunning}
+              onClick={run}
+            >
+              {isRunning ? t("statistics.running", undefined, "Running…") : t("statistics.run", undefined, "Run")}
+            </Button>
+            {missing.length > 0 && (
+              <span className="ml-3 text-[12px] text-faint">
+                {t("statistics.missing", { fields: missing.join(", ") }, `Fill in: ${missing.join(", ")}`)}
+              </span>
+            )}
+
+            {result && (
+              <div className="mt-5 max-w-[720px]" data-testid="statistics-result">
+                {result.ok === false || result.error ? (
+                  <div role="alert" className="text-[13px] text-danger">
+                    {t("statistics.error", undefined, "The calculation did not run:")} {String(result.error ?? "")}
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[12px] uppercase tracking-[0.05em] text-faint font-semibold">
+                      {t("statistics.result", undefined, "Result")}
+                    </div>
+                    <table className="mt-2 w-full text-[13px]">
+                      <tbody>
+                        {(scalars as [string, Scalar][]).map(([key, value]) => (
+                          <tr key={key} className="border-b border-line">
+                            <td className="py-1 pr-4 text-muted">{key}</td>
+                            <td className="py-1 font-mono text-ink">{formatValue(value)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {structured.map(([key, value]) => (
+                      <div key={key} className="mt-3">
+                        <div className="text-[12px] text-muted">{key}</div>
+                        <pre className="mt-1 overflow-x-auto rounded-lg bg-bg p-2 text-[12px]">{formatValue(value)}</pre>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}

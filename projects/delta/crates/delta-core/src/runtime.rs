@@ -1,0 +1,2066 @@
+//! Rust runtime host and agent-turn orchestration.
+//!
+//! Owns run lifecycle, authorization, recovery, and coordination between model turns
+//! and controlled tools. The Runtime is the sole execution authority.
+
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::time::Duration;
+
+use base64::Engine as _;
+use serde::Serialize;
+use serde_json::{json, Value};
+
+use crate::approval::{ApprovalController, ApprovalDecision, ApprovalWriter};
+use crate::capability::CapabilityProgress;
+use crate::checkpoint::{CheckpointReader, CheckpointRegisterInput, CheckpointWriter};
+use crate::durability::atomic_write_private;
+use crate::idemlog::{IdempotencyWriter, SideEffectEntry};
+use crate::inbox::InboxStore;
+use crate::policy::{self, Decision, PolicyEvaluateInput, RiskLevel, RootEntry, ToolMetadata};
+use crate::provider::{self, ProviderRequest};
+use crate::LedgerWriter;
+
+mod completion;
+mod handle;
+pub(crate) use handle::interrupted_run_of;
+mod egress_gate;
+mod human_control;
+mod model_turn;
+mod outbound_gate;
+pub mod sandbox_proxy;
+mod tool_execution;
+mod vision_turn;
+
+use human_control::InteractionController;
+
+const DEFAULT_MAX_ITERATIONS: usize = 12;
+/// Tool calls one run may make in total, across all of its model iterations.
+const DEFAULT_MAX_TOOL_CALLS: usize = 100;
+/// Automatic retries of one model call after a transient failure (so up to 5 attempts).
+pub(crate) const DEFAULT_MAX_RETRIES: u32 = 4;
+/// How long an unattended run waits for an answer in the Inbox before giving up on the call.
+const DEFAULT_UNATTENDED_WAIT: Duration = Duration::from_secs(12 * 60 * 60);
+/// Screenshots from tools that are still sent to the model (the newest ones).
+const MAX_SCREENSHOTS_IN_CONTEXT: usize = 2;
+/// Largest screenshot file read back into a request.
+const MAX_SCREENSHOT_BYTES: u64 = 8 * 1024 * 1024;
+/// Longest wait between two automatic retries.
+const MAX_RETRY_DELAY_MS: u64 = 8000;
+
+/// Sink for runtime events. The delta_core binary installs a stdout sink;
+/// the in-process Tauri shell installs a Tauri-event sink.
+pub trait EventSink: Send + Sync {
+    fn emit(&self, frame: Value) -> Result<(), String>;
+}
+
+/// Default sink: write the frame as one JSON line to stdout.
+pub struct StdoutSink;
+impl EventSink for StdoutSink {
+    fn emit(&self, frame: Value) -> Result<(), String> {
+        let mut stdout = std::io::stdout();
+        writeln!(stdout, "{frame}").map_err(|error| error.to_string())?;
+        stdout.flush().map_err(|error| error.to_string())?;
+        Ok(())
+    }
+}
+
+/// Silent sink: drop every event (tests, headless runners).
+pub struct NullSink;
+impl EventSink for NullSink {
+    fn emit(&self, _: Value) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: Value,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AssistantTurn {
+    pub text: Option<String>,
+    pub reasoning: Option<String>,
+    pub tool_calls: Vec<ToolCall>,
+    pub finish_reason: Option<String>,
+    pub usage: Option<Value>,
+}
+
+/// Where an automatic provider retry stands, so a client can say "connecting, attempt 2 of 5".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryProgress {
+    /// The connection attempt about to be made, counting the first as 1.
+    pub attempt: u32,
+    /// Total attempts allowed for this model call (the first plus every retry).
+    pub max_attempts: u32,
+    /// How long the runtime waits before making it.
+    pub retry_in_ms: u64,
+}
+
+#[derive(Debug, Clone)]
+pub enum RuntimeEvent {
+    TurnStart {
+        input: Value,
+        attachments: Vec<Value>,
+        source: Option<Value>,
+        run_id: Option<String>,
+    },
+    AssistantDelta {
+        text: String,
+    },
+    ReasoningDelta {
+        text: String,
+    },
+    AssistantMessage {
+        message: Value,
+        text: Option<String>,
+        tool_calls: Vec<String>,
+        reasoning: Option<String>,
+        usage: Option<Value>,
+    },
+    ToolProposed {
+        tool_call_id: String,
+        name: String,
+        arguments: Value,
+        risk_level: Option<String>,
+    },
+    ToolStarted {
+        tool_call_id: String,
+        name: String,
+    },
+    ToolFinished {
+        tool_call_id: String,
+        name: String,
+        result: Value,
+        error: Option<String>,
+    },
+    /// An artifact was registered or changed status. `artifact` is the registered payload.
+    ArtifactUpdated {
+        tool_call_id: String,
+        artifact: Value,
+    },
+    PermissionRequired {
+        tool_call_id: String,
+        name: String,
+        arguments: Value,
+        reason: String,
+    },
+    DirectoryRequested {
+        tool_call_id: String,
+        reason: String,
+        path: String,
+        writable: bool,
+    },
+    QuestionRequested {
+        tool_call_id: String,
+        arguments: Value,
+    },
+    PlanProposed {
+        tool_call_id: String,
+        plan: String,
+    },
+    IterationEnd {
+        iteration: usize,
+    },
+    TurnEnd {
+        status: String,
+        iterations: usize,
+    },
+    Error {
+        error: String,
+        error_type: String,
+        terminal: bool,
+        /// Present on a non-terminal failure the runtime is about to retry.
+        retry: Option<RetryProgress>,
+    },
+    Interrupted {
+        iterations: usize,
+    },
+    Compacting,
+    Compacted {
+        text: String,
+    },
+    ModelChanged {
+        model: String,
+    },
+    /// A plain information line for the transcript (not a failure, not progress).
+    Notice {
+        text: String,
+    },
+}
+
+/// The only event envelope exposed by the Rust Runtime to product surfaces.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RuntimeEventEnvelopeV1 {
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub version: u8,
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+    pub sequence: u64,
+    pub payload: Value,
+}
+
+/// Authoritative lifecycle state for one session runtime.
+///
+/// A [`RuntimeHandle`] owns this state independently from the worker thread so
+/// control commands never need to lock the agent loop itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeState {
+    Idle,
+    Running,
+    WaitingApproval,
+    WaitingUser,
+    Cancelling,
+    Interrupted,
+    Failed,
+    Completed,
+}
+
+impl RuntimeState {
+    pub fn is_active(self) -> bool {
+        matches!(
+            self,
+            Self::Running | Self::WaitingApproval | Self::WaitingUser | Self::Cancelling
+        )
+    }
+}
+
+impl RuntimeEvent {
+    pub fn to_frame(&self, session_id: &str, sequence: u64) -> Value {
+        let (event_type, payload) = match self {
+            Self::TurnStart {
+                input,
+                attachments,
+                source,
+                run_id,
+            } => (
+                "turn_start",
+                json!({"input": input, "attachments": attachments, "source": source, "run_id": run_id}),
+            ),
+            Self::AssistantDelta { text } => ("assistant_delta", json!({"text": text})),
+            Self::ReasoningDelta { text } => ("reasoning_delta", json!({"text": text})),
+            Self::AssistantMessage {
+                message,
+                text,
+                tool_calls,
+                reasoning,
+                usage,
+            } => (
+                "assistant_message",
+                json!({"message": message, "text": text, "tool_calls": tool_calls, "reasoning": reasoning, "usage": usage}),
+            ),
+            Self::ToolProposed {
+                tool_call_id,
+                name,
+                arguments,
+                risk_level,
+            } => (
+                "tool_proposed",
+                json!({"tool_call_id": tool_call_id, "name": name, "arguments": arguments, "risk_level": risk_level}),
+            ),
+            Self::ArtifactUpdated {
+                tool_call_id,
+                artifact,
+            } => (
+                "artifact_updated",
+                json!({"tool_call_id": tool_call_id, "artifact": artifact}),
+            ),
+            Self::ToolStarted { tool_call_id, name } => (
+                "tool_started",
+                json!({"tool_call_id": tool_call_id, "name": name, "at_ms": (now_ts() * 1000.0).round() as u64}),
+            ),
+            Self::ToolFinished {
+                tool_call_id,
+                name,
+                result,
+                error,
+            } => (
+                "tool_finished",
+                json!({"tool_call_id": tool_call_id, "name": name, "result": result, "error": error, "at_ms": (now_ts() * 1000.0).round() as u64}),
+            ),
+            Self::PermissionRequired {
+                tool_call_id,
+                name,
+                arguments,
+                reason,
+            } => (
+                "permission_required",
+                json!({"tool_call_id": tool_call_id, "name": name, "arguments": arguments, "reason": reason}),
+            ),
+            Self::DirectoryRequested {
+                tool_call_id,
+                reason,
+                path,
+                writable,
+            } => (
+                "directory_requested",
+                json!({"tool_call_id": tool_call_id, "reason": reason, "path": path, "writable": writable}),
+            ),
+            Self::QuestionRequested {
+                tool_call_id,
+                arguments,
+            } => {
+                let mut payload = arguments.clone();
+                payload["tool_call_id"] = Value::String(tool_call_id.clone());
+                ("question_requested", payload)
+            }
+            Self::PlanProposed { tool_call_id, plan } => (
+                "plan_proposed",
+                json!({"tool_call_id": tool_call_id, "plan": plan}),
+            ),
+            Self::IterationEnd { iteration } => ("iteration_end", json!({"iteration": iteration})),
+            Self::TurnEnd { status, iterations } => (
+                "turn_end",
+                json!({"status": status, "iterations": iterations}),
+            ),
+            Self::Error {
+                error,
+                error_type,
+                terminal,
+                retry,
+            } => {
+                let mut payload =
+                    json!({"error": error, "error_type": error_type, "terminal": terminal});
+                if let Some(retry) = retry {
+                    payload["attempt"] = json!(retry.attempt);
+                    payload["max_attempts"] = json!(retry.max_attempts);
+                    payload["retry_in_ms"] = json!(retry.retry_in_ms);
+                }
+                ("error", payload)
+            }
+            Self::Interrupted { iterations } => ("interrupted", json!({"iterations": iterations})),
+            Self::Compacting => ("compacting", json!({})),
+            Self::Compacted { text } => ("compacted", json!({"text": text})),
+            Self::ModelChanged { model } => ("model_changed", json!({"model": model})),
+            Self::Notice { text } => ("notice", json!({"text": text})),
+        };
+        serde_json::to_value(RuntimeEventEnvelopeV1 {
+            event_type: event_type.to_string(),
+            version: 1,
+            session_id: session_id.to_string(),
+            sequence,
+            payload,
+        })
+        .expect("runtime event envelope is serializable")
+    }
+}
+
+pub trait ToolExecutor: Send + Sync {
+    fn execute(&self, call: &ToolCall, context: &ToolExecutionContext) -> ToolResult;
+}
+
+#[derive(Clone)]
+pub struct ToolExecutionContext {
+    pub session_id: String,
+    pub run_id: String,
+    pub workspace: Option<String>,
+    pub timeout: Duration,
+    pub cancel: Arc<AtomicBool>,
+    pub progress: Arc<dyn Fn(CapabilityProgress) + Send + Sync>,
+    /// R8.4: Ephemeral, task-scoped secret values resolved by the RuntimeHost
+    /// from the Foundation authority. Never written to environment variables,
+    /// never persisted, dropped after execution.
+    pub secrets: BTreeMap<String, String>,
+    /// The proxy this turn's tools must use for their own outbound requests, so a
+    /// `web_fetch` during a turn that is proxied does not quietly bypass the proxy
+    /// (or vice versa). Resolved by the runtime once per turn; `None` means direct.
+    /// In-process only — never serialized, never handed to a worker.
+    pub proxy: Option<ureq::Proxy>,
+}
+
+/// A worker-created file that is not visible as a product artifact until the
+/// Rust Runtime validates, promotes, hashes and registers it.
+#[derive(Debug, Clone)]
+pub struct StagedArtifact {
+    pub staging_path: PathBuf,
+    pub relative_path: String,
+    pub kind: String,
+    pub incomplete: bool,
+}
+
+/// An input the capability host checked before dispatch: the file as it was then (absolute path,
+/// SHA-256 of its bytes, size). The runtime uses it to record what a read tool read; a worker cannot
+/// add to it.
+#[derive(Debug, Clone)]
+pub struct VerifiedInput {
+    pub path: PathBuf,
+    pub sha256: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ToolResult {
+    pub tool_call_id: String,
+    pub output: Value,
+    pub error: Option<String>,
+    pub staged_artifacts: Vec<StagedArtifact>,
+    pub validation_criteria: Option<Value>,
+    pub verified_inputs: Vec<VerifiedInput>,
+    pub state: ToolExitState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolExitState {
+    Completed,
+    Failed,
+    Cancelled,
+    TimedOut,
+}
+
+impl ToolResult {
+    pub fn success(tool_call_id: &str, output: Value) -> Self {
+        Self {
+            tool_call_id: tool_call_id.to_string(),
+            output,
+            error: None,
+            staged_artifacts: Vec::new(),
+            validation_criteria: None,
+            verified_inputs: Vec::new(),
+            state: ToolExitState::Completed,
+        }
+    }
+
+    pub fn failure(tool_call_id: &str, error: impl Into<String>) -> Self {
+        let error = error.into();
+        Self {
+            tool_call_id: tool_call_id.to_string(),
+            output: json!({"ok": false, "error": error}),
+            error: Some(error),
+            staged_artifacts: Vec::new(),
+            validation_criteria: None,
+            verified_inputs: Vec::new(),
+            state: ToolExitState::Failed,
+        }
+    }
+}
+
+struct UnavailableToolExecutor;
+impl ToolExecutor for UnavailableToolExecutor {
+    fn execute(&self, call: &ToolCall, _context: &ToolExecutionContext) -> ToolResult {
+        ToolResult::failure(
+            &call.id,
+            format!("capability is not registered: {}", call.name),
+        )
+    }
+}
+
+/// Shared Rust authorities used by every active session. The contained SQLite
+/// writers are serialized per authority, while provider streaming and runtime
+/// controls remain independent.
+#[derive(Clone)]
+pub struct RuntimeAuthorities {
+    /// The state directory these authorities live in; the egress authority (ADR-0057) is read
+    /// from it before every model request.
+    state_dir: PathBuf,
+    ledger: Arc<Mutex<LedgerWriter>>,
+    idempotency: Arc<Mutex<IdempotencyWriter>>,
+    approvals: Arc<Mutex<ApprovalWriter>>,
+    inbox: Arc<InboxStore>,
+}
+
+impl RuntimeAuthorities {
+    pub fn open(state_dir: impl AsRef<Path>) -> Result<Self, String> {
+        let state_dir = state_dir.as_ref();
+        fs::create_dir_all(state_dir).map_err(|error| error.to_string())?;
+        Ok(Self {
+            state_dir: state_dir.to_path_buf(),
+            ledger: Arc::new(Mutex::new(
+                LedgerWriter::open(state_dir.join("run_events.db"))
+                    .map_err(|error| error.to_string())?,
+            )),
+            idempotency: Arc::new(Mutex::new(
+                IdempotencyWriter::open(state_dir.join("side_effects.db"))
+                    .map_err(|error| error.to_string())?,
+            )),
+            approvals: Arc::new(Mutex::new(
+                ApprovalWriter::open(state_dir.join("audit_events.db").to_string_lossy().as_ref())
+                    .map_err(|error| error.to_string())?,
+            )),
+            inbox: Arc::new(
+                InboxStore::open(state_dir.join("inbox.json"))
+                    .map_err(|error| error.to_string())?,
+            ),
+        })
+    }
+
+    pub fn state_dir(&self) -> &Path {
+        &self.state_dir
+    }
+
+    pub fn ledger(&self) -> Arc<Mutex<LedgerWriter>> {
+        self.ledger.clone()
+    }
+
+    /// Read-write handle to the side-effect idempotency authority.
+    pub fn idempotency(&self) -> Arc<Mutex<IdempotencyWriter>> {
+        self.idempotency.clone()
+    }
+
+    pub fn inbox(&self) -> Arc<InboxStore> {
+        self.inbox.clone()
+    }
+
+    /// Cold-start restart recovery: rebuild Run state from the sole durable
+    /// Run authority (the ledger) and close every run that was interrupted by
+    /// a crash, without ever auto-replaying a real side effect.
+    ///
+    /// State taxonomy on restart (ADR-042 run lifecycle + checkpoints):
+    /// - **Recoverable** (latest checkpoint phase is `awaiting_approval` /
+    ///   `awaiting_user` / `awaiting_question` / `awaiting_directory` /
+    ///   `awaiting_plan`): the run was paused on a human action. It is left
+    ///   open (`running`) so its approval / inbox / interaction state is
+    ///   restored, not destroyed. Its side effects are not swept.
+    /// - **Executing** (no recoverable checkpoint): the run was actively
+    ///   executing when the process died. It is closed with a synthetic
+    ///   `run.interrupted` (terminal) and every stale `Planned` / `Executing`
+    ///   side effect is swept to `Uncertain` — never re-executed. An operator
+    ///   resolves each `Uncertain` entry via `resolve_uncertain`.
+    /// - **Terminal** (`completed` / `failed` / `interrupted` / `skipped` /
+    ///   `cancelled`): already closed; not touched. Never re-executed.
+    ///
+    /// Idempotent: a second invocation finds no open runs and no uncommitted
+    /// side effects, so it is a no-op. This holds for duplicate restarts and
+    /// repeated reconciliation.
+    ///
+    /// The ledger is the single Run authority. The transcript and the
+    /// `recovery` column are rebuild evidence only and are not consulted to
+    /// decide whether a run may be replayed.
+    pub fn recover_interrupted_runs(&self) -> Result<RecoveryReport, String> {
+        let ledger = lock_recovering(&self.ledger);
+        let reader = ledger.reader().map_err(|error| error.to_string())?;
+        let open_runs = reader.open_runs().map_err(|error| error.to_string())?;
+        if open_runs.is_empty() {
+            return Ok(RecoveryReport::default());
+        }
+
+        // Partition open runs by their latest checkpoint phase. A run paused on
+        // a human action is recoverable and must survive the restart; a run that
+        // was mid-execution is interrupted.
+        let checkpoint_reader = CheckpointReader::from_reader(reader);
+        let mut interrupted = Vec::new();
+        let mut recovered_waiting = Vec::new();
+        for run_id in &open_runs {
+            let recoverable = checkpoint_reader
+                .latest(run_id)
+                .map_err(|error| error.to_string())?
+                .is_some_and(|checkpoint| checkpoint.recoverable);
+            if recoverable {
+                recovered_waiting.push(run_id.clone());
+            } else {
+                interrupted.push(run_id.clone());
+            }
+        }
+        drop(checkpoint_reader);
+
+        // Close every interrupted run with a synthetic `run.interrupted`. The
+        // ledger state machine enforces `running | resumed -> interrupted`.
+        let ts = now_ts();
+        for run_id in &interrupted {
+            ledger
+                .transition(
+                    run_id,
+                    "run.interrupted",
+                    "system",
+                    ts,
+                    &json!({"reason": "crashed"}),
+                    "",
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        drop(ledger);
+
+        // Sweep stale side effects for the interrupted runs to `Uncertain`.
+        // Recoverable (waiting) runs are intentionally excluded: their
+        // `Planned` side effects represent intent awaiting a human decision,
+        // not a crash mid-flight.
+        let swept = if interrupted.is_empty() {
+            Vec::new()
+        } else {
+            let idempotency = lock_recovering(&self.idempotency);
+            idempotency
+                .sweep_stale(&interrupted)
+                .map_err(|error| error.to_string())?
+        };
+
+        Ok(RecoveryReport {
+            interrupted_runs: interrupted,
+            recovered_waiting,
+            swept_side_effects: swept,
+        })
+    }
+}
+
+/// Outcome of a cold-start restart recovery sweep.
+#[derive(Debug, Clone, Default)]
+pub struct RecoveryReport {
+    /// Runs that were mid-execution at crash and are now closed as
+    /// `interrupted` (terminal). Their stale side effects were swept to
+    /// `Uncertain` and must never be auto-replayed.
+    pub interrupted_runs: Vec<String>,
+    /// Runs that were paused on a human action (approval / interaction) and
+    /// are left open so their waiting state is restored.
+    pub recovered_waiting: Vec<String>,
+    /// Side-effect rows swept from `Planned` / `Executing` to `Uncertain`.
+    pub swept_side_effects: Vec<SideEffectEntry>,
+}
+
+#[derive(Clone)]
+pub struct RuntimeConfig {
+    /// Product-facing routed id (for example `anthropic:claude-sonnet-4-6`).
+    /// `model` below is the provider-facing bare id.
+    pub model_id: String,
+    pub model: String,
+    pub protocol: String,
+    pub api_key: String,
+    pub base_url: String,
+    pub max_iterations: usize,
+    /// Tool calls one run may make; the call past the limit is refused and the run stops.
+    pub max_tool_calls: usize,
+    pub max_retries: u32,
+    /// Wait before the first automatic retry; it doubles for each further one (capped).
+    pub retry_base_delay_ms: u64,
+    pub ttft_timeout: Option<f64>,
+    pub tool_timeout: Option<f64>,
+    pub model_settings: Value,
+    pub system_prompt: Option<String>,
+    pub workspace: Option<String>,
+    /// Unattended runs park approval requests in the Inbox authority instead
+    /// of waiting on an in-composer response.
+    pub unattended: bool,
+    /// How long an unattended run waits for an answer (approval, question, plan, directory)
+    /// before it gives up on that call. `None` waits for ever. An attended run is never timed
+    /// out: its user is at the screen, and may step away and come back.
+    pub unattended_wait: Option<Duration>,
+    /// How pictures reach the chat model: as they are, or described first by a vision model
+    /// when this chat model cannot read them (see `vision`).
+    pub vision: crate::vision::VisionMode,
+    /// True when pictures go to a chat model that nothing says takes them: the runtime then watches
+    /// the first request that carries one.
+    pub pictures_unproven: bool,
+    /// Called with what a request showed: `true` when a request with pictures was accepted,
+    /// `false` when pictures were refused and the same request without them was accepted.
+    pub learn_pictures: Option<std::sync::Arc<dyn Fn(bool) + Send + Sync>>,
+    /// Execution mode drives the Plan-mode Trust constraint in the Policy
+    /// layer. Default is `Execute`. `Plan` hard-rejects any non-read-only
+    /// capability regardless of model behavior.
+    pub mode: crate::policy::ExecutionMode,
+    /// Context window of the session's model, in tokens, when the catalog
+    /// knows it. `None` compacts at the token cap alone.
+    pub context_window_tokens: Option<u64>,
+    /// Maximum estimated input context per model request; None follows the catalog window.
+    pub context_budget_tokens: Option<u64>,
+    /// Fraction of the context window at which compaction triggers (0.10–0.95
+    /// per the product settings contract).
+    pub compaction_threshold_pct: f64,
+    /// Token count that triggers compaction regardless of the window size.
+    pub compaction_cap_tokens: u64,
+    /// Optional routed model id for the summarizer request; empty means the
+    /// session's own model.
+    pub compaction_model: Option<String>,
+    /// Whether the auto-approve reviewer (ADR-0084) may answer a question the policy would put to
+    /// the user. Off until the reviewer evaluation gate passes.
+    pub reviewer_enabled: bool,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            model_id: String::new(),
+            model: String::new(),
+            protocol: "openai_chat".to_string(),
+            api_key: String::new(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            max_iterations: DEFAULT_MAX_ITERATIONS,
+            max_tool_calls: DEFAULT_MAX_TOOL_CALLS,
+            max_retries: DEFAULT_MAX_RETRIES,
+            retry_base_delay_ms: 1000,
+            ttft_timeout: None,
+            tool_timeout: None,
+            model_settings: json!({}),
+            system_prompt: None,
+            workspace: None,
+            unattended: false,
+            unattended_wait: Some(DEFAULT_UNATTENDED_WAIT),
+            vision: crate::vision::VisionMode::Native,
+            pictures_unproven: false,
+            learn_pictures: None,
+            mode: crate::policy::ExecutionMode::Execute,
+            context_window_tokens: None,
+            context_budget_tokens: None,
+            compaction_threshold_pct: 0.8,
+            compaction_cap_tokens: 250_000,
+            compaction_model: None,
+            reviewer_enabled: false,
+        }
+    }
+}
+
+pub struct RuntimeHost {
+    config: RuntimeConfig,
+    messages: Vec<Value>,
+    cancel: Arc<AtomicBool>,
+    provider_cancel: Arc<AtomicBool>,
+    steering: Arc<SteeringQueue>,
+    sequence: Arc<Mutex<u64>>,
+    session_id: String,
+    authorities: Option<RuntimeAuthorities>,
+    tools: Option<Value>,
+    tool_executor: Arc<dyn ToolExecutor>,
+    approvals: Arc<ApprovalController>,
+    interactions: Arc<InteractionController>,
+    runtime_state: Option<Arc<Mutex<RuntimeState>>>,
+    run_id: Option<String>,
+    sink: Arc<dyn EventSink>,
+    event_error: Arc<Mutex<Option<String>>>,
+    /// Set once a provider has refused a request parameter, so the next attempt of this turn omits
+    /// the optional ones. Reset at the start of each turn: the refusal belongs to that request
+    /// body, and a later turn must not inherit a stripped body from an unrelated failure. One shot
+    /// per turn: if the reduced body is refused too, the failure is reported instead of stripping
+    /// the request down to nothing.
+    reduced_request: bool,
+    /// Set once a request with pictures was refused and the same request without them was not:
+    /// from then on this session sends the model words in place of pictures.
+    pictures_withheld: bool,
+    /// While pictures are withheld after a refusal: whether the refusal was clear enough to
+    /// remember for the model (`Some(true)`), or only to act on for this session (`Some(false)`).
+    /// Taken when the next request is accepted, which is what shows it was the pictures.
+    withheld_to_learn: Option<bool>,
+    /// Tool calls the current turn has attempted, counted against `max_tool_calls`. Reset at the
+    /// start of each turn, like the iteration count.
+    tool_calls_this_turn: usize,
+    /// (path, name) of the finished files this turn registered, for the completion notice. Reset
+    /// at the start of each turn.
+    turn_artifacts: Mutex<Vec<(String, String)>>,
+    /// The model that refused the request's tool definitions. While it remains the session's
+    /// model, requests go without tools; web search is then asked for in text and run by the
+    /// runtime (see `model_turn.rs`). Keyed by model so a switch to another model tries tools again.
+    refused_tools_model: Option<String>,
+    /// The proxy this turn's outbound requests go through, resolved once before the first
+    /// request and reused for the rest of the turn (including every retry). `None` is
+    /// direct. Frozen per turn so a settings change cannot split one answer across two
+    /// routes — the same reason `reduced_request` is sticky.
+    turn_proxy: Option<ureq::Proxy>,
+    /// Context compaction: a summary that replaces `messages[..compaction_boundary]`
+    /// in outbound requests. The transcript itself stays intact and append-only,
+    /// so the boundary index keeps pointing at the same message across restarts;
+    /// a host reloads the persisted state on construction (`with_compaction`).
+    compaction_summary: Option<String>,
+    compaction_boundary: usize,
+    /// Whether the current run attempted compaction (also used by regression tests).
+    compacted_in_turn: bool,
+    /// Bound repeated compactions to distinct, advancing transcript boundaries.
+    /// Failed attempts must not retry the same prefix on every model iteration.
+    compaction_attempts_in_turn: usize,
+    last_compaction_attempt_boundary: usize,
+}
+
+/// A queued steering/follow-up instruction: (text, optional MessageSource sidecar).
+type SteeringItem = (String, Option<Value>);
+type SteeringQueue = Mutex<Vec<SteeringItem>>;
+
+#[derive(Debug)]
+struct QueuedRun {
+    input: String,
+    attachments: Vec<Value>,
+    source: Option<Value>,
+    run_id: String,
+}
+
+enum RuntimeOperation {
+    Run(QueuedRun),
+    Resume { run_id: String },
+    Retry { run_id: String },
+}
+
+enum RuntimeCommand {
+    Execute(RuntimeOperation),
+    SwitchModel {
+        change: ModelChange,
+        reply: mpsc::Sender<Result<Option<String>, String>>,
+    },
+    RefreshRuntime {
+        config: Box<RuntimeConfig>,
+        tools: Value,
+        reply: mpsc::Sender<Result<Option<String>, String>>,
+    },
+    Truncate {
+        index: usize,
+        reply: mpsc::Sender<Result<usize, String>>,
+    },
+}
+
+enum ModelChange {
+    LegacyId(String),
+    Resolved(Box<RuntimeConfig>),
+}
+
+/// Cloneable control surface for a session-owned background runtime.
+///
+/// The worker thread has exclusive ownership of [`RuntimeHost`]. The handle
+/// exposes only short-lived state locks, cooperative cancellation tokens and
+/// bounded queues, so steering/cancel/follow-up remain responsive while a
+/// provider request or capability is in flight.
+pub struct RuntimeHandle {
+    session_id: String,
+    command_tx: mpsc::Sender<RuntimeCommand>,
+    cancel: Arc<AtomicBool>,
+    provider_cancel: Arc<AtomicBool>,
+    steering: Arc<SteeringQueue>,
+    follow_ups: Arc<Mutex<VecDeque<QueuedRun>>>,
+    state: Arc<Mutex<RuntimeState>>,
+    messages: Arc<RwLock<Vec<Value>>>,
+    approvals: Arc<ApprovalController>,
+    interactions: Arc<InteractionController>,
+    /// The run ledger and checkpoints, to find the run a session can resume. `None` for hosts built
+    /// without authorities (some tests); those cannot resume.
+    authorities: Option<RuntimeAuthorities>,
+}
+
+pub(crate) fn now_ts() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+}
+
+fn uuid_v4() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// Whether a provider failure is worth retrying.
+///
+/// The decision is delegated to [`crate::retry::is_retryable_failure`] (ADR-039), which
+/// consults the endpoint's own verdict first. The previous inline copy looked at the status code
+/// only, so a gateway wrapping a rejected request in a 502 was retried as if the upstream had
+/// hiccuped.
+fn is_retryable_error(e: &str) -> bool {
+    crate::retry::is_retryable_failure(e)
+}
+
+fn classify_transient_error(e: &str) -> String {
+    let lower = e.to_lowercase();
+    if lower.contains("429") || lower.contains("rate") {
+        "RateLimit".to_string()
+    } else if lower.contains("50") || lower.contains("server") {
+        "ServerError".to_string()
+    } else if lower.contains("timeout") || lower.contains("ttft") {
+        "TTFTTimeout".to_string()
+    } else if lower.contains("connection") || lower.contains("transport") {
+        "ConnectionError".to_string()
+    } else {
+        "Unknown".to_string()
+    }
+}
+
+fn split_data_url(value: &str) -> Option<(&str, &str)> {
+    let rest = value.strip_prefix("data:")?;
+    let (metadata, data) = rest.split_once(',')?;
+    metadata
+        .strip_suffix(";base64")
+        .map(|media_type| (media_type, data))
+}
+
+/// Largest Office file accepted as an attachment, in decoded bytes. The composer enforces the same.
+pub const MAX_OFFICE_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
+/// Longest data URL accepted for an Office attachment: the base64 of the limit, plus the prefix.
+const MAX_OFFICE_DATA_URL_CHARS: usize = 14_000_000;
+const OFFICE_EXTENSIONS: [&str; 3] = ["docx", "xlsx", "pptx"];
+
+/// File name of an Office attachment, checked before it becomes part of a path. Separators,
+/// control characters, leading dots and any extension other than the three Office types are refused.
+fn safe_office_name(name: &str) -> Result<String, String> {
+    let extension = name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase())
+        .unwrap_or_default();
+    let plain = !name.is_empty()
+        && name.len() <= 200
+        && !name.starts_with('.')
+        && name
+            .chars()
+            .all(|c| !c.is_control() && !matches!(c, '/' | '\\' | ':'));
+    if plain && OFFICE_EXTENSIONS.contains(&extension.as_str()) {
+        Ok(name.to_string())
+    } else {
+        Err(format!(
+            "{name} is not an allowed Word, Excel or PowerPoint file name"
+        ))
+    }
+}
+
+/// Save each Office attachment under `<workspace>/.delta/attachments/<run>/` and keep only its saved
+/// path. Other attachments pass through unchanged. The result never holds Office bytes, so the
+/// transcript, the events and the provider payload carry a path and not the file.
+fn save_office_attachments(
+    workspace: Option<&str>,
+    run_id: &str,
+    attachments: &[Value],
+) -> Result<Vec<Value>, String> {
+    let mut saved = Vec::with_capacity(attachments.len());
+    for (index, attachment) in attachments.iter().enumerate() {
+        if attachment.get("kind").and_then(Value::as_str) != Some("office") {
+            saved.push(attachment.clone());
+            continue;
+        }
+        let name = attachment
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let file_name = safe_office_name(name)?;
+        let workspace = workspace
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                "Word, Excel and PowerPoint attachments need a workspace; choose a workspace and attach the file again"
+                    .to_string()
+            })?;
+        let data_url = attachment
+            .get("data_url")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if data_url.len() > MAX_OFFICE_DATA_URL_CHARS {
+            return Err(format!("{name} is larger than 10 MB"));
+        }
+        let (_, payload) =
+            split_data_url(data_url).ok_or_else(|| format!("{name} is not a valid Office file"))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .map_err(|_| format!("{name} is not a valid Office file"))?;
+        if bytes.len() > MAX_OFFICE_ATTACHMENT_BYTES {
+            return Err(format!("{name} is larger than 10 MB"));
+        }
+        // The index keeps two attachments with the same name in one run from overwriting each other.
+        let relative = format!(".delta/attachments/{run_id}/{index}-{file_name}");
+        let target = Path::new(workspace).join(&relative);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("could not save {name}: {error}"))?;
+        }
+        atomic_write_private(&target, &bytes)
+            .map_err(|error| format!("could not save {name}: {error}"))?;
+        saved.push(json!({"kind": "office", "name": name, "saved_path": relative}));
+    }
+    Ok(saved)
+}
+
+/// Text that tells the model where a saved Office file is. The bytes are never sent.
+fn office_note(attachment: &Value) -> String {
+    let name = attachment
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("attachment");
+    let saved_path = attachment
+        .get("saved_path")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    format!("[Attached Office file: {name}, saved at {saved_path}; read it with read_document]")
+}
+
+/// Convert the canonical transcript attachment shape at the provider boundary.
+/// The transcript remains provider-neutral and therefore survives model changes.
+pub(crate) fn provider_user_content(protocol: &str, text: &str, attachments: &[Value]) -> Value {
+    if protocol == "anthropic" {
+        let mut blocks = Vec::new();
+        if !text.is_empty() {
+            blocks.push(json!({"type": "text", "text": text}));
+        }
+        for attachment in attachments {
+            let kind = attachment
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let name = attachment
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("attachment");
+            if kind == "text" {
+                if let Some(value) = attachment.get("text").and_then(Value::as_str) {
+                    blocks.push(json!({"type": "text", "text": format!("<file name=\"{name}\">\n{value}\n</file>")}));
+                }
+            } else if kind == "office" {
+                blocks.push(json!({"type": "text", "text": office_note(attachment)}));
+            } else if let Some((media_type, data)) = attachment
+                .get("data_url")
+                .and_then(Value::as_str)
+                .filter(|_| matches!(kind, "image" | "pdf"))
+                .and_then(split_data_url)
+            {
+                let block_type = if kind == "pdf" { "document" } else { "image" };
+                blocks.push(json!({"type": block_type, "source": {
+                    "type": "base64", "media_type": media_type, "data": data
+                }}));
+            }
+        }
+        return Value::Array(blocks);
+    }
+
+    if protocol == "openai_responses" {
+        let mut parts = Vec::new();
+        if !text.is_empty() {
+            parts.push(json!({"type": "input_text", "text": text}));
+        }
+        for attachment in attachments {
+            let kind = attachment
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let name = attachment
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("attachment");
+            if kind == "text" {
+                if let Some(value) = attachment.get("text").and_then(Value::as_str) {
+                    parts.push(json!({"type": "input_text", "text": format!("<file name=\"{name}\">\n{value}\n</file>")}));
+                }
+            } else if kind == "office" {
+                parts.push(json!({"type": "input_text", "text": office_note(attachment)}));
+            } else if let Some(data_url) = attachment
+                .get("data_url")
+                .and_then(Value::as_str)
+                .filter(|_| matches!(kind, "image" | "pdf"))
+            {
+                if kind == "pdf" {
+                    parts.push(
+                        json!({"type": "input_file", "filename": name, "file_data": data_url}),
+                    );
+                } else {
+                    parts.push(json!({"type": "input_image", "image_url": data_url}));
+                }
+            }
+        }
+        return Value::Array(parts);
+    }
+
+    let mut parts = Vec::new();
+    if !text.is_empty() {
+        parts.push(json!({"type": "text", "text": text}));
+    }
+    for attachment in attachments {
+        let kind = attachment
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let name = attachment
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("attachment");
+        if kind == "text" {
+            if let Some(value) = attachment.get("text").and_then(Value::as_str) {
+                parts.push(json!({"type": "text", "text": format!("<file name=\"{name}\">\n{value}\n</file>")}));
+            }
+        } else if kind == "image" {
+            if let Some(data_url) = attachment.get("data_url").and_then(Value::as_str) {
+                parts.push(json!({"type": "image_url", "image_url": {"url": data_url}}));
+            }
+        } else if kind == "office" {
+            parts.push(json!({"type": "text", "text": office_note(attachment)}));
+        } else {
+            parts.push(json!({"type": "text", "text": format!("[Attached PDF: {name}; select an OpenAI Responses or Anthropic model for native PDF input]")}));
+        }
+    }
+    Value::Array(parts)
+}
+
+/// A short fingerprint of a message's role and text, to recognise it again in a transcript that
+/// was rebuilt from storage.
+pub(crate) fn message_anchor(message: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let role = message
+        .get("role")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let text = match message.get("content") {
+        Some(Value::String(text)) => text.clone(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => String::new(),
+    };
+    let digest = Sha256::digest(format!("{role}\0{}", text.trim()).as_bytes());
+    format!("{digest:x}")
+}
+
+/// Lock `mutex` even when a thread panicked while holding it. Use it only for state that is
+/// changed in single, complete steps (a counter, an `Option`, a database handle whose truth lives
+/// on disk): a panic then leaves a valid value behind, and refusing to lock would turn one
+/// contained panic into a permanent failure of every later run.
+pub(crate) fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+#[derive(Clone)]
+struct RuntimeEventEmitter {
+    session_id: String,
+    sequence: Arc<Mutex<u64>>,
+    sink: Arc<dyn EventSink>,
+    event_error: Arc<Mutex<Option<String>>>,
+}
+
+impl RuntimeEventEmitter {
+    fn emit(&self, event: RuntimeEvent) {
+        if lock_recovering(&self.event_error).is_some() {
+            return;
+        }
+        let mut sequence = lock_recovering(&self.sequence);
+        let next_sequence = *sequence + 1;
+        let frame = event.to_frame(&self.session_id, next_sequence);
+        if let Err(error) = self.sink.emit(frame) {
+            let mut event_error = lock_recovering(&self.event_error);
+            if event_error.is_none() {
+                *event_error = Some(error);
+            }
+            return;
+        }
+        *sequence = next_sequence;
+    }
+}
+
+/// Provider-private stream frames terminate here. This adapter is the only
+/// conversion boundary from provider deltas to the product event protocol;
+/// raw provider frames never reach a Tauri/stdout event sink.
+struct ProviderEventWriter {
+    emitter: RuntimeEventEmitter,
+    buffer: Vec<u8>,
+    text: String,
+    reasoning: String,
+}
+
+impl ProviderEventWriter {
+    fn new(emitter: RuntimeEventEmitter) -> Self {
+        Self {
+            emitter,
+            buffer: Vec::new(),
+            text: String::new(),
+            reasoning: String::new(),
+        }
+    }
+
+    fn process_line(&mut self, line: &[u8]) {
+        let Ok(frame) = serde_json::from_slice::<Value>(line) else {
+            return;
+        };
+        let Some(data) = frame.get("data") else {
+            return;
+        };
+        if let Some(text) = data.get("text_delta").and_then(Value::as_str) {
+            self.text.push_str(text);
+            self.emitter.emit(RuntimeEvent::AssistantDelta {
+                text: text.to_string(),
+            });
+        }
+        if let Some(text) = data.get("reasoning_delta").and_then(Value::as_str) {
+            self.reasoning.push_str(text);
+            self.emitter.emit(RuntimeEvent::ReasoningDelta {
+                text: text.to_string(),
+            });
+        }
+    }
+
+    fn process_complete_lines(&mut self) {
+        while let Some(newline) = self.buffer.iter().position(|byte| *byte == b'\n') {
+            let mut line: Vec<u8> = self.buffer.drain(..=newline).collect();
+            while matches!(line.last(), Some(b'\n' | b'\r')) {
+                line.pop();
+            }
+            if !line.is_empty() {
+                self.process_line(&line);
+            }
+        }
+    }
+
+    fn finish(mut self) -> (String, String) {
+        self.process_complete_lines();
+        if !self.buffer.is_empty() {
+            let tail = std::mem::take(&mut self.buffer);
+            self.process_line(&tail);
+        }
+        (self.text, self.reasoning)
+    }
+}
+
+impl Write for ProviderEventWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.buffer.extend_from_slice(buf);
+        self.process_complete_lines();
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.process_complete_lines();
+        Ok(())
+    }
+}
+
+fn validate_schema_value(value: &Value, schema: &Value, path: &str) -> Result<(), String> {
+    if let Some(allowed) = schema.get("enum").and_then(Value::as_array) {
+        if !allowed.iter().any(|candidate| candidate == value) {
+            return Err(format!(
+                "tool schema validation failed at {path}: value is not allowed"
+            ));
+        }
+    }
+    if let Some(expected) = schema.get("type").and_then(Value::as_str) {
+        let matches = match expected {
+            "object" => value.is_object(),
+            "array" => value.is_array(),
+            "string" => value.is_string(),
+            "number" => value.is_number(),
+            "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
+            "boolean" => value.is_boolean(),
+            "null" => value.is_null(),
+            _ => false,
+        };
+        if !matches {
+            return Err(format!(
+                "tool schema validation failed at {path}: expected {expected}"
+            ));
+        }
+    }
+    if let Some(object) = value.as_object() {
+        if let Some(required) = schema.get("required").and_then(Value::as_array) {
+            for key in required.iter().filter_map(Value::as_str) {
+                if !object.contains_key(key) {
+                    return Err(format!(
+                        "tool schema validation failed at {path}: missing {key}"
+                    ));
+                }
+            }
+        }
+        if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+            for (key, item) in object {
+                if let Some(property_schema) = properties.get(key) {
+                    validate_schema_value(item, property_schema, &format!("{path}.{key}"))?;
+                }
+            }
+        }
+    }
+    if let (Some(items), Some(item_schema)) = (
+        value.as_array(),
+        schema.get("items").filter(|item| item.is_object()),
+    ) {
+        for (index, item) in items.iter().enumerate() {
+            validate_schema_value(item, item_schema, &format!("{path}[{index}]"))?;
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProviderStreamOutcome {
+    Completed,
+    Interrupted,
+}
+
+impl RuntimeHost {
+    pub fn new(session_id: &str, config: RuntimeConfig) -> Self {
+        let mut messages = Vec::new();
+        if let Some(ref sys) = config.system_prompt {
+            messages.push(json!({"role": "system", "content": sys}));
+        }
+        Self {
+            config,
+            messages,
+            cancel: Arc::new(AtomicBool::new(false)),
+            provider_cancel: Arc::new(AtomicBool::new(false)),
+            steering: Arc::new(Mutex::new(Vec::new())),
+            sequence: Arc::new(Mutex::new(0)),
+            session_id: session_id.to_string(),
+            authorities: None,
+            tools: None,
+            tool_executor: Arc::new(UnavailableToolExecutor),
+            approvals: Arc::new(ApprovalController::default()),
+            interactions: Arc::new(InteractionController::default()),
+            runtime_state: None,
+            run_id: None,
+            sink: Arc::new(NullSink),
+            event_error: Arc::new(Mutex::new(None)),
+            reduced_request: false,
+            pictures_withheld: false,
+            withheld_to_learn: None,
+            tool_calls_this_turn: 0,
+            turn_artifacts: Mutex::new(Vec::new()),
+            refused_tools_model: None,
+            // Test hosts carry no authorities and never reach the product doors, so
+            // they stay direct; a test that needs a proxy sets it explicitly.
+            turn_proxy: None,
+            compaction_summary: None,
+            compaction_boundary: 0,
+            compacted_in_turn: false,
+            compaction_attempts_in_turn: 0,
+            last_compaction_attempt_boundary: 0,
+        }
+    }
+
+    pub fn with_tools(mut self, tools: Value) -> Self {
+        self.tools = Some(tools);
+        self
+    }
+
+    fn replace_tools(&mut self, tools: Value) {
+        self.tools = Some(tools);
+    }
+
+    pub fn with_tool_executor(mut self, executor: Arc<dyn ToolExecutor>) -> Self {
+        self.tool_executor = executor;
+        self
+    }
+    pub fn with_authorities(mut self, authorities: RuntimeAuthorities) -> Self {
+        self.authorities = Some(authorities);
+        self
+    }
+    /// Seed the transcript. The persisted transcript never holds the system message, so the
+    /// host's own prompt is carried over; a seeded system message is replaced by the current one.
+    pub fn with_messages(mut self, messages: Vec<Value>) -> Self {
+        let is_system =
+            |message: &Value| message.get("role").and_then(Value::as_str) == Some("system");
+        let system = self.messages.iter().find(|m| is_system(m)).cloned();
+        self.messages = messages;
+        if let Some(system) = system {
+            match self.messages.iter().position(is_system) {
+                Some(index) => self.messages[index] = system,
+                None => self.messages.insert(0, system),
+            }
+        }
+        self
+    }
+
+    /// Restore a persisted compaction state (summary + transcript boundary).
+    /// The values are taken as persisted; `outbound_messages` clamps the
+    /// boundary against the seeded transcript, so a stale index can never
+    /// swallow the whole history.
+    pub fn with_compaction(mut self, summary: String, boundary: usize) -> Self {
+        self.compaction_summary = Some(summary);
+        self.compaction_boundary = boundary;
+        self
+    }
+    /// Restore a compaction persisted by `persist_compaction`. The boundary counts messages after
+    /// the leading system messages, and `anchor` fingerprints the first message kept verbatim.
+    /// The persisted transcript is not the in-memory one (it lacks messages the runtime keeps
+    /// only for itself), so an index alone can drift; when the message at the boundary is not the
+    /// one that was anchored, the compaction is dropped and the next one summarizes afresh.
+    pub fn with_persisted_compaction(
+        mut self,
+        summary: String,
+        relative_boundary: usize,
+        anchor: &str,
+    ) -> Self {
+        let boundary = relative_boundary + self.system_prefix();
+        let anchored = self
+            .messages
+            .get(boundary)
+            .is_some_and(|message| message_anchor(message) == anchor);
+        if anchored {
+            self.compaction_summary = Some(summary);
+            self.compaction_boundary = boundary;
+        }
+        self
+    }
+
+    /// Leading system messages, which are never part of a persisted transcript.
+    pub(crate) fn system_prefix(&self) -> usize {
+        self.messages
+            .iter()
+            .take_while(|m| m.get("role").and_then(Value::as_str) == Some("system"))
+            .count()
+    }
+
+    /// Whether an unattended run has waited as long as it is willing to since `since`.
+    pub(crate) fn unattended_wait_expired(&self, since: std::time::Instant) -> bool {
+        self.config.unattended
+            && self
+                .config
+                .unattended_wait
+                .is_some_and(|limit| since.elapsed() >= limit)
+    }
+
+    pub fn with_run_id(mut self, run_id: String) -> Self {
+        self.run_id = Some(run_id);
+        self
+    }
+
+    pub fn set_run_id(&mut self, run_id: String) {
+        self.run_id = Some(run_id);
+    }
+
+    /// Install a custom event sink (e.g. Tauri emit). Default is NullSink.
+    pub fn with_event_sink(mut self, sink: Arc<dyn EventSink>) -> Self {
+        self.sink = sink;
+        self
+    }
+
+    pub fn reset_cancel(&self) {
+        self.cancel.store(false, Ordering::SeqCst);
+        self.provider_cancel.store(false, Ordering::SeqCst);
+    }
+    pub fn cancel(&self) {
+        self.cancel.store(true, Ordering::SeqCst);
+        self.provider_cancel.store(true, Ordering::SeqCst);
+    }
+    pub fn steer(&self, text: &str, source: Option<Value>) {
+        self.steering
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((text.to_string(), source));
+        self.provider_cancel.store(true, Ordering::SeqCst);
+    }
+    pub fn model(&self) -> &str {
+        if self.config.model_id.is_empty() {
+            &self.config.model
+        } else {
+            &self.config.model_id
+        }
+    }
+    pub fn messages(&self) -> &[Value] {
+        &self.messages
+    }
+    pub fn truncate_messages(&mut self, index: usize) {
+        if index < self.messages.len() {
+            self.messages.truncate(index);
+        }
+        // A summary of messages that are gone must not be applied to whatever is appended next.
+        if self.compaction_boundary > self.messages.len() {
+            self.compaction_summary = None;
+            self.compaction_boundary = 0;
+        }
+    }
+
+    pub fn switch_model(&mut self, model: &str) -> Option<String> {
+        if model.is_empty() || model == self.model() {
+            return None;
+        }
+        let had_history = self
+            .messages
+            .iter()
+            .any(|m| m.get("role").and_then(|r| r.as_str()) != Some("system"));
+        self.config.model = model.to_string();
+        self.config.model_id = model.to_string();
+        if had_history {
+            let notice = format!("Model switched to {model}");
+            self.messages.push(json!({
+                "role": "notice", "kind": "model_switch", "text": &notice, "model": model, "ts": now_ts()
+            }));
+            Some(notice)
+        } else {
+            None
+        }
+    }
+
+    pub fn switch_runtime_config(&mut self, config: RuntimeConfig) -> Option<String> {
+        let model_id = if config.model_id.is_empty() {
+            config.model.clone()
+        } else {
+            config.model_id.clone()
+        };
+        if model_id.is_empty() {
+            return None;
+        }
+        let changed = model_id != self.model();
+        let had_history = self
+            .messages
+            .iter()
+            .any(|message| message.get("role").and_then(Value::as_str) != Some("system"));
+        self.config.model_id = model_id.clone();
+        self.config.model = config.model;
+        self.config.protocol = config.protocol;
+        self.config.api_key = config.api_key;
+        self.config.base_url = config.base_url;
+        self.config.model_settings = config.model_settings;
+        self.config.max_iterations = config.max_iterations;
+        self.config.max_tool_calls = config.max_tool_calls;
+        self.config.max_retries = config.max_retries;
+        self.config.retry_base_delay_ms = config.retry_base_delay_ms;
+        self.config.ttft_timeout = config.ttft_timeout;
+        self.config.tool_timeout = config.tool_timeout;
+        self.config.workspace = config.workspace;
+        self.config.unattended = config.unattended;
+        self.config.context_window_tokens = config.context_window_tokens;
+        self.config.context_budget_tokens = config.context_budget_tokens;
+        self.config.compaction_threshold_pct = config.compaction_threshold_pct;
+        self.config.compaction_cap_tokens = config.compaction_cap_tokens;
+        self.config.compaction_model = config.compaction_model;
+        self.config.reviewer_enabled = config.reviewer_enabled;
+        // Pictures follow the model now answering: a text-only model must not inherit the
+        // picture handling of the vision model it replaced.
+        self.config.vision = config.vision;
+        self.config.pictures_unproven = config.pictures_unproven;
+        self.config.learn_pictures = config.learn_pictures;
+        self.pictures_withheld = false;
+        if self.config.system_prompt != config.system_prompt {
+            self.config.system_prompt = config.system_prompt.clone();
+            if let Some(prompt) = config.system_prompt {
+                if let Some(system) = self
+                    .messages
+                    .iter_mut()
+                    .find(|message| message.get("role").and_then(Value::as_str) == Some("system"))
+                {
+                    *system = json!({"role": "system", "content": prompt});
+                } else {
+                    self.messages
+                        .insert(0, json!({"role": "system", "content": prompt}));
+                }
+            } else {
+                self.messages.retain(|message| {
+                    message.get("role").and_then(Value::as_str) != Some("system")
+                });
+            }
+        }
+        if changed && had_history {
+            let notice = format!("Model switched to {model_id}");
+            self.messages.push(json!({
+                "role": "notice", "kind": "model_switch", "text": &notice,
+                "model": model_id, "ts": now_ts()
+            }));
+            self.emit_event(RuntimeEvent::ModelChanged { model: model_id });
+            Some(notice)
+        } else {
+            None
+        }
+    }
+
+    fn emit_event(&self, event: RuntimeEvent) {
+        self.event_emitter().emit(event);
+    }
+
+    fn clear_event_error(&self) {
+        *lock_recovering(&self.event_error) = None;
+    }
+
+    fn ensure_event_delivery(&self) -> Result<(), String> {
+        match lock_recovering(&self.event_error).clone() {
+            Some(error) => Err(format!("runtime event persistence failed: {error}")),
+            None => Ok(()),
+        }
+    }
+
+    fn event_emitter(&self) -> RuntimeEventEmitter {
+        RuntimeEventEmitter {
+            session_id: self.session_id.clone(),
+            sequence: self.sequence.clone(),
+            sink: self.sink.clone(),
+            event_error: self.event_error.clone(),
+        }
+    }
+
+    fn ledger_transition(
+        &self,
+        event_type: &str,
+        actor: &str,
+        payload: Value,
+    ) -> Result<(), String> {
+        if let Some(authorities) = &self.authorities {
+            let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
+            let ws = self.config.workspace.clone().unwrap_or_default();
+            lock_recovering(&authorities.ledger)
+                .transition(&run_id, event_type, actor, now_ts(), &payload, &ws)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn ledger_append(&self, event_type: &str, actor: &str, payload: Value) -> Result<(), String> {
+        // Tool arguments and results end up in this history; keep what happened, drop the credentials and
+        // file bodies in it. Checkpoints (`register_checkpoint`) deliberately bypass this: they hold what is
+        // needed to resume a run, and their hash covers the exact content.
+        let payload = crate::redact::redact_value(&payload);
+        if let Some(authorities) = &self.authorities {
+            let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
+            let workspace = self.config.workspace.clone().unwrap_or_default();
+            lock_recovering(&authorities.ledger)
+                .append(&run_id, event_type, actor, now_ts(), &payload, &workspace)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn fail_after_ledger(
+        &self,
+        call: &ToolCall,
+        event_type: &str,
+        actor: &str,
+        payload: Value,
+        primary_error: impl Into<String>,
+    ) -> ToolResult {
+        let primary_error = primary_error.into();
+        match self.ledger_append(event_type, actor, payload) {
+            Ok(()) => ToolResult::failure(&call.id, primary_error),
+            Err(error) => ToolResult::failure(
+                &call.id,
+                format!("{primary_error}; failed to persist {event_type}: {error}"),
+            ),
+        }
+    }
+
+    fn mark_tool_uncertain(
+        &self,
+        authorities: &RuntimeAuthorities,
+        run_id: &str,
+        call: &ToolCall,
+        event_type: &str,
+        actor: &str,
+        payload: Value,
+    ) -> Result<(), String> {
+        {
+            let writer = lock_recovering(&authorities.idempotency);
+            writer.mark_uncertain(run_id, &call.id).map_err(|error| {
+                format!("failed to persist uncertain side-effect state: {error}")
+            })?;
+        }
+        self.ledger_append(event_type, actor, payload)
+            .map_err(|error| format!("failed to persist {event_type}: {error}"))
+    }
+
+    fn mark_tool_failed(
+        &self,
+        authorities: &RuntimeAuthorities,
+        run_id: &str,
+        call: &ToolCall,
+        failure_reason: &str,
+        event: (&str, &str, Value),
+    ) -> Result<(), String> {
+        let (event_type, actor, payload) = event;
+        {
+            let writer = lock_recovering(&authorities.idempotency);
+            writer
+                .mark_failed(run_id, &call.id, failure_reason)
+                .map_err(|error| format!("failed to persist failed side-effect state: {error}"))?;
+        }
+        self.ledger_append(event_type, actor, payload)
+            .map_err(|error| format!("failed to persist {event_type}: {error}"))
+    }
+
+    fn finish_run_ledger(&self, result: &Result<String, String>) -> Result<(), String> {
+        match result {
+            Ok(status) if status == "completed" => {
+                self.ledger_transition("run.completed", "system", json!({"kind": "run"}))
+            }
+            Ok(status) if status == "interrupted" => {
+                self.ledger_transition("run.interrupted", "system", json!({"kind": "run"}))
+            }
+            Ok(status) => self.ledger_transition(
+                "run.failed",
+                "system",
+                json!({"kind": "run", "reason": status}),
+            ),
+            Err(error) => self.ledger_transition(
+                "run.failed",
+                "system",
+                json!({"reason": error, "kind": "run"}),
+            ),
+        }
+    }
+
+    fn tool_contract(&self, call: &ToolCall) -> Result<(Value, Option<ToolMetadata>), String> {
+        let definitions = self
+            .tools
+            .as_ref()
+            .and_then(Value::as_array)
+            .ok_or_else(|| "no capability contracts are registered".to_string())?;
+        let definition = definitions
+            .iter()
+            .find(|definition| {
+                definition.get("name").and_then(Value::as_str) == Some(call.name.as_str())
+                    || definition
+                        .get("function")
+                        .and_then(|function| function.get("name"))
+                        .and_then(Value::as_str)
+                        == Some(call.name.as_str())
+            })
+            .ok_or_else(|| format!("capability contract not found: {}", call.name))?;
+        let function = definition.get("function").unwrap_or(definition);
+        let schema = function
+            .get("parameters")
+            .or_else(|| definition.get("parameters"))
+            .cloned()
+            .unwrap_or_else(|| json!({"type": "object"}));
+        validate_schema_value(&call.arguments, &schema, "arguments")?;
+        let metadata = [
+            definition.get("metadata"),
+            definition.get("x-delta"),
+            definition.get("x_delta"),
+            function.get("metadata"),
+            function.get("x-delta"),
+            function.get("x_delta"),
+        ]
+        .into_iter()
+        .flatten()
+        .find_map(|value| serde_json::from_value::<ToolMetadata>(value.clone()).ok());
+        Ok((schema, metadata))
+    }
+
+    fn policy_for(
+        &self,
+        call: &ToolCall,
+        metadata: Option<ToolMetadata>,
+    ) -> Result<(RiskLevel, Decision), String> {
+        let level = policy::classify(&call.name, Some(&call.arguments), metadata.as_ref());
+        // A declared side effect is judged on top of the policy decision (A2). A value this build
+        // does not know is treated as an external write, the strictest class.
+        let side_effect = metadata
+            .as_ref()
+            .and_then(|item| item.side_effect.as_deref())
+            .map(|value| {
+                crate::skills::SideEffectClass::parse(value)
+                    .unwrap_or(crate::skills::SideEffectClass::ExternalWrite)
+            });
+        let side_effect_context = match side_effect {
+            Some(_) => Some(self.side_effect_context(call, metadata.as_ref())?),
+            None => None,
+        };
+        let explicitly_gated = metadata
+            .as_ref()
+            .and_then(|item| item.requires_approval)
+            .unwrap_or(true);
+        let auto_allowed = level <= RiskLevel::L1 && !explicitly_gated;
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        let roots = if workspace.is_empty() {
+            Vec::new()
+        } else {
+            vec![RootEntry {
+                path: workspace.clone(),
+                writable: true,
+            }]
+        };
+        let evaluated = policy::evaluate(PolicyEvaluateInput {
+            tool_name: call.name.clone(),
+            arguments: Some(call.arguments.clone()),
+            metadata,
+            decision: Decision {
+                allowed: auto_allowed,
+                reason: if auto_allowed {
+                    "auto-approved by Rust policy".to_string()
+                } else {
+                    format!("explicit approval required for {level:?}")
+                },
+                needs_user: !auto_allowed,
+                rule: if auto_allowed {
+                    "runtime.auto_low_risk".to_string()
+                } else {
+                    String::new()
+                },
+                grant: if auto_allowed {
+                    "policy".to_string()
+                } else {
+                    String::new()
+                },
+            },
+            level: level as i64,
+            workspace_root: workspace,
+            roots,
+            mode: self.config.mode,
+        })
+        .map_err(|error| error.to_string())?;
+        let evaluated_level = RiskLevel::from_i64(evaluated.level)
+            .ok_or_else(|| "policy returned an invalid risk level".to_string())?;
+        let decision = match (side_effect, side_effect_context) {
+            (Some(side_effect), Some((destination, level))) => {
+                policy::apply_side_effect(evaluated.decision, side_effect, destination, level)
+            }
+            _ => evaluated.decision,
+        };
+        Ok((evaluated_level, decision))
+    }
+
+    fn set_runtime_state(&self, state: RuntimeState) {
+        if let Some(runtime_state) = &self.runtime_state {
+            *lock_recovering(runtime_state) = state;
+        }
+    }
+
+    fn register_checkpoint(
+        &self,
+        phase: &str,
+        pending_tool_call: Option<Value>,
+        pending_inbox_item_id: Option<String>,
+        artifacts: Vec<Value>,
+        error: Option<String>,
+    ) -> Result<(), String> {
+        let Some(authorities) = &self.authorities else {
+            return Ok(());
+        };
+        let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
+        let workspace = self.config.workspace.clone().unwrap_or_default();
+        let ledger = lock_recovering(&authorities.ledger);
+        CheckpointWriter::new(&ledger)
+            .register(
+                CheckpointRegisterInput {
+                    checkpoint_id: None,
+                    run_id,
+                    session_id: self.session_id.clone(),
+                    phase: phase.to_string(),
+                    pending_tool_call,
+                    pending_inbox_item_id,
+                    last_event_seq: Some(*lock_recovering(&self.sequence) as i64),
+                    todo_summary: Vec::new(),
+                    recent_artifacts: artifacts,
+                    error,
+                },
+                now_ts(),
+                &workspace,
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    pub fn run(&mut self, user_input: &str, source: Option<Value>) -> Result<Value, String> {
+        self.run_with_attachments(user_input, &[], source)
+    }
+
+    pub fn run_with_attachments(
+        &mut self,
+        user_input: &str,
+        attachments: &[Value],
+        source: Option<Value>,
+    ) -> Result<Value, String> {
+        self.clear_event_error();
+        let run_id = self.run_id.clone().unwrap_or_else(uuid_v4);
+        let attachments =
+            save_office_attachments(self.config.workspace.as_deref(), &run_id, attachments)?;
+        self.emit_event(RuntimeEvent::TurnStart {
+            input: Value::String(user_input.to_string()),
+            attachments: attachments.to_vec(),
+            source: source.clone(),
+            run_id: self.run_id.clone(),
+        });
+        self.ensure_event_delivery()?;
+        let mut message = json!({"role": "user", "content": user_input, "ts": now_ts()});
+        if !attachments.is_empty() {
+            message["attachments"] = Value::Array(attachments.to_vec());
+        }
+        if let Some(src) = &source {
+            message["source"] = src.clone();
+        }
+        if let Some(notes) = self.vision_notes(&attachments)? {
+            message["vision_notes"] = notes;
+        }
+        self.messages.push(message);
+        self.ledger_transition("run.started", "user", json!({"kind": "run"}))?;
+        let result = self.loop_turn();
+        if result.is_err() {
+            self.emit_event(RuntimeEvent::TurnEnd {
+                status: "failed".to_string(),
+                iterations: 0,
+            });
+        }
+        self.finish_run_ledger(&result)?;
+        result.map(|s| json!({"status": s}))
+    }
+
+    pub fn resume(&mut self) -> Result<Value, String> {
+        self.clear_event_error();
+        self.emit_event(RuntimeEvent::TurnStart {
+            input: Value::String("(resumed)".to_string()),
+            attachments: Vec::new(),
+            source: None,
+            run_id: self.run_id.clone(),
+        });
+        self.ensure_event_delivery()?;
+        // The run keeps its identity (ADR-0053): the interrupted run is reopened, not replaced.
+        self.ledger_transition(
+            "run.resumed",
+            "user",
+            json!({"kind": "resume", "previous_status": "interrupted"}),
+        )?;
+        let result = self.loop_turn();
+        if result.is_err() {
+            self.emit_event(RuntimeEvent::TurnEnd {
+                status: "failed".to_string(),
+                iterations: 0,
+            });
+        }
+        self.finish_run_ledger(&result)?;
+        result.map(|status| json!({"status": status}))
+    }
+
+    pub fn retry(&mut self) -> Result<Value, String> {
+        self.clear_event_error();
+        let tail_is_error = self.messages.iter().rev().any(|m| {
+            m.get("role").and_then(|r| r.as_str()) == Some("notice")
+                && m.get("kind").and_then(|k| k.as_str()) == Some("error")
+        });
+        if !tail_is_error {
+            return Ok(json!({"status": "skipped"}));
+        }
+        if let Some(pos) = self.messages.iter().rposition(|m| {
+            m.get("role").and_then(|r| r.as_str()) == Some("notice")
+                && m.get("kind").and_then(|k| k.as_str()) == Some("error")
+        }) {
+            self.messages.remove(pos);
+        }
+        self.emit_event(RuntimeEvent::TurnStart {
+            input: Value::String(String::new()),
+            attachments: Vec::new(),
+            source: None,
+            run_id: self.run_id.clone(),
+        });
+        self.ensure_event_delivery()?;
+        self.ledger_transition("run.started", "system", json!({"kind": "retry"}))?;
+        let result = self.loop_turn();
+        if result.is_err() {
+            self.emit_event(RuntimeEvent::TurnEnd {
+                status: "failed".to_string(),
+                iterations: 0,
+            });
+        }
+        self.finish_run_ledger(&result)?;
+        result.map(|status| json!({"status": status}))
+    }
+}
+
+#[cfg(test)]
+#[path = "runtime/test_runtime.rs"]
+mod tests;
+
+#[cfg(test)]
+mod office_attachment_tests {
+    use super::*;
+
+    const DOCX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    fn office_attachment(name: &str, bytes: &[u8]) -> Value {
+        let payload = base64::engine::general_purpose::STANDARD.encode(bytes);
+        json!({"kind": "office", "name": name, "mime": DOCX, "data_url": format!("data:{DOCX};base64,{payload}")})
+    }
+
+    #[test]
+    fn office_names_must_be_plain_and_have_an_office_extension() {
+        assert_eq!(safe_office_name("report.docx").unwrap(), "report.docx");
+        assert_eq!(safe_office_name("Budget.XLSX").unwrap(), "Budget.XLSX");
+        for bad in [
+            "../x.docx",
+            "a/b.docx",
+            "a\\b.docx",
+            ".hidden.docx",
+            "archive.zip",
+            "noext",
+            "c:evil.docx",
+            "",
+        ] {
+            assert!(safe_office_name(bad).is_err(), "{bad} must be refused");
+        }
+        let long = format!("{}.docx", "a".repeat(200));
+        assert!(safe_office_name(&long).is_err());
+    }
+
+    #[test]
+    fn office_files_are_saved_in_the_workspace_and_only_the_path_is_kept() {
+        let workspace = tempfile::tempdir().unwrap();
+        let bytes = b"PK\x03\x04 office bytes";
+        let saved = save_office_attachments(
+            workspace.path().to_str(),
+            "run-1",
+            &[office_attachment("report.docx", bytes)],
+        )
+        .unwrap();
+
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0]["kind"], "office");
+        assert_eq!(
+            saved[0]["saved_path"],
+            ".delta/attachments/run-1/0-report.docx"
+        );
+        assert!(
+            saved[0].get("data_url").is_none(),
+            "the bytes must not stay in the transcript"
+        );
+        let on_disk = std::fs::read(
+            workspace
+                .path()
+                .join(".delta/attachments/run-1/0-report.docx"),
+        )
+        .unwrap();
+        assert_eq!(on_disk, bytes);
+    }
+
+    #[test]
+    fn office_files_need_a_workspace() {
+        let error =
+            save_office_attachments(None, "run-1", &[office_attachment("report.docx", b"x")])
+                .unwrap_err();
+        assert!(error.contains("need a workspace"));
+        let blank = save_office_attachments(
+            Some("  "),
+            "run-1",
+            &[office_attachment("report.docx", b"x")],
+        )
+        .unwrap_err();
+        assert!(blank.contains("need a workspace"));
+    }
+
+    #[test]
+    fn an_office_file_over_the_limit_is_refused_before_it_is_written() {
+        let workspace = tempfile::tempdir().unwrap();
+        let oversized = vec![0u8; MAX_OFFICE_ATTACHMENT_BYTES + 1];
+        let error = save_office_attachments(
+            workspace.path().to_str(),
+            "run-1",
+            &[office_attachment("big.pptx", &oversized)],
+        )
+        .unwrap_err();
+        assert!(error.contains("larger than 10 MB"));
+        assert!(!workspace.path().join(".delta").exists());
+    }
+
+    #[test]
+    fn other_attachments_pass_through_unchanged() {
+        let text = json!({"kind": "text", "name": "notes.md", "text": "hi"});
+        let saved = save_office_attachments(None, "run-1", std::slice::from_ref(&text)).unwrap();
+        assert_eq!(saved, vec![text]);
+    }
+
+    #[test]
+    fn the_model_gets_a_note_for_an_office_file_and_never_a_binary_block() {
+        let saved = json!({"kind": "office", "name": "report.docx", "saved_path": ".delta/attachments/run-1/0-report.docx"});
+        let note = office_note(&saved);
+        assert!(note.contains(".delta/attachments/run-1/0-report.docx"));
+        assert!(note.contains("read_document"));
+
+        for protocol in ["anthropic", "openai_responses", "openai"] {
+            let content =
+                provider_user_content(protocol, "summarize", std::slice::from_ref(&saved));
+            let rendered = content.to_string();
+            assert!(
+                rendered.contains("read_document"),
+                "{protocol} must carry the note"
+            );
+            assert!(
+                !rendered.contains("base64"),
+                "{protocol} must not carry file bytes"
+            );
+            assert!(
+                !rendered.contains("\"image\""),
+                "{protocol} must not send an image block"
+            );
+            assert!(
+                !rendered.contains("\"document\""),
+                "{protocol} must not send a document block"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_kind_with_bytes_is_not_sent_as_an_image() {
+        let unknown = json!({"kind": "archive", "name": "x.zip", "data_url": "data:application/zip;base64,UEsD"});
+        for protocol in ["anthropic", "openai_responses", "openai"] {
+            let rendered =
+                provider_user_content(protocol, "", std::slice::from_ref(&unknown)).to_string();
+            assert!(
+                !rendered.contains("UEsD"),
+                "{protocol} must not forward the bytes"
+            );
+            assert!(
+                !rendered.contains("\"image\""),
+                "{protocol} must not treat it as an image"
+            );
+        }
+    }
+}

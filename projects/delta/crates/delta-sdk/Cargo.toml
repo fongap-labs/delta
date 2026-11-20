@@ -1,0 +1,13 @@
+[package]
+name = "delta-sdk"
+version = "0.1.0"
+description = "Delta SDK — public extension contracts for Suite and third-party integrations"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

@@ -1,0 +1,306 @@
+/* Delta UI primitives: shadcn-inspired semantic controls, not a replacement theme.
+   Brand colours are owned exclusively by styles.css (--brand / --primary). */
+:root {
+  --ui-radius-sm: 8px;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 12px;
+  --ui-radius-xl: 16px;
+  --ui-height-control: 36px;
+  /* One crisp two-pixel INNER stroke: the existing 1px border plus a 1px inset.
+     No extra outside glow, layout change, or independent per-page focus colour. */
+  --ui-field-focus-color: var(--focus-ring);
+  --ui-field-focus-inset: inset 0 0 0 1px var(--ui-field-focus-color);
+}
+
+.ds-page { min-height: 0; background: var(--bg); }
+.ds-page-subnav {
+  width: 208px;
+  flex-shrink: 0;
+  padding: 20px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+.ds-page-subnav-heading {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 10px 14px; color: var(--ink);
+  font-size: 13px; font-weight: 650;
+}
+.ds-page-subnav-items { display: flex; flex-direction: column; gap: 3px; }
+.ds-nav-button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 36px; padding: 7px 10px;
+  border: 1px solid transparent; border-radius: var(--ui-radius-sm);
+  background: transparent; color: var(--muted);
+  text-align: left; font: inherit; font-size: 13px; font-weight: 450;
+  cursor: pointer; transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.ds-nav-button:hover { background: var(--surface-2); color: var(--ink); }
+.ds-nav-button[aria-current="page"] {
+  background: var(--selected); color: var(--selected-ink);
+  border-color: color-mix(in srgb, var(--primary) 16%, var(--line));
+  font-weight: 600;
+}
+.ds-page-scroll { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; }
+.ds-page-content { width: 100%; max-width: 768px; padding: 28px 28px 56px; margin-inline: auto; }
+.ds-page-content[data-wide="true"] { max-width: 896px; }
+.ds-page-head { margin-bottom: 20px; }
+.ds-page-head h2 { margin: 0; color: var(--ink); font-size: 20px; font-weight: 650; letter-spacing: -0.025em; }
+.ds-page-head p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+
+.ds-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--ui-radius-lg);
+}
+.ds-field {
+  min-height: var(--ui-height-control); padding: 8px 12px; min-width: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--ui-radius-sm);
+  background: var(--panel); color: var(--ink);
+  font: inherit; font-size: 13px; outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.ds-field::placeholder { color: var(--faint); }
+.ds-field:hover:not(:disabled) { border-color: var(--control); }
+.ds-field:disabled { opacity: .55; cursor: not-allowed; }
+/* An input embedded in a bordered search/composer shell must not draw a second ring. */
+.ds-field-embedded {
+  min-width: 0; border: 0; border-radius: 0; padding: 0;
+  background: transparent; color: var(--ink); font-family: inherit; outline: 0; box-shadow: none;
+}
+.ds-field-embedded::placeholder { color: var(--faint); }
+
+.ds-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 34px; padding: 7px 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--ui-radius-sm);
+  background: var(--panel); color: var(--ink);
+  font: inherit; font-size: 12.5px; font-weight: 550;
+  cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.ds-button:hover:not(:disabled) { background: var(--surface-2); }
+.ds-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ds-button:disabled { opacity: .5; cursor: not-allowed; }
+.ds-button-primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.ds-button-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+.ds-button-primary:active:not(:disabled) { background: var(--primary-pressed); }
+.ds-button-ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.ds-button-ghost:hover:not(:disabled) { color: var(--ink); }
+
+.ds-menu {
+  min-width: 220px; max-height: min(340px, 65vh); overflow-y: auto;
+  padding: 5px; border: 1px solid var(--line-strong);
+  border-radius: var(--ui-radius-lg); background: var(--panel);
+  box-shadow: var(--shadow-overlay);
+}
+.ds-menu-item {
+  width: 100%; display: flex; flex-direction: column; align-items: stretch;
+  gap: 2px; padding: 9px 10px;
+  border: 0; border-radius: var(--ui-radius-sm);
+  background: transparent; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.ds-menu-item:hover, .ds-menu-item:focus-visible { background: var(--surface-2); }
+.ds-menu-item[aria-selected="true"],
+.ds-menu-item[aria-checked="true"] { background: var(--selected); color: var(--selected-ink); }
+.ds-menu-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.ds-menu-item .dd-label { color: inherit; }
+.ds-menu-item .dd-desc { color: var(--muted); }
+
+.ds-sidebar-session { border: 1px solid transparent; outline-offset: -2px; transition: background var(--dur-fast), border-color var(--dur-fast); }
+.ds-sidebar-session:hover { background: var(--surface-2); }
+.ds-sidebar-session[aria-current="page"] {
+  background: var(--selected);
+  border-color: color-mix(in srgb, var(--primary) 14%, var(--line));
+  color: var(--selected-ink);
+}
+.ds-search-trigger { border: 1px solid var(--line-strong); background: var(--panel); }
+.ds-search-trigger:hover { border-color: var(--control); background: var(--surface-2); }
+.ds-composer { transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+
+@media (max-width: 740px) {
+  .ds-page-subnav { width: 164px; padding-inline: 8px; }
+  .ds-page-content { padding: 22px 16px 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-button, .ds-field, .ds-nav-button, .ds-sidebar-session, .ds-composer { transition: none; }
+}
+
+/* Shared interaction surfaces; palette stays in styles.css. */
+.ds-icon-button { flex-shrink: 0; transition: background var(--dur-fast), color var(--dur-fast); }
+.ds-icon-button:focus-visible,
+.ds-disclosure-trigger:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ds-icon-button:disabled { opacity: .5; cursor: not-allowed; }
+.ds-disclosure-trigger { border-radius: var(--ui-radius-sm); min-height: 28px; }
+.ds-disclosure-trigger:hover { color: var(--selected-ink); }
+.ds-dialog-backdrop { background: var(--scrim); }
+.ds-dialog-surface {
+  color: var(--ink); background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: var(--ui-radius-xl); box-shadow: var(--shadow-overlay);
+}
+.ds-dialog-surface:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Focus styling for text fields is centralized below; search and composer opt in via
+   ds-focus-surface, so their unbordered children never draw a second outline. */
+@media (prefers-reduced-motion: reduce) {
+  .ds-icon-button { transition: none; }
+}
+
+/* Shared form focus contract: single quiet teal outline, as in the chat search reference.
+   Retain the normal border; add only 1px INSIDE. The container variant is used for
+   embedded search/textareas; older form selectors bridge to the same tokens until migrated.
+   Buttons, tabs, menus and other keyboard targets keep their separate visible outline. */
+:is(.ds-field, .tmpl-input, .gate-input input, .conn-field input, .conn-field select,
+    .ob-row input:not([type="checkbox"]):not([type="radio"]),
+    .ob-select, .ob-input, .chan-input):focus:not(:disabled),
+.ds-focus-surface:focus-within {
+  border-color: var(--ui-field-focus-color);
+  outline: none;
+  box-shadow: var(--ui-field-focus-inset);
+}
+
+/* Form controls share the existing neutral palette, with teal reserved for selected/focused states. */
+.ds-segmented button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+.ds-segmented button[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--selected-ink);
+}
+.ds-field[type="number"] { font-variant-numeric: tabular-nums; }
+
+/* Semantic transcript disclosures share the brand-aligned focus indicator. */
+.ds-transcript-disclosure-trigger { border-radius: var(--ui-radius-sm); }
+.ds-transcript-disclosure-trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Unified action and request surfaces. The theme supplies every color. */
+.ds-button-sm { min-height: 28px; padding: 5px 10px; font-size: 12px; }
+.ds-button-danger { border-color: var(--danger-line); color: var(--danger); }
+.ds-button-danger:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-soft); }
+.ds-button-deny:hover:not(:disabled) { color: var(--danger); background: var(--danger-soft); }
+.ds-approval-surface, .ds-request-surface { border-radius: var(--ui-radius-lg); }
+.ds-request-surface .ds-field { width: 100%; }
+.ds-rail-item { border-radius: var(--ui-radius-sm); transition: background var(--dur-fast); }
+.ds-rail-item:hover { background: var(--surface-2); }
+.ds-rail-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .ds-rail-item { transition: none; } }
+
+/* Access rail uses the shared Button focus/disabled contract with quiet link and picker geometry. */
+.ds-button.access-link {
+  justify-content: flex-start; min-height: 0; padding: 2px 0;
+  color: var(--primary); background: transparent; border-color: transparent;
+  text-align: left; font-size: 12px;
+}
+.ds-button.access-link:hover:not(:disabled) { color: var(--primary-hover); background: transparent; text-decoration: underline; }
+.ds-button.access-catalog-item {
+  justify-content: flex-start; text-align: left; white-space: normal;
+  min-height: 0; padding: 6px 4px; font-weight: 400;
+}
+.ds-button.access-remove-channel {
+  min-height: 22px; width: 22px; height: 22px; padding: 0;
+}
+.ds-button.access-remove-channel:hover:not(:disabled) { color: var(--danger); }
+
+/* Approval preview disclosures remain inline while inheriting the common keyboard focus ring. */
+.ds-button.approval-prev-more, .ds-button.approval-peek {
+  display: inline-flex; min-height: 0; padding: 0; border: 0;
+  background: transparent; color: var(--primary); font-size: 11.5px; font-weight: 400;
+}
+.ds-button.approval-prev-more:hover:not(:disabled),
+.ds-button.approval-peek:hover:not(:disabled) { color: var(--primary-hover); background: transparent; text-decoration: underline; }
+
+/* Inbox navigation and choices use the shared control/focus contract; keep their compact layout. */
+.ds-button.inbox-page-tab {
+  min-height: 0; padding: 0 0 8px; margin-bottom: -1px; border: 0;
+  border-bottom: 2px solid transparent; border-radius: 0; background: transparent;
+  color: var(--muted); font-size: 13px; font-weight: 400;
+}
+.ds-button.inbox-page-tab[aria-selected="true"] {
+  border-bottom-color: var(--primary); color: var(--ink); font-weight: 600;
+}
+.ds-button.inbox-page-tab:hover:not(:disabled) { background: transparent; color: var(--ink); }
+.ds-button.inbox-filter {
+  min-height: 0; padding: 4px 10px; border: 1px solid var(--line);
+  border-radius: 999px; font-size: 11.5px; color: var(--muted); background: transparent;
+  font-weight: 400;
+}
+.ds-button.inbox-filter:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-2); }
+.ds-button.inbox-filter[aria-pressed="true"] {
+  border-color: var(--primary); background: var(--selected); color: var(--primary);
+}
+.ds-button.inbox-filter.ds-button-danger { color: var(--danger); border-color: var(--danger-line); }
+.ds-button.inbox-filter.ds-button-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
+.ds-button.inbox-route-link {
+  min-height: 0; padding: 0 2px; border: 0; background: transparent;
+  color: var(--primary); font-weight: 400;
+}
+.ds-button.inbox-route-link:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+.ds-button.inbox-session-chip {
+  min-height: 0; max-width: 100%; justify-content: flex-start; padding: 4px 8px 4px 5px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  color: var(--muted); font-size: 12.5px; font-weight: 400;
+}
+.ds-button.inbox-session-chip:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); background: var(--bg); }
+.ds-button.inbox-option-pill {
+  min-height: 0; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 13px; color: var(--ink); background: var(--bg); font-weight: 400;
+}
+.ds-button.inbox-option-row {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  width: 100%; min-height: 0; padding: 8px 12px; text-align: left;
+  white-space: normal; border: 1px solid var(--line); border-radius: var(--ui-radius-sm);
+  background: var(--bg); font-weight: 400;
+}
+.ds-button.inbox-option-pill:hover:not(:disabled),
+.ds-button.inbox-option-row:hover:not(:disabled) { border-color: var(--primary); background: var(--selected); }
+.ds-button.inbox-option-pill[aria-pressed="true"],
+.ds-button.inbox-option-row[aria-pressed="true"] {
+  border-color: var(--primary); background: var(--selected); color: var(--primary);
+}
+.ds-button.inbox-approval-accent {
+  border-color: var(--primary); color: var(--primary); background: transparent;
+}
+.ds-button.inbox-approval-accent:hover:not(:disabled) { background: var(--selected); }
+.ds-button.inbox-step-back {
+  min-height: 0; padding: 0 4px; border-color: transparent; font-size: 13px;
+}
+
+/* Automation template and connection actions share focus/disabled semantics with other controls. */
+.ds-button.automation-template {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  min-height: 0; padding: 16px; gap: 6px; text-align: left;
+  border: 1px solid var(--line); border-radius: var(--ui-radius-lg);
+  background: var(--panel); color: var(--ink); white-space: normal; font-weight: 400;
+}
+.ds-button.automation-template:hover:not(:disabled) {
+  background: var(--panel); border-color: var(--line-strong);
+}
+.ds-button.automation-template[aria-pressed="true"],
+.ds-button.automation-template[aria-pressed="true"]:hover:not(:disabled) {
+  border-color: var(--primary); background: var(--panel); box-shadow: 0 0 0 2px var(--selected);
+}
+.ds-button.automation-connect-button {
+  border-radius: 999px; padding-inline: 14px;
+}
+.ds-button.automation-inline-cancel {
+  min-height: 0; padding: 2px 4px; color: var(--muted); text-decoration: underline;
+}
+.ds-button.automation-create {
+  border-radius: 999px; padding: 8px 20px; font-size: 13px;
+}
+
+/* Settings: skill creation menu and file chips inherit the same focus ring as every shared action. */
+.ds-button.skills-menu-item {
+  display: block; min-height: 0; padding: 8px 12px; text-align: left;
+  white-space: normal; border-color: transparent; border-radius: var(--ui-radius-sm);
+  font-weight: 400;
+}
+.ds-button.skills-menu-item:hover:not(:disabled) { background: var(--surface-2); }
+.ds-button.skills-file-count {
+  min-height: 0; padding: 2px 6px; border-radius: var(--ui-radius-sm);
+  color: var(--muted); background: var(--bg); font-size: 11px; font-weight: 400;
+}
+.ds-button.skills-file-count:hover:not(:disabled) {
+  color: var(--ink); border-color: var(--line-strong);
+}

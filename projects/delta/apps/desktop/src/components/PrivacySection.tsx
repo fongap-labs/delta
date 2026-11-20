@@ -1,0 +1,367 @@
+import { useEffect, useState } from "react";
+import {
+  EGRESS_LEVELS,
+  getConnectors,
+  getEgressSettings,
+  getMcpServers,
+  pickWorkspaceFolder,
+  setEgressDefault,
+  setEndpointMark,
+  setLocalOnly,
+  setPathRule,
+  setWorkspaceEgress,
+  type EgressChange,
+  type EgressLevel,
+  type EgressSettings,
+  type EndpointMark,
+  type PathRule,
+} from "../api";
+import { useI18n } from "@delta/i18n/I18nContext";
+import { LoadError } from "./ViewStates";
+import { WebhookCard } from "./WebhookCard";
+import { Button } from "./ui/Button";
+import { FieldInput } from "./ui/FieldInput";
+
+const CARD = "rounded-xl2 border border-line bg-panel p-4 mb-4";
+
+/** The four egress levels as a radio list, each with its one-line explanation. Nothing is preselected
+ *  when `value` is null (the first-run choice, ADR-0057). */
+export function EgressLevelList({
+  value,
+  onChange,
+  name,
+  label,
+}: {
+  value: EgressLevel | null;
+  onChange: (level: EgressLevel) => void;
+  name: string;
+  label: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-col gap-2">
+      {EGRESS_LEVELS.map((level) => (
+        <label
+          key={level}
+          data-testid={`egress-level-${level}`}
+          className={
+            "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 cursor-pointer " +
+            (value === level ? "border-primary bg-bg" : "border-line hover:border-line-strong")
+          }
+        >
+          <input
+            type="radio"
+            name={name}
+            className="mt-1"
+            checked={value === level}
+            onChange={() => onChange(level)}
+          />
+          <span>
+            <span className="block text-[13px] font-medium text-ink">{t(`egress.level.${level}`)}</span>
+            <span className="block text-[12px] text-muted mt-0.5">{t(`egress.level.${level}Help`)}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Runs a settings change; when the runtime says it loosens a level, asks before repeating it confirmed. */
+export function useConfirmedChange(onSettings: (settings: EgressSettings) => void) {
+  const [pending, setPending] = useState<((isConfirmed: boolean) => Promise<EgressChange>) | null>(null);
+  const [error, setError] = useState("");
+  const { t } = useI18n();
+
+  const settle = (out: EgressChange | null) => {
+    if (out && out.ok) {
+      onSettings(out);
+      return true;
+    }
+    if (out && out.needs_confirmation) return false;
+    setError(t("egress.error.save"));
+    return true;
+  };
+
+  const run = async (change: (isConfirmed: boolean) => Promise<EgressChange>) => {
+    setError("");
+    const out = await change(false).catch(() => null);
+    if (!settle(out)) setPending(() => change);
+  };
+
+  const confirm = async () => {
+    const change = pending;
+    setPending(null);
+    if (change) settle(await change(true).catch(() => null));
+  };
+
+  const dialog = pending ? (
+    <div className="gate-overlay" role="dialog" aria-modal="true" aria-labelledby="egress-confirm-title">
+      <div className="gate max-w-[480px]" data-testid="egress-confirm">
+        <h2 id="egress-confirm-title">{t("egress.confirm.title")}</h2>
+        <p className="gate-sub">{t("egress.confirm.body")}</p>
+        <div className="gate-foot justify-end gap-2">
+          <Button size="sm" onClick={() => setPending(null)}>
+            {t("egress.confirm.cancel")}
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => void confirm()}>
+            {t("egress.confirm.apply")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return { run, dialog, error };
+}
+
+export function PrivacySection() {
+  const { t } = useI18n();
+  const [settings, setSettings] = useState<EgressSettings | null>(null);
+  const [hasFailed, setFailed] = useState(false);
+  const [host, setHost] = useState("");
+  const [mark, setMark] = useState<EndpointMark>("approved");
+  const [mcpServers, setMcpServers] = useState<{ name: string; transport: string }[]>([]);
+  const [pathWorkspace, setPathWorkspace] = useState("");
+  const [connectedConnectors, setConnectedConnectors] = useState<{ name: string; title: string }[]>([]);
+  const { run, dialog, error } = useConfirmedChange(setSettings);
+
+  const load = () => {
+    setFailed(false);
+    getEgressSettings()
+      .then(setSettings)
+      .catch(() => setFailed(true));
+  };
+  useEffect(load, []);
+  useEffect(() => {
+    getConnectors()
+      .then((connectors) =>
+        setConnectedConnectors(
+          connectors.filter((connector) => connector.connected).map((connector) => ({
+            name: connector.name,
+            title: connector.title,
+          })),
+        ),
+      )
+      .catch(() => setConnectedConnectors([]));
+  }, []);
+  useEffect(() => {
+    getMcpServers()
+      .then((servers) => setMcpServers(servers.map((server) => ({ name: server.name, transport: server.transport }))))
+      .catch(() => setMcpServers([]));
+  }, []);
+
+  if (hasFailed && !settings) return <LoadError what={t("egress.what")} onRetry={load} />;
+  if (!settings) return null;
+
+  // Only local (stdio) servers can carry the local-only mark; a remote server is judged by its address.
+  const localServers = mcpServers.filter((server) => server.transport === "stdio").map((server) => server.name);
+  // Each path with its destination class, as the runtime judges it (ADR-0061 point 2).
+  const rulePaths: { path: string; label: string; destinationClass: string }[] = [
+    { path: "web_search", label: t("egress.paths.webSearch"), destinationClass: "any_public" },
+    { path: "web_fetch", label: t("egress.paths.webFetch"), destinationClass: "any_public" },
+    { path: "scholar", label: t("egress.paths.scholar"), destinationClass: "any_public" },
+    { path: "browser", label: t("egress.paths.browser"), destinationClass: "any_public" },
+    { path: "open_url", label: t("egress.paths.openUrl"), destinationClass: "any_public" },
+    ...mcpServers.map((server) => ({
+      path: `mcp:${server.name}`,
+      label: server.name,
+      destinationClass: server.transport === "stdio" ? "local_process" : "fixed_public",
+    })),
+    // A connector tool with no declared destination is any_public (ADR-0061).
+    ...connectedConnectors.map((connector) => ({
+      path: `connector:${connector.name}`,
+      label: connector.title,
+      destinationClass: "any_public",
+    })),
+  ];
+
+  const addWorkspace = async () => {
+    const path = await pickWorkspaceFolder();
+    if (!path) return;
+    // A new entry starts at the strictest level; loosening it later asks for confirmation.
+    await run((isConfirmed) => setWorkspaceEgress(path, "private_only", isConfirmed));
+  };
+
+  return (
+    <div data-testid="privacy-section">
+      {dialog}
+      {error && <div role="alert" className="gate-error mb-3">{error}</div>}
+
+      <section className={CARD}>
+        <div className="text-[13.5px] font-semibold">{t("egress.default.title")}</div>
+        <div className="text-[12px] text-muted mt-1 mb-3">{t("egress.default.sub")}</div>
+        <EgressLevelList
+          name="egress-default"
+          label={t("egress.default.title")}
+          value={settings.default_level}
+          onChange={(level) => void run((isConfirmed) => setEgressDefault(level, isConfirmed))}
+        />
+      </section>
+
+      <section className={CARD}>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="text-[13.5px] font-semibold">{t("egress.workspaces.title")}</div>
+          <Button size="sm" onClick={() => void addWorkspace()}>
+            {t("egress.workspaces.add")}
+          </Button>
+        </div>
+        {settings.workspaces.length === 0 ? (
+          <div className="text-[12.5px] text-muted">{t("egress.workspaces.empty")}</div>
+        ) : (
+          settings.workspaces.map((entry) => (
+            <div key={entry.workspace} className="flex items-center gap-2 py-1.5" data-testid="egress-workspace">
+              <span className="flex-1 min-w-0 text-[12.5px] break-all">{entry.workspace}</span>
+              <select
+                className="ds-field text-[12.5px]"
+                aria-label={`${entry.workspace}: ${t("egress.workspaces.title")}`}
+                value={entry.level}
+                onChange={(e) =>
+                  void run((isConfirmed) =>
+                    setWorkspaceEgress(entry.workspace, e.target.value as EgressLevel, isConfirmed),
+                  )
+                }
+              >
+                {EGRESS_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {t(`egress.level.${level}`)}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                onClick={() => void run((isConfirmed) => setWorkspaceEgress(entry.workspace, null, isConfirmed))}
+              >
+                {t("egress.workspaces.followDefault")}
+              </Button>
+            </div>
+          ))
+        )}
+      </section>
+
+      <section className={CARD}>
+        <div className="text-[13.5px] font-semibold">{t("egress.endpoints.title")}</div>
+        <div className="text-[12px] text-muted mt-1 mb-3">{t("egress.endpoints.sub")}</div>
+        {settings.endpoint_marks.length === 0 ? (
+          <div className="text-[12.5px] text-muted mb-3">{t("egress.endpoints.empty")}</div>
+        ) : (
+          settings.endpoint_marks.map((entry) => (
+            <div key={entry.host} className="flex items-center gap-2 py-1.5" data-testid="egress-endpoint">
+              <span className="flex-1 min-w-0 text-[12.5px] break-all">{entry.host}</span>
+              <span className="text-[12px] text-muted">{t(`egress.mark.${entry.mark}`)}</span>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => void run((isConfirmed) => setEndpointMark(entry.host, null, isConfirmed))}
+              >
+                {t("egress.endpoints.remove")}
+              </Button>
+            </div>
+          ))
+        )}
+        <div className="flex items-center gap-2 mt-2">
+          <FieldInput
+            className="flex-1 min-w-0 text-[12.5px]"
+            aria-label={t("egress.endpoints.hostPlaceholder")}
+            placeholder={t("egress.endpoints.hostPlaceholder")}
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+          />
+          <select
+            className="ds-field text-[12.5px]"
+            aria-label={t("egress.endpoints.title")}
+            value={mark}
+            onChange={(e) => setMark(e.target.value as EndpointMark)}
+          >
+            <option value="approved">{t("egress.mark.approved")}</option>
+            <option value="private">{t("egress.mark.private")}</option>
+          </select>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!host.trim()}
+            onClick={() => {
+              const value = host.trim();
+              void run((isConfirmed) => setEndpointMark(value, mark, isConfirmed)).then(() => setHost(""));
+            }}
+          >
+            {t("egress.endpoints.add")}
+          </Button>
+        </div>
+      </section>
+
+      <section className={CARD}>
+        <div className="text-[13.5px] font-semibold">{t("egress.paths.title")}</div>
+        <div className="text-[12px] text-muted mt-1 mb-3">{t("egress.paths.sub")}</div>
+        <select
+          className="ds-field text-[12.5px] mb-3 max-w-full"
+          aria-label={t("egress.paths.title")}
+          value={pathWorkspace}
+          onChange={(e) => setPathWorkspace(e.target.value)}
+          data-testid="egress-path-workspace"
+        >
+          <option value="">{t("egress.paths.allWorkspaces")}</option>
+          {settings.workspaces.map((entry) => (
+            <option key={entry.workspace} value={entry.workspace}>
+              {entry.workspace}
+            </option>
+          ))}
+        </select>
+        {rulePaths.map((entry) => {
+          const current =
+            (settings.path_overrides ?? []).find(
+              (row) => row.workspace === pathWorkspace && row.path === entry.path,
+            )?.rule ?? "";
+          return (
+            <div key={entry.path} className="flex items-center gap-2 py-1.5" data-testid="egress-path-rule">
+              <span className="flex-1 min-w-0 text-[12.5px] break-all">{entry.label}</span>
+              <select
+                className="ds-field text-[12.5px]"
+                aria-label={`${entry.label}: ${t("egress.paths.title")}`}
+                value={current}
+                onChange={(e) =>
+                  void run((isConfirmed) =>
+                    setPathRule(
+                      pathWorkspace,
+                      entry.path,
+                      entry.destinationClass,
+                      e.target.value === "" ? null : (e.target.value as PathRule),
+                      isConfirmed,
+                    ),
+                  )
+                }
+              >
+                <option value="">{t("egress.paths.followLevel")}</option>
+                <option value="allow">{t("egress.paths.allow")}</option>
+                <option value="ask">{t("egress.paths.ask")}</option>
+                <option value="deny">{t("egress.paths.deny")}</option>
+              </select>
+            </div>
+          );
+        })}
+      </section>
+
+      <section className={CARD}>
+        <div className="text-[13.5px] font-semibold">{t("egress.localOnly.title")}</div>
+        <div className="text-[12px] text-muted mt-1 mb-3">{t("egress.localOnly.sub")}</div>
+        {localServers.length === 0 ? (
+          <div className="text-[12.5px] text-muted">{t("egress.localOnly.empty")}</div>
+        ) : (
+          localServers.map((server) => (
+            <label key={server} className="flex items-center gap-2 py-1.5" data-testid="egress-local-server">
+              <span className="flex-1 min-w-0 text-[12.5px] break-all">{server}</span>
+              <input
+                type="checkbox"
+                checked={settings.local_only_servers.includes(server)}
+                onChange={(e) =>
+                  void run((isConfirmed) => setLocalOnly(server, e.target.checked, isConfirmed))
+                }
+              />
+              <span className="text-[12px] text-muted">{t("egress.localOnly.label")}</span>
+            </label>
+          ))
+        )}
+      </section>
+      <WebhookCard />
+    </div>
+  );
+}

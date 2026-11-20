@@ -1,0 +1,2178 @@
+import type { GroupedQuestion, QuestionOption, SessionInfo, UndoFilesResult, WsEvent } from "./types";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import {
+  RuntimeContractError,
+  type ArtifactDto,
+  type MessageDto,
+  type MessageSourceDto,
+  type RuntimeEventEnvelopeV1,
+} from "./runtime-contract";
+import {
+  directAddModel,
+  directCancel,
+  directApproval,
+  directCreateAutomation,
+  directDeleteAutomation,
+  fetchProviderModels,
+  directFollowUp,
+  directGetProtocols,
+  directGetProviders,
+  directGetSettings,
+  getSessionUnattended,
+  fetchMemorySettings,
+  directGetAutomation,
+  directHealth,
+  directListenSession,
+  directListenApp,
+  directListSessions,
+  directListInbox,
+  directListArtifacts,
+  directListMemory,
+  directListAutomations,
+  directOpenWorkspace,
+  directPickFolder,
+  directEgressSettings,
+  directWebhookSettings,
+  directLibraryRoots,
+  directLibraryIndex,
+  directLibraryRemove,
+  directApprovalRules,
+  directRevokeRule,
+  updateWebhookSettings,
+  directTestWebhook,
+  updateEgressDefault,
+  updateWorkspaceEgress,
+  updateEndpointMark,
+  updateLocalOnly,
+  updatePathRule,
+  directRecentWorkspaces,
+  directRemoveModel,
+  directRemoveProvider,
+  directDeleteMemory,
+  directListSuggestions,
+  directAcceptSuggestion,
+  directRejectSuggestion,
+  directExportMemory,
+  directImportMemory,
+  clearMemory,
+  directResolveInbox,
+  directReadArtifact,
+  directVerifyArtifact,
+  openArtifact,
+  prepareAutomationRun,
+  directRetry,
+  directResume,
+  directResumable,
+  directRuntimeState,
+  directRun,
+  directSessionDelete,
+  directSessionMessages,
+  directSearchConversations,
+  directSearchLibrary,
+  directStatisticsRun,
+  directStatisticsTools,
+  directPackInstall,
+  directPackStatus,
+  addSessionRoot,
+  directSessionRename,
+  deleteSessionRoot,
+  directSessionRevert,
+  directSessionBranch,
+  directUndoFiles,
+  directRestoreVersion,
+  directReadSearch,
+  directWriteSearch,
+  directProbeEngine,
+  directSessionRoots,
+  updateSessionFlags,
+  updateSessionReasoning,
+  updateCompaction,
+  updateProxySettings,
+  updateContextBar,
+  updateModelDefault,
+  directSetLanguage,
+  updateModelKey,
+  directSetOnboarded,
+  updatePdfSettings,
+  fetchVisionSettings,
+  updateVisionSettings,
+  directSetProvider,
+  updateScratchBase,
+  updateSessionPeek,
+  updateSessionUnattended,
+  updateMemorySettings,
+  updateAutomationSeen,
+  directSteer,
+  directSwitchModel,
+  updateWorkspaceTrust,
+  directTrustedWorkspaces,
+  directUpdateMemory,
+  directUpdateAutomation,
+  fetchDenialThreshold,
+  updateDenialThreshold,
+  finalizeAutomationRun as finalizeAutomationRuntime,
+  directListAudit,
+  directListSources,
+  directListMcp,
+  directPutMcp,
+  directPatchMcp,
+  directDeleteMcp,
+  directMcpTools,
+  directReloadMcp,
+  directConnectMcp,
+  directSignoutMcp,
+  directListSkills,
+  directCreateSkill,
+  directUpdateSkill,
+  directDeleteSkill,
+  directMoveSkill,
+  resolveSkillFolder,
+  stageSkillUpload as stageSkillUploadRuntime,
+  confirmSkillUpload as confirmSkillUploadRuntime,
+  directSessionSkills,
+  updateSessionSkill,
+  directSetMode,
+  resolveDirectory,
+  resolvePlan,
+  resolveQuestion,
+  directListConnectors,
+  directConnectConnector,
+  directDisconnectConnector,
+  applyConnectorTools,
+  directConnectorAction,
+  directSessionConnections,
+  updateSessionConnection,
+  directListSubscriptions,
+  directAddSubscription,
+  directRemoveSubscription,
+  listInboxRoutes,
+  updateInboxRoutes,
+  directListUnrouted,
+  directRecentChannels,
+  getDmRoute as getDmRouteRuntime,
+  updateDmRoute,
+  directBrowserState,
+  directBrowserScreenshot,
+  directBrowserClose,
+  directVerifyProvider,
+} from "./runtimeTransport";
+
+export interface Health {
+  status: string;
+  default_workspace: string | null;
+  model: string;
+  protocolVersion: number;
+  capabilities: RuntimeCapability[];
+}
+
+export const UI_PROTOCOL_VERSION = 1;
+export const RUNTIME_CAPABILITIES = [
+  "events.app-wide",
+  "provider.custom",
+  "session.message-revert",
+  "session.reasoning-effort",
+] as const;
+export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
+
+const runtimeCapabilities = new Set<string>(RUNTIME_CAPABILITIES);
+const reportedContractDiagnostics = new Set<string>();
+
+function reportContractDiagnostic(key: string, message: string): void {
+  if (reportedContractDiagnostics.has(key)) return;
+  reportedContractDiagnostics.add(key);
+  console.warn(`[runtime-contract] ${message}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+type ParsedRuntimeEvent = RuntimeEventEnvelopeV1<Record<string, unknown>>;
+
+const EVENT_SEQUENCE_WINDOW = 256;
+
+class RuntimeEventSequenceGate {
+  private readonly states = new Map<string, { highest: number; seen: Set<number> }>();
+
+  constructor(private readonly stream: string) {}
+
+  accept(event: ParsedRuntimeEvent, shouldReset = false, onGap?: () => void): boolean {
+    const key = event.sessionId ?? "<none>";
+    let state = this.states.get(key);
+    if (!state || (shouldReset && event.type === "ready" && event.sequence <= state.highest)) {
+      state = { highest: 0, seen: new Set<number>() };
+      this.states.set(key, state);
+    }
+    if (state.seen.has(event.sequence)) {
+      reportContractDiagnostic(
+        `${this.stream}:duplicate:${key}:${event.sequence}`,
+        `${this.stream} ignored duplicate sequence ${event.sequence} for ${key}`,
+      );
+      return false;
+    }
+    if (state.highest > 0 && event.sequence > state.highest + 1) {
+      reportContractDiagnostic(
+        `${this.stream}:missing:${key}`,
+        `${this.stream} missed sequence ${state.highest + 1}..${event.sequence - 1} for ${key}; recovering persisted state`,
+      );
+      onGap?.();
+    }
+    if (event.sequence < state.highest) {
+      reportContractDiagnostic(
+        `${this.stream}:out-of-order`,
+        `${this.stream} received out-of-order sequence ${event.sequence} after ${state.highest}`,
+      );
+    }
+    state.seen.add(event.sequence);
+    state.highest = Math.max(state.highest, event.sequence);
+    if (state.seen.size > EVENT_SEQUENCE_WINDOW * 2) {
+      const cutoff = state.highest - EVENT_SEQUENCE_WINDOW;
+      for (const sequence of state.seen) {
+        if (sequence < cutoff) state.seen.delete(sequence);
+      }
+    }
+    return true;
+  }
+}
+
+const SESSION_EVENT_TYPES = new Set<string>([
+  "ready",
+  "inbound",
+  "turn_start",
+  "assistant_delta",
+  "reasoning_delta",
+  "assistant_message",
+  "tool_proposed",
+  "permission_required",
+  "directory_requested",
+  "question_requested",
+  "plan_proposed",
+  "tool_started",
+  "tool_finished",
+  "artifact_updated",
+  "iteration_end",
+  "turn_end",
+  "error",
+  "input_rejected",
+  "interrupted",
+  "model_changed",
+  "memory_saved",
+  "compacting",
+  "compacted",
+  "notice",
+  "turn_done",
+]);
+const APP_EVENT_TYPES = new Set<string>(["automation_run_started"]);
+
+export interface RecentWorkspace {
+  path: string;
+  name: string;
+  exists: boolean;
+}
+
+export interface WorkspaceCommandTrust {
+  workspace: string;
+  requested_commands: string[];
+  trusted: boolean;
+  required: boolean;
+  exists?: boolean;
+}
+
+export async function getHealth(): Promise<Health> {
+  const raw: unknown = await directHealth();
+  if (!isRecord(raw)) throw new RuntimeContractError("health response must be an object");
+  const body = raw;
+  if (
+    typeof body.status !== "string" ||
+    (body.default_workspace !== null && typeof body.default_workspace !== "string") ||
+    typeof body.model !== "string" ||
+    typeof body.protocolVersion !== "number" ||
+    !Number.isInteger(body.protocolVersion) ||
+    !Array.isArray(body.capabilities)
+  ) {
+    throw new RuntimeContractError("health response does not match the current runtime contract");
+  }
+  const protocolVersion = body.protocolVersion;
+  if (protocolVersion !== UI_PROTOCOL_VERSION) {
+    throw new RuntimeContractError(
+      `unsupported runtime protocolVersion ${protocolVersion}; expected ${UI_PROTOCOL_VERSION}`,
+    );
+  }
+  const advertised = body.capabilities.filter(
+    (value): value is string => typeof value === "string",
+  );
+  const capabilities: RuntimeCapability[] = [];
+  for (const capability of advertised) {
+    if (runtimeCapabilities.has(capability)) {
+      capabilities.push(capability as RuntimeCapability);
+    } else {
+      reportContractDiagnostic(
+        `capability:unknown:${capability}`,
+        `ignored unknown runtime capability "${capability}"`,
+      );
+    }
+  }
+  return {
+    status: body.status,
+    default_workspace: body.default_workspace,
+    model: body.model,
+    protocolVersion,
+    capabilities,
+  };
+}
+
+export async function getRecentWorkspaces(): Promise<RecentWorkspace[]> {
+  const out = (await directRecentWorkspaces()) as { workspaces?: RecentWorkspace[] };
+  return out.workspaces ?? [];
+}
+
+/** Open the native OS folder picker; null on cancel/unavailable. */
+export async function pickWorkspaceFolder(): Promise<string | null> {
+  const path = await directPickFolder();
+  return typeof path === "string" && path ? path : null;
+}
+
+export async function openWorkspace(
+  path: string,
+  shouldCreate = false,
+): Promise<{
+  path: string;
+  ok: boolean;
+  error?: string;
+  git_branch?: string | null;
+  command_trust?: WorkspaceCommandTrust;
+}> {
+  return await directOpenWorkspace(path, shouldCreate);
+}
+
+/** Where a workspace's content may be sent (ADR-0057). */
+export type EgressLevel = "open" | "approved_endpoints" | "private_only" | "ask_each_time";
+export const EGRESS_LEVELS: EgressLevel[] = ["open", "approved_endpoints", "private_only", "ask_each_time"];
+export type EndpointMark = "approved" | "private";
+
+export interface EgressSettings {
+  default_level: EgressLevel | null;
+  is_chosen: boolean;
+  workspaces: { workspace: string; level: EgressLevel }[];
+  endpoint_marks: { host: string; mark: EndpointMark }[];
+  /** Local MCP servers the user stated do not reach the network (ADR-0061). */
+  local_only_servers: string[];
+  /** Per-path rules; `workspace` is "" for every workspace (ADR-0061 point 3). */
+  path_overrides: { workspace: string; path: string; rule: PathRule }[];
+}
+
+/** A rule for one path: `allow` lets it go, `ask` asks for each call, `deny` refuses it. */
+export type PathRule = "allow" | "ask" | "deny";
+
+/** A settings change: the new settings, or `needs_confirmation` when it loosens a level. */
+export type EgressChange =
+  | ({ ok: true } & EgressSettings)
+  | { ok: false; needs_confirmation?: boolean; error?: string };
+
+/** One folder of the local library. */
+export interface LibraryRoot {
+  root: string;
+  version: number;
+  indexed_at: string | null;
+  files: number;
+  chunks: number;
+  skipped: number;
+}
+
+/** What an indexing run did. `is_complete` is false when it stopped early; run it again to carry on. */
+export interface LibraryIndexReport {
+  root: string;
+  version: number;
+  files_seen: number;
+  files_indexed: number;
+  files_unchanged: number;
+  files_skipped: number;
+  files_removed: number;
+  chunks: number;
+  is_complete: boolean;
+  seconds: number;
+}
+
+export async function getLibraryRoots(): Promise<LibraryRoot[]> {
+  const out = await directLibraryRoots();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the library");
+  return out.roots as LibraryRoot[];
+}
+
+export async function indexLibraryRoot(root: string): Promise<LibraryIndexReport> {
+  const out = await directLibraryIndex(root);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not index that folder");
+  return out as LibraryIndexReport;
+}
+
+export async function removeLibraryRoot(root: string): Promise<boolean> {
+  const out = await directLibraryRemove(root);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not remove that folder");
+  return !!out.removed;
+}
+
+/** One thing the user allowed without being asked: a tool, or one command of a command tool. */
+export interface ApprovalRule {
+  tool: string;
+  command: string | null;
+  created_at?: string;
+}
+
+export interface ApprovalRules {
+  session: ApprovalRule[];
+  workspace: ApprovalRule[];
+  workspace_error?: string | null;
+}
+
+export async function getApprovalRules(sessionId: string, workspace: string): Promise<ApprovalRules> {
+  const out = await directApprovalRules(sessionId, workspace);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the approval rules");
+  return out as ApprovalRules;
+}
+
+/** Take back an allowance; the next matching call asks again. */
+export async function revokeApprovalRule(
+  scope: "session" | "workspace",
+  sessionId: string,
+  workspace: string,
+  rule: ApprovalRule,
+): Promise<boolean> {
+  const out = await directRevokeRule(scope, sessionId, workspace, rule.tool, rule.command);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not revoke the rule");
+  return !!out.revoked;
+}
+
+/** The completion webhook: one URL that gets a short post when a turn finishes. */
+export interface WebhookSettings {
+  url: string | null;
+  is_enabled: boolean;
+  include_details: boolean;
+}
+
+/** What a test post did: `sent`, `skipped` (the egress level refused it) or `failed`. */
+export type WebhookTest =
+  | { result: "sent"; host: string; status: number }
+  | { result: "skipped"; host: string; reason: string }
+  | { result: "failed"; host: string; error: string }
+  | { result: "off" };
+
+export async function getWebhookSettings(): Promise<WebhookSettings> {
+  const out = await directWebhookSettings();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the webhook setting");
+  return out as WebhookSettings;
+}
+
+export async function saveWebhookSettings(settings: WebhookSettings): Promise<WebhookSettings> {
+  const out = await updateWebhookSettings(settings.url, settings.is_enabled, settings.include_details);
+  if (!out || out.ok === false) throw new Error(out?.error || "could not save the webhook setting");
+  return out as WebhookSettings;
+}
+
+export async function testWebhook(): Promise<WebhookTest> {
+  // The test uses the default egress level: it is not tied to one workspace.
+  const out = await directTestWebhook("");
+  if (!out || out.ok === false || typeof out.result !== "string") {
+    throw new Error(out?.error || "the webhook test did not run");
+  }
+  return out as WebhookTest;
+}
+
+export async function getEgressSettings(): Promise<EgressSettings> {
+  const out = await directEgressSettings();
+  if (!out || out.ok === false) throw new Error(out?.error || "could not read the egress settings");
+  return out as EgressSettings;
+}
+
+export async function setEgressDefault(level: EgressLevel, isConfirmed: boolean): Promise<EgressChange> {
+  return (await updateEgressDefault(level, isConfirmed)) as EgressChange;
+}
+
+export async function setWorkspaceEgress(
+  workspace: string,
+  level: EgressLevel | null,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updateWorkspaceEgress(workspace, level, isConfirmed)) as EgressChange;
+}
+
+export async function setEndpointMark(
+  host: string,
+  mark: EndpointMark | null,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updateEndpointMark(host, mark, isConfirmed)) as EgressChange;
+}
+
+/** Set (`rule` given) or remove (`null`) the rule for a path; `destinationClass` is the path's class. */
+export async function setPathRule(
+  workspace: string,
+  path: string,
+  destinationClass: string,
+  rule: PathRule | null,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updatePathRule(workspace, path, destinationClass, rule, isConfirmed)) as EgressChange;
+}
+
+export async function setLocalOnly(
+  server: string,
+  isLocalOnly: boolean,
+  isConfirmed: boolean,
+): Promise<EgressChange> {
+  return (await updateLocalOnly(server, isLocalOnly, isConfirmed)) as EgressChange;
+}
+
+export async function getTrustedWorkspaces(): Promise<WorkspaceCommandTrust[]> {
+  const out = throwOnError(await directTrustedWorkspaces());
+  return out.workspaces ?? [];
+}
+
+export async function setWorkspaceTrusted(
+  path: string,
+  isTrusted: boolean,
+): Promise<{ ok: boolean; error?: string } & WorkspaceCommandTrust> {
+  return await updateWorkspaceTrust(path, isTrusted);
+}
+
+export async function revertSession(
+  sessionId: string,
+  index: number,
+): Promise<{ ok: boolean; error?: string; text?: string }> {
+  return await directSessionRevert(sessionId, index);
+}
+
+/**
+ * Start a new conversation from the end of an answer. `index` is the answer's message index; the
+ * result names the new session and the workspace it shares with the original.
+ */
+export async function branchSession(
+  sessionId: string,
+  index: number,
+  title?: string,
+): Promise<{ ok: boolean; error?: string; session_id?: string; workspace?: string }> {
+  return await directSessionBranch(sessionId, index, title);
+}
+
+/**
+ * Undo the files one run wrote: a file that replaced another gets its earlier version back, a file
+ * the run created is taken out of the workspace. A file changed since is left alone and reported.
+ */
+export async function undoRunFiles(sessionId: string, runId: string): Promise<UndoFilesResult> {
+  return await directUndoFiles(sessionId, runId);
+}
+
+/** Put back the earlier version the runtime kept when the agent replaced `target`. */
+export async function restoreFileVersion(
+  sessionId: string,
+  backup: string,
+  target: string,
+): Promise<{ ok: boolean; error?: string; path?: string }> {
+  return await directRestoreVersion(sessionId, backup, target);
+}
+
+/** One search engine in the user's list. The key itself is never sent to the interface. */
+export interface SearchEngine {
+  id: string;
+  name: string;
+  builtin: boolean;
+  enabled: boolean;
+  /** Cannot work without a key (Brave, Tavily). */
+  needs_key: boolean;
+  /** Takes a key at all (Bing and DuckDuckGo do not). */
+  accepts_key: boolean;
+  has_key: boolean;
+  has_cx: boolean;
+  /** A user-added engine's address, with %s where the search words go. */
+  template: string;
+  auth_header: string;
+}
+
+/** What the interface sends back for one engine; a missing `api_key` keeps the saved one. */
+export interface SearchEngineEdit {
+  id?: string;
+  name?: string;
+  enabled: boolean;
+  api_key?: string;
+  clear_key?: boolean;
+  cx?: string;
+  template?: string;
+  auth_header?: string;
+}
+
+export async function readSearchEngines(): Promise<SearchEngine[]> {
+  const out = (await directReadSearch()) as { ok?: boolean; engines?: SearchEngine[]; error?: string };
+  if (out?.ok === false || !Array.isArray(out?.engines)) throw new Error(out?.error || "could not read the search settings");
+  return out.engines;
+}
+
+export async function saveSearchEngines(
+  engines: SearchEngineEdit[],
+): Promise<{ ok: boolean; error?: string; engines?: SearchEngine[] }> {
+  return (await directWriteSearch(engines)) as { ok: boolean; error?: string; engines?: SearchEngine[] };
+}
+
+/** Ask one saved engine a real question; `first` is the title of its first result. */
+export async function probeSearchEngine(id: string): Promise<{ ok: boolean; count?: number; first?: string; error?: string }> {
+  return (await directProbeEngine(id)) as { ok: boolean; count?: number; first?: string; error?: string };
+}
+
+export async function setReasoningEffort(
+  sessionId: string,
+  effort: string,
+): Promise<{ ok: boolean; error?: string; reasoning_effort?: string }> {
+  return await updateSessionReasoning(sessionId, effort);
+}
+
+export async function getSessions(workspace?: string): Promise<SessionInfo[]> {
+  const out = (await directListSessions(workspace)) as { sessions?: SessionInfo[] };
+  return out.sessions ?? [];
+}
+
+// A structured inbound connector message, attached to its user message,
+// for display only — the model still sees the framed `content`; this drives the ConnectorMessageCard.
+export type MessageSource = MessageSourceDto;
+
+// A transcript message returned by Rust session authority. Kept permissive (open shape) because
+// itemsFromMessages reads role-specific fields; `source` is optional connector metadata.
+export type ConversationMessage = MessageDto;
+
+export async function getSessionMessages(sessionId: string): Promise<ConversationMessage[]> {
+  const out = (await directSessionMessages(sessionId)) as {
+    messages?: ConversationMessage[];
+  };
+  return out.messages ?? [];
+}
+
+// One message that matches a conversation search (ADR-0075). `line` is the 1-based line in the
+// session's transcript file, so the UI can cite it the way the model does.
+export interface ConversationHit {
+  session_id: string;
+  title: string | null;
+  line: number;
+  role: string;
+  snippet: string;
+}
+
+// A statistics tool that runs without a model (ADR-0078). `parameters` is its JSON Schema.
+export interface StatisticsTool {
+  name: string;
+  description: string;
+  parameters: {
+    type?: string;
+    required?: string[];
+    properties?: Record<string, { type?: string; description?: string; enum?: string[]; default?: unknown }>;
+  };
+}
+
+export async function listStatisticsTools(): Promise<StatisticsTool[]> {
+  const out = (await directStatisticsTools()) as { tools?: unknown[] };
+  return ((out.tools ?? []) as Array<{ function?: { name: string; description: string; parameters: StatisticsTool["parameters"] } }>)
+    .filter((tool) => tool.function)
+    .map((tool) => ({
+      name: tool.function!.name,
+      description: tool.function!.description,
+      parameters: tool.function!.parameters,
+    }));
+}
+
+export async function runStatisticsTool(
+  tool: string,
+  args: Record<string, unknown>,
+  workspace: string,
+): Promise<{ ok?: boolean; error?: string; [key: string]: unknown }> {
+  return (await directStatisticsRun(tool, args, workspace)) as { ok?: boolean; error?: string; [key: string]: unknown };
+}
+
+/// The shared Python runtime (ADR-0085). `installed` and `approved` are present once a pack is
+/// published; `ok` and `error` come back only when an install call fails.
+export type RuntimePack = {
+  published: boolean;
+  name?: string;
+  version?: string;
+  size?: number;
+  host?: string | null;
+  installed?: boolean;
+  approved?: boolean;
+  ok?: boolean;
+  error?: string;
+};
+
+export async function getRuntimePack(): Promise<RuntimePack> {
+  return (await directPackStatus()) as RuntimePack;
+}
+
+/// Installs the shared runtime. Call it only after the user has confirmed the download.
+export async function installRuntimePack(): Promise<RuntimePack> {
+  return (await directPackInstall()) as RuntimePack;
+}
+
+export async function searchConversations(workspace: string, query: string): Promise<ConversationHit[]> {
+  const out = (await directSearchConversations(workspace, query)) as { hits?: ConversationHit[] };
+  return out.hits ?? [];
+}
+
+export interface LibraryHit {
+  root: string;
+  path: string;
+  snippet: string;
+  sha256: string;
+  stale: boolean;
+  locator?: { kind: string; lines?: string; page?: number; sheet?: string; slide?: number };
+}
+
+export async function searchLibrary(
+  workspace: string,
+  query: string,
+  limit?: number,
+): Promise<LibraryHit[]> {
+  const out = (await directSearchLibrary(workspace, query, limit)) as {
+    hits?: LibraryHit[];
+  };
+  return out.hits ?? [];
+}
+
+export async function renameSession(sessionId: string, title: string): Promise<{ ok: boolean; error?: string }> {
+  return (await directSessionRename(sessionId, title)) as { ok: boolean; error?: string };
+}
+
+export async function setSessionFlags(
+  sessionId: string,
+  flags: { pinned?: boolean; archived?: boolean },
+): Promise<{ ok: boolean; error?: string }> {
+  return (await updateSessionFlags(sessionId, flags)) as { ok: boolean; error?: string };
+}
+
+export async function deleteSession(sessionId: string): Promise<{ ok: boolean; error?: string }> {
+  return (await directSessionDelete(sessionId)) as { ok: boolean; error?: string };
+}
+
+export type ArtifactInfo = ArtifactDto;
+
+export interface ArtifactContent {
+  ok: boolean;
+  error?: string;
+  path: string;
+  kind: string;
+  content?: string;
+  data_url?: string;
+  truncated?: boolean;
+  // kind === "folder": a directory listing (models sometimes link a whole package dir).
+  entries?: { name: string; dir: boolean; size: number }[];
+  // kind === "sheet": server-parsed workbook preview; the GUI avoids unsafe npm xlsx.
+  // Rows are limited server-side.
+  sheets?: { name: string; rows: unknown[][]; total_rows: number; truncated: boolean }[];
+}
+
+export async function getArtifacts(sessionId: string): Promise<ArtifactInfo[]> {
+  const out = await directListArtifacts(sessionId);
+  return out.artifacts ?? [];
+}
+
+export async function readArtifact(sessionId: string, path: string): Promise<ArtifactContent> {
+  return await directReadArtifact(sessionId, path);
+}
+
+export type ArtifactIntegrityStatus = "matched" | "changed" | "unrecorded" | "unsupported";
+export interface ArtifactIntegrityResult {
+  ok: boolean;
+  path?: string;
+  status?: ArtifactIntegrityStatus;
+  error?: string;
+}
+
+/** Read-only current-file check against Rust Core's latest registered SHA-256. */
+export async function verifyArtifactIntegrity(sessionId: string, path: string): Promise<ArtifactIntegrityResult> {
+  return await directVerifyArtifact(sessionId, path);
+}
+
+/**
+ * Show the artifact in the OS file manager ("reveal") or open it with its default app ("open").
+ * The Rust side resolves the path and decides what may be launched: only documents, text and
+ * common images are opened; anything else is revealed instead and the result says so with
+ * `downgraded`.
+ */
+export async function revealArtifact(
+  sessionId: string,
+  path: string,
+  mode: "reveal" | "open" = "reveal",
+): Promise<{ ok: boolean; error?: string; downgraded?: boolean }> {
+  const result = await openArtifact(sessionId, path, mode);
+  if (!result?.ok) {
+    return { ok: false, error: result?.error || "Artifact is unavailable" };
+  }
+  return result.downgraded ? { ok: true, downgraded: true } : { ok: true };
+}
+
+// -- session roots (orphan Delta: scratch + added folders) -------------------
+export interface RootInfo {
+  path: string;
+  writable: boolean;
+  label: string;
+  primary: boolean;
+  exists: boolean;
+}
+
+export async function getRoots(sessionId: string): Promise<RootInfo[]> {
+  const out = await directSessionRoots(sessionId);
+  return out.roots ?? [];
+}
+
+export async function addRoot(
+  sessionId: string,
+  path: string,
+  canWrite: boolean,
+): Promise<{ ok: boolean; error?: string; roots?: RootInfo[] }> {
+  return await addSessionRoot(sessionId, path, canWrite);
+}
+
+export async function removeRoot(
+  sessionId: string,
+  path: string,
+): Promise<{ ok: boolean; error?: string; roots?: RootInfo[] }> {
+  return await deleteSessionRoot(sessionId, path);
+}
+
+// -- MCP servers --------------------------------------------------------------
+export interface McpServer {
+  name: string;
+  enabled: boolean;
+  transport: string;
+  requires_approval: boolean;
+  // "connected" | "configured" | "disabled" | and for auth:"oauth" servers:
+  // "needs_auth" (no tokens yet) | "authorizing" (browser sign-in in flight)
+  status: string;
+  auth?: "oauth" | null;
+  last_error?: string | null;
+  tool_count: number | null;
+  config: Record<string, any>;
+}
+
+export async function getMcpServers(): Promise<McpServer[]> {
+  return throwOnError(await directListMcp()).servers ?? [];
+}
+
+export async function addMcpServer(name: string, config: Record<string, any>) {
+  return await directPutMcp(name, config);
+}
+
+export async function patchMcpServer(name: string, changes: Record<string, any>) {
+  return await directPatchMcp(name, changes);
+}
+
+export async function deleteMcpServer(name: string) {
+  return await directDeleteMcp(name);
+}
+
+export async function getMcpTools(
+  name: string,
+): Promise<{ ok: boolean; error?: string; tools: { name: string; description: string }[] }> {
+  return await directMcpTools(name);
+}
+
+export async function reloadMcp() {
+  return await directReloadMcp();
+}
+
+/** Connect one MCP server now. OAuth-configured servers return needs_auth until
+ * credentials have been supplied through the configured auth boundary. */
+export async function connectMcp(name: string): Promise<{ ok: boolean; started?: boolean }> {
+  return await directConnectMcp(name);
+}
+
+/** Drop the live MCP connection and unregister its discovered tools. */
+export async function signoutMcp(name: string): Promise<{ ok: boolean }> {
+  return await directSignoutMcp(name);
+}
+
+// -- connectors ---------------------------------------------------------------
+export interface ConnectorField {
+  key: string;
+  label: string;
+  secret: boolean;
+  required: boolean;
+  help: string;
+  placeholder: string;
+}
+
+// Untrusted senders' messages are parked rather than dropped.
+export interface ParkedMessage {
+  id: string;
+  platform: string;
+  chat_id: string;
+  chat_name: string | null;
+  user_id: string;
+  user_name: string | null;
+  chat_type: string;
+  text: string;
+  ts: number;
+  team_id?: string | null; // optional workspace/tenant identifier for multi-workspace chat providers
+}
+
+// One account of a generic multi-account connector. Provider-specific payloads
+// are narrowed only inside the capability renderer that understands them.
+export interface AccountRow {
+  account_id: string;
+  name: string; // display identity captured at connect (workspace name, email, …)
+  default: boolean;
+  managed: boolean;
+}
+
+// Generic account rows are the only account shape owned by the Foundation API.
+// Capability-specific detail pages may narrow extension payloads locally.
+
+export interface Connector {
+  name: string;
+  title: string;
+  icon: string;
+  blurb: string;
+  // Pre-connect copy: an empty About is hidden; Access lists the declared scope.
+  about?: string;
+  access?: string[];
+  auth: string;
+  two_way: boolean;
+  // Chat-platform capability, narrower than two_way: sessions can subscribe to channels.
+  channels: boolean;
+  available: boolean;
+  fields: ConnectorField[];
+  instructions: string[];
+  connected: boolean;
+  account: string | null;
+  enabled: boolean;
+  brand_color: string; // descriptor-provided hex brand color; fallback is neutral gray
+  logo: string; // stable logo id keyed into the frontend registry (empty → fallback glyph)
+  aliases?: string[]; // descriptor-provided typeahead aliases
+  accounts?: AccountRow[]; // generic multi-account capability; specialized payloads narrow locally
+  mcp?: boolean; // MCP-backed one-click (vendor-hosted MCP + local OAuth)
+  allowed_users: string[]; // the allow-list (managed inline in the Connectors tab)
+  allowed_user_names?: Record<string, string | null>; // id → display name (people directory)
+  approval_owner_ids?: string[]; // humans allowed to resolve approvals for this connector
+  approval_owner_names?: Record<string, string | null>;
+  recent?: RecentSender[]; // recently-seen senders on a connected two-way connector
+  unauthorized?: ParkedMessage[]; // parked messages from unallowed senders (§19)
+  tools: ConnectorTool[];
+  // Whether a future Federation adapter could offer a no-token install for
+  // this connector. Always false today; the field stays so descriptors can
+  // declare capability without a runtime change.
+  managed: boolean;
+  // Optional one-click capability may be temporarily unavailable — badge "Coming soon"
+  managed_paused?: boolean;
+  // Current profile came from managed OAuth (vs manual paste) — only true
+  // for legacy profiles installed before the broker was removed; new profiles
+  // are always manual.
+  managed_profile: boolean;
+  // "mcp" for MCP-backed profiles; "" (default) for manual connect.
+  // The "relay" value was used by the now-removed managed relay and is no
+  // longer set.
+  mode?: string;
+}
+
+// --- Connector connect helpers ---
+
+/** Connect an MCP-backed connector through the Rust-owned MCP runtime.
+ * OAuth-backed profiles remain unavailable until credentials are configured. */
+export async function connectMcpBacked(name: string): Promise<{ ok: boolean; error?: string }> {
+  return await directConnectMcp(name);
+}
+
+export interface ConnectorTool {
+  name: string;
+  label: string;
+  kind: "read" | "write" | string;
+  description: string;
+  enabled: boolean;
+  requires_approval: boolean;
+}
+
+export async function getConnectors(): Promise<Connector[]> {
+  return throwOnError(await directListConnectors()).connectors ?? [];
+}
+
+export async function connectConnector(
+  name: string,
+  fields: Record<string, string>,
+): Promise<{ ok: boolean; account?: string; error?: string }> {
+  return await directConnectConnector(name, fields);
+}
+
+export async function disconnectConnector(name: string): Promise<{ ok: boolean }> {
+  return await directDisconnectConnector(name);
+}
+
+export async function updateConnectorTools(
+  name: string,
+  enabled: Record<string, boolean>,
+): Promise<{ ok: boolean; error?: string; tools?: Record<string, boolean> }> {
+  return await applyConnectorTools(name, enabled);
+}
+
+export interface AuditEvent {
+  id: number;
+  timestamp: string;
+  session_id: string;
+  agent: string;
+  workspace: string;
+  connector: string;
+  tool: string;
+  stage: string;
+  status: string;
+  approval: string;
+  args: Record<string, any>;
+  result_preview: string;
+  reason: string;
+  resource: string;
+}
+
+export async function getAudit(params: {
+  limit?: number;
+  session_id?: string;
+  connector?: string;
+  tool?: string;
+} = {}): Promise<AuditEvent[]> {
+  const out = throwOnError(await directListAudit({
+    limit: params.limit,
+    sessionId: params.session_id,
+    connector: params.connector,
+    tool: params.tool,
+  }));
+  return out.events ?? [];
+}
+
+/** A source the runtime recorded as read by a run (`source.read`). */
+export interface RunSource {
+  source_id: string;
+  origin: string;
+  location: string;
+  fingerprint: string;
+  read_at: string;
+  /** True only for a validated citation naming this run; "read" is all the other fields claim. */
+  cited: boolean;
+}
+
+export async function getRunSources(runId: string): Promise<RunSource[]> {
+  const out = throwOnError(await directListSources(runId));
+  return out.sources ?? [];
+}
+
+/** Whether the runtime can resume an interrupted run for this session (it decides, the UI asks). */
+export async function getResumable(sessionId: string): Promise<boolean> {
+  return (await directResumable(sessionId)).resumable;
+}
+
+/** Lifecycle state of a session's runtime. `active` is true while its turn is still
+ *  alive — a turn survives switching conversations (only the foreground socket is
+ *  torn down), so this is how a session re-opened mid-turn learns it must render as
+ *  running instead of idle. */
+export async function getRuntimeState(sessionId: string): Promise<{ state: string; active: boolean }> {
+  return directRuntimeState(sessionId);
+}
+
+export interface BrowserState {
+  open: boolean;
+  url: string;
+  title: string;
+  status: string;
+  last_action: string;
+  last_result: string;
+  last_error: string;
+  screenshot_data_url: string;
+  updated_at: string | null;
+  controls: any[];
+}
+
+export async function getBrowserState(): Promise<BrowserState> {
+  return await directBrowserState();
+}
+
+export async function takeBrowserScreenshot(): Promise<BrowserState & { ok?: boolean; error?: string }> {
+  return await directBrowserScreenshot();
+}
+
+export async function closeBrowser(): Promise<{ ok?: boolean; error?: string }> {
+  return await directBrowserClose();
+}
+
+// -- settings (model API key, default model, onboarding) ----------------------
+export interface ModelSettings {
+  provider: string;
+  model: string;
+  models: string[];
+  has_key: boolean;
+  model_ready: boolean; // can the default model's provider actually run (any provider)?
+  source: "env" | "store" | null;
+  onboarded: boolean;
+  // UI/agent language (a Locale like "zh-CN" / "en-US"). Absent → null: the GUI falls back
+  // to its own default rather than the server guessing.
+  language?: string | null;
+  scratch_base: string;
+  secrets_path: string;  // OS-native on-disk location the server reports (not hardcoded)
+  // Sidebar: sessions shown per group before "Show more" (default 5, 1–50).
+  sessions_peek?: number;
+  // Composer: show the context-window fill bar (default FALSE; absent → the chip shows
+  // the session total). The usage popover keeps both numbers regardless.
+  context_bar?: boolean;
+  // Curated-matrix display names ({full id → "GLM-5.2 · via Together"}); custom models absent.
+  model_labels?: Record<string, string>;
+  // {full id → context window in tokens}, verified matrix entries only — drives the
+  // composer's context-fill meter (absent id → the meter hides). Optional for older backends.
+  model_context_windows?: Record<string, number>;
+  // Token savings (PDF attachments): fallback for models without native PDF support,
+  // and attach-time thresholds. Optional so the GUI is robust to an older backend.
+  pdf_fallback?: "text" | "images";
+  pdf_max_pages?: number; // default 20, 1–100
+  pdf_max_mb?: number; // default 10, 1–10
+  // Auto-compaction trigger = min(threshold% × context
+  // window, cap tokens); model pins the summarizer ("" → the session's own model).
+  // Optional so the GUI is robust to an older backend.
+  compaction_threshold_pct?: number; // default 0.8, 0.10–0.95
+  compaction_cap_tokens?: number; // default 250000
+  context_budget_tokens?: number; // default 0 (catalog window/automatic)
+  compaction_model?: string;
+  // Network proxy: how outbound requests leave the machine (model calls, web search,
+  // page fetches). Optional so the GUI is robust to an older backend.
+  proxy?: ProxySettings;
+}
+
+export interface PdfSettings {
+  pdf_fallback: "text" | "images";
+  pdf_max_pages: number;
+  pdf_max_mb: number;
+}
+
+/** Persist the Token-savings PDF settings (fallback mode + attach thresholds). */
+export async function setPdfSettings(
+  patch: Partial<PdfSettings>,
+): Promise<{ ok: boolean; error?: string } & Partial<PdfSettings>> {
+  return updatePdfSettings(patch) as Promise<
+    { ok: boolean; error?: string } & Partial<PdfSettings>
+  >;
+}
+
+// -- Pictures: which models read them, and the vision model that describes them for the rest ----
+
+/** Where the answer for a model comes from, strongest first. */
+export type PictureSource = "manual" | "learned" | "declared" | "name";
+
+export interface PictureModelRow {
+  model: string;
+  support: "yes" | "no" | "unknown";
+  source: PictureSource | null;
+  /** The user's own mark; null means the model is judged automatically. */
+  marked: boolean | null;
+}
+
+export interface PictureSettings {
+  vision_model: string;
+  vision_protocol: string;
+  vision_prompt: string;
+  models: PictureModelRow[];
+}
+
+export async function getPictureSettings(): Promise<PictureSettings> {
+  return throwOnError(await fetchVisionSettings());
+}
+
+/** `vision_support[model]` is true, false, or null to hand the model back to automatic judging. */
+export async function setPictureSettings(
+  patch: { vision_model?: string; vision_support?: Record<string, boolean | null> },
+): Promise<{ ok: boolean; error?: string }> {
+  return await updateVisionSettings(patch);
+}
+
+export interface CompactionSettings {
+  compaction_threshold_pct: number;
+  compaction_cap_tokens: number;
+  context_budget_tokens: number;
+  compaction_model: string;
+}
+
+/** Persist the auto-compaction overrides (threshold %, token cap, summarizer model). */
+export async function setCompactionSettings(
+  patch: Partial<CompactionSettings>,
+): Promise<{ ok: boolean; error?: string }> {
+  return updateCompaction(patch) as Promise<{ ok: boolean; error?: string }>;
+}
+
+// -- Network proxy (which route an outbound request takes) -------------------------------
+/** `direct` never proxies, `system` follows the OS for one call, `manual` uses the
+ *  addresses below. `system` is the default: it is what the browser and the voice
+ *  transcriber already do, so it cannot remove support from a door that had it. */
+export type ProxyMode = "direct" | "system" | "manual";
+export const PROXY_MODES: ProxyMode[] = ["direct", "system", "manual"];
+
+/** As the UI shows it. `system_detected` is a read-only echo of what the OS currently
+ *  says; it is never persisted, so a transient corporate or VPN proxy never sticks. */
+export interface ProxySettings {
+  mode: ProxyMode;
+  http: string;
+  https: string;
+  no_proxy: string;
+  system_detected?: string | null;
+}
+
+/** Persist a network-proxy patch. Returns the snapshot now in force, so the UI can
+ *  show the effective route without a second round trip. */
+export async function setProxySettings(
+  patch: Partial<ProxySettings>,
+): Promise<{ ok: boolean; error?: string; proxy?: ProxySettings }> {
+  return updateProxySettings(patch) as Promise<{
+    ok: boolean;
+    error?: string;
+    proxy?: ProxySettings;
+  }>;
+}
+
+/** Local page/size probe for a PDF data URL — the composer's attach-time threshold check. */
+export async function inspectPdf(
+  dataUrl: string,
+): Promise<{ ok: boolean; pages?: number; bytes?: number; error?: string }> {
+  try {
+    const encoded = dataUrl.split(",", 2)[1] || "";
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+    const loading = pdfjs.getDocument({ data: bytes });
+    const document = await loading.promise;
+    const pages = document.numPages;
+    await loading.destroy();
+    return { ok: true, pages, bytes: bytes.byteLength };
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+}
+
+/** Persist whether the composer shows the context-window fill bar. */
+export async function setContextBar(
+  isShown: boolean,
+): Promise<{ ok: boolean; context_bar?: boolean; error?: string }> {
+  return updateContextBar(isShown);
+}
+
+/** Persist how many sessions a sidebar group shows before "Show more". */
+export async function setSessionsPeek(
+  n: number,
+): Promise<{ ok: boolean; sessions_peek?: number; error?: string }> {
+  return updateSessionPeek(n);
+}
+
+export async function setScratchBase(
+  path: string,
+): Promise<{ ok: boolean; error?: string; scratch_base?: string }> {
+  return updateScratchBase(path);
+}
+
+export const INBOX_UNLOCK = "delta:inbox-unlock";
+export function announceInboxUnlock() {
+  window.dispatchEvent(new CustomEvent(INBOX_UNLOCK));
+}
+
+// -- Per-session connections --------------------------------------------------
+// An effective-enabled connector for a session, with a short human detail (e.g. "#delta-test · DMs").
+// `enabled` reflects the session override so the drawer toggle shows the authoritative state.
+export interface SessionConnectedConnector {
+  connector: string;
+  enabled: boolean;
+  detail: string;
+}
+
+// A recommended connector not yet connected (drives the `⚠ N` attention count).
+export interface SessionRecommendedConnector {
+  connector: string;
+  reason: string;
+  tier: string;
+  connected: boolean;
+}
+
+export interface SessionConnections {
+  connected: SessionConnectedConnector[];
+  recommended: SessionRecommendedConnector[];
+  attention: number; // ⚠ count = recommended connectors not yet connected
+}
+
+export async function getSessionConnections(sessionId: string): Promise<SessionConnections> {
+  return await directSessionConnections(sessionId);
+}
+
+/**
+ * Set a per-session connection override (mute/unmute a connector for THIS session). Pass
+ * `clear: true` to drop the session override.
+ */
+export async function setSessionConnection(
+  sessionId: string,
+  connector: string,
+  isEnabled: boolean,
+  shouldClear = false,
+): Promise<{ ok: boolean; error?: string }> {
+  return await updateSessionConnection(sessionId, connector, isEnabled, shouldClear);
+}
+
+// -- Skills -------------------------------------------------------------------
+// Scope = folder location: "global" (every session) or "project" (one workspace).
+// The session endpoints resolve the effective menu (Settings disables + session mutes).
+
+export interface SkillRow {
+  name: string;
+  description: string;
+  instructions: string;
+  // "builtin" skills ship with Delta: read-only, they can be turned off or copied.
+  scope: "global" | "project" | "builtin";
+  source: string; // "local" | "uploaded" | "builtin"
+  enabled: boolean;
+  path: string;
+  files?: number; // bundled resources beyond SKILL.md (§6 — rich skills are visible)
+}
+
+export interface SessionSkillRow {
+  name: string;
+  description: string;
+  scope: "global" | "project" | "builtin";
+  enabled: boolean; // false = muted for this session only
+}
+
+export interface SkillUploadPreview {
+  ok: boolean;
+  error?: string;
+  token?: string;
+  name?: string;
+  description?: string;
+  instructions?: string;
+  files?: string[];
+}
+
+export async function listSkills(workspace?: string): Promise<SkillRow[]> {
+  return throwOnError(await directListSkills(workspace)).skills ?? [];
+}
+
+export async function createSkill(body: {
+  name: string;
+  description: string;
+  instructions: string;
+  scope?: "global" | "project";
+  workspace?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  return await directCreateSkill(body);
+}
+
+export async function updateSkill(
+  name: string,
+  patch: { description?: string; instructions?: string; enabled?: boolean; workspace?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  return await directUpdateSkill(name, patch);
+}
+
+export async function revealSkill(name: string): Promise<{ ok: boolean; error?: string }> {
+  const resolved = await resolveSkillFolder(name);
+  if (!resolved.ok || typeof resolved.path !== "string") {
+    return { ok: false, error: resolved.error || "Skill is unavailable" };
+  }
+  try {
+    await revealItemInDir(resolved.path);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+}
+
+export async function deleteSkill(
+  name: string,
+  workspace?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return await directDeleteSkill(name, workspace);
+}
+
+export async function moveSkill(
+  name: string,
+  scope: "global" | "project",
+  workspace?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return await directMoveSkill(name, scope, workspace);
+}
+
+export async function stageSkillUpload(
+  dataB64: string,
+  filename = "",
+): Promise<SkillUploadPreview> {
+  return await stageSkillUploadRuntime(dataB64, filename);
+}
+
+export async function confirmSkillUpload(
+  token: string,
+  scope: "global" | "project" = "global",
+  workspace?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return await confirmSkillUploadRuntime(token, scope, workspace);
+}
+
+
+export async function sessionSkills(
+  sessionId: string,
+  workspace?: string,
+): Promise<SessionSkillRow[]> {
+  return (await directSessionSkills(sessionId, workspace)).skills ?? [];
+}
+
+export async function setSessionSkill(
+  sessionId: string,
+  skill: string,
+  isEnabled: boolean,
+  options: { shouldClear?: boolean; workspace?: string } = {},
+): Promise<{ skills?: SessionSkillRow[]; ok?: boolean; error?: string }> {
+  return await updateSessionSkill(
+    sessionId,
+    skill,
+    isEnabled,
+    !!options.shouldClear,
+    options.workspace,
+  );
+}
+
+// -- Inbox + Unattended -------------------------------------------------------
+export interface InboxItem {
+  id: string;
+  session_id: string;
+  kind: "approval" | "question" | "notification" | "notice" | "directory" | "plan";
+  title: string;
+  body: string;
+  state: "pending" | "resolved";
+  resolution: string | null;
+  inbox: string;
+  created_at: string;
+  resolved_at: string | null;
+  visibility?: "inline" | "inbox";
+  // Question metadata (ask_user): quick-reply choices + a free-text escape. Options may be rich
+  // {label, description, recommended, preview} objects; `questions` is the grouped form
+  // (stepper), whose resolution is a JSON object string keyed by header-or-question.
+  options?: QuestionOption[];
+  allow_text?: boolean;
+  multi?: boolean;
+  header?: string;
+  questions?: GroupedQuestion[];
+  // Kind-specific payload (directory: {path, writable}; …).
+  data?: Record<string, any>;
+  // Originating-session context (server-joined) so the Inbox is self-contained.
+  session_title?: string;
+  session_agent?: string | null;
+  session_workspace?: string | null;
+  session_exists?: boolean;
+}
+
+// A read that fails comes back as a response carrying `error` (the transport turns a rejected
+// command into `{ ok: false, error }`, and the runtime reports its own read errors the same way).
+// Views must be able to tell "could not read" from "nothing there", so these reads throw on it.
+function throwOnError<T extends { error?: unknown }>(out: T): T {
+  if (out && out.error) throw new Error(String(out.error));
+  return out;
+}
+
+export async function getInbox(sessionId?: string, state?: string): Promise<InboxItem[]> {
+  const out = throwOnError(await directListInbox(sessionId, state));
+  return out.items ?? [];
+}
+
+export async function resolveInboxItem(
+  id: string,
+  resolution: string,
+): Promise<{ ok: boolean }> {
+  return await directResolveInbox(id, resolution);
+}
+
+// -- channel subscriptions (view-only) ----------------------------------------
+export interface Subscription {
+  session_id: string;
+  session_title: string;
+  agent: string;
+  channel: string;
+  channel_name?: string | null; // resolved display name ("delta-test"); address stays the id
+  routing_target: string | null;
+  collision: boolean; // inbound subscription == outbound Inbox routing on the same channel
+}
+
+export interface RecentChannel {
+  channel: string;
+  name?: string | null; // resolved display name, e.g. "delta-test" (falls back to the address)
+  last_from: string | null;
+  last_text: string | null;
+}
+
+export async function getSubscriptions(): Promise<Subscription[]> {
+  return (await directListSubscriptions()).subscriptions ?? [];
+}
+
+// -- inbox routing (where Unattended approvals/questions get mirrored) ---------
+export interface InboxBinding {
+  name: string;
+  channel: string | null; // platform, e.g. "slack" (null = in-app Inbox only)
+  target: string; // chat_id, e.g. "C0BEJNCQQ8Y"
+}
+
+export async function getInboxRouting(): Promise<InboxBinding[]> {
+  return (await listInboxRoutes()).bindings ?? [];
+}
+
+export async function setInboxBinding(
+  name: string,
+  channel: string | null,
+  target: string,
+): Promise<{ ok: boolean; bindings?: InboxBinding[]; error?: string }> {
+  return await updateInboxRoutes(name, channel, target);
+}
+
+export interface UnroutedItem {
+  source: string;
+  sender: string;
+  text: string;
+  reason: string;
+  ts: number;
+}
+
+export async function getUnrouted(): Promise<UnroutedItem[]> {
+  return (await directListUnrouted()).items ?? [];
+}
+
+export async function getRecentChannels(): Promise<RecentChannel[]> {
+  return (await directRecentChannels()).channels ?? [];
+}
+
+export async function subscribeChannel(
+  sessionId: string,
+  channel: string,
+): Promise<{ ok: boolean; channel?: string; error?: string }> {
+  return await directAddSubscription(sessionId, channel);
+}
+
+export async function unsubscribeChannel(
+  sessionId: string,
+  channel: string,
+): Promise<{ ok: boolean; removed?: boolean }> {
+  return await directRemoveSubscription(sessionId, channel);
+}
+
+export async function getUnattended(sessionId: string): Promise<boolean> {
+  return !!(await getSessionUnattended(sessionId)).unattended;
+}
+
+export async function setUnattended(
+  sessionId: string,
+  isUnattended: boolean,
+): Promise<{ ok: boolean; unattended: boolean }> {
+  return await updateSessionUnattended(sessionId, isUnattended);
+}
+
+export async function getSettings(): Promise<ModelSettings> {
+  return directGetSettings() as Promise<ModelSettings>;
+}
+
+/**
+ * Same read, but a runtime error rejects instead of resolving to an object without the fields.
+ * For cards that would otherwise show their built-in defaults as if they were the saved settings.
+ */
+export async function getSettingsStrict(): Promise<ModelSettings> {
+  return throwOnError((await directGetSettings()) as ModelSettings & { error?: unknown });
+}
+
+export async function setModelKey(
+  apiKey: string,
+): Promise<{ ok: boolean; error?: string; has_key?: boolean; source?: string }> {
+  return updateModelKey(apiKey);
+}
+
+export async function setDefaultModel(
+  model: string,
+): Promise<{ ok: boolean; error?: string; model?: string }> {
+  return updateModelDefault(model);
+}
+
+export async function addModel(model: string): Promise<ModelSettings & { ok: boolean; error?: string }> {
+  return directAddModel(model) as Promise<ModelSettings & { ok: boolean; error?: string }>;
+}
+
+export async function removeModel(model: string): Promise<ModelSettings & { ok: boolean }> {
+  return directRemoveModel(model) as Promise<ModelSettings & { ok: boolean }>;
+}
+
+export async function setOnboarded(isOnboarded: boolean): Promise<{ ok: boolean; onboarded: boolean }> {
+  return directSetOnboarded(isOnboarded);
+}
+
+/** Persist the UI/agent language (a Locale like `zh-CN` / `en-US`). */
+export async function setLanguage(
+  language: string,
+): Promise<{ ok: boolean; language?: string | null } & Partial<ModelSettings>> {
+  return directSetLanguage(language);
+}
+
+// -- Memory -------------------------------------------------------------------
+
+// Where a memory came from: the conversation (and run) in which it was suggested, and the
+// user's own words that showed it. Absent for notes the user typed or imported.
+export interface MemorySource {
+  kind: string;
+  session_id?: string | null;
+  run_id?: string | null;
+  quote?: string | null;
+}
+
+export interface MemoryEntry {
+  id: number;
+  scope: string;
+  content: string;
+  summary: string;
+  created_at: string;
+  source?: MemorySource | null;
+  // "user" typed it, "candidate" was suggested by the model and accepted, "import" came from a file.
+  saved_by?: string;
+}
+
+// A fact the model suggested remembering. It is not a memory until the user accepts it.
+export interface MemoryCandidate {
+  id: number;
+  content: string;
+  source?: MemorySource | null;
+  created_at: string;
+}
+
+export interface MemorySettings {
+  enabled: boolean;
+  user_rules: string;
+}
+
+// Fired whenever memory changes from OUTSIDE the memory screen — today the agent
+// saving or editing one mid-conversation. The screen only loads its list on mount, so
+// without this it sits there stale and the user reads "Nothing yet" seconds after a
+// save actually landed.
+export const MEMORY_CHANGED = "delta:memory-changed";
+export function announceMemoryChanged() {
+  window.dispatchEvent(new CustomEvent(MEMORY_CHANGED));
+}
+
+export async function getMemory(): Promise<MemoryEntry[]> {
+  return throwOnError(await directListMemory()).memory ?? [];
+}
+
+// Correcting a memory keeps the old text as history and files the new text as a new memory, so
+// the id that comes back is not the id that went in.
+export async function updateMemory(
+  id: number,
+  content: string,
+): Promise<{ ok: boolean; id?: number; error?: string }> {
+  return await directUpdateMemory(id, content);
+}
+
+export async function getMemoryCandidates(): Promise<MemoryCandidate[]> {
+  return throwOnError(await directListSuggestions()).candidates ?? [];
+}
+
+export async function acceptMemoryCandidate(
+  id: number,
+  content?: string,
+): Promise<{ ok: boolean; memory_id?: number; error?: string }> {
+  return await directAcceptSuggestion(id, content);
+}
+
+export async function rejectMemoryCandidate(id: number): Promise<{ ok: boolean; error?: string }> {
+  return await directRejectSuggestion(id);
+}
+
+export async function deleteMemory(id: number): Promise<{ ok: boolean; error?: string }> {
+  return await directDeleteMemory(id);
+}
+
+// The portable file the memory screen exports and imports (`delta.memory`, version 1).
+export interface MemoryExport {
+  format: string;
+  version: number;
+  memories: { scope: string; content: string; created_at: string }[];
+}
+
+export async function exportMemory(): Promise<MemoryExport> {
+  return throwOnError(await directExportMemory());
+}
+
+export async function importMemory(
+  document: unknown,
+): Promise<{ ok: boolean; imported?: number; skipped?: number; error?: string }> {
+  return await directImportMemory(document);
+}
+
+export async function deleteAllMemory(): Promise<{ ok: boolean; deleted: number }> {
+  return await clearMemory();
+}
+
+export async function getMemorySettings(): Promise<MemorySettings> {
+  return throwOnError(await fetchMemorySettings());
+}
+
+export async function setMemorySettings(
+  patch: Partial<MemorySettings>,
+): Promise<MemorySettings> {
+  return await updateMemorySettings(patch);
+}
+
+// -- model providers -----------------------------------------------------------
+export interface ProviderField {
+  key: string;
+  label: string;
+  secret: boolean;
+  required: boolean;
+  help: string;
+  placeholder: string;
+  default?: string; // pre-filled editable value (e.g. an OpenAI-compatible vendor's endpoint)
+  // Non-empty → segmented choice, not a text input. tag = tiny badge ("Easiest");
+  // desc = one-liner atop the method panel; command = copyable terminal command.
+  choices?: { value: string; label: string; tag?: string; desc?: string; command?: string }[];
+  show_when?: Record<string, string> | null; // render only while these fields hold these values
+}
+
+export interface ProviderInfo {
+  name: string;
+  title: string;
+  needs_key: boolean;
+  fields: ProviderField[];
+  configured: boolean;
+  values: Record<string, string>; // non-secret stored values (e.g. base_url), for prefilling
+  suggested_models: string[]; // bare model-name suggestions for the "add model" datalist
+  recommended_model: string | null; // pre-filled default for this provider (e.g. qwen3-coder:30b)
+  blurb?: string; // one-line note under the title ("Uses X's OpenAI-compatible API…")
+  key_set_at?: string | null; // ISO date the key was last (re)saved — absent for env-only config
+  last_used_at?: number | null; // epoch secs the provider last served a completion
+  // custom-config-first markers (backend-emitted); null for built-in providers
+  custom?: boolean | null; // true for a user-defined alias
+  protocol?: string | null; // protocol_id of a custom provider ("openai" or "anthropic")
+  alias?: string | null; // the alias name for a custom provider (=== name when custom)
+}
+
+export interface ProviderProtocol {
+  id: string; // "openai" or "anthropic"
+  title: string; // dropdown label
+  needs_key: boolean;
+  fields: ProviderField[]; // the fields this protocol's form renders
+  recommended_model: string | null;
+  env_key?: string | null; // env var that can supply the key
+  blurb?: string;
+}
+
+export async function getProviders(): Promise<ProviderInfo[]> {
+  return directGetProviders() as Promise<ProviderInfo[]>;
+}
+
+/** The two protocol definitions for the custom-provider form's protocol dropdown. */
+export async function getProtocols(): Promise<ProviderProtocol[]> {
+  return directGetProtocols() as Promise<ProviderProtocol[]>;
+}
+
+export async function setProvider(
+  name: string,
+  fields: Record<string, string>,
+): Promise<{ ok: boolean; error?: string; provider?: string; recommended_model?: string | null }> {
+  return directSetProvider(name, fields);
+}
+
+/** Forget a provider's stored config (Settings ▸ Models "Remove key…"). */
+export async function removeProvider(name: string): Promise<{ ok: boolean; error?: string }> {
+  return directRemoveProvider(name);
+}
+
+/**
+ * Create or update a user-defined provider alias. Pass `protocol` to create (or
+ * update) a custom provider; omit it to hit the built-in provider path.
+ */
+export async function createCustomProvider(
+  alias: string,
+  protocol: string,
+  fields: Record<string, string>,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  provider?: string;
+  protocol?: string;
+  recommended_model?: string | null;
+}> {
+  return directSetProvider(alias, fields, protocol);
+}
+
+/**
+ * Remove a custom provider alias entirely (unregister + drop its alias: models).
+ * Returning `{ok:false}` for a built-in name here is expected; use removeProvider
+ * for built-ins.
+ */
+export async function removeCustomProvider(
+  alias: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return directRemoveProvider(alias);
+}
+
+/**
+ * Fetch a configured (or just-entered) custom provider's model list and auto-add
+ * each id as `alias:{id}` per the "auto-add by prefix" rule. Returns the bare ids plus what was
+ * newly added.
+ */
+export async function fetchModels(
+  name: string,
+  fields: Record<string, string>,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  alias?: string;
+  models?: string[];
+  added?: string[];
+}> {
+  return fetchProviderModels(name, fields);
+}
+
+/** Live read-only credential check (does NOT save the key). Triggered by the user's "Test" click. */
+export async function verifyProvider(
+  name: string,
+  fields: Record<string, string>,
+): Promise<{ ok: boolean; error?: string }> {
+  return directVerifyProvider(name, fields);
+}
+
+/** Client-side provider guess from an API key's shape (mirrors the server's detect_provider). */
+export function detectProvider(apiKey: string): string | null {
+  const key = (apiKey || "").trim();
+  if (!key) return null;
+  if (key.startsWith("sk-ant-")) return "anthropic";
+  if (key.startsWith("sk-or-")) return "openrouter";
+  if (key.startsWith("sk-") || key.startsWith("sk_")) return "openai";
+  return null;
+}
+
+// -- super-agent --------------------------------------------------------------
+export interface RecentSender {
+  user_id: string;
+  user_name: string | null;
+  chat_id: string;
+  chat_type: string;
+  target: string;
+  authorized: boolean;
+  team_id?: string | null; // workspace (managed relay); null on manual Socket Mode
+}
+
+// -- direct-message routing ---------------------------------------------------
+export async function getDmRoute(): Promise<string | null> {
+  return (await getDmRouteRuntime()).dm_session ?? null;
+}
+
+export async function setDmRoute(sessionId: string): Promise<{ ok: boolean; dm_session: string | null }> {
+  return await updateDmRoute(sessionId);
+}
+
+// -- automations (scheduled tasks) --------------------------------------------
+export interface Automation {
+  id: string;
+  title: string;
+  instructions: string;
+  schedule: string;
+  schedule_raw?: {
+    kind: string;
+    cron?: string | null;
+    fire_at?: string | null;
+    timezone?: string;
+    // A folder trigger: the watched folder (relative to the workspace) and the file-name pattern.
+    folder?: string;
+    pattern?: string | null;
+  };
+  workspace: string;
+  enabled: boolean;
+  // Set when the circuit breaker paused this automation after repeated denials of one rule.
+  paused_reason?: string;
+  paused_rule?: string;
+  next_run: number | null;
+  last_run: number | null;
+  last_status: string | null;
+  run_count: number;
+  notify_on_completion: boolean;
+  // Sidebar badges: runs started since the user last opened this automation's
+  // detail; `unseen_failed` = the newest unseen run errored (danger tint).
+  unseen_runs?: number;
+  unseen_failed?: boolean;
+  seen_runs_at?: number;
+  // Standing scoped approvals: target-bound rules this automation may exercise
+  // without asking. `entry` is the raw record entry — the revoke handle; `target` is
+  // null for legacy name-only entries.
+  always_allowed: { entry: string; tool: string; target: string | null }[];
+}
+
+export interface AutomationRun {
+  run_id: string;
+  task_id: string;
+  session_id: string;
+  started_at: number;
+  finished_at: number | null;
+  status: string;
+  result_text: string | null;
+  artifacts: string[];
+  error: string | null;
+  trigger: string;
+}
+
+// How many denials in a row of one rule pause an automation (the circuit breaker, A3).
+export async function getDenialThreshold(): Promise<number> {
+  return throwOnError(await fetchDenialThreshold()).denial_threshold;
+}
+
+export async function setDenialThreshold(
+  threshold: number,
+): Promise<{ ok: boolean; error?: string }> {
+  return await updateDenialThreshold(threshold);
+}
+
+export async function getAutomations(): Promise<Automation[]> {
+  return throwOnError(await directListAutomations()).tasks ?? [];
+}
+
+// Fired after any automation mutation the sidebar should reflect immediately
+// (mark-seen, create, delete) — its poll covers the rest.
+export const AUTOMATIONS_CHANGED = "delta:automations-changed";
+export function announceAutomationsChanged() {
+  window.dispatchEvent(new CustomEvent(AUTOMATIONS_CHANGED));
+}
+
+/** App-wide native event stream for session-independent runtime events. */
+export function connectEvents(
+  onEvent: (msg: {
+    type: string;
+    version: 1;
+    sessionId: string | null;
+    sequence: number;
+    payload: Record<string, unknown>;
+  }) => void
+): () => void {
+  const sequenceGate = new RuntimeEventSequenceGate("app events");
+  return directListenApp((event) => {
+    if (APP_EVENT_TYPES.has(event.type) && sequenceGate.accept(event)) onEvent(event);
+  });
+}
+
+/** Advance the automation's seen mark — clears its unseen-runs badge (UX-023). */
+export async function markAutomationSeen(id: string): Promise<{ ok: boolean }> {
+  return await updateAutomationSeen(id);
+}
+
+export async function createAutomation(payload: {
+  title: string;
+  instructions: string;
+  cron?: string;
+  fire_at?: string;
+  timezone?: string;
+  // A folder trigger instead of a time: a run starts when a new file arrives in `watch_folder`
+  // (relative to `workspace`, "." for the workspace itself), optionally only for matching names.
+  workspace?: string;
+  watch_folder?: string;
+  watch_pattern?: string;
+  // Standing grants are consented to during automation creation.
+  // Only target-bound write entries survive server-side validation.
+  permissions?: { tool: string; target: string; access: "read" | "write" }[];
+}): Promise<{ ok: boolean; error?: string; task?: Automation }> {
+  return await directCreateAutomation(payload);
+}
+
+export async function getAutomation(id: string): Promise<{ task: Automation; runs: AutomationRun[] }> {
+  return await directGetAutomation(id);
+}
+
+export async function updateAutomation(id: string, changes: Record<string, any>) {
+  return await directUpdateAutomation(id, changes);
+}
+
+export async function deleteAutomation(id: string) {
+  return await directDeleteAutomation(id);
+}
+
+export interface PreparedRun {
+  ok: boolean;
+  error?: string;
+  run_id: string;
+  session_id: string;
+  workspace: string;
+  prompt: string;
+}
+
+/** Prepare a live manual run: returns the session to open + the opening prompt to send. */
+export async function runAutomation(id: string): Promise<PreparedRun> {
+  return await prepareAutomationRun(id);
+}
+
+/** Mark a manual run complete after its first turn finished. */
+export async function finalizeAutomationRun(id: string, runId: string) {
+  return await finalizeAutomationRuntime(id, runId);
+}
+
+export async function allowUser(
+  name: string,
+  userId: string,
+  teamId?: string | null,
+  displayName?: string,
+) {
+  return await directConnectorAction(name, "allow_user", {
+    user_id: userId,
+    ...(teamId ? { team_id: teamId } : {}),
+    ...(displayName ? { name: displayName } : {}),
+  });
+}
+
+/** Resolve a parked unauthorized message (§19): dismiss / allow / allow_deliver. */
+export async function resolveUnauthorized(
+  name: string,
+  itemId: string,
+  action: "dismiss" | "allow" | "allow_deliver",
+): Promise<{ ok: boolean; error?: string }> {
+  return await directConnectorAction(name, "resolve_unauthorized", {
+    item_id: itemId,
+    action,
+  });
+}
+
+export async function disallowUser(name: string, userId: string, teamId?: string | null) {
+  return await directConnectorAction(name, "disallow_user", {
+    user_id: userId,
+    ...(teamId ? { team_id: teamId } : {}),
+  });
+}
+
+/** Disconnect one account from a generic multi-account connector. */
+export async function disconnectAccount(connector: string, accountId: string): Promise<{ ok: boolean; error?: string; remaining_accounts?: number }> {
+  return await directConnectorAction(connector, "disconnect_account", { account_id: accountId });
+}
+
+export async function setDefaultAccount(connector: string, accountId: string): Promise<{ ok: boolean; error?: string }> {
+  return await directConnectorAction(connector, "set_default_account", { account_id: accountId });
+}
+
+export type Handlers = {
+  onEvent: (event: WsEvent) => void;
+  onOpen?: () => void;
+  onClose?: () => void;
+  /** Fired when a missing event sequence requires reconciling persisted session state. */
+  onGap?: () => void;
+};
+
+export class Session {
+  private unlisten: (() => void) | null = null;
+  private isStopped = false;
+  private readonly sequenceGate = new RuntimeEventSequenceGate("session events");
+  /** The current model selected by the composer, carried with every native run. */
+  private model: string;
+  private mode = "interactive";
+
+  constructor(
+    private readonly sessionId: string,
+    private readonly workspace: string,
+    private readonly handlers: Handlers,
+  ) {
+    this.model = "";
+    this.connect();
+  }
+
+  private connect() {
+    if (this.isStopped) return;
+    this.unlisten = directListenSession(this.sessionId, (raw) => {
+      if (this.isStopped) return;
+      const event = raw as unknown as WsEvent;
+      if (event?.sessionId === null) {
+        reportContractDiagnostic(
+          "session events:null-session",
+          "session events rejected an envelope with a null sessionId",
+        );
+      } else if (event && event.sessionId !== this.sessionId) {
+        reportContractDiagnostic(
+          `session events:mismatched-session:${event?.sessionId}`,
+          `session events rejected an envelope for session ${event?.sessionId}`,
+        );
+      } else if (event && SESSION_EVENT_TYPES.has(event.type) && this.sequenceGate.accept(event, false, this.handlers.onGap)) {
+        this.handlers.onEvent(event);
+      }
+    });
+    // Native listeners register synchronously in the browser mock and asynchronously in Tauri.
+    // Keep the public Session lifecycle asynchronous in both cases so callers can assign their
+    // Session reference before onOpen auto-sends a queued automation prompt.
+    queueMicrotask(() => {
+      if (!this.isStopped) this.handlers.onOpen?.();
+    });
+  }
+
+  /** `model` = the composer's CURRENT selection, carried on every message so the turn uses
+   * exactly what the user sees. */
+  userMessage(text: string, attachments?: unknown[], model?: string, skill?: string) {
+    void directRun({
+      sessionId: this.sessionId,
+      modelId: model || this.model,
+      userInput: text,
+      workspace: this.workspace,
+      attachments,
+      skill,
+      mode: this.mode,
+      onEvent: (ev) => {
+        if (this.isStopped) return;
+        const event = ev as unknown as WsEvent;
+        if (event && this.sequenceGate.accept(event, false, this.handlers.onGap)) this.handlers.onEvent(event);
+      },
+    });
+  }
+
+  approve(decision: string) {
+    void directApproval(this.sessionId, decision);
+  }
+
+  // Reply to a `request_directory` prompt: grant a folder (with access level) or decline.
+  respondDirectory(isGranted: boolean, path?: string, canWrite?: boolean) {
+    void resolveDirectory(this.sessionId, isGranted, path, !!canWrite);
+  }
+
+  // Reply to a `propose_plan` prompt: approve (choosing the execution mode) or reject with feedback.
+  respondPlan(isApproved: boolean, mode?: string, feedback?: string) {
+    void resolvePlan(this.sessionId, isApproved, mode, feedback);
+  }
+
+  // Answer a live `ask_user` prompt (attended sessions; unattended ones answer via the Inbox).
+  respondQuestion(answer: string) {
+    void resolveQuestion(this.sessionId, answer);
+  }
+
+  interrupt() {
+    return directCancel(this.sessionId);
+  }
+
+  // R6 Active-Run Steering: modify the CURRENT turn's direction mid-execution.
+  // Differs from follow-up — steering applies to the live run, not after it ends.
+  steer(text: string, source?: unknown) {
+    void directSteer(this.sessionId, text, source);
+  }
+
+  // R6 Follow-up: queue a turn that runs AFTER the current one completes.
+  followUp(text: string, source?: unknown) {
+    void directFollowUp(this.sessionId, text, source);
+  }
+
+  // Re-run a turn that ended in a provider error — no new user message; the server
+  // guards on the history tail so a stray frame is a no-op.
+  retry() {
+    void directRetry(this.sessionId);
+  }
+
+  // Continue the interrupted run under its own run id. The runtime picks the run and refuses when
+  // nothing is interrupted; the transcript updates from the events it emits.
+  resume() {
+    void directResume(this.sessionId);
+  }
+
+  setMode(mode: string) {
+    this.mode = mode;
+    void directSetMode(this.sessionId, mode);
+  }
+
+  setModel(model: string) {
+    this.model = model;
+    void directSwitchModel(this.sessionId, model);
+  }
+
+  close() {
+    this.isStopped = true;
+    if (this.unlisten) {
+      this.unlisten();
+      this.unlisten = null;
+    }
+    this.handlers.onClose?.();
+  }
+}

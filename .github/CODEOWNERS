@@ -1,0 +1,2 @@
+# No active code owner rules.
+# CI Evidence and signed validate-merge are the only technical merge gates.

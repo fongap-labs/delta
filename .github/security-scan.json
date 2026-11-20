@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "engine": "codeql",
+  "runner_profile": "linux-standard",
+  "build_mode": "none",
+  "languages": [
+    "javascript-typescript",
+    "python",
+    "rust"
+  ],
+  "pull_requests": true,
+  "default_branch": true
+}

@@ -1,0 +1,36 @@
+{
+    "schema_version": 1,
+    "artifact_name": "delta-release",
+    "target_repository": "fongap-labs/delta",
+    "release_key": "delta",
+    "release_name": "Delta",
+    "release_notes": "Delta Windows portable release.",
+    "license_expression": "Apache-2.0",
+    "node_version_file": ".nvmrc",
+    "python_version_file": ".python-version",
+    "sbom_asset": "delta-windows-x64-portable.sbom.cdx.json",
+    "builds": [
+        {
+            "id": "windows-portable",
+            "runner_profile": "windows-build",
+            "target": "x86_64-pc-windows-msvc",
+            "script": "scripts/release-build.ps1",
+            "assets": [
+                "delta-windows-x64-portable.zip"
+            ],
+            "attest_asset": "delta-windows-x64-portable.zip"
+        },
+        {
+            "id": "python-runtime",
+            "runner_profile": "windows-build",
+            "target": "x86_64-pc-windows-msvc",
+            "script": "scripts/release-build-runtime.ps1",
+            "assets": [
+                "delta-python-runtime.tar.gz",
+                "delta-python-runtime-manifest.json"
+            ],
+            "attest_asset": "delta-python-runtime.tar.gz"
+        }
+    ],
+    "root": "projects/delta"
+}

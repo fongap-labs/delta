@@ -1,0 +1,709 @@
+import { useEffect, useState } from "react";
+import {
+  createAutomation,
+  deleteAutomation,
+  getAutomation,
+  getAutomations,
+  getDenialThreshold,
+  markAutomationSeen,
+  setDenialThreshold,
+  announceAutomationsChanged,
+  pickWorkspaceFolder,
+  updateAutomation,
+  type Automation,
+  type AutomationRun,
+} from "../api";
+import { Icon } from "./Icon";
+import { IconButton } from "./ui/IconButton";
+import { PanelHead } from "./IntegrationsView";
+import { AutomationQuickstart } from "./AutomationQuickstart";
+import { LoadError, LoadingRows } from "./ViewStates";
+import { useI18n } from "@delta/i18n/I18nContext";
+import { Button } from "./ui/Button";
+import { FieldInput } from "./ui/FieldInput";
+
+// Shared utility strings (the §28 page shell — mirrors IntegrationsView's constants).
+const CARD = "rounded-xl2 border border-line bg-panel";
+
+type Translate = ReturnType<typeof useI18n>["t"];
+
+const baseName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
+
+// A folder-triggered automation starts when a file arrives, not at a time.
+function isFolderTask(task: Pick<Automation, "schedule_raw">): boolean {
+  return task.schedule_raw?.kind === "folder";
+}
+
+// What starts an automation, in words: the time it repeats at, or the folder it watches.
+function triggerText(task: Pick<Automation, "schedule" | "schedule_raw" | "workspace">, t: Translate): string {
+  if (!isFolderTask(task)) return task.schedule;
+  const where = baseName(task.workspace || "") + (task.schedule_raw?.folder && task.schedule_raw.folder !== "." ? `/${task.schedule_raw.folder}` : "");
+  const pattern = task.schedule_raw?.pattern;
+  return pattern
+    ? t("scheduled.whenFilePattern", { folder: where, pattern })
+    : t("scheduled.whenFile", { folder: where });
+}
+
+// Why an automation is off: the circuit breaker pauses it after repeated denials of one rule.
+function pausedText(task: Pick<Automation, "paused_reason" | "paused_rule">, t: Translate): string {
+  return task.paused_reason === "approval_denied"
+    ? t("scheduled.pausedDenied", { rule: task.paused_rule ?? "" })
+    : t("scheduled.paused");
+}
+
+// The denial limit is one setting for every automation, so it sits above the list.
+function DenialLimit() {
+  const { t } = useI18n();
+  const [limit, setLimit] = useState<number | null>(null);
+  useEffect(() => {
+    getDenialThreshold().then(setLimit).catch(() => setLimit(null));
+  }, []);
+  if (limit === null) return null;
+  const choices = Array.from(new Set([1, 2, 3, 4, 5, 10, 20, limit])).sort((a, b) => a - b);
+  return (
+    <label className="text-[12px] text-muted flex items-center gap-2 mb-4" data-testid="denial-limit">
+      <span>{t("scheduled.denialLimit")}</span>
+      <select
+        className="ds-field tmpl-select"
+        value={limit}
+        onChange={async (event) => {
+          await setDenialThreshold(Number(event.target.value));
+          getDenialThreshold().then(setLimit).catch(() => undefined);
+        }}
+      >
+        {choices.map((choice) => (
+          <option key={choice} value={choice}>
+            {choice}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// Parse a simple "min hour * * dow" cron back into the time + frequency the editor uses.
+// Falls back to 09:00 / daily for anything it doesn't recognize (e.g. agent-written crons).
+function fromCron(cron?: string | null): { time: string; freq: string } {
+  const parts = (cron || "").trim().split(/\s+/);
+  if (parts.length !== 5) return { time: "09:00", freq: "daily" };
+  const [m, h, , , dow] = parts;
+  const hh = String(Math.min(23, Math.max(0, parseInt(h, 10) || 9))).padStart(2, "0");
+  const mm = String(Math.min(59, Math.max(0, parseInt(m, 10) || 0))).padStart(2, "0");
+  const freq = dow === "1-5" ? "weekdays" : dow === "0,6" || dow === "6,0" ? "weekends" : "daily";
+  return { time: `${hh}:${mm}`, freq };
+}
+
+const fmt = (t: number | null) =>
+  t ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+
+// §11 H6: TaskRun.status and AutomationRun.trigger are machine identifiers
+// (models.py: running | ok | error | skipped; schedule | manual | catchup) and
+// must stay raw on the wire. These mappers localize only their GUI rendering;
+// unknown values pass through verbatim rather than guessing at a machine value.
+const RUN_STATUS_KEYS: Record<string, string> = {
+  running: "scheduled.status.running",
+  ok: "scheduled.status.ok",
+  error: "scheduled.status.error",
+  skipped: "scheduled.status.skipped",
+};
+const RUN_TRIGGER_KEYS: Record<string, string> = {
+  schedule: "scheduled.trigger.schedule",
+  manual: "scheduled.trigger.manual",
+  catchup: "scheduled.trigger.catchup",
+};
+const runStatus = (v: string, t: (k: string) => string) => (RUN_STATUS_KEYS[v] ? t(RUN_STATUS_KEYS[v]) : v);
+const runTrigger = (v: string, t: (k: string) => string) => (RUN_TRIGGER_KEYS[v] ? t(RUN_TRIGGER_KEYS[v]) : v);
+
+// Map a simple time-of-day + frequency selection to a 5-field cron string.
+function toCron(time: string, freq: string): string {
+  const [h, m] = (time || "09:00").split(":").map((x) => parseInt(x, 10) || 0);
+  const dow = freq === "weekdays" ? "1-5" : freq === "weekends" ? "0,6" : "*";
+  return `${m} ${h} * * ${dow}`;
+}
+
+// The §28 page shell: full-bleed main, centered ≤4xl column — same as Connectors/Activity/Inbox.
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex-1 min-w-0 flex bg-bg">
+      <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
+        <div className="max-w-4xl mx-auto px-7 py-6">{children}</div>
+      </div>
+    </main>
+  );
+}
+
+interface Props {
+  // `task` gives the opened run session its context (banner + "Back to runs"; owner ask 2026-07-04).
+  onOpenRun: (
+    sessionId: string,
+    workspace: string,
+    task?: { id: string; title: string },
+  ) => void;
+  onRunNow: (taskId: string, title?: string) => void;
+  // Open directly on a task's detail (set by the run banner's "Back to runs").
+  initialOpenId?: string | null;
+}
+
+export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
+  const { t } = useI18n();
+  const [tasks, setTasks] = useState<Automation[]>([]);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
+  const [shouldShowForm, setShowForm] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // The sidebar's Scheduled band can retarget an ALREADY-open Automations surface —
+  // initial state alone would ignore the change (UX-023).
+  useEffect(() => {
+    if (initialOpenId) setOpenId(initialOpenId);
+  }, [initialOpenId]);
+
+  // A failed read is not "no automations": until a first read succeeds the page says it is loading or
+  // could not load; a later failed poll keeps the list already on screen.
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const refresh = () =>
+    getAutomations()
+      .then((list) => {
+        setTasks(list);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+  useEffect(() => {
+    refresh();
+    const h = setInterval(refresh, 5000);
+    return () => clearInterval(h);
+  }, []);
+
+  // Create from a payload, refresh the list, and open the new task's detail. `permissions`
+  // rides through for quickstart recipes (§25 write grants).
+  const create = async (payload: {
+    title: string;
+    instructions: string;
+    cron?: string;
+    workspace?: string;
+    watch_folder?: string;
+    watch_pattern?: string;
+    permissions?: { tool: string; target: string; access: "read" | "write" }[];
+  }) => {
+    setBusy(payload.title);
+    setCreateError(null);
+    try {
+      const res = await createAutomation(payload);
+      announceAutomationsChanged(); // new entry shows in the sidebar band right away
+      await refresh();
+      if (res.ok && res.task) {
+        setShowForm(false);
+        setOpenId(res.task.id);
+      } else {
+        setCreateError(
+          t(
+            "scheduled.createFailed",
+            { error: res.error || "" },
+            "Automation could not be created",
+          ),
+        );
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (openId) {
+    return (
+      <TaskDetail
+        id={openId}
+        onBack={() => { setOpenId(null); refresh(); }}
+        onOpenRun={onOpenRun}
+        onRunNow={onRunNow}
+      />
+    );
+  }
+
+  const isUnknown = tasks.length === 0 && (isLoading || hasFailed);
+  const empty = tasks.length === 0 && !isUnknown;
+
+  return (
+    <Shell>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <PanelHead title={t("nav.scheduled")} sub={t("scheduled.sub")} />
+        </div>
+        <Button
+          size="sm"
+          className="shrink-0"
+          aria-expanded={shouldShowForm}
+          aria-controls={shouldShowForm ? "scheduled-new-form" : undefined}
+          onClick={() => setShowForm((v) => !v)}
+        >
+          {t("scheduled.newAutomation")}
+        </Button>
+      </div>
+
+      <div className="text-[12px] text-faint flex gap-1.5 mb-4">
+        <span aria-hidden>ⓘ</span>
+        <span>{t("scheduled.serverUpNote")}</span>
+      </div>
+
+      <DenialLimit />
+      {createError && <p role="alert" className="text-[11.5px] text-warn mt-2">{createError}</p>}
+
+      {shouldShowForm && (
+        <NewAutomationForm
+          busy={busy !== null}
+          onCancel={() => setShowForm(false)}
+          onCreate={create}
+        />
+      )}
+
+      {/* The quickstart (§29): ONE template system — role recipes + generic templates, each
+          card with §27 connector dots; picking one expands the configure card. */}
+      {(empty || shouldShowForm) && <AutomationQuickstart busy={busy !== null} onCreate={create} />}
+
+      {isUnknown ? (
+        hasFailed ? (
+          <LoadError
+            what={t("state.what.automations", undefined, "automations")}
+            onRetry={() => {
+              setLoading(true);
+              refresh();
+            }}
+          />
+        ) : (
+          <LoadingRows />
+        )
+      ) : empty ? (
+        !shouldShowForm && (
+          <div className={CARD + " p-4 text-[12.5px] text-muted"}>
+            {t("scheduled.empty")}
+            <strong>{t("scheduled.newAutomation")}</strong>
+            {t("scheduled.emptyTail")}
+          </div>
+        )
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {tasks.map((task) => (
+            <div
+              className={CARD + " sched-card px-4 py-3 cursor-pointer hover:border-line-strong transition-colors"}
+              key={task.id}
+              onClick={() => setOpenId(task.id)}
+            >
+              <div className="flex items-center justify-between gap-2.5 mb-1">
+                <span className="text-[13.5px] font-semibold truncate">{task.title}</span>
+                <IconButton icon="trash" iconSize={14} className="sched-card-del"
+                  title={t("scheduled.deleteAutomation")}
+                  label={t("scheduled.deleteAutomationWithName", { name: task.title })}
+                  onClick={async (event) => {
+                    event.stopPropagation();
+                    await deleteAutomation(task.id);
+                    refresh();
+                  }} />
+              </div>
+              <div className="flex items-center gap-1.5 text-[12px] text-muted">
+                <Icon name="clock" size={13} className="text-faint shrink-0" />
+                {task.enabled ? triggerText(task, t) : pausedText(task, t)}{isFolderTask(task) ? "" : ` · ${t("scheduled.next")} ${fmt(task.next_run)}`} · {t("scheduled.runCount", { n: task.run_count, s: task.run_count === 1 ? "" : "s" })}
+                {task.last_status ? ` · ${t("scheduled.last")} ${runStatus(task.last_status, t)}` : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+function NewAutomationForm({
+  busy,
+  onCancel,
+  onCreate,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onCreate: (p: {
+    title: string;
+    instructions: string;
+    cron?: string;
+    workspace?: string;
+    watch_folder?: string;
+    watch_pattern?: string;
+  }) => void;
+}) {
+  const { t } = useI18n();
+  const [title, setTitle] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [time, setTime] = useState("09:00");
+  const [freq, setFreq] = useState("daily");
+  // What starts it: the time of day, or a file arriving in a folder (that folder is the workspace).
+  const [trigger, setTrigger] = useState<"time" | "folder">("time");
+  const [folder, setFolder] = useState("");
+  const [pattern, setPattern] = useState("");
+
+  const valid = title.trim() && instructions.trim() && (trigger === "time" || folder);
+
+  return (
+    <div id="scheduled-new-form" className={CARD + " tmpl-form p-4 mb-4"}>
+      <div className="text-[11px] uppercase tracking-[0.05em] text-faint mb-2.5">
+        {t("scheduled.newAutomationHeader")}
+      </div>
+      <FieldInput
+        aria-label={t("scheduled.title")}
+        className="w-full"
+        placeholder={t("scheduled.titlePlaceholder")}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <textarea
+        className="ds-field tmpl-textarea"
+        aria-label={t("scheduled.instructions")}
+        placeholder={t("scheduled.instructionsPlaceholder")}
+        value={instructions}
+        onChange={(e) => setInstructions(e.target.value)}
+      />
+      <div className="tmpl-sched">
+        <label className="tmpl-field">
+          <span>{t("scheduled.startsWhen")}</span>
+          <select
+            className="ds-field tmpl-select"
+            data-testid="trigger-kind"
+            value={trigger}
+            onChange={(e) => setTrigger(e.target.value as "time" | "folder")}
+          >
+            <option value="time">{t("scheduled.triggerTime")}</option>
+            <option value="folder">{t("scheduled.triggerFolder")}</option>
+          </select>
+        </label>
+        {trigger === "time" ? (
+          <>
+            <label className="tmpl-field">
+              <span>{t("scheduled.at")}</span>
+              <FieldInput
+                type="time"
+                className="tmpl-time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+              />
+            </label>
+            <label className="tmpl-field">
+              <span>{t("scheduled.repeat")}</span>
+              <select
+                className="ds-field tmpl-select"
+                value={freq}
+                onChange={(e) => setFreq(e.target.value)}
+              >
+                <option value="daily">{t("automation.dayDaily")}</option>
+                <option value="weekdays">{t("automation.dayWeekdays")}</option>
+                <option value="weekends">{t("automation.dayWeekends")}</option>
+              </select>
+            </label>
+          </>
+        ) : (
+          <>
+            <div className="tmpl-field">
+              <span>{t("scheduled.watchedFolder")}</span>
+              <Button
+                size="sm"
+                data-testid="choose-watch-folder"
+                onClick={async () => {
+                  const picked = await pickWorkspaceFolder().catch(() => null);
+                  if (picked) setFolder(picked);
+                }}
+              >
+                {folder ? baseName(folder) : t("scheduled.chooseFolder")}
+              </Button>
+            </div>
+            <label className="tmpl-field">
+              <span>{t("scheduled.onlyNames")}</span>
+              <FieldInput
+                className="w-full"
+                data-testid="watch-pattern"
+                placeholder="*.pdf, *.xlsx"
+                value={pattern}
+                onChange={(e) => setPattern(e.target.value)}
+              />
+            </label>
+          </>
+        )}
+      </div>
+      {trigger === "folder" && (
+        <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
+          {t("scheduled.folderNote")}
+        </div>
+      )}
+      <div className="tmpl-form-actions">
+        <Button
+          variant="primary"
+          size="sm"
+          aria-busy={busy}
+          disabled={!valid || busy}
+          onClick={() =>
+            onCreate(
+              trigger === "folder"
+                ? {
+                    title: title.trim(),
+                    instructions: instructions.trim(),
+                    workspace: folder,
+                    watch_folder: ".",
+                    ...(pattern.trim() ? { watch_pattern: pattern.trim() } : {}),
+                  }
+                : { title: title.trim(), instructions: instructions.trim(), cron: toCron(time, freq) },
+            )
+          }
+        >
+          {busy ? t("automation.creating") : t("automation.createAutomation")}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCancel}>{t("common.cancel")}</Button>
+      </div>
+    </div>
+  );
+}
+
+function TaskDetail({
+  id,
+  onBack,
+  onOpenRun,
+  onRunNow,
+}: {
+  id: string;
+  onBack: () => void;
+  onOpenRun: (
+    sessionId: string,
+    workspace: string,
+    task?: { id: string; title: string },
+  ) => void;
+  onRunNow: (taskId: string, title?: string) => void;
+}) {
+  const { t } = useI18n();
+  const [task, setTask] = useState<Automation | null>(null);
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
+  const [isEditing, setEditing] = useState(false);
+  const [title, setTitle] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [time, setTime] = useState("09:00");
+  const [freq, setFreq] = useState("daily");
+  const [isSaving, setSaving] = useState(false);
+
+  // The seen mark AS OF opening — the "new" pills compare against this frozen value
+  // while mark-seen advances the stored one (badge clears; highlights survive).
+  const [seenMark, setSeenMark] = useState<number | null>(null);
+
+  const refresh = () =>
+    getAutomation(id)
+      .then((d) => {
+        if (!d.task) {
+          // Deleted (or a stale reopen target): "Loading…" forever is a trap —
+          // fall back to the overview (owner-hit 2026-07-20).
+          onBack();
+          return;
+        }
+        setTask(d.task);
+        setRuns(d.runs || []);
+        setSeenMark((cur) => (cur === null ? d.task?.seen_runs_at ?? 0 : cur));
+      })
+      .catch(() => {});
+  useEffect(() => {
+    setSeenMark(null);
+    refresh();
+    // Opening the detail IS reading it: advance the seen mark and nudge the
+    // sidebar so the badge clears immediately (UX-023).
+    markAutomationSeen(id)
+      .then(() => announceAutomationsChanged())
+      .catch(() => {});
+  }, [id]);
+
+  if (!task)
+    return (
+      <Shell>
+        <div className="text-[13px] text-muted">{t("common.loading")}</div>
+      </Shell>
+    );
+
+  const startEdit = () => {
+    setTitle(task.title);
+    setInstructions(task.instructions);
+    const { time: tm, freq: f } = fromCron(task.schedule_raw?.cron);
+    setTime(tm);
+    setFreq(f);
+    setEditing(true);
+  };
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      await updateAutomation(id, {
+        title: title.trim(),
+        instructions: instructions.trim(),
+        // A folder trigger has no time to change; sending one would turn it into a schedule.
+        ...(isFolderTask(task) ? {} : { cron: toCron(time, freq) }),
+      });
+      await refresh();
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const toggle = async () => {
+    await updateAutomation(id, { enabled: !task.enabled });
+    refresh();
+  };
+  const remove = async () => {
+    await deleteAutomation(id);
+    announceAutomationsChanged(); // the sidebar band must not wait out its poll
+    onBack();
+  };
+
+  return (
+    <Shell>
+      <Button variant="ghost" size="sm" className="mb-3" onClick={onBack}>
+        {t("scheduled.back")}
+      </Button>
+      <div className="sched-detail">
+        <div className="sched-detail-head">
+          {isEditing ? (
+            <FieldInput
+              aria-label={t("scheduled.title")}
+              className="sched-edit-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t("scheduled.title")}
+            />
+          ) : (
+            <h2 className="text-[18px] font-semibold tracking-tight">{task.title}</h2>
+          )}
+          <div className="sched-actions">
+            {isEditing ? (
+              <>
+                <Button variant="primary" size="sm" aria-busy={isSaving} disabled={isSaving || !title.trim() || !instructions.trim()} onClick={saveEdit}>
+                  {isSaving ? t("workspace.trust.saving") : t("common.save")}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>{t("common.cancel")}</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="primary" size="sm" onClick={() => onRunNow(id, task.title)}>
+                  {t("scheduled.runNow")}
+                </Button>
+                <Button size="sm" onClick={startEdit}>{t("common.edit")}</Button>
+                <Button variant="danger" size="sm" onClick={remove}>
+                  <Icon name="trash" size={14} /> {t("common.delete")}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {isEditing && !isFolderTask(task) ? (
+          <div className="tmpl-sched sched-edit-sched">
+            <label className="tmpl-field">
+              <span>{t("scheduled.at")}</span>
+              <FieldInput type="time" className="tmpl-time" value={time} onChange={(e) => setTime(e.target.value)} />
+            </label>
+            <label className="tmpl-field">
+              <span>{t("scheduled.repeat")}</span>
+              <select className="ds-field tmpl-select" value={freq} onChange={(e) => setFreq(e.target.value)}>
+                <option value="daily">{t("automation.dayDaily")}</option>
+                <option value="weekdays">{t("automation.dayWeekdays")}</option>
+                <option value="weekends">{t("automation.dayWeekends")}</option>
+              </select>
+            </label>
+          </div>
+        ) : (
+          <div className="conn-meta">
+            <label className="switch">
+              <input type="checkbox" checked={task.enabled} onChange={toggle} />
+              <span className="slider" />
+            </label>{" "}
+            {task.enabled
+              ? isFolderTask(task)
+                ? t("scheduled.activeWatching")
+                : `${t("scheduled.activeNext")} ${fmt(task.next_run)}`
+              : pausedText(task, t)}{" "}
+            · {triggerText(task, t)}
+          </div>
+        )}
+
+        {!task.enabled && task.paused_reason === "approval_denied" && (
+          <div className="dim" data-testid="task-paused-denied" style={{ margin: "8px 0", fontSize: 12.5 }}>
+            {t("scheduled.pausedDeniedHelp", { rule: task.paused_rule ?? "" })}
+          </div>
+        )}
+
+        <div className="sa-sub">{t("scheduled.instructions")}</div>
+        {isEditing ? (
+          <textarea
+            className="ds-field tmpl-textarea sched-edit-instr"
+            aria-label={t("scheduled.instructions")}
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+          />
+        ) : (
+          <div className="sched-instructions">{task.instructions}</div>
+        )}
+
+        {(task.always_allowed || []).length > 0 && (
+          <>
+            <div className="sa-sub">{t("scheduled.allowedWithoutAsking")}</div>
+            <div className="dim" style={{ marginBottom: 8, fontSize: 12.5 }}>
+              {t("scheduled.standingApprovalsSub")}
+            </div>
+            <div className="sched-grants" data-testid="task-grants">
+              {(task.always_allowed || []).map((rule) => (
+                <div className="sched-grant" key={rule.entry}>
+                  <span className="sched-grant-rule">
+                    <code>{rule.tool}</code>
+                    {rule.target && <span className="sched-grant-target"> → {rule.target}</span>}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title={t("scheduled.revokeWillAskAgain")}
+                    onClick={async () => {
+                      await updateAutomation(id, { revoke: rule.entry });
+                      refresh();
+                    }}
+                  >
+                    {t("scheduled.revoke")}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="sa-sub">{t("scheduled.runs")}</div>
+        <div className="dim" style={{ marginBottom: 8, fontSize: 12.5 }}>
+          {t("scheduled.runsSub")}
+        </div>
+        {runs.length === 0 && <div className="dim">{t("scheduled.noRunsYet")}</div>}
+        {runs.map((r) => (
+          <div
+            className="sched-run open"
+            key={r.run_id}
+            onClick={() =>
+              r.session_id &&
+              onOpenRun(r.session_id, task.workspace, {
+                id: task.id,
+                title: task.title,
+              })
+            }
+            title={t("scheduled.openRunTitle")}
+          >
+            <div className="sched-run-row">
+              <span>
+                {seenMark !== null && r.started_at > seenMark && (
+                  <span className="run-new-pill" data-testid="run-new">{t("scheduled.new")}</span>
+                )}
+                {fmt(r.started_at)} · <span className={"run-" + r.status}>{runStatus(r.status, t)}</span> · {runTrigger(r.trigger, t)}
+                {r.artifacts.length > 0 && <span className="dim"> · {t("scheduled.fileCount", { n: r.artifacts.length })}</span>}
+              </span>
+              <span className="sched-run-go" aria-hidden>
+                Open ›
+              </span>
+            </div>
+            {r.result_text && <div className="sched-run-peek">{r.result_text}</div>}
+            {r.error && <div className="mcp-error">{r.error}</div>}
+          </div>
+        ))}
+      </div>
+    </Shell>
+  );
+}

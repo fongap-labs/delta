@@ -1,0 +1,22 @@
+name: Private source CI
+run-name: private-ci-${{ github.event.pull_request.number }}-${{ github.event.pull_request.base.sha }}-${{ github.event.pull_request.head.sha }}
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-source-ci-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify-private-source:
+    name: Private source verification
+    uses: fongap-labs/action-worker/.github/workflows/private-source-ci.yml@5355b7de15c7b84096a924fc3b41999fdea7e658
+    with:
+      base_sha: ${{ github.event.pull_request.base.sha }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      action_worker_sha: 5355b7de15c7b84096a924fc3b41999fdea7e658

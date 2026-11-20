@@ -1,0 +1,521 @@
+//! Session-owned runtime control surface and background worker loop.
+//!
+//! RuntimeHost owns agent-turn orchestration. RuntimeHandle owns short-lived
+//! control operations, queueing and worker-thread lifecycle.
+
+use super::*;
+
+impl RuntimeHandle {
+    /// Start a dedicated worker thread for `host`. The returned handle is idle;
+    /// callers must register it before calling [`run`](Self::run).
+    pub fn spawn(mut host: RuntimeHost) -> Result<Self, String> {
+        let session_id = host.session_id.clone();
+        let cancel = host.cancel.clone();
+        let provider_cancel = host.provider_cancel.clone();
+        let steering = host.steering.clone();
+        let state = Arc::new(Mutex::new(RuntimeState::Idle));
+        host.runtime_state = Some(state.clone());
+        let approvals = host.approvals.clone();
+        let interactions = host.interactions.clone();
+        let authorities = host.authorities.clone();
+        let follow_ups = Arc::new(Mutex::new(VecDeque::new()));
+        let messages = Arc::new(RwLock::new(host.messages.clone()));
+        let (command_tx, command_rx) = mpsc::channel();
+
+        let worker_state = state.clone();
+        let worker_follow_ups = follow_ups.clone();
+        let worker_messages = messages.clone();
+        let worker_cancel = cancel.clone();
+        let worker_provider_cancel = provider_cancel.clone();
+        std::thread::Builder::new()
+            .name(format!("delta-runtime-{session_id}"))
+            .spawn(move || {
+                runtime_worker(
+                    host,
+                    command_rx,
+                    worker_state,
+                    worker_follow_ups,
+                    worker_messages,
+                    worker_cancel,
+                    worker_provider_cancel,
+                )
+            })
+            .map_err(|error| format!("failed to start runtime worker: {error}"))?;
+
+        Ok(Self {
+            session_id,
+            command_tx,
+            cancel,
+            provider_cancel,
+            steering,
+            follow_ups,
+            state,
+            messages,
+            approvals,
+            interactions,
+            authorities,
+        })
+    }
+
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    pub fn state(&self) -> RuntimeState {
+        *lock_recovering(&self.state)
+    }
+
+    pub fn messages(&self) -> Vec<Value> {
+        self.messages
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    pub fn resolve_approval(
+        &self,
+        tool_call_id: Option<&str>,
+        decision: &str,
+    ) -> Result<String, String> {
+        let decision = ApprovalDecision::parse(decision)?;
+        self.approvals.resolve(tool_call_id, decision)
+    }
+
+    /// The session's standing grants (allow-for-this-session choices), for the app to list.
+    pub fn approval_grants(&self) -> Vec<crate::approval::SessionGrant> {
+        self.approvals.grants()
+    }
+
+    /// Take back one of them; the next matching call asks again.
+    pub fn revoke_approval_grant(&self, tool: &str, command: Option<&str>) -> bool {
+        self.approvals.revoke_grant(tool, command)
+    }
+
+    pub fn pending_approvals(&self) -> Vec<String> {
+        self.approvals.pending_ids()
+    }
+
+    pub fn resolve_interaction(
+        &self,
+        kind: &str,
+        tool_call_id: Option<&str>,
+        response: Value,
+    ) -> Result<String, String> {
+        self.interactions.resolve(kind, tool_call_id, response)
+    }
+
+    pub fn run(&self, input: String, source: Option<Value>) -> Result<String, String> {
+        self.run_with_attachments(input, Vec::new(), source)
+    }
+
+    pub fn run_with_attachments(
+        &self,
+        input: String,
+        attachments: Vec<Value>,
+        source: Option<Value>,
+    ) -> Result<String, String> {
+        let run_id = uuid_v4();
+        self.enqueue_operation(RuntimeOperation::Run(QueuedRun {
+            input,
+            attachments,
+            source,
+            run_id: run_id.clone(),
+        }))?;
+        Ok(run_id)
+    }
+
+    /// Resume the session's interrupted run under its own `run_id` (ADR-0053). The runtime chooses
+    /// the run: the one in the session's latest checkpoint, and only if the ledger says its last
+    /// lifecycle state is `interrupted`. Otherwise this is rejected; it never starts a new run.
+    pub fn resume(&self) -> Result<String, String> {
+        let run_id = self.interrupted_run()?;
+        self.enqueue_operation(RuntimeOperation::Resume {
+            run_id: run_id.clone(),
+        })?;
+        Ok(run_id)
+    }
+
+    fn interrupted_run(&self) -> Result<String, String> {
+        let authorities = self
+            .authorities
+            .as_ref()
+            .ok_or_else(|| "nothing to resume: the run ledger is unavailable".to_string())?;
+        interrupted_run_of(authorities, &self.session_id)
+    }
+
+    pub fn retry(&self) -> Result<String, String> {
+        let run_id = uuid_v4();
+        self.enqueue_operation(RuntimeOperation::Retry {
+            run_id: run_id.clone(),
+        })?;
+        Ok(run_id)
+    }
+
+    fn enqueue_operation(&self, operation: RuntimeOperation) -> Result<(), String> {
+        let mut state = lock_recovering(&self.state);
+        if state.is_active() {
+            return Err(format!(
+                "session {} already has an active run ({state:?})",
+                self.session_id
+            ));
+        }
+        self.cancel.store(false, Ordering::SeqCst);
+        self.provider_cancel.store(false, Ordering::SeqCst);
+        lock_recovering(&self.steering).clear();
+        lock_recovering(&self.follow_ups).clear();
+        *state = RuntimeState::Running;
+        if self
+            .command_tx
+            .send(RuntimeCommand::Execute(operation))
+            .is_err()
+        {
+            *state = RuntimeState::Failed;
+            return Err(format!(
+                "runtime worker for session {} is unavailable",
+                self.session_id
+            ));
+        }
+        Ok(())
+    }
+
+    /// Inject guidance into the live run. The current provider stream is
+    /// cooperatively interrupted, while the run itself remains active.
+    pub fn steer(&self, text: &str, source: Option<Value>) -> Result<(), String> {
+        let state = lock_recovering(&self.state);
+        if !matches!(
+            *state,
+            RuntimeState::Running | RuntimeState::WaitingApproval | RuntimeState::WaitingUser
+        ) {
+            return Err(format!(
+                "session {} cannot be steered while {state:?}",
+                self.session_id
+            ));
+        }
+        self.steering
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((text.to_string(), source));
+        self.provider_cancel.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// Queue a distinct run for the same session. The worker scheduler starts
+    /// it only after the current run reaches a terminal boundary.
+    pub fn follow_up(&self, text: &str, source: Option<Value>) -> Result<String, String> {
+        let state = lock_recovering(&self.state);
+        if !matches!(
+            *state,
+            RuntimeState::Running | RuntimeState::WaitingApproval | RuntimeState::WaitingUser
+        ) {
+            return Err(format!(
+                "session {} has no active run to follow",
+                self.session_id
+            ));
+        }
+        let run_id = uuid_v4();
+        lock_recovering(&self.follow_ups).push_back(QueuedRun {
+            input: text.to_string(),
+            attachments: Vec::new(),
+            source,
+            run_id: run_id.clone(),
+        });
+        Ok(run_id)
+    }
+
+    /// Cancel the active run immediately. Pending follow-ups are discarded so
+    /// cancellation cannot unexpectedly start more work.
+    pub fn cancel(&self) -> bool {
+        let mut state = lock_recovering(&self.state);
+        if !state.is_active() {
+            return false;
+        }
+        *state = RuntimeState::Cancelling;
+        lock_recovering(&self.follow_ups).clear();
+        self.cancel.store(true, Ordering::SeqCst);
+        self.provider_cancel.store(true, Ordering::SeqCst);
+        true
+    }
+
+    pub fn switch_model(&self, model: &str) -> Result<Option<String>, String> {
+        let state = lock_recovering(&self.state);
+        if state.is_active() {
+            return Err(format!(
+                "cannot switch model: session {} has an active run ({state:?})",
+                self.session_id
+            ));
+        }
+        let (reply, response) = mpsc::channel();
+        self.command_tx
+            .send(RuntimeCommand::SwitchModel {
+                change: ModelChange::LegacyId(model.to_string()),
+                reply,
+            })
+            .map_err(|_| "runtime worker is unavailable".to_string())?;
+        response
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_| "runtime worker did not acknowledge model switch".to_string())?
+    }
+
+    pub fn switch_runtime_config(&self, config: RuntimeConfig) -> Result<Option<String>, String> {
+        let state = lock_recovering(&self.state);
+        if state.is_active() {
+            return Err(format!(
+                "cannot switch model: session {} has an active run ({state:?})",
+                self.session_id
+            ));
+        }
+        let (reply, response) = mpsc::channel();
+        self.command_tx
+            .send(RuntimeCommand::SwitchModel {
+                change: ModelChange::Resolved(Box::new(config)),
+                reply,
+            })
+            .map_err(|_| "runtime worker is unavailable".to_string())?;
+        response
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_| "runtime worker did not acknowledge model switch".to_string())?
+    }
+
+    pub fn refresh_runtime(
+        &self,
+        config: RuntimeConfig,
+        tools: Value,
+    ) -> Result<Option<String>, String> {
+        let state = lock_recovering(&self.state);
+        if state.is_active() {
+            return Err(format!(
+                "cannot refresh runtime: session {} has an active run ({state:?})",
+                self.session_id
+            ));
+        }
+        let (reply, response) = mpsc::channel();
+        self.command_tx
+            .send(RuntimeCommand::RefreshRuntime {
+                config: Box::new(config),
+                tools,
+                reply,
+            })
+            .map_err(|_| "runtime worker is unavailable".to_string())?;
+        response
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_| "runtime worker did not acknowledge runtime refresh".to_string())?
+    }
+
+    pub fn truncate_messages(&self, index: usize) -> Result<usize, String> {
+        let state = lock_recovering(&self.state);
+        if state.is_active() {
+            return Err(format!(
+                "cannot truncate messages: session {} has an active run ({state:?})",
+                self.session_id
+            ));
+        }
+        let (reply, response) = mpsc::channel();
+        self.command_tx
+            .send(RuntimeCommand::Truncate { index, reply })
+            .map_err(|_| "runtime worker is unavailable".to_string())?;
+        response
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_| "runtime worker did not acknowledge message truncation".to_string())?
+    }
+}
+
+fn runtime_worker(
+    mut host: RuntimeHost,
+    command_rx: mpsc::Receiver<RuntimeCommand>,
+    state: Arc<Mutex<RuntimeState>>,
+    follow_ups: Arc<Mutex<VecDeque<QueuedRun>>>,
+    messages: Arc<RwLock<Vec<Value>>>,
+    cancel: Arc<AtomicBool>,
+    provider_cancel: Arc<AtomicBool>,
+) {
+    while let Ok(command) = command_rx.recv() {
+        match command {
+            RuntimeCommand::Execute(operation) => execute_operation_chain(
+                &mut host,
+                operation,
+                &state,
+                &follow_ups,
+                &messages,
+                &cancel,
+                &provider_cancel,
+            ),
+            RuntimeCommand::SwitchModel { change, reply } => {
+                host.clear_event_error();
+                let notice = match change {
+                    ModelChange::LegacyId(model) => host.switch_model(&model),
+                    ModelChange::Resolved(config) => host.switch_runtime_config(*config),
+                };
+                sync_message_snapshot(&host, &messages);
+                let result = host.ensure_event_delivery().map(|_| notice);
+                let _ = reply.send(result);
+            }
+            RuntimeCommand::RefreshRuntime {
+                config,
+                tools,
+                reply,
+            } => {
+                host.clear_event_error();
+                let notice = host.switch_runtime_config(*config);
+                host.replace_tools(tools);
+                sync_message_snapshot(&host, &messages);
+                let result = host.ensure_event_delivery().map(|_| notice);
+                let _ = reply.send(result);
+            }
+            RuntimeCommand::Truncate { index, reply } => {
+                host.truncate_messages(index);
+                sync_message_snapshot(&host, &messages);
+                let _ = reply.send(Ok(host.messages().len()));
+            }
+        }
+    }
+}
+
+fn execute_operation_chain(
+    host: &mut RuntimeHost,
+    mut operation: RuntimeOperation,
+    state: &Arc<Mutex<RuntimeState>>,
+    follow_ups: &Arc<Mutex<VecDeque<QueuedRun>>>,
+    messages: &Arc<RwLock<Vec<Value>>>,
+    cancel: &Arc<AtomicBool>,
+    provider_cancel: &Arc<AtomicBool>,
+) {
+    loop {
+        let result = run_contained(host, operation);
+        sync_message_snapshot(host, messages);
+        let terminal_state = state_from_result(&result);
+
+        // Holding state before the queue gives follow_up() an atomic choice:
+        // either it queues while the run is active, or it observes terminal
+        // state and is rejected. No accepted follow-up can be lost here.
+        let mut current_state = lock_recovering(state);
+        let mut queued = lock_recovering(follow_ups);
+        if cancel.load(Ordering::SeqCst) {
+            queued.clear();
+            *current_state = RuntimeState::Interrupted;
+            break;
+        }
+        if let Some(next) = queued.pop_front() {
+            cancel.store(false, Ordering::SeqCst);
+            provider_cancel.store(false, Ordering::SeqCst);
+            *current_state = RuntimeState::Running;
+            operation = RuntimeOperation::Run(next);
+            drop(queued);
+            drop(current_state);
+            continue;
+        }
+        *current_state = terminal_state;
+        break;
+    }
+}
+
+/// Run one operation to its result. A panic anywhere in the run (a tool, a document parser, an
+/// event sink) ends that run as failed instead of killing the worker thread: otherwise the session
+/// would stay `Running` for good, refuse every later run, and leave its ledger run open.
+fn run_contained(host: &mut RuntimeHost, operation: RuntimeOperation) -> Result<Value, String> {
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match operation {
+        RuntimeOperation::Run(run) => {
+            host.set_run_id(run.run_id);
+            host.run_with_attachments(&run.input, &run.attachments, run.source)
+        }
+        RuntimeOperation::Resume { run_id } => {
+            host.set_run_id(run_id);
+            host.resume()
+        }
+        RuntimeOperation::Retry { run_id } => {
+            host.set_run_id(run_id);
+            host.retry()
+        }
+    }));
+    outcome.unwrap_or_else(|payload| {
+        let error = format!(
+            "the run stopped because of an internal error: {}",
+            panic_message(payload.as_ref())
+        );
+        // Best effort: whatever panicked once may panic again while it is being reported.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            record_run_panic(host, &error)
+        }));
+        Err(error)
+    })
+}
+
+/// Tell the product surface and the ledger how a panicked run ended, the way an ordinary failure
+/// is told. A ledger run that already reached a terminal state refuses the extra transition, which
+/// is the right outcome.
+fn record_run_panic(host: &mut RuntimeHost, error: &str) {
+    host.messages
+        .push(json!({"role": "notice", "kind": "error", "text": error, "ts": now_ts()}));
+    host.emit_event(RuntimeEvent::Error {
+        error: error.to_string(),
+        error_type: "panic".to_string(),
+        terminal: true,
+        retry: None,
+    });
+    host.emit_event(RuntimeEvent::TurnEnd {
+        status: "failed".to_string(),
+        iterations: 0,
+    });
+    let _ = host.finish_run_ledger(&Err(error.to_string()));
+}
+
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|message| (*message).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic".to_string())
+}
+
+fn sync_message_snapshot(host: &RuntimeHost, messages: &Arc<RwLock<Vec<Value>>>) {
+    *messages.write().unwrap_or_else(PoisonError::into_inner) = host.messages().to_vec();
+}
+
+fn state_from_result(result: &Result<Value, String>) -> RuntimeState {
+    match result {
+        Err(_) => RuntimeState::Failed,
+        Ok(value) if value.get("status").and_then(Value::as_str) == Some("interrupted") => {
+            RuntimeState::Interrupted
+        }
+        Ok(value)
+            if matches!(
+                value.get("status").and_then(Value::as_str),
+                Some("max_iterations_exceeded" | "tool_budget_exceeded")
+            ) =>
+        {
+            RuntimeState::Failed
+        }
+        Ok(_) => RuntimeState::Completed,
+    }
+}
+
+/// The run a session can resume (ADR-0053): the run in its latest checkpoint, if the ledger says its
+/// last lifecycle state is `interrupted`. Read-only; the error says why nothing can be resumed.
+pub(crate) fn interrupted_run_of(
+    authorities: &RuntimeAuthorities,
+    session_id: &str,
+) -> Result<String, String> {
+    let run_id = {
+        let ledger = lock_recovering(&authorities.ledger);
+        let reader = ledger.reader().map_err(|error| error.to_string())?;
+        CheckpointReader::from_reader(reader)
+            .list(None, Some(session_id))
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .max_by_key(|checkpoint| checkpoint.created_at.clone())
+            .map(|checkpoint| checkpoint.run_id)
+            .ok_or_else(|| "nothing to resume: this session has no recorded run".to_string())?
+    };
+    let status = authorities
+        .ledger
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reader()
+        .and_then(|reader| reader.run_status(&run_id))
+        .map_err(|error| error.to_string())?;
+    if status != "interrupted" {
+        return Err(format!(
+            "nothing to resume: the session's last run is {status}, not interrupted"
+        ));
+    }
+    Ok(run_id)
+}

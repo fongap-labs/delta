@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://delta.foundation/schemas/execution-grant.schema.json",
+  "title": "Capability Grants",
+  "description": "Permission grants scoped to a single capability job. A grant is the most a capability may do; policy/approval already gated it upstream. Mirrors the Rust struct CapabilityGrants in crates/delta-core/src/capability/abi.rs.",
+  "type": "object",
+  "required": ["read_roots", "write_roots", "network", "secrets", "exec"],
+  "additionalProperties": false,
+  "properties": {
+    "read_roots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Absolute directories the capability may read (the workspace is always included)."
+    },
+    "write_roots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Absolute directories the capability may write (empty = read-only)."
+    },
+    "network": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Allowed outbound network targets, e.g. https://api.example.com:443."
+    },
+    "secrets": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Secret grant keys the capability may read from the secrets boundary."
+    },
+    "exec": {
+      "type": "boolean",
+      "description": "Whether the job may spawn processes (shell/exec)."
+    },
+    "execution_epoch": {
+      "type": ["number", "null"],
+      "description": "Unix timestamp (seconds, fractional) marking when the grant becomes active. null = immediately."
+    },
+    "expires_at": {
+      "type": ["number", "null"],
+      "description": "Unix timestamp (seconds, fractional) marking when the grant expires. null = no expiry."
+    }
+  }
+}

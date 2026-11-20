@@ -1,0 +1,176 @@
+//! Capability runner contract and Rust-authoritative registration catalogue.
+
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+use serde_json::Value;
+
+use super::abi::{CapabilityGrants, CapabilityJob, CapabilityProgress, CapabilityResult};
+use crate::skills::SideEffectClass;
+
+pub trait CapabilityRunner: Send + Sync {
+    fn run(&self, job: &CapabilityJob, control: &CapabilityControl) -> CapabilityResult;
+}
+
+/// Runtime-owned controls visible to a runner. Workers may observe cancellation
+/// and emit progress; they cannot mutate Runtime state or grant themselves more
+/// access.
+#[derive(Clone)]
+pub struct CapabilityControl {
+    cancel: Arc<AtomicBool>,
+    progress: Arc<dyn Fn(CapabilityProgress) + Send + Sync>,
+}
+
+impl CapabilityControl {
+    pub fn new(
+        cancel: Arc<AtomicBool>,
+        progress: Arc<dyn Fn(CapabilityProgress) + Send + Sync>,
+    ) -> Self {
+        Self { cancel, progress }
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Acquire)
+    }
+
+    pub fn emit_progress(&self, progress: CapabilityProgress) {
+        (self.progress)(progress);
+    }
+}
+
+#[derive(Clone)]
+pub struct CapabilityRegistration {
+    pub capability_id: String,
+    pub tool_name: String,
+    pub description: String,
+    pub parameters: Value,
+    pub metadata: Value,
+    /// What the tool does outside the model's view. Required: a registration cannot omit it.
+    pub side_effect: SideEffectClass,
+    pub grants: CapabilityGrants,
+    pub workspace_write: bool,
+    pub runner: Arc<dyn CapabilityRunner>,
+}
+
+impl CapabilityRegistration {
+    /// True for a read-only statistics tool that needs no network, secret or write grant. Only
+    /// these run without a model turn (`CoreControlPlane::run_statistics_tool`); the execution
+    /// gate still applies to them. The one exception is a process grant for the pinned Explore
+    /// runtime (`statistics.explore.*`, ADR-0078 as amended by ADR-0080): no other statistics
+    /// tool may spawn a process without a model turn.
+    pub fn is_local_statistics(&self) -> bool {
+        self.capability_id.starts_with("statistics.")
+            && matches!(
+                self.side_effect,
+                SideEffectClass::None | SideEffectClass::Read
+            )
+            && self.grants.network.is_empty()
+            && self.grants.secrets.is_empty()
+            && self.grants.write_roots.is_empty()
+            && (!self.grants.exec || self.capability_id.starts_with("statistics.explore."))
+            && !self.workspace_write
+    }
+}
+
+/// Rust-authoritative capability catalogue. Registration owns both the model
+/// schema and the runner, preventing a model-visible tool from bypassing its
+/// controlled execution implementation.
+#[derive(Default)]
+pub struct CapabilityRegistry {
+    by_tool: HashMap<String, CapabilityRegistration>,
+}
+
+/// The metadata a model-visible contract carries: the registration's own metadata plus the side
+/// effect it declared, so the Runtime policy can judge the call (A2).
+fn contract_metadata(registration: &CapabilityRegistration) -> Value {
+    let mut metadata = match &registration.metadata {
+        Value::Object(map) => map.clone(),
+        _ => serde_json::Map::new(),
+    };
+    metadata.insert(
+        "side_effect".to_string(),
+        Value::String(registration.side_effect.as_str().to_string()),
+    );
+    Value::Object(metadata)
+}
+
+impl CapabilityRegistry {
+    pub fn register(&mut self, registration: CapabilityRegistration) -> Result<(), String> {
+        self.register_batch(vec![registration])
+    }
+
+    /// Validate the whole batch before publishing any of its registrations.
+    pub fn register_batch(
+        &mut self,
+        registrations: Vec<CapabilityRegistration>,
+    ) -> Result<(), String> {
+        let mut names = HashSet::new();
+        for registration in &registrations {
+            if registration.capability_id.trim().is_empty()
+                || registration.tool_name.trim().is_empty()
+            {
+                return Err("capability id and tool name are required".to_string());
+            }
+            if self.by_tool.contains_key(&registration.tool_name)
+                || !names.insert(registration.tool_name.clone())
+            {
+                return Err(format!(
+                    "capability tool is already registered: {}",
+                    registration.tool_name
+                ));
+            }
+        }
+        for registration in registrations {
+            self.by_tool
+                .insert(registration.tool_name.clone(), registration);
+        }
+        Ok(())
+    }
+
+    pub fn get(&self, tool_name: &str) -> Option<CapabilityRegistration> {
+        self.by_tool.get(tool_name).cloned()
+    }
+
+    pub fn unregister_prefix(&mut self, prefix: &str) -> usize {
+        let before = self.by_tool.len();
+        self.by_tool.retain(|name, _| !name.starts_with(prefix));
+        before.saturating_sub(self.by_tool.len())
+    }
+
+    pub fn tool_schemas(&self) -> Value {
+        self.tool_schemas_filtered(|_| true)
+    }
+
+    pub fn tool_schemas_filtered<F>(&self, mut include: F) -> Value
+    where
+        F: FnMut(&CapabilityRegistration) -> bool,
+    {
+        let mut registrations = self.by_tool.values().collect::<Vec<_>>();
+        registrations.sort_by(|left, right| left.tool_name.cmp(&right.tool_name));
+        Value::Array(
+            registrations
+                .into_iter()
+                .filter(|registration| {
+                    include(registration)
+                        && registration
+                            .metadata
+                            .get("model_visible")
+                            .and_then(Value::as_bool)
+                            != Some(false)
+                })
+                .map(|registration| {
+                    serde_json::json!({
+                        "type": "function",
+                        "function": {
+                            "name": registration.tool_name,
+                            "description": registration.description,
+                            "parameters": registration.parameters,
+                            "metadata": contract_metadata(registration),
+                        }
+                    })
+                })
+                .collect(),
+        )
+    }
+}

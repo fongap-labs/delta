@@ -1,0 +1,302 @@
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  getConnectors,
+  getInbox,
+  getInboxRouting,
+  getRecentChannels,
+  getUnrouted,
+  resolveInboxItem,
+  type InboxItem,
+  type RecentChannel,
+} from "../api";
+import { Icon } from "./Icon";
+import { Button } from "./ui/Button";
+import { InboxItemCard } from "./InboxItemCard";
+import { InboxConfigure } from "./InboxConfigure";
+import { PanelHead } from "./IntegrationsView";
+import { LoadError, LoadingRows } from "./ViewStates";
+import { useI18n } from "@delta/i18n/I18nContext";
+
+const KIND_TABS: { key: string; label: string }[] = [
+  { key: "all", label: "inbox.kind.all" },
+  { key: "approval", label: "inbox.kind.approvals" },
+  { key: "question", label: "inbox.kind.questions" },
+];
+
+// The Inbox: pending approvals / questions / notifications from across sessions, including
+// unattended ones. Resolving here releases any agent suspended on the item. Each item links back
+// to its originating session so you can see the context before answering. Items whose session
+// was deleted are closed server-side (an orphaned prompt can never be answered), so everything
+// listed here is actionable. Filters are intentionally task-kind only.
+// Two page tabs (§28): Pending (the queue) and Configure (the former Connectors ▸ Messaging
+// routing page — mirror channel, DM route, subscriptions, Unrouted). Pending's routing status
+// is read-only and links to Configure; the old inline editor was the mirror setting's SECOND
+// editor and is gone.
+export function InboxView({
+  onOpenSession,
+  onOpenArtifact,
+}: {
+  onOpenSession: (sessionId: string, workspace: string) => void;
+  onOpenArtifact: (sessionId: string, workspace: string, path: string) => void;
+}) {
+  const { t } = useI18n();
+  const [tab, setTab] = useState<"pending" | "configure">("pending");
+  const pageTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [items, setItems] = useState<InboxItem[]>([]);
+  const [routing, setRouting] = useState<string | null>(null); // e.g. "slack:C0123" or null
+  const [isSlackConnected, setSlackConnected] = useState(false);
+  const [recent, setRecent] = useState<RecentChannel[]>([]);
+  const [unroutedCount, setUnroutedCount] = useState(0);
+  const [kind, setKind] = useState<string>("all");
+  // Only the first load can show "loading" or "failed": once items are on screen, a later failed
+  // poll keeps them rather than replacing the queue with an error.
+  const [isLoading, setLoading] = useState(true);
+  const [hasFailed, setFailed] = useState(false);
+
+  const load = () => {
+    getInbox(undefined, "pending")
+      .then((pending) => {
+        setItems(pending);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+    getUnrouted().then((u) => setUnroutedCount(u.length)).catch(() => setUnroutedCount(0));
+  };
+  const loadRouting = () =>
+    getInboxRouting()
+      .then((bindings) => {
+        const bound = bindings.find((b) => b.channel);
+        setRouting(bound ? `${bound.channel}:${bound.target}` : null);
+      })
+      .catch(() => setRouting(null));
+  useEffect(() => {
+    load();
+    loadRouting();
+    getConnectors()
+      .then((cs) => setSlackConnected(!!cs.find((c) => c.name === "slack" && c.connected)))
+      .catch(() => {});
+    getRecentChannels().then(setRecent).catch(() => setRecent([]));
+    const timer = setInterval(() => {
+      load();
+      loadRouting(); // edits happen on the Configure tab; keep Pending's status line honest
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const resolve = async (id: string, resolution: string) => {
+    await resolveInboxItem(id, resolution);
+    load();
+  };
+  const selectPageTab = (next: "pending" | "configure") => {
+    setTab(next);
+    if (next === "pending") {
+      loadRouting();
+      load();
+    }
+  };
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % 2;
+    else if (event.key === "ArrowLeft") next = (index + 1) % 2;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = 1;
+    else return;
+    event.preventDefault();
+    selectPageTab(next === 0 ? "pending" : "configure");
+    pageTabRefs.current[next]?.focus();
+  };
+
+  const visible = items.filter((it) => kind === "all" || it.kind === kind);
+
+  // Pending items grouped by the task that raised them, in the order they first appear. A task
+  // with several waiting items gets a header; with two or more approvals it also gets the batch
+  // answers.
+  const groups: { sessionId: string; title: string; items: InboxItem[] }[] = [];
+  for (const it of visible) {
+    let group = groups.find((candidate) => candidate.sessionId === it.session_id);
+    if (!group) {
+      group = {
+        sessionId: it.session_id,
+        title: it.session_title || t("nav.untitledTask", undefined, "New task"),
+        items: [],
+      };
+      groups.push(group);
+    }
+    group.items.push(it);
+  }
+
+  // One answer for every approval of a task. Allowing several at once is a bigger decision than
+  // allowing one, so it names what is being allowed and asks first; denying needs no question.
+  const resolveAll = async (approvals: InboxItem[], resolution: "allow" | "deny") => {
+    if (resolution === "allow") {
+      const tools = Array.from(new Set(approvals.map((item) => String(item.data?.tool ?? item.title)))).join(", ");
+      if (!window.confirm(t("inbox.batch.confirmAllow", { n: approvals.length, tools }))) return;
+    }
+    for (const item of approvals) await resolveInboxItem(item.id, resolution);
+    load();
+  };
+
+  // The originating-session chip links back to the Delta task.
+  const sessionChip = (it: InboxItem) => {
+    const exists = it.session_exists !== false;
+    const label = it.session_title || t("nav.untitledTask", undefined, "New task");
+    return (
+      <Button variant="ghost" size="sm"
+        className="inbox-session-chip"
+        title={exists ? t("inbox.sessionChip.open", { label }) : t("inbox.sessionChip.unavailable")}
+        disabled={!exists}
+        onClick={() =>
+          exists && onOpenSession(it.session_id, it.session_workspace || "")
+        }
+      >
+        <span className="inbox-chip-ico ico-delta">
+          <Icon name="diamond" size={11} />
+        </span>
+        <span className="inbox-chip-label">{label}</span>
+        {exists && <Icon name="chevronRight" size={13} className="inbox-chip-go" />}
+      </Button>
+    );
+  };
+
+  const routingName = routing ? recent.find((c) => c.channel === routing)?.name : undefined;
+  const routingLabel = routingName ? `#${routingName}` : routing;
+
+  return (
+    <main className="flex-1 min-w-0 flex bg-bg">
+      <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
+        <div className="max-w-4xl mx-auto px-7 py-6">
+          <PanelHead
+            title={t("nav.inbox")}
+            sub={t("inbox.sub")}
+          />
+
+          <div className="flex gap-5 border-b border-line mb-4" role="tablist" aria-label={t("nav.inbox")}>
+            <Button variant="ghost" size="sm" role="tab" id="inbox-tab-pending"
+              ref={(element) => { pageTabRefs.current[0] = element; }}
+              aria-selected={tab === "pending"} aria-controls="inbox-panel"
+              tabIndex={tab === "pending" ? 0 : -1}
+              className="inbox-page-tab" data-testid="inbox-tab-pending"
+              onKeyDown={(event) => onTabKey(event, 0)}
+              onClick={() => selectPageTab("pending")}>
+              {t("common.pending")}
+              {items.length > 0 && (
+                <span className="text-[11px] px-1.5 rounded-full bg-selected text-primary leading-4">
+                  {items.length}
+                </span>
+              )}
+            </Button>
+            <Button variant="ghost" size="sm" role="tab" id="inbox-tab-configure"
+              ref={(element) => { pageTabRefs.current[1] = element; }}
+              aria-selected={tab === "configure"} aria-controls="inbox-panel"
+              tabIndex={tab === "configure" ? 0 : -1}
+              className="inbox-page-tab" data-testid="inbox-tab-configure"
+              onKeyDown={(event) => onTabKey(event, 1)}
+              onClick={() => selectPageTab("configure")}>
+              {t("inbox.tab.configure")}
+              {unroutedCount > 0 && (
+                <span className="text-[11px] px-1.5 rounded-full bg-warn-soft text-warn leading-4">
+                  ⚠ {unroutedCount}
+                </span>
+              )}
+            </Button>
+          </div>
+
+          <div id="inbox-panel" role="tabpanel" aria-labelledby={`inbox-tab-${tab}`}>
+          {tab === "configure" ? (
+            <InboxConfigure />
+          ) : (
+            <>
+              <div className="text-[12px] text-faint -mt-1 mb-4" data-testid="inbox-routing">
+                {routing ? (
+                  <span>
+                    {t("inbox.routing.alsoDeliveredTo")}
+                    <span className="text-muted" title={routing}>
+                      {routingLabel}
+                    </span>
+                    {t("inbox.routing.repliesResolveHere")}
+                  </span>
+                ) : isSlackConnected ? (
+                  <span>{t("inbox.routing.deliveredHereOnly")}</span>
+                ) : (
+                  <span>{t("inbox.routing.deliveredHereOnlyConnect")}</span>
+                )}
+                <Button variant="ghost" size="sm" className="inbox-route-link"
+                  data-testid="inbox-route-configure"
+                  onClick={() => selectPageTab("configure")}>
+                  {t("inbox.routing.configureCta")}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap mb-4" data-testid="inbox-filters">
+                {KIND_TABS.map((tab) => (
+                  <Button key={tab.key} variant="ghost" size="sm" className="inbox-filter"
+                    aria-pressed={kind === tab.key} onClick={() => setKind(tab.key)}>
+                    {t(tab.label)}
+                  </Button>
+                ))}
+              </div>
+
+              {hasFailed && items.length === 0 ? (
+                <LoadError
+                  what={t("state.what.inbox", undefined, "the inbox")}
+                  onRetry={() => {
+                    setLoading(true);
+                    load();
+                  }}
+                />
+              ) : isLoading && items.length === 0 ? (
+                <LoadingRows />
+              ) : visible.length === 0 ? (
+                <div className="manage-empty">
+                  {items.length === 0
+                    ? t("inbox.empty.nothingPending")
+                    : t("inbox.empty.nothingPendingForFilter")}
+                </div>
+              ) : null}
+
+              <div className="space-y-4">
+                {groups.map((group) => {
+                  const approvals = group.items.filter((it) => it.kind === "approval");
+                  return (
+                    <div key={group.sessionId} className="space-y-4" data-testid="inbox-group">
+                      {group.items.length > 1 && (
+                        <div className="flex items-center gap-2 text-[12px] text-muted" data-testid="inbox-group-head">
+                          <span className="font-medium text-ink truncate">{group.title}</span>
+                          <span>{t("inbox.group.count", { n: group.items.length })}</span>
+                          <span className="flex-1" />
+                          {approvals.length > 1 && (
+                            <>
+                              <Button variant="ghost" size="sm" className="inbox-filter"
+                                data-testid="inbox-allow-all" onClick={() => void resolveAll(approvals, "allow")}>
+                                {t("inbox.batch.allowAll", { n: approvals.length })}
+                              </Button>
+                              <Button variant="danger" size="sm" className="inbox-filter"
+                                data-testid="inbox-deny-all" onClick={() => void resolveAll(approvals, "deny")}>
+                                {t("inbox.batch.denyAll", { n: approvals.length })}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {group.items.map((it) => (
+                        <InboxItemCard
+                          key={it.id}
+                          item={it}
+                          onResolve={resolve}
+                          chip={sessionChip(it)}
+                          onOpenArtifact={(path) => onOpenArtifact(it.session_id, it.session_workspace || "", path)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

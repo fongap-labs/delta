@@ -1,0 +1,307 @@
+"""Address guard for URLs the model chooses.
+
+`web_fetch` and `browser_read_url` take a URL straight from the model, and the model's
+input is untrusted by design — it reads web pages, email and Slack messages, all of which
+are documented as "data, not instructions". A page that talks the agent into fetching
+`http://169.254.169.254/` or `http://127.0.0.1:11434/` turns a read-only research tool into
+a probe of the machine's own network position, even though `web_fetch` asks for approval.
+
+This blocks the ranges that are only reachable *because* Delta runs on the user's
+machine: loopback, RFC1918 and other private space, link-local (which covers the cloud
+metadata endpoint at 169.254.169.254), and the reserved/multicast blocks.
+
+Every hop is checked, not just the first: `follow_redirects=True` otherwise lets a public
+URL 302 straight to loopback, which is the standard way this filter is bypassed.
+
+DNS rebinding is closed by connection-level pinning: `get_checked` rewrites each hop so the
+client connects to the exact address that passed the check (name in Host and SNI, so virtual
+hosting and certificate verification still see the name). A record with a ~0 TTL that flips
+to 127.0.0.1 between the check and the connect therefore changes nothing — the client never
+resolves the name itself. `check_url` alone is not a sufficient browser boundary because a browser can resolve the
+name again. Interactive browser providers must obtain the concrete target through
+checked_connection_address and connect only to that vetted address.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import ipaddress
+import socket
+from urllib.parse import urljoin, urlsplit, urlunsplit
+
+MAX_REDIRECTS = 5
+
+# RFC 6598 shared address space. Python's is_private misses it, but it is carrier grade
+# NAT space and Tailscale hands out internal hosts here (100.64.0.0/10), so a fetch to it
+# is the same "reach the machine's network position" class as RFC1918.
+_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+
+
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> list[ipaddress.IPv4Address]:
+    """IPv4 addresses an IPv6 address carries: IPv4-mapped, 6to4, Teredo (client) and NAT64.
+
+    A gateway that translates these forwards the connection to the embedded IPv4 address, so
+    `[64:ff9b::7f00:1]` can reach 127.0.0.1 from a dual-stack host even though the IPv6 address
+    itself looks public.
+    """
+    found: list[ipaddress.IPv4Address] = []
+    if ip.ipv4_mapped is not None:
+        found.append(ip.ipv4_mapped)
+    if ip.sixtofour is not None:
+        found.append(ip.sixtofour)
+    if ip.teredo is not None:
+        found.extend(ip.teredo)  # (server, client): both are addresses a relay will contact
+    if ip in _NAT64:
+        found.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+    return found
+
+
+def _blocked_reason(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> str | None:
+    if isinstance(ip, ipaddress.IPv6Address):
+        for inner in _embedded_ipv4(ip):
+            reason = _blocked_reason(inner)
+            if reason:
+                return f"{reason} (carried inside an IPv6 address)"
+    if ip.is_loopback:
+        return "loopback"
+    if ip.is_link_local:
+        return "link-local (includes the cloud metadata endpoint)"
+    if ip.is_private:
+        return "a private network"
+    if ip.version == 4 and ip in _CGNAT:
+        return "shared address space (CGNAT / RFC 6598)"
+    if ip.is_multicast:
+        return "multicast"
+    if ip.is_reserved or ip.is_unspecified:
+        return "a reserved range"
+    return None
+
+
+def _vet(url: str) -> tuple[str | None, str | None]:
+    """(refusal reason, address to pin the connection to).
+
+    The reason is None when the URL may be fetched. The address is None for literal-IP
+    URLs (the URL already names the connection target) and the first resolved answer
+    otherwise — valid to pin because a refusal is returned when *any* answer lands in a
+    blocked range, so a name with both a public and a private A record cannot slip through.
+    """
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https"):
+        return "url must start with http:// or https://", None
+    host = parts.hostname
+    if not host:
+        return "url has no host", None
+    # Credentials in the URL are never needed to read a page, and parsers disagree about where the host
+    # ends (`http://127.0.0.1\@example.com/` is example.com to urllib and 127.0.0.1 to a browser).
+    if "@" in parts.netloc or "\\" in parts.netloc:
+        return "url must not contain credentials or backslashes in the host part", None
+
+    # A literal address needs no lookup.
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        reason = _blocked_reason(literal)
+        return (f"refusing to fetch {host}: {reason}" if reason else None), None
+
+    try:
+        infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80),
+                                   proto=socket.IPPROTO_TCP)
+    except OSError as exc:
+        return f"could not resolve {host}: {exc}", None
+
+    pin: str | None = None
+    for info in infos:
+        raw = str(info[4][0])
+        try:
+            ip = ipaddress.ip_address(raw)
+        except ValueError:
+            continue
+        # ::ffff:127.0.0.1, 6to4, Teredo and NAT64 addresses are judged as the v4 address they carry.
+        reason = _blocked_reason(ip)
+        if reason:
+            return f"refusing to fetch {host} ({ip}): {reason}", None
+        if pin is None:
+            pin = raw
+    return None, pin
+
+
+def check_url(url: str) -> str | None:
+    """None if the URL may be fetched, else a human-readable refusal reason.
+
+    Resolves the host and rejects when *any* answer lands in a blocked range, so a name
+    with both a public and a private A record cannot be used to slip through.
+    """
+    return _vet(url)[0]
+
+def checked_connection_address(url: str) -> str:
+    """Return the exact public address approved for a network connection.
+
+    Hostnames are resolved exactly once through the same address policy used by
+    get_checked. Callers must connect to the returned address rather than resolving the
+    hostname again. Literal public addresses are returned unchanged. A refused or
+    unresolvable target raises PermissionError.
+    """
+    reason, pin = _vet(url)
+    if reason:
+        raise PermissionError(reason)
+    if pin is not None:
+        return pin
+
+    host = urlsplit(url).hostname
+    if not host:
+        raise PermissionError("url has no host")
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise PermissionError(f"could not resolve {host}") from exc
+    mapped = getattr(literal, "ipv4_mapped", None)
+    if mapped is not None:
+        literal = mapped
+    return str(literal)
+
+
+def _pinned(url: str, ip: str) -> tuple[str, dict, dict]:
+    """Rewrite `url` so the client connects to `ip` while presenting the original name.
+
+    Returns (request_url, headers, extensions): the URL carries the vetted address so the
+    client never resolves the name itself, Host carries the name (and any explicit port)
+    for virtual hosting, and `sni_hostname` keeps the TLS handshake — including certificate
+    verification — against the name rather than the address.
+    """
+    parts = urlsplit(url)
+    host = parts.hostname
+    if host is None:
+        raise ValueError("url has no host")
+    addr = f"[{ip}]" if ":" in ip else ip
+    netloc = addr  # _vet refuses URLs with credentials, so there is no userinfo to carry
+    host_header = host
+    if parts.port is not None:
+        netloc += f":{parts.port}"
+        host_header += f":{parts.port}"
+    request_url = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    extensions = {"sni_hostname": host} if parts.scheme == "https" else {}
+    return request_url, {"Host": host_header}, extensions
+
+
+def request_checked(
+    client,
+    method: str,
+    url: str,
+    *,
+    headers=None,
+    params=None,
+    json=None,
+    auth=None,
+    max_redirects: int = 0,
+):
+    """Issue an address-checked HTTP request pinned to the vetted address.
+
+    Connector calls use a zero redirect budget by default so credentials are never
+    replayed to a redirect target. Every actual connection uses the address returned
+    by the address guard, closing the DNS check/connect gap for both reads and writes.
+    """
+    seen = url
+    verb = str(method or "GET").upper()
+    for _ in range(max_redirects + 1):
+        reason, pin = _vet(seen)
+        if reason:
+            raise PermissionError(reason)
+        request_headers = dict(headers or {})
+        extensions = {}
+        request_url = seen
+        if pin is not None:
+            request_url, pinned_headers, extensions = _pinned(seen, pin)
+            request_headers.update(pinned_headers)
+        response = client.request(
+            verb,
+            request_url,
+            headers=request_headers or None,
+            params=params,
+            json=json,
+            auth=auth,
+            extensions=extensions or None,
+        )
+        if response.status_code not in (301, 302, 303, 307, 308):
+            ext = getattr(response, "extensions", None)
+            if isinstance(ext, dict):
+                ext["logical_url"] = seen
+            return response
+        location = response.headers.get("location")
+        if not location:
+            return response
+        seen = urljoin(seen, location)
+    raise RuntimeError(f"too many redirects (>{max_redirects})")
+
+
+@contextlib.contextmanager
+def stream_checked(client, url: str, *, max_redirects: int = MAX_REDIRECTS):
+    """Like `get_checked`, but the final response is open and its body has not been read.
+
+    Use it as a context manager and read the body in bounded pieces (`resp.iter_bytes()`), so a
+    server that never stops sending cannot fill memory. Every hop is vetted and pinned exactly as in
+    `get_checked`; redirect responses are closed before the next hop is requested. `client` must be
+    built with `follow_redirects=False`.
+    """
+    seen = url
+    for _ in range(max_redirects + 1):
+        reason, pin = _vet(seen)
+        if reason:
+            raise PermissionError(reason)
+        if pin is None:
+            request_url, headers, extensions = seen, {}, {}
+        else:
+            request_url, headers, extensions = _pinned(seen, pin)
+        with client.stream(
+            "GET", request_url, headers=headers or None, extensions=extensions or None
+        ) as resp:
+            location = resp.headers.get("location")
+            if resp.status_code not in (301, 302, 303, 307, 308) or not location:
+                ext = getattr(resp, "extensions", None)
+                if isinstance(ext, dict):
+                    ext["logical_url"] = seen
+                yield resp
+                return
+        # A relative Location stays on the logical host, not on the pinned address.
+        seen = urljoin(seen, location)
+    raise RuntimeError(f"too many redirects (>{max_redirects})")
+
+
+def get_checked(client, url: str, *, max_redirects: int = MAX_REDIRECTS):
+    """GET `url`, validating and pinning the address before every hop.
+
+    `client` must be built with `follow_redirects=False`; redirects are walked here so each
+    Location is checked. Every hop connects to the exact address that passed its check (see
+    `_pinned`), so a rebinding name cannot swap targets between check and connect. Returns
+    the final response, with the final *logical* URL — the name, not the pinned address —
+    stashed as `resp.extensions["logical_url"]` for callers that display it. Raises
+    `PermissionError` when a hop is refused, `RuntimeError` when the budget is exhausted.
+    """
+    seen = url
+    for _ in range(max_redirects + 1):
+        reason, pin = _vet(seen)
+        if reason:
+            raise PermissionError(reason)
+        if pin is None:
+            resp = client.get(seen)
+        else:
+            request_url, headers, extensions = _pinned(seen, pin)
+            resp = client.get(request_url, headers=headers, extensions=extensions)
+        if resp.status_code not in (301, 302, 303, 307, 308):
+            ext = getattr(resp, "extensions", None)
+            if isinstance(ext, dict):
+                ext["logical_url"] = seen
+            return resp
+        location = resp.headers.get("location")
+        if not location:
+            return resp
+        # Resolved against the logical URL, not resp.url — the latter names the pinned
+        # address, and a relative Location must stay on the original host.
+        seen = urljoin(seen, location)
+    raise RuntimeError(f"too many redirects (>{max_redirects})")

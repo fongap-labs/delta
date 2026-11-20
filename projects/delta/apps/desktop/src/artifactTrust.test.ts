@@ -1,0 +1,93 @@
+import { describe, expect, it } from "vitest";
+import { trustFromMessages, displaySourceLocation, summarizeChecks } from "./artifactTrust";
+
+const produced = (overrides: Record<string, unknown> = {}) => ({
+  artifacts: [{ path: "reports/q3.docx", sha256: "ab12cd34ef56", run_id: "run-1" }],
+  validation: {
+    ok: true,
+    checks: [
+      { name: "artifact_count", ok: true, detail: "1 artifact" },
+      { name: "all_artifacts_complete", ok: true, detail: "" },
+    ],
+  },
+  ...overrides,
+});
+
+const messages = (output: unknown, asString = false) => [
+  { role: "assistant", content: "", tool_calls: [{ id: "call-1", function: { name: "make_report" } }] },
+  { role: "tool", tool_call_id: "call-1", content: asString ? JSON.stringify(output) : output },
+];
+
+describe("trustFromMessages", () => {
+  it("reads the producer, checksum and validation verdict from the tool result", () => {
+    const trust = trustFromMessages(messages(produced()), "reports/q3.docx");
+    expect(trust).toMatchObject({ producedBy: "make_report", sha256: "ab12cd34ef56", isValidationOk: true });
+    expect(summarizeChecks(trust!)).toEqual({ passed: 2, total: 2 });
+  });
+
+  it("accepts a JSON string result and Windows-style paths", () => {
+    const trust = trustFromMessages(messages(produced(), true), "reports\\q3.docx");
+    expect(trust?.sha256).toBe("ab12cd34ef56");
+  });
+
+  it("reports a failed check as not ok and counts it", () => {
+    const failed = produced({
+      validation: { ok: false, checks: [{ name: "required_paths", ok: false, detail: "missing" }, { name: "artifact_count", ok: true, detail: "" }] },
+    });
+    const trust = trustFromMessages(messages(failed), "reports/q3.docx")!;
+    expect(trust.isValidationOk).toBe(false);
+    expect(summarizeChecks(trust)).toEqual({ passed: 1, total: 2 });
+  });
+
+  it("returns nothing for an artifact no tool result registered, and never invents a verdict", () => {
+    expect(trustFromMessages(messages(produced()), "other.txt")).toBeNull();
+    expect(trustFromMessages([], "reports/q3.docx")).toBeNull();
+    const noValidation = trustFromMessages(messages({ artifacts: [{ path: "a.txt" }] }), "a.txt")!;
+    expect(noValidation.checks).toBeUndefined();
+    expect(summarizeChecks(noValidation)).toBeNull();
+  });
+
+  it("reads a retained previous-version path only from the matching latest artifact", () => {
+    const withBackup = produced({
+      artifacts: [{ path: "reports/q3.docx", previous_version: ".delta/versions/run-1/reports/q3.docx" }],
+    });
+    expect(trustFromMessages(messages(withBackup), "reports/q3.docx")?.previousVersion)
+      .toBe(".delta/versions/run-1/reports/q3.docx");
+    expect(trustFromMessages(messages(withBackup), "other.docx")).toBeNull();
+
+    const newest = [
+      { role: "tool", content: withBackup },
+      { role: "tool", content: produced({ artifacts: [{ path: "reports/q3.docx" }] }) },
+    ];
+    expect(trustFromMessages(newest, "reports/q3.docx")?.previousVersion).toBeUndefined();
+  });
+
+  it("uses the newest result when the same path was produced twice", () => {
+    const first = { role: "tool", tool_call_id: "c1", content: produced({ artifacts: [{ path: "a.txt", sha256: "old" }] }) };
+    const second = { role: "tool", tool_call_id: "c2", content: produced({ artifacts: [{ path: "a.txt", sha256: "new" }] }) };
+    expect(trustFromMessages([first, second], "a.txt")?.sha256).toBe("new");
+  });
+
+  it("ignores malformed content", () => {
+    expect(trustFromMessages([{ role: "tool", tool_call_id: "c", content: "not json" }], "a.txt")).toBeNull();
+  });
+});
+
+describe("run id and source locations", () => {
+  it("keeps the run that registered the artifact, to look up the sources it read", () => {
+    const trust = trustFromMessages(messages(produced()), "reports/q3.docx");
+    expect(trust?.runId).toBe("run-1");
+  });
+
+  it("shows a workspace file as recorded", () => {
+    expect(displaySourceLocation("notes/plan.md")).toBe("notes/plan.md");
+  });
+
+  it("drops the query and fragment of a URL, which can carry tokens", () => {
+    expect(displaySourceLocation("https://example.com/a/b?token=secret#top")).toBe("https://example.com/a/b");
+  });
+
+  it("falls back to cutting at ? or # when a URL does not parse", () => {
+    expect(displaySourceLocation("https://exa mple.com/x?token=secret")).toBe("https://exa mple.com/x");
+  });
+});

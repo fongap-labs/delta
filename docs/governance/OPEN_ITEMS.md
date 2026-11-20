@@ -1,0 +1,53 @@
+# 未决事项
+
+本文记录需要所有者决定、法务审查或另行处理、且当前未有结论的事项。每一项写明现状与需要的输入，不作替代判断。
+
+## 1. 法务审查（不作结论）
+
+以下事项包含法律或合规判断，需要法务人员审查。本仓库不对其作出法律结论。
+
+- `docs/governance/baseline/SOURCE_LICENSING_GOVERNANCE.md`：强 Copyleft 或源码可见许可的依赖，若对 Foundation 施加不兼容的分发义务，须经明确的法务审查。
+- `docs/governance/baseline/SECURITY_GOVERNANCE.md`：关于"不对安全研究者提起法律诉讼"的承诺，需确认措辞、适用范围与对应条件。
+- `docs/governance/baseline/TELEMETRY_PRIVACY_GOVERNANCE.md`：GDPR 法律依据（标准遥测的合法利益、增强与内容遥测的同意）、数据保护官任命与第 28 条处理者要求。
+- `docs/governance/baseline/COMPLIANCE_EXPORT_GOVERNANCE.md`：出口管制、制裁筛查与再出口义务。
+- `docs/governance/baseline/COMMUNITY_MAINTAINER_GOVERNANCE.md`：商标侵权时由项目负责人授权提起法律行动的流程。
+
+## 2. 透明度报告地址
+
+- 未替换的占位 URL：`docs/governance/baseline/TELEMETRY_PRIVACY_GOVERNANCE.md` 中的透明度报告地址 `https://delta.example.com/transparency`。它是 URL，不是联系邮箱，真实地址需所有者提供。
+
+## 3. 扩展加载
+
+见 [docs/architecture/extension-loading.md](../architecture/extension-loading.md) 第 5 节：清单 schema 缺失、两种 worker manifest 形状并存、`delta_extension_api` 仍依赖 Foundation 内部、清单未声明目标 ABI。
+
+## 4. 依赖安全公告审查
+
+RustSec 于 2026-10-17 与 2026-10-19 两批公告使 `cargo deny check advisories` 在四个工作区失败。`deny.toml` 现接受以下例外，每条都写明影响、可利用性、缓解措施与后续计划；复审日期 **2027-01-31**。
+
+### 4.1 压缩包提取漏洞（RUSTSEC-2026-0367 / 0368 / 0369）
+
+- 现状：受影响的版本是全部 `zip < 9.0.0`。Delta 锁定两个版本：`sherpa-onnx-sys` 引入的 `zip 2.4.2`，以及 `tauri-plugin-updater` 引入的 `zip 4.6.1`。两个上游 crate 当前都没有把依赖抬到 `zip 9` 的发布版本，因此单靠 `cargo update` 无法消除。
+- 可利用性：三条公告都只影响 `ZipArchive::extract()` / `ZipStreamReader::extract()` 这条落盘路径。Delta 自身代码不调用 `extract()`：Office 文档读取只在内存中按名字取条目（`projects/delta/crates/delta-core/src/document/ooxml.rs`），Skill 归档展开使用 `enclosed_name()` 并自行写文件（`projects/delta/crates/delta-core/src/skills.rs`），已阻断路径穿越。仓库内唯一的 zip 落盘提取来自自动更新插件，而它只安装经 minisign 公钥校验过的发布产物（`projects/delta/apps/desktop/src-tauri/tauri.conf.json` 的 `pubkey`），攻击者需要签名私钥才能构造被安装的包。
+- 缓解措施：更新链路的签名校验不得放宽；用户须显式确认安装更新（非静默后台安装）。
+- 后续：① `sherpa-onnx-sys` 发布依赖 `zip >= 9` 的版本后，删除 `projects/delta/crates/delta-stt` 的 `zip 2.x`（`sherpa-onnx 2.0.0` 已于 2026-10-23 发布并依赖 `zip ^9`，升级方式见 §4.4）；② `tauri-plugin-updater`（或 Tauri 3 系列）改用 `zip >= 9` 后，删除 `projects/delta/apps/desktop/src-tauri` 的 `zip 4.x`；③ 把 `projects/delta/crates/delta-core` 自身声明的 `zip = "2"` 升到 `9`，使 `delta-core` 与 `delta-computer` 工作区不再出现受影响的版本；④ 三条公告的例外在对应版本消失后一并删除。
+
+### 4.2 依赖停止维护（RUSTSEC-2026-0370 / 0371 / 0372）
+
+- 现状：`zvariant`、`zbus_names`、`zvariant_derive` 被标记为停止维护，全部版本都受影响。它们经 `zbus 5.19.0` 引入，而 `zbus` 由 `tauri-plugin-single-instance` 与 `tauri-plugin-notification` 依赖，当前插件版本仍要求 `zbus ^5`。
+- 可利用性：停止维护不等于漏洞，这三条公告没有可利用的缺陷，只表示上游不再修复。
+- 缓解措施：不降低 `unmaintained = "all"` 的整体口径，例外只针对这三个 crate。
+- 后续：等 Tauri 插件支持 `zbus 6.0.0`（`zbus 6` 已移除 `zvariant` / `zbus_names`）后升级插件，并删除这三条例外；在此之前保持当前 Tauri 版本，不为消除告警而引入 alpha 插件。
+
+### 4.3 根证书信任链类漏洞（RUSTSEC-2026-0381 / 0382 / 0383）
+
+- 现状：三条公告都指向 TLS 根证书与校验链。`RUSTSEC-2026-0382`（`rustls-webpki` 可能接受不受信的中间证书）与 `RUSTSEC-2026-0383`（`webpki-root-certs` 打包了已被 distrusted 的 emSign 根）已随锁文件把 `rustls-webpki` 升到 0.103.16、`webpki-root-certs` 升到 1.0.10、`webpki-roots` 升到 1.0.10 消除。`RUSTSEC-2026-0381`（`webpki-roots` 打包了已被 distrusted 的 emSign 根）仍剩一处：Delta 直接依赖 `ureq 2`，它引入 `webpki-roots 0.26.11`；该 wrapper 本身依赖 `webpki-roots ^1.0`，锁文件现已解析到修复版 1.0.10，但 `ureq 2.12.1` 是 2.x 的最后一个版本，钉死 `webpki-roots ^0.26`，而 0.26.x 没有修复版（修复从 1.0.10 起）。
+- 可利用性：需要 emSign 中间证书的私钥（已公开）才能构造被误信的证书链，属于中间人攻击，条件苛刻但不为零。Delta 桌面端的网络访问经 Tauri 插件，模型与浏览器请求走各自的客户端；受影响的 `ureq` 只用于 MCP 运行时与模型权威的出站请求。
+- 缓解措施：锁文件把 `webpki-roots` 固定在 1.0.10，实际使用的根证书集已不含该根；`ureq` 的出站请求已关闭重定向并对解析出的地址做固定。
+- 后续：① 把 `projects/delta/crates/delta-core` 的 `ureq = "2"` 迁到 `ureq 3`（`ureq 3` 依赖 `webpki-roots 1.x`），随后删除本例外；② 迁移要改写 `projects/delta/crates/delta-core/src/mcp_runtime.rs` 的 TLS 连接器实现（`ureq::TlsConnector` 与 `ReadWrite` 在 3.x 改了 trait 形状），且必须保留现有的地址固定与重定向关闭语义；③ 迁移完成后本节与 `deny.toml` 中的 0381 例外一并删除。
+
+### 4.4 压缩库安全公告（RUSTSEC-2026-0391 / 0398 / 0403；0410 已修复）
+
+- 现状：RustSec 于 2026-10-26 发布四条 zstd 家族公告。`RUSTSEC-2026-0410`（`zstd-sys` 的 WebAssembly 分配器问题）已通过锁文件把 `zstd-sys` 从 2.1.1 升到 2.1.2 消除，`projects/delta/crates/delta-stt` 与 `projects/delta/apps/desktop/src-tauri` 两个工作区都已更新。其余三条仍剩：`RUSTSEC-2026-0391`（`zstd 0.13.3`，修复版本 `>= 0.14.3`）、`RUSTSEC-2026-0398` 与 `RUSTSEC-2026-0403`（`zstd-safe 7.3.0`，修复版本 `>= 8.2.0`）。这两个 crate 只经 `zip 2.4.2` ← `sherpa-onnx-sys 1.13.8`（构建依赖）进入 `projects/delta/crates/delta-stt` 与 `projects/delta/apps/desktop/src-tauri` 的锁文件；`zip 2.x` 要求 `zstd ^0.13`，所以 `cargo update` 无法升到修复版本。
+- 可利用性：不可触发。`sherpa-onnx-sys` 的 `build.rs` 只在 iOS 的 `.xcframework.zip` 分支使用 `zip`；Windows 与 Linux 的原生库归档是 `.tar.bz2`，由 `bzip2` 与 `tar` 解开，不经过 `zstd`。三条公告涉及的接口（流上下文复用、`seekable` 解压、旧格式帧的流式解压）Delta 自身代码都不调用：仓库内没有任何 `Cargo.toml` 直接依赖 `zstd`。构建期依赖也不会进入发布产物。
+- 缓解措施：构建拉取的原生库归档由 `.github/sherpa-archives.json` 固定 SHA-256 后才使用（`projects/delta/scripts/fetch_sherpa_archive.py`）；不接受没有固定哈希的归档。
+- 后续：① 把 `sherpa-onnx` 从 1.13.8 升到 2.0.0。它依赖 `zip ^9`，而 `zip 9.1.x` 依赖 `zstd ^0.14.2`，可一并消除本节三条与 §4.1 中 `projects/delta/crates/delta-stt` 的 `zip 2.x`；② 这是主版本升级，需要重新固定 `.github/sherpa-archives.json` 中 2.0.0 的归档与 SHA-256，核对 `projects/delta/crates/delta-stt` 使用的识别器接口，并用 SenseVoice 模型回归语音识别，故另行处理；③ 升级完成后，本节与 `deny.toml` 中的三条例外一并删除。
