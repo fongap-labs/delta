@@ -1,27 +1,49 @@
 # Delta
 
-Delta is a planned desktop-first distribution based on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The `main` branch currently contains governance bootstrap code, **not a buildable Delta application**.
+Delta is a planned desktop-first distribution derived from the pinned `baseline/deepseek-harness` source of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The `main` branch currently contains governance bootstrap code, **not a buildable Delta application or an imported Harness-based product tree**.
 
 ## Branch policy
 
 | Branch | Purpose | Update policy |
 | --- | --- | --- |
 | `upstream/deepseek-harness` | Byte-preserving mirror of the official `master` history | Upstream synchronization only; never pushes to `main` |
-| `baseline/deepseek-harness` | Pinned, pristine DeepSeek Harness source for Delta | Advance only after compatibility review |
-| `main` | Delta application source and eventual release branch | Governed PRs and Central CI |
+| `baseline/deepseek-harness` | Pinned, pristine upstream source that Delta product development is based on | Advance only after compatibility review |
+| `main` | Delta application source derived from the accepted baseline (not imported yet) | Governed PRs and Central CI |
 | `legacy/v0.0.1` | Preserved historical source | Do not update |
 
 The current baseline was initially created from the upstream mirror. It is only a **candidate**: build, desktop, plugin, and security compatibility tests have not yet been completed. [`upstream.lock.json`](upstream.lock.json) records the candidate's immutable commit SHA and `verification_status: pending`. **Do not release a Delta product from this metadata-only bootstrap.**
 
-## Baseline upgrade process
+## Daily upstream comparison — always relative to the baseline
 
-1. Discover and synchronize official upstream changes into `upstream/deepseek-harness` (centralized in [Action Worker](https://github.com/fongap-labs/action-worker) when implementation is ready). Never automatically modify the baseline or product main branch.
-2. Compare the candidate with the SHA in `upstream.lock.json`; run compatibility, plugin lifecycle, desktop smoke, security, and multi-platform build tests before proposing a promotion.
-3. Create a temporary integration branch from `main`, apply the upstream changes and resolve Delta-specific patches. Do **not** merge the upstream history directly into the current bootstrap `main`: they have no common Git ancestor.
-4. Following a successful governed upgrade, move the pristine baseline branch to the accepted official commit, record the immutable accepted SHA in the lock file, and keep a corresponding baseline tag.
-5. Release Delta only from centrally verified `main` source with Main Write Guard provenance.
+The authoritative daily gap report is **`baseline/deepseek-harness` → `upstream/deepseek-harness`**. Never use `main` as the base for upstream-change detection: Delta's product changes would make that report noisy and misleading. Resolve both branch tips to immutable commit SHAs and verify that the baseline is an ancestor of the upstream mirror; fail closed if the official source rewrites history.
 
-**Automatic upstream synchronization and baseline compatibility verification are not yet enabled**; keeping separate branches does not itself provide a scheduler or test coverage.
+- Report the baseline SHA, mirror SHA, number of upstream commits not yet adopted, changed files, breaking/compatibility-relevant changes, and a comparison link.
+- An empty comparison means no upstream changes **since Delta's accepted baseline**; it does not prove Delta product compatibility.
+- Run comparison as a read-only central Action Worker scheduled operation when implemented. It must not update the baseline, `main`, the lock, tags, or releases.
+- A separate Delta-patch report may later compare `baseline/deepseek-harness` → `main` **after the first product import**. Do not compare these Git histories today: the bootstrap `main` and upstream do not have a common ancestor.
+- The on-repository mirror and the daily comparison scheduler are **not yet enabled**. The scheduling work is tracked in [Action Worker issue #1897](https://github.com/fongap-labs/action-worker/issues/1897).
+
+For a local read-only check of the upstream gap after fetching both refs:
+
+```sh
+git fetch origin baseline/deepseek-harness upstream/deepseek-harness
+git merge-base --is-ancestor origin/baseline/deepseek-harness origin/upstream/deepseek-harness
+git log --oneline origin/baseline/deepseek-harness..origin/upstream/deepseek-harness
+git diff --stat origin/baseline/deepseek-harness origin/upstream/deepseek-harness
+```
+
+If the ancestry check fails, stop and investigate rather than calculating or promoting a potentially unsafe delta.
+
+## Baseline import and upgrade process
+
+1. First initialize Delta product development **from the exact pristine source tree recorded in `baseline/deepseek-harness`**, with Delta-only adjustments isolated wherever possible. Preserve upstream licensing and plugin API contracts. This has **not** happened yet.
+2. The first import must replace the metadata-only CI with real build, desktop and plugin compatibility tests **in the same governed PR**. Avoid mistaking a squash-only source-copy PR for Git ancestry: the existing bootstrap `main` has unrelated history. A one-time ancestry-preserving migration requires its own governance-approved strategy; do not force-push or bypass protected `main`.
+3. For each later upstream update, always compute the change set between the **current accepted baseline SHA** and the desired new commit in `upstream/deepseek-harness`. Never compute upstream changes relative to Delta `main`.
+4. Integrate those upstream changes into a temporary Delta integration branch, resolve Delta-specific changes, then run compatibility, plugin lifecycle, desktop smoke, security and multi-platform tests. Obtain PR governance and acceptance before promotion.
+5. Only after Delta integration succeeds, advance the pristine `baseline/deepseek-harness` to the accepted **official** commit and update `upstream.lock.json` and a baseline tag in a controlled, auditable promotion. The lock and baseline must agree.
+6. Release Delta only from centrally verified `main` source with Main Write Guard provenance.
+
+**Automatic upstream synchronization, daily diff reporting, product import and baseline compatibility verification are not yet enabled.** A pinned reference is not equivalent to a validated release.
 
 ## Architecture guidelines
 
