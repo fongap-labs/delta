@@ -32,3 +32,6 @@ const manifest = JSON.parse(text('release.manifest.json'))
 assert.equal(manifest.root, '.')
 assert.equal(manifest.builds[0].assets[0], 'delta-windows-x64-portable.zip')
 console.log('Delta branding, packaging contract, locale and baseline assertions passed')
+
+assert.match(text('packaging/portable/launcher/src/main.rs'), /"DSH_HOME"/)
+assert.match(text('packaging/portable/launcher/src/main.rs'), /"DSH_AGENTS_HOME"/)

@@ -53,6 +53,11 @@ fn run() -> Result<(), String> {
         // Single source of truth for every Rust store, preference, log, database, and
         // secret: all portable state lands under Data, never %APPDATA%.
         .env("DELTA_STATE_DIR", &data_dir)
+        // Harness uses a single DSH_HOME for profiles, sessions, credentials,
+        // cache and extensions. Keep that home alongside Electron userData,
+        // rather than letting a portable launch touch ~/.dsh or ~/.agents.
+        .env("DSH_HOME", data_dir.join("harness"))
+        .env("DSH_AGENTS_HOME", data_dir.join("agents"))
         // Best-effort WebView2 profile redirect. wry may pin its own data folder (in which
         // case this is ignored and WebView2 stays in its default location — reported as a
         // known limitation); when honored, the browser profile moves with the portable.
