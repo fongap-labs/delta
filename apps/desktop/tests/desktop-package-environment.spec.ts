@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
+import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, localWindowsPortableEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
 import { resolveWindowsPackageSettings } from '../scripts/windows-package-settings.mjs'
 
 const WINDOWS = { platform: 'win32', arch: 'x64' } as const
@@ -23,6 +23,28 @@ async function withDirectory(action: (directory: string) => Promise<void>): Prom
 }
 
 describe('Desktop local packaging configuration', () => {
+  it('isolates offline Delta portable Windows builds from release credentials and policy endpoints', () => {
+    const parent = {
+      PATH: 'build-tools',
+      HTTPS_PROXY: 'http://proxy.example:8080',
+      DSH_DESKTOP_APP_ID: 'com.unrelated.release',
+      DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
+      WINDOWS_SIGNING_PASSWORD: 'never-inherit',
+    }
+    const selected = localWindowsPortableEnvironment(parent)
+    expect(selected).toEqual({
+      PATH: parent.PATH,
+      HTTPS_PROXY: parent.HTTPS_PROXY,
+      DSH_DESKTOP_APP_ID: 'com.delta.desktop',
+      DSH_DESKTOP_UNSIGNED: '1',
+      DELTA_PORTABLE_OFFLINE: '1',
+    })
+    expect(() => validateDesktopPackageEnvironment(selected, WINDOWS, { unsigned: true })).not.toThrow()
+    expect(() => validateDesktopPackageEnvironment({
+      DSH_DESKTOP_APP_ID: 'com.delta.desktop', DSH_DESKTOP_UNSIGNED: '1',
+    }, WINDOWS, { unsigned: true })).toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')
+  })
+
   it('loads file-owned compression and defaults to fast Windows archive compression', async () => {
     expect(resolveWindowsPackageSettings({}).compressionLevel).toBe(3)
     await withDirectory(async (directory) => {

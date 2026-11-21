@@ -32,8 +32,8 @@ assert.match(text('apps/desktop/src/welcome-api.ts'),
 assert.match(text('packaging/portable/build-portable-package.ps1'), /Delta-Windows-Portable\.zip/)
 const lock = JSON.parse(text('upstream.lock.json'))
 assert.equal(lock.baseline_sha, '2e39e70496aa02986ca6a820c5d497e816b69d7e')
-const manifest = JSON.parse(text('release.manifest.json'))
-assert.equal(manifest.root, '.')
+const manifest = JSON.parse(text('.github/release.manifest.json'))
+assert.equal(manifest.root, '')
 assert.equal(manifest.builds[0].assets[0], 'delta-windows-x64-portable.zip')
 console.log('Delta branding, packaging contract, locale and baseline assertions passed')
 

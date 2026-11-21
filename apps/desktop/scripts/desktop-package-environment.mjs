@@ -25,6 +25,16 @@ const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|MANDA
  * @param {NodeJS.ProcessEnv} environment Parent environment, retained for build tools and networking.
  * @returns {NodeJS.ProcessEnv} Unsigned build environment with the standard application identifier and no update policy.
  */
+export function localWindowsPortableEnvironment(environment = process.env) {
+  return {
+    ...Object.fromEntries(Object.entries(environment).filter(([name]) =>
+      !AMBIENT_RELEASE_SETTING.test(name) && !/^WINDOWS_SIGNING_/u.test(name))),
+    DSH_DESKTOP_APP_ID: 'com.delta.desktop',
+    DSH_DESKTOP_UNSIGNED: '1',
+    DELTA_PORTABLE_OFFLINE: '1',
+  }
+}
+
 export function localMacOSPackageEnvironment(environment = process.env) {
   return {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
@@ -121,7 +131,10 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   resolveDesktopTargetBuildPaths(environment, target.platform, target.arch)
   resolveDesktopAppId(environment)
   resolveNpmRegistry(environment)
-  if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)
+  if ((target.platform !== 'darwin' || !options.unsigned) &&
+    !(target.platform === 'win32' && options.unsigned && environment.DELTA_PORTABLE_OFFLINE === '1')) {
+    resolveDesktopPolicyEnvironment(environment)
+  }
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
   if (options.unsigned) return
