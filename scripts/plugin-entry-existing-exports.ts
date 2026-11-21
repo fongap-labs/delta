@@ -79,7 +79,6 @@ export const EXISTING_PLUGIN_ENTRY_EXPORTS = {
   '@deepseek-ai/dsh-host-directory-picker-browse': ['boundedInsert', 'fullyQualified', 'raceAbort'],
   '@deepseek-ai/dsh-host-directory-picker-native': ['pickNativeDirectory'],
   '@deepseek-ai/dsh-host-plugin-inventory': ['pluginEntryId', 'readPluginInventory'],
-  '@deepseek-ai/dsh-host-product-telemetry-otel': ['Config'],
   '@deepseek-ai/dsh-host-webserver': [
     'bindUrlHost', 'isLoopbackHost', 'isWildcardHost', 'normalizeBindAddress', 'renderIndexInjections',
   ],
@@ -136,7 +135,6 @@ export const EXISTING_PLUGIN_ENTRY_EXPORTS = {
     'interruptedTurnClosers', 'isAppendSurfaceEvent', 'isReplacementSurfaceEvent', 'isSurfaceEligibleType',
     'isSurfaceEvent', 'pluginRecordOf', 'snapshotSessionEvent',
   ],
-  '@deepseek-ai/dsh-session-log-deepseek': ['acceptedThrough'],
   '@deepseek-ai/dsh-session-log-export': [
     'DEFAULT_SESSION_LOG_COMPRESSION_LEVEL', 'SESSION_LOG_EXPORT_PATH', 'SESSION_LOG_FILENAME', 'flushLiveSessionLog',
     'formatSessionMarkdown', 'readSessionLogText', 'serializeSessionLog', 'sessionLogExportDeps',
@@ -154,9 +152,6 @@ export const EXISTING_PLUGIN_ENTRY_EXPORTS = {
     'DEFAULT_CANDIDATE_LIMIT', 'DEFAULT_MAX_REFERENCE_BYTES', 'MAX_REFERENCES', 'SESSION_REFERENCE_SCHEME',
     'decodeSessionReferenceUri', 'encodeSessionReferenceUri', 'formatSessionReferenceMention',
     'parseSessionReferenceText',
-  ],
-  '@deepseek-ai/dsh-session-telemetry-otel': [
-    'Config', 'DEFAULT_SHUTDOWN_TIMEOUT_MILLIS', 'DEFAULT_TELEMETRY_MODE', 'SessionTelemetryMode',
   ],
   '@deepseek-ai/dsh-session-title': [
     'SessionTitleProviderId', 'fallbackSessionTitle', 'foldSessionTitle', 'normalizeSessionTitle',
