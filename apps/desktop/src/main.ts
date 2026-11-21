@@ -5,9 +5,8 @@ import { configurationFailure, channelSaveFailure, configurationMessage } from '
 import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
 import { isDesktopUpdateChannel } from './settings-file.ts'
-import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
-import { access, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +28,7 @@ import {
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
-import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
+import { DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
@@ -46,9 +45,6 @@ import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, forwardWebRequest, removeLegacyHostCookies } from './web-document.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
-import { pruneCrashReports, RendererConsoleTail, writeCrashReport, type CrashReportSource } from './crash-report.ts'
-import { OperationJournal } from './operation-journal.ts'
-import { runOperationReportJob, type OperationReportJobResult } from './operation-report-job.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
 import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
@@ -84,7 +80,7 @@ if (process.env.DELTA_PORTABLE === '1') {
 }
 
 let focusPrimaryWindow = (): void => {}
-let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
+let stopForRecovery = async (): Promise<void> => {}
 let shuttingDown = false
 /**
  * Set by quit entries that must not ask: crash recovery exit and restart, and the
@@ -92,19 +88,6 @@ let shuttingDown = false
  */
 let skipQuitConfirmation = false
 let windowsLanguage: string | undefined = readDesktopLocaleCache(app.getPath('userData'))
-/**
- * Whether the backend has reached ready: false until the first ready, back to
- * false when a restart returns it to starting, frozen during shutdown so a
- * failure while tearing down a ready backend still reads as `running`.
- */
-let backendReady = false
-/** Error-level console output of the primary window, attached to crash reports. */
-const rendererConsole = new RendererConsoleTail()
-
-// Platform-conventional logs directory (macOS ~/Library/Logs/<name>, otherwise under userData);
-// set before ready so the first fatal report already resolves under it.
-app.setAppLogsPath()
-
 function currentDesktopLocale(): ReturnType<typeof resolveDesktopLocale> {
   return resolveDesktopLocale(windowsLanguage ?? app.getLocale())
 }
@@ -124,75 +107,15 @@ const recovery = new DesktopFatalRecovery({
   },
   exit: () => { quitWithoutConfirmation() },
   restart: () => { app.relaunch(); quitWithoutConfirmation() },
-  writeReport: (error, source) => persistCrashReport(error, source),
-  revealReport: async (path) => { await access(path); shell.showItemInFolder(path) },
 })
 
-let operationJournal: OperationJournal | undefined
-let operationReportJob: Promise<OperationReportJobResult> | undefined
-let operationReportAbort: AbortController | undefined
-let operationReportsStopping = false
-let operationReportStop: Promise<void> | undefined
-
-/** Bound application shutdown waiting without claiming that an unresponsive Worker has exited. */
-function stopOperationReports(): Promise<void> {
-  operationReportStop ??= waitForOperationReports()
-  return operationReportStop
-}
-
-async function waitForOperationReports(): Promise<void> {
-  operationReportsStopping = true
-  operationReportAbort?.abort()
-  const job = operationReportJob
-  if (job === undefined) return
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const exited = await Promise.race([job.then(() => true), new Promise<false>((resolve) => {
-      timer = setTimeout(() => { resolve(false) }, 500)
-    })])
-    if (!exited) console.error('dsh desktop: operation report Worker has not exited; continuing shutdown')
-  } finally { clearTimeout(timer) }
-}
-
-function persistCrashReport(error: unknown, source: CrashReportSource): Promise<string | undefined> {
-  const directory = app.getPath('logs')
-  const report = writeCrashReport(directory, {
-    operationHistoryPlanned: !shuttingDown && !operationReportsStopping,
-    source,
-    phase: backendReady ? 'running' : 'startup',
-    error,
-    ...(error instanceof DesktopHostFatalError && error.diagnostic !== undefined ? { hostDiagnostic: error.diagnostic } : {}),
-    rendererConsole: rendererConsole.snapshot(),
-    app: {
-      name: app.name, version: app.getVersion(), platform: process.platform, arch: process.arch,
-      electron: process.versions.electron, node: process.versions.node, locale: currentDesktopLocale().id,
-    },
-    time: new Date(),
-  })
-  void report.then((path) => {
-    if (path !== undefined && operationReportJob === undefined && !shuttingDown && !operationReportsStopping) {
-      operationReportAbort = new AbortController()
-      operationReportJob = runOperationReportJob({ reportPath: path, directory: join(app.getPath('userData'), 'plugin-operations'),
-        limits: { bytes: 64 * 1024, recordBytes: 4096, records: 100, outputBytes: 64 * 1024 },
-        journal: operationJournal?.status() ?? null,
-      }, { timeoutMs: 500, cancellationGraceMs: 100 }, operationReportAbort.signal)
-      void operationReportJob.finally(() => { operationReportJob = undefined; operationReportAbort = undefined })
-    }
-  }).catch((_error: unknown) => { /* Basic persistence failure is owned by fatal recovery. */ })
-  return report
-}
-
-function reportFatal(error: unknown, source: CrashReportSource): void {
+/** Fatal errors stay in the native dialog, with no crash report generation or upload. */
+function reportFatal(error: unknown, source: 'host' | 'web-boot' | 'renderer' | 'main'): void {
   console.error(error)
-  if (shuttingDown) {
-    // No dialog during shutdown, but the report still records what failed on the way out.
-    void persistCrashReport(error, source)
-    return
-  }
-  void recovery.report(error, source).catch(async (failure: unknown) => {
+  if (shuttingDown) return
+  void recovery.report(error, source).catch((failure: unknown) => {
     console.error(failure)
     shuttingDown = true
-    await stopOperationReports()
     app.exit(1)
   })
 }
@@ -391,7 +314,6 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
 
 async function main(): Promise<void> {
   const desktopSettings = await readDesktopSettings(app.getPath('userData'))
-  void pruneCrashReports(app.getPath('logs'))
   const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
@@ -503,14 +425,6 @@ async function main(): Promise<void> {
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
   let injections: readonly unknown[] = []
   let welcomeBackend: DesktopWelcomeBackend | undefined
-  let reportedLaunch = false
-  let analyticsEnabled = false
-  const track = async <K extends keyof ProductEventMap>(eventName: K, attributes: ProductEventMap[K]): Promise<void> => {
-    const event = { eventName, attributes, timestamp: Date.now() } as ProductEvent
-    try {
-      if (analyticsEnabled) await welcomeBackend?.report(event)
-    } catch (_error) { /* Analytics cannot interrupt native actions. */ }
-  }
   let stopAccount: (() => void) | undefined
   let openedAttempt: string | undefined
   let returnedAttempt: string | undefined
@@ -547,12 +461,7 @@ async function main(): Promise<void> {
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
       hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
       primaryRuntime,
-      resources, (next) => { platformView.setSession(next) }, (record) => {
-        operationJournal ??= new OperationJournal(join(app.getPath('userData'), 'plugin-operations'), {
-          segmentBytes: 256 * 1024, recordBytes: 4096, queuedBytes: 64 * 1024,
-        })
-        operationJournal.enqueue(JSON.stringify(record))
-      })
+      resources, (next) => { platformView.setSession(next) })
     return {
       start: async () => {
         const ready = await host.start()
@@ -564,8 +473,6 @@ async function main(): Promise<void> {
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')
         injections = ready.injections
         welcomeBackend = connectDesktopWelcome(ready.url, cookie)
-        analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
-        if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
         stopAccount?.()
         const accountBackend = welcomeBackend.account
         stopAccount = accountBackend.watch((state) => {
@@ -603,10 +510,9 @@ async function main(): Promise<void> {
             const state = await accountBackend.state()
             if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.webContents.send(WELCOME_IPC.state, state)
           }).catch(() => undefined)
-        }, (enabled) => { analyticsEnabled = enabled })
+        })
       },
       stop: async () => {
-        analyticsEnabled = false
         stopAccount?.()
         try { await host.stop(requireCleanStop) }
         catch (error) {
@@ -621,7 +527,6 @@ async function main(): Promise<void> {
     }
   }, (state) => {
     if (state.phase === 'error') reportFatal(state.failure, 'host')
-    else if (!shuttingDown) backendReady = state.phase === 'ready'
   })
 
   const updateErrors = new WeakMap<DesktopUpdateState, Promise<void>>()
@@ -650,10 +555,6 @@ async function main(): Promise<void> {
         fileDragStopped = false
       }
       const restoreHost = state.failedOperation === 'install' && updateStoppedHost && !quitting
-      if (state.failedOperation === 'install' && !quitting) {
-        operationReportsStopping = shuttingDown
-        operationReportStop = undefined
-      }
       shellInstallerOwnsQuit = false
       updateStoppedHost = false
       if (restoreHost) {
@@ -682,11 +583,7 @@ async function main(): Promise<void> {
     if (backend.host === undefined || welcomeBackend === undefined) throw new Error('desktop welcome: backend unavailable')
     return welcomeBackend.read()
   }
-  stopForRecovery = async () => {
-    const reports = stopOperationReports()
-    try { await backend.close() }
-    finally { await Promise.all([operationJournal?.drain(500), reports]) }
-  }
+  stopForRecovery = async () => { await backend.close() }
 
   const reconcileBackend = (): Promise<void> => {
     startup ??= (async () => {
@@ -738,8 +635,6 @@ async function main(): Promise<void> {
         const result = await updateDialog.show(parent, confirmation)
         if (result.response !== 0 || isMandatory()) return false
       }
-      // The update lock rejects new HTTP requests, including analytics intake.
-      await track('desktop_upgrade_install_restart_click', {})
       if (backend.host !== host) throw new DesktopUpdatePreparationError('tasks-unavailable', locale.messages.updateTasksUnavailable)
       try {
         const stillActive = await host.updateTasks('lock')
@@ -750,17 +645,14 @@ async function main(): Promise<void> {
         await disposeFileDrag().catch((error: unknown) => { console.error(error) })
         requireCleanStop = true
         updateStopFailure = undefined
-        await Promise.all([backend.stop(), stopOperationReports()])
+        await backend.stop()
         updateStoppedHost = true
         // The backend's async cleanup callback can assign this after the reset above.
         const stopFailure = updateStopFailure as DesktopHostUncleanExitError | undefined
         if (stopFailure !== undefined) throw new DesktopUpdatePreparationError('stop-failed', locale.messages.updateStopFailed, stopFailure.message)
-        await operationJournal?.drain(500)
         updateJournal?.action('install-confirmed')
         shellInstallerOwnsQuit = true
       } catch (error) {
-        operationReportsStopping = shuttingDown
-        operationReportStop = undefined
         if (!updateStoppedHost) await host.updateTasks('unlock').catch((unlockError: unknown) => { console.error(unlockError) })
         throw error
       } finally {
@@ -769,7 +661,7 @@ async function main(): Promise<void> {
       return true
     },
     undefined, undefined, undefined,
-    (success, reason) => { void track('desktop_upgrade_download_result', { is_success: success, ...reason === undefined ? {} : { error_reason: reason } }) },
+    undefined,
     updateChannel,
   )
 
@@ -786,7 +678,6 @@ async function main(): Promise<void> {
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
-    void track('desktop_upgrade_click', {})
     updateJournal?.action('download-requested')
     const state = await updates.download(version, revision)
     if (state.phase !== 'ready' || quitting) return state
@@ -1358,10 +1249,6 @@ async function main(): Promise<void> {
       window.on('show', () => { sessionEnding = false })
     }
     window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
-    window.webContents.on('console-message', (details) => {
-      if (details.level !== 'error') return
-      rendererConsole.push(`${details.sourceId}:${String(details.lineNumber)} ${details.message}`)
-    })
     window.webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
       if (isMainFrame && code !== -3 && !quitting && !window.isDestroyed()) {
         reportFatal(new Error(`Desktop page failed to load: ${url} (${String(code)}: ${description})`), 'renderer')
@@ -1405,15 +1292,12 @@ async function main(): Promise<void> {
   const showWelcome = (): Promise<void> => {
     if (quitting) return Promise.resolve()
     if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
-      if (!welcomeWindow.isVisible()) void track('auth_page_view', {})
       welcomeWindow.show()
       welcomeWindow.focus()
       return Promise.resolve()
     }
     openingWelcome ??= (async () => {
       welcomeWindow = await openWelcomeWindow(locale, {
-        analytics: track,
-        analyticsEnabled: () => Promise.resolve(analyticsEnabled),
         takeNotice: () => {
           const notice = pendingWelcomeNotice
           pendingWelcomeNotice = undefined
@@ -1522,11 +1406,8 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
-    void Promise.all([stopOperationReports(), Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
-      backend.close().then(async () => { await operationJournal?.drain(500) }, async (error: unknown) => {
-        await operationJournal?.drain(500)
-        throw error
-      }),
+    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
+      backend.close(),
       platformView.dispose(),
       disposeFileDrag(),
     ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))
@@ -1615,16 +1496,10 @@ async function main(): Promise<void> {
 const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })
 
 if (ownsDesktopInstance) void app.whenReady().then(main).catch(async (error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error)
   console.error(error)
-  const diagnosticFile = process.env.DSH_DESKTOP_DIAGNOSTIC_FILE
-  if (diagnosticFile !== undefined) {
-    await writeFile(diagnosticFile, `${error instanceof Error ? error.stack ?? message : message}\n`).catch(() => undefined)
-  }
   reportFatal(error, 'main')
 }).catch(async (error: unknown) => {
   console.error(error)
   shuttingDown = true
-  await stopOperationReports()
   app.exit(1)
 })
