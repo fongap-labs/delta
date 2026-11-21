@@ -1,24 +1,6 @@
-/**
- * Lifecycle of account notifications: one foreground card in a stack, one read result in
- * force at a time, and independent display, action-click, and dismissal reports. Account activation
- * and Settings entry replace the polling cycle with an immediate read. Each read
- * settles before the next delay begins; the server owns unconsumed notifications.
- *
- * A displayed event is sent once the foreground card reports a presented frame: the card has
- * a position, the document is visible, and it painted one frame. The card measures
- * no cover, so a card painted under the open Settings overlay reports like any
- * other. Business-action clicks report without waiting or closing the card.
- * Explicit dismissal sends only a dismissed event.
- * Expiry and account cleanup do not report dismissal.
- *
- * One lifecycle covers one signed-in session. Login-progress updates retain the
- * card and active poll. Credential and connection changes end
- * that lifecycle before another begins. Signing out and unloading also clear
- * the cards; a later sign-in shows whatever the server offers.
- * @module @deepseek-ai/dsh-client-ui-account-notifications/src/client/notification-controller
- */
+/** Local-only account notification presentation, polling, and dismissal. No event reporting. */
 import type {
-  AccountNotification, AccountNotificationBatch, AccountNotificationEvent, AccountNotificationId,
+  AccountNotification, AccountNotificationBatch, AccountNotificationId,
 } from '@deepseek-ai/dsh-deepseek-account/types'
 
 /** Notification content currently available to the sidebar presentation. */
@@ -39,13 +21,6 @@ export interface NotificationControllerOptions {
    * @returns content, or null when the account changed; failures reject.
    */
   readContent: (id: AccountNotificationId, locale: string) => Promise<AccountNotification | null>
-  /**
-   * Report one notification interaction.
-   * @param id - notification the user interacted with.
-   * @param event - displayed frame, business-action click, or explicit dismissal.
-   * @returns false when the account changed or signed out; a protocol failure rejects.
-   */
-  reportEvent: (id: AccountNotificationId, event: AccountNotificationEvent) => Promise<boolean>
   /** @param notices - notices in front-to-back order; empty when none are shown. */
   publish: (notices: readonly AccountNotice[]) => void
 }
@@ -72,8 +47,6 @@ export interface NotificationController {
   setLocale(locale: string): Promise<void>
   /** @param id - notice whose card passed a presented frame while visible. */
   shown(id: AccountNotificationId): void
-  /** @param id - foreground notice whose non-dismiss action was clicked; reports without removing the card. */
-  ctaClicked(id: AccountNotificationId): void
   /** @param id - foreground notice the user explicitly closed; reports only a dismissed event. */
   dismiss(id: AccountNotificationId): void
 }
@@ -109,14 +82,14 @@ export function createNotificationController(options: NotificationControllerOpti
   /** Notice currently published to the sidebar, including the expiration checked at display time. */
   let current: readonly AccountNotice[] = []
   let poll: NotificationPoll | undefined
-  /** Notifications the card on screen already reported, so one mount cannot report display twice. */
-  const reported = new Set<AccountNotificationId>()
+  /** Notifications the card on screen already presented, so one mount cannot report display twice. */
+  const presented = new Set<AccountNotificationId>()
   const setCurrent = (notices: readonly AccountNotice[]): void => {
     if (notices.length === current.length && notices.every((notice, index) => {
       return JSON.stringify(notice) === JSON.stringify(current[index])
     })) return
     const retained = new Set(notices.map(notice => notice.id))
-    for (const id of reported) if (!retained.has(id)) reported.delete(id)
+    for (const id of presented) if (!retained.has(id)) presented.delete(id)
     current = notices
     options.publish(notices)
   }
@@ -130,7 +103,7 @@ export function createNotificationController(options: NotificationControllerOpti
       return previous === undefined ? notice : { ...notice, title: previous.title, body: previous.body, actions: previous.actions }
     })
     const foreground = current[0]
-    const retained = foreground !== undefined && reported.has(foreground.id)
+    const retained = foreground !== undefined && presented.has(foreground.id)
       ? notifications.find(notice => notice.id === foreground.id) ?? foreground
       : undefined
     const at = Date.now()
@@ -191,25 +164,12 @@ export function createNotificationController(options: NotificationControllerOpti
     return runRead(poll)
   }
 
-  /** Attempt each interaction once without changing the card on failure. */
-  const report = async (id: AccountNotificationId, event: AccountNotificationEvent): Promise<void> => {
-    const scopeAtReport = scope
-    if (scopeAtReport === undefined || current[0]?.id !== id || (event === 'displayed' && reported.has(id))) return
-    if (event === 'displayed') reported.add(id)
-    try { await options.reportEvent(id, event) }
-    catch (_error) {
-      if (scope === scopeAtReport) {
-        console.error('[deepseek-account] notification event report failed; keeping local state without retry', { event })
-      }
-    }
-  }
-
   const endLifecycle = (): void => {
     if (scope === undefined) return
     stopPolling()
     scope = undefined
     contentGeneration++
-    reported.clear()
+    presented.clear()
     setCurrent([])
   }
 
@@ -232,17 +192,11 @@ export function createNotificationController(options: NotificationControllerOpti
     shown(id) {
       setCurrent(current.filter(notice => !expired(notice.displayUntil, Date.now())))
       if (current[0]?.id !== id) return
-      void report(id, 'displayed')
-    },
-    ctaClicked(id) {
-      setCurrent(current.filter(notice => !expired(notice.displayUntil, Date.now())))
-      if (current[0]?.id !== id) return
-      void report(id, 'cta_clicked')
+      presented.add(id)
     },
     dismiss(id) {
       setCurrent(current.filter(notice => !expired(notice.displayUntil, Date.now())))
       if (current[0]?.id !== id) return
-      void report(id, 'dismissed')
       setCurrent(current.slice(1).filter(notice => !expired(notice.displayUntil, Date.now())))
     },
   }

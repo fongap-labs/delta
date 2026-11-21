@@ -1,7 +1,7 @@
 /** Validated, localized notification queries through the account API. */
 import { z } from 'zod'
-import type { AccountNotification, AccountNotificationBatch, AccountNotificationEvent, AccountNotificationId } from './types.ts'
-import { PlatformAuthError, requestNotificationContent, requestNotificationEvent, requestNotifications } from './protocol.ts'
+import type { AccountNotification, AccountNotificationBatch, AccountNotificationId } from './types.ts'
+import { PlatformAuthError, requestNotificationContent, requestNotifications } from './protocol.ts'
 
 const action = z.object({
   label: z.string(),
@@ -80,19 +80,4 @@ export async function readNotificationContent(origin: string, token: string, id:
   const value = parse(notification, await requestNotificationContent(origin, token, id, signal, headers))
   if (value.id !== id) throw new PlatformAuthError('protocol')
   return project(value)
-}
-
-/**
- * Report an interaction; the response's consumption decision never closes the local card.
- * @param origin - configured account API origin.
- * @param token - captured token for this request's credential lifetime.
- * @param id - notification the user interacted with.
- * @param event - displayed frame, business-action click, or explicit dismissal.
- * @param signal - credential lifetime and request timeout.
- * @param headers - deployment and client identity headers.
- * @returns after the server accepts the event; HTTP and malformed responses reject.
- */
-export async function sendNotificationEvent(origin: string, token: string, id: AccountNotificationId,
-  event: AccountNotificationEvent, signal: AbortSignal, headers: Record<string, string>): Promise<void> {
-  parse(z.object({ acked: z.boolean() }), await requestNotificationEvent(origin, token, id, event, signal, headers))
 }

@@ -14,7 +14,6 @@ export interface AccountNotificationsInjected {
   /** @param id - notification that completed a displayed frame. */
   shown: (id: AccountNotice['id']) => void
   /** @param id - foreground notification whose non-dismiss action was clicked. */
-  ctaClicked: (id: AccountNotice['id']) => void
   /** @param id - notification explicitly closed by the user. */
   dismiss: (id: AccountNotice['id']) => void
 }
@@ -24,10 +23,10 @@ export type AccountNotificationsProps = PropsRuntime<'settings.launcher.notifica
   & InjectFace<AccountNotificationsInjected> & PropsLocale<'account.notifications'>
 
 /** @param props - account availability and notification content. @returns the notification stack. */
-export function AccountNotifications({ active, openAccount, useNotices, shown, ctaClicked, dismiss, t }: AccountNotificationsProps) {
+export function AccountNotifications({ active, openAccount, useNotices, shown, dismiss, t }: AccountNotificationsProps) {
   const notices = useNotices(value => value)
   return active && <AccountNoticeStack notices={notices} closeLabel={t('close')}
-    onOpenAccount={openAccount} onShown={shown} onCtaClicked={ctaClicked} onDismiss={dismiss} />
+    onOpenAccount={openAccount} onShown={shown} onDismiss={dismiss} />
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -73,9 +72,9 @@ function afterPaint(run: () => void): () => void {
 }
 
 /** @param props - server-ordered notices, localized fallback copy, and display callbacks.
- * @returns a non-modal stack whose foreground card alone can report display or be closed.
+ * @returns a non-modal stack whose foreground card can be marked presented or closed.
  */
-export function AccountNoticeStack({ notices, closeLabel, onShown, onCtaClicked, onDismiss, onOpenAccount }: {
+export function AccountNoticeStack({ notices, closeLabel, onShown, onDismiss, onOpenAccount }: {
   notices: readonly AccountNotice[]
   closeLabel: string
   /** Open the account settings route while retaining the notification. */
@@ -83,7 +82,6 @@ export function AccountNoticeStack({ notices, closeLabel, onShown, onCtaClicked,
   /** Called after the foreground card has passed a visible presented frame. */
   onShown: (id: AccountNotice['id']) => void
   /** Called when the user clicks any non-dismiss action on the foreground card. */
-  onCtaClicked: (id: AccountNotice['id']) => void
   /** Called when the user closes the foreground card. */
   onDismiss: (id: AccountNotice['id']) => void
 }) {
@@ -91,26 +89,25 @@ export function AccountNoticeStack({ notices, closeLabel, onShown, onCtaClicked,
   return <div className={css.stack}>
     {liveNotices.map((notice, depth) => <NoticeCard key={notice.id} notice={notice} depth={depth}
       closeLabel={closeLabel}
-      onShown={onShown} onCtaClicked={onCtaClicked} onDismiss={onDismiss} onOpenAccount={onOpenAccount} />)}
+      onShown={onShown} onDismiss={onDismiss} onOpenAccount={onOpenAccount} />)}
   </div>
 }
 
 /** One stable card node remains mounted as the cards before it are dismissed. */
-function NoticeCard({ notice, depth, closeLabel, onShown, onCtaClicked, onDismiss, onOpenAccount }: {
+function NoticeCard({ notice, depth, closeLabel, onShown, onDismiss, onOpenAccount }: {
   notice: AccountNotice
   depth: number
   closeLabel: string
   onOpenAccount: () => void
   onShown: (id: AccountNotice['id']) => void
-  onCtaClicked: (id: AccountNotice['id']) => void
   onDismiss: (id: AccountNotice['id']) => void
 }) {
   const foreground = depth === 0
   const card = useRef<HTMLElement>(null)
-  const reported = useRef(false)
+  const presented = useRef(false)
   const actionSlots = new Map<string, number>()
   useEffect(() => {
-    if (!foreground || reported.current || !live(notice.displayUntil)) return
+    if (!foreground || presented.current || !live(notice.displayUntil)) return
     const element = card.current
     /* v8 ignore next -- React attaches the card ref before running this effect. */
     if (element === null) return
@@ -118,12 +115,12 @@ function NoticeCard({ notice, depth, closeLabel, onShown, onCtaClicked, onDismis
     let cancel: (() => void) | undefined
     const visible = () => intersecting && document.visibilityState !== 'hidden' && !element.closest('[hidden], [inert]')
     const attempt = () => {
-      if (reported.current || cancel !== undefined || !live(notice.displayUntil)) return
+      if (presented.current || cancel !== undefined || !live(notice.displayUntil)) return
       if (!visible()) return
       cancel = afterPaint(() => {
         cancel = undefined
-        if (reported.current || !visible() || !live(notice.displayUntil)) return
-        reported.current = true
+        if (presented.current || !visible() || !live(notice.displayUntil)) return
+        presented.current = true
         onShown(notice.id)
       })
     }
@@ -160,7 +157,6 @@ function NoticeCard({ notice, depth, closeLabel, onShown, onCtaClicked, onDismis
         return <Button key={`${target}:${occurrence}`} size="sm" className={css.action}
           variant={action.style === 'primary' ? 'primary' : 'outline'} tabIndex={foreground ? undefined : -1}
           onClick={(event) => {
-            if (action.target.type !== 'dismiss') onCtaClicked(notice.id)
             switch (action.target.type) {
               case 'app_route': onOpenAccount(); break
               case 'dismiss': dismissNotice(event.currentTarget.closest('aside') as HTMLElement, () => { onDismiss(notice.id) }); break

@@ -42,7 +42,6 @@ export const remoteDefaultResponses: RemoteTable = {
     // ui-settings-account bonus notice read and acknowledgement at signing in.
     'account/getNotifications': ok(null),
     'account/getNotificationContent': ok(null),
-    'account/reportNotificationEvent': ok(true),
   },
   // Stream endpoints the roster opens later than boot; declared so a spec that forgets the script gets a stream miss.
   streams: [
