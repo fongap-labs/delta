@@ -5,7 +5,7 @@ export function redactPluginMessage(message: string, secrets: readonly string[] 
   for (const secret of [...new Set(secrets)].filter(Boolean).sort((a, b) => b.length - a.length)) {
     result = result.split(secret).join('[REDACTED]')
   }
-  return result.replace(/\\bBearer\\s+[^\\s,;]+/gi, 'Bearer [REDACTED]').slice(0, 4096)
+  return result.replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]').slice(0, 4096)
 }
 
 /** Do not include arbitrary error.message or stack content in default logs. */
