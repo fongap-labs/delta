@@ -28,6 +28,8 @@
 
 - 维护: 补充 Delta Code 原生 LSP 命令可用性探测的 Host subprocess 正反例、越界拒绝、取消请求和卸载清理验收；不代替完整语言诊断与 Windows 回归。
 
+- 维护: Delta CI 在可信清单中显式启用 Action Worker 中央 Windows 构建，验证无签名便携目录与隔离运行时；不代表完整 GUI、签名或发行通过。
+
 - 维护: 明确 Delta Code 真实 Cordis 工具注册/释放生命周期冒烟的覆盖范围，以及尚未完成的 Profile 安装卸载和 Windows 发行验收。
 
 - 修复: 为已有 Host/Client 导出清单补全 Delta Code 与共享包的运行时打包步骤，确保声明的 `lib/index.js` 和 `lib/client.js` 真正生成；中央 CI 验证构建和模块导入，不引入旧插件兼容或默认安装。
