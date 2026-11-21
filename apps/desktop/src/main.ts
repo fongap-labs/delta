@@ -1442,7 +1442,7 @@ async function main(): Promise<void> {
   if (policyConfig !== undefined) {
     if (policyConfig.authentication === 'feishu-test') {
       policyAuth = new DesktopPolicyTestAuth(policyConfig.origin, policyConfig.allowedAuthOrigins, locale,
-        () => mandatoryUI?.confirmationWindow ?? currentDialogWindow())
+        () => mandatoryUI?.confirmationWindow ?? currentDialogWindow(), () => {})
     }
     if (!['win32', 'darwin'].includes(process.platform) || !['x64', 'arm64'].includes(process.arch)) throw new Error('desktop policy: unsupported platform')
     let wasBlocking = false
