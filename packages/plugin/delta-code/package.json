@@ -13,6 +13,7 @@
     },
     "./client": "./lib/client.js",
     "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -36,12 +37,8 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "README.md",
     "LICENSE"
   ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json && tsdown --config-loader native"
-  },
   "dependencies": {
     "@fongap-labs/delta-plugin-shared": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~"
@@ -51,8 +48,14 @@
     "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*"
   },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
   "engines": {
     "node": ">=24.9.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsdown --config-loader native"
+  }
 }
