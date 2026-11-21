@@ -31,7 +31,7 @@ pnpm --filter @fongap-labs/delta-code run build
 
 ## 运行时装载验收边界
 
-中央 [Action Worker #1947](https://github.com/fongap-labs/action-worker/pull/1947) 新增对**真实 Cordis 服务接口**的生命周期验证；它在编译后创建独立的 Cordis Context、SystemPrompt 与 ToolsService，验证以下行为：
+已合并的中央 [Action Worker #1947](https://github.com/fongap-labs/action-worker/pull/1947) 将**真实 Cordis 服务接口**的生命周期验证纳入可信构建门禁；它在编译后创建独立的 Cordis Context、SystemPrompt 与 ToolsService，验证以下行为：
 
 - 插件以 `enabled: false` 装载时不注册任何 Delta 工具。
 - 开启插件且存在 Host ToolsService 时，能注册 `code_multi_edit`。
