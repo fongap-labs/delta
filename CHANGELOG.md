@@ -22,6 +22,8 @@
 
 - 维护: 补充 Delta Code 临时隔离 Profile 中 Bundle 选择、停用、启用和取消选择的验收范围，继续区分模拟包解析与真实 pnpm 安装卸载。
 
+- 维护: 记录 Delta Code 原生 Git 状态与差异只读工具通过受限 Host subprocess、临时仓库的实际查询和越界拒绝回归范围；不访问远程仓库或用户配置。
+
 - 维护: 明确 Delta Code 真实 Cordis 工具注册/释放生命周期冒烟的覆盖范围，以及尚未完成的 Profile 安装卸载和 Windows 发行验收。
 
 - 修复: 为已有 Host/Client 导出清单补全 Delta Code 与共享包的运行时打包步骤，确保声明的 `lib/index.js` 和 `lib/client.js` 真正生成；中央 CI 验证构建和模块导入，不引入旧插件兼容或默认安装。
