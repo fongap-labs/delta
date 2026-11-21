@@ -23,6 +23,7 @@ required = {
     ".github/execution-manifest.json",
     ".github/scripts/central-ci.sh",
     ".github/workflows/notify-action-worker.yml",
+    "upstream.lock.json",
 }
 tracked = set(
     item.decode("utf-8")
@@ -43,6 +44,26 @@ for name in required:
     path = root / name
     if not path.is_file() or not path.read_bytes().strip():
         raise SystemExit(f"central-ci: missing or empty file: {name}")
+
+# Metadata-only bootstrap: the pinned SHA is a candidate, not a release attestation.
+lock = json.loads((root / "upstream.lock.json").read_text(encoding="utf-8"))
+expected = {
+    "schema_version": "1",
+    "upstream_repository": "deepseek-ai/deepseek-harness",
+    "upstream_ref": "master",
+    "tracking_branch": "upstream/deepseek-harness",
+    "baseline_branch": "delta/baseline",
+    "verification_status": "pending",
+    "promotion_policy": "manual-pr-after-compatibility-tests",
+}
+if set(lock) != set(expected) | {"baseline_sha"}:
+    raise SystemExit("central-ci: invalid upstream.lock.json fields")
+for field, value in expected.items():
+    if lock.get(field) != value:
+        raise SystemExit(f"central-ci: invalid upstream.lock.json {field}")
+import re
+if not isinstance(lock.get("baseline_sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", lock["baseline_sha"]):
+    raise SystemExit("central-ci: baseline SHA must be a 40-character git commit")
 
 manifest = json.loads((root / ".github/execution-manifest.json").read_text(encoding="utf-8"))
 jobs = manifest.get("operations", {}).get("ci", {}).get("jobs")
