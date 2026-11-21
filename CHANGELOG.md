@@ -4,6 +4,8 @@
 
 - 维护: 精简上游 Runner 与 Windows 旧工作流测试，保留实际 Node 工具缓存隔离及 Windows PowerShell 优先级只读检查，移除失去调用者的旧归档测试辅助模块。
 
+- 维护: 删除仅依赖已移除 GitHub Actions 工作流的桌面发布、Cloudflare 预览及 macOS 打包测试文件；实际 CI 桥接及执行清单持续由 Action Worker 可信测试包检查。
+
 - 维护: 将上游遗留的 CI 工作流测试由约 1,900 行精简为当前仍有效的 GitLab、bubblewrap 和 Git Hook 六项检查；正式 Actions 桥接合同由 Action Worker 可信测试包维护。
 
 - 维护: 补充 Delta Code 私有插件离线 .tgz 制品的 Host/Client、Cordis、语言资源、依赖协议及私有文件排除验收说明；不发布插件或改变默认装载。
