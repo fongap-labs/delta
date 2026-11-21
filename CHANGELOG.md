@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 文档: 明确 Delta Code 真实 Cordis 工具注册/释放生命周期冒烟的覆盖范围，以及尚未完成的 Profile 安装卸载和 Windows 发行验收。
+
 - 修复: 为已有 Host/Client 导出清单补全 Delta Code 与共享包的运行时打包步骤，确保声明的 `lib/index.js` 和 `lib/client.js` 真正生成；中央 CI 验证构建和模块导入，不引入旧插件兼容或默认安装。
 
 - 修复: Delta Code 只接受当前插件包名与注册 ID，删除旧工作树目录查找和移除兼容回退；不自动迁移或删除用户历史数据。
