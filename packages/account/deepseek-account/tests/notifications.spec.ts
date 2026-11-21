@@ -1,4 +1,4 @@
-/** Bonus notification reads and acknowledgements over the real Host HTTP path. */
+/** Account notification reads over the Host HTTP path; no interaction-event egress. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -66,11 +66,7 @@ async function fixture() {
   let contentStatus = 200
   let contentBizCode = 0
   let beforeListResponse: (() => Promise<void>) | undefined
-  let beforeEventResponse: (() => Promise<void>) | undefined
-  let acked = true
   let beforeContentResponse: (() => Promise<void>) | undefined
-  let ackBizCode = 0
-  let ackStatus = 200
   let beforeProfileResponse: (() => Promise<void>) | undefined
   let origin = ''
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -100,14 +96,6 @@ async function fixture() {
       await beforeContentResponse?.()
       res.writeHead(contentStatus).end(JSON.stringify({ code: contentStatus === 200 ? 0 : 1,
         data: { biz_code: contentBizCode, biz_data: content } }))
-      return
-    }
-    // The exact path is the assertion: a query parameter would fall through to the 404 below.
-    if (req.url === '/api/v0/users/notifications/events') {
-      await beforeEventResponse?.()
-      res.writeHead(ackStatus).end(JSON.stringify(ackStatus === 200
-        ? { code: 0, msg: '', data: { biz_code: ackBizCode, biz_msg: ackBizCode === 0 ? '' : 'NOTIFICATION_NOT_FOUND', biz_data: { acked } } }
-        : { code: 1, msg: 'INTERNAL', data: null }))
       return
     }
     res.writeHead(404).end('{}')
@@ -150,36 +138,10 @@ async function fixture() {
     failContent: (bizCode = 0, status = 200) => { contentBizCode = bizCode; contentStatus = status },
     onContent: (hook: () => Promise<void>) => { beforeContentResponse = hook },
     failBonuses: (bizCode = 17, status = 200) => { bonusBizCode = bizCode; bonusStatus = status },
-    failAck: (bizCode = 0, status = 200) => { ackBizCode = bizCode; ackStatus = status },
     onList: (hook: () => Promise<void>) => { beforeListResponse = hook },
-    onEvent: (hook: () => Promise<void>) => { beforeEventResponse = hook },
-    acknowledged: (value: boolean) => { acked = value },
     onProfile: (hook: () => Promise<void>) => { beforeProfileResponse = hook },
   }
 }
-
-it('sends client identity headers on notification requests without a profile preflight', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  const client = { version: '3.0.0', locale: 'zh-TW', timezoneOffsetSeconds: -18_000 }
-  await f.account.getNotifications(client)
-  await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', client)
-  expect(f.requests.map(request => [
-    request.url, request.bundleId, request.platform, request.version, request.locale, request.timezoneOffset,
-  ])).toEqual([
-    ['/api/v0/users/notifications/list', '', 'web', '3.0.0', 'zh_CN', '-18000'],
-    ['/api/v0/users/notifications/events', '', 'web', '3.0.0', 'zh_CN', '-18000'],
-  ])
-})
-
-it('does not query the account identity across repeated notification reads and reports', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  await f.account.getNotifications(clientMetadata('en'))
-  await f.account.getNotifications(clientMetadata('en'))
-  await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))
-  expect(f.requests.filter(request => request.url === '/auth-api/v0/users/current')).toHaveLength(0)
-})
 
 it('does not reuse a cached identity from another grant', async () => {
   const f = await fixture()
@@ -241,26 +203,6 @@ it.each(['list', 'content'] as const)('accepts a %s notification without a busin
     : await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())
   expect(notification).toMatchObject({ id: ORDER, title: 'Product news', body: 'New features are available.', actions: [] })
   expect(notification).not.toHaveProperty('type')
-})
-
-it.each(['notice', '123', '', '产品公告/one?lang=zh&part=2#latest%'])('preserves the string ID %j across list, content, and events', async (value) => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  const id = value as AccountNotificationId
-  f.notifications([wire(id)])
-  f.content(wire(id))
-  expect((await f.account.getNotifications(clientMetadata()))?.notifications[0]?.id).toBe(id)
-  expect((await f.account.getNotificationContent(id, clientMetadata()))?.id).toBe(id)
-  expect(await f.account.reportNotificationEvent(id, 'dismissed', clientMetadata())).toBe(true)
-  expect([f.requests[0]?.url, f.requests[2]?.url]).toEqual([
-    '/api/v0/users/notifications/list',
-    '/api/v0/users/notifications/events',
-  ])
-  const contentUrl = new URL(f.requests[1]!.url!, 'https://fixture.invalid')
-  expect(contentUrl.pathname).toBe('/api/v0/users/notifications/content')
-  expect([...contentUrl.searchParams]).toEqual([['id', id]])
-  expect(contentUrl.hash).toBe('')
-  expect(f.requests.at(-1)?.body).toBe(JSON.stringify({ notification_id: id, type: 'dismissed' }))
 })
 
 it('keeps action targets and business expiry separate from the display deadline', async () => {
@@ -397,112 +339,6 @@ it.each(['replacement', 'abort'] as const)('discards an opening snapshot invalid
   }
 })
 
-it.each(['displayed', 'cta_clicked', 'dismissed'] as const)('reports %s with the grant, locale, and a JSON body', async (event) => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, event, clientMetadata('zh-CN'))).toBe(true)
-  expect(f.requests).toEqual([
-    { method: 'POST', url: '/api/v0/users/notifications/events', token: 'test-account-token', locale: 'zh_CN',
-      bundleId: '', platform: 'web', version: '1.2.3', timezoneOffset: '28800',
-      contentType: 'application/json', body: JSON.stringify({ notification_id: ORDER, type: event }) },
-  ])
-})
-
-it.each([
-  ['the unnotified read', (f: Awaited<ReturnType<typeof fixture>>) => {
-    f.failBonuses(0, 401)
-    return f.account.getNotifications(clientMetadata('en'))
-  }, null],
-  ['the acknowledgement', (f: Awaited<ReturnType<typeof fixture>>) => {
-    f.failAck(0, 401)
-    return f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))
-  }, false],
-])('expires the rejected grant when %s returns HTTP 401', async (_name, run, signedOutOutcome) => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  const expired = vi.fn()
-  f.ctx.on('deepseek-account/session-expired', expired)
-  // A rejected authenticated request names an invalid credential, so the provider drops it locally
-  // exactly as the profile and balance reads do; the caller sees its signed-out outcome.
-  expect(await run(f)).toBe(signedOutOutcome)
-  expect(await f.account.getState()).toMatchObject({ status: 'signed-out' })
-  expect(expired).toHaveBeenCalledOnce()
-})
-
-it.each([
-  ['read', (f: Awaited<ReturnType<typeof fixture>>) => f.account.getNotifications(clientMetadata('en')), null],
-  ['acknowledgement', (f: Awaited<ReturnType<typeof fixture>>) =>
-    f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')), false],
-])('ignores a bonus %s rejection whose response cleanup overlaps a credential replacement', async (_name, run, outcome) => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  await f.account.getProfile(clientMetadata())
-  const response = new Response('', { status: 401 })
-  const cancel = response.body!.cancel.bind(response.body)
-  // Credential changes can arrive while the response reader releases a rejected response body.
-  const cleanup = vi.spyOn(response.body!, 'cancel').mockImplementation(async () => {
-    await f.grant('replacement-token')
-    await cancel()
-  })
-  const fetchResponse = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response)
-  const expired = vi.fn()
-  f.ctx.on('deepseek-account/session-expired', expired)
-  try {
-    expect(await run(f)).toBe(outcome)
-    expect(cleanup).toHaveBeenCalledOnce()
-    expect(expired).not.toHaveBeenCalled()
-    expect(await f.ctx.credentials.readRecord(f.key)).toMatchObject({ payload: { token: 'replacement-token' } })
-    expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
-  } finally { cleanup.mockRestore(); fetchResponse.mockRestore() }
-})
-
-it('retains the grant when an acknowledgement returns HTTP 500', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failAck(0, 500)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')))
-    .rejects.toThrow('account: network')
-  expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
-})
-
-it('rejects the supplied NOTIFICATION_NOT_FOUND envelope as a business failure', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failAck(1)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')))
-    .rejects.toThrow('account: protocol')
-  expect(f.requests[0]).toMatchObject({
-    method: 'POST', url: '/api/v0/users/notifications/events', locale: 'en_US',
-    contentType: 'application/json', body: JSON.stringify({ notification_id: ORDER, type: 'displayed' }),
-  })
-})
-
-it.each([
-  ['a business failure', 1, 200, 'account: protocol'],
-  ['an HTTP failure', 0, 500, 'account: network'],
-])('surfaces %s as a retryable acknowledgement failure', async (_name, bizCode, status, message) => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failAck(bizCode, status)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).rejects.toThrow(message)
-})
-
-it('accepts an acked false response without treating it as a retryable failure', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.acknowledged(false)
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'dismissed', clientMetadata())).toBe(true)
-  expect(f.requests.map(request => request.url)).toEqual(['/api/v0/users/notifications/events'])
-  expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
-})
-
-it('returns signed-out outcomes without any request', async () => {
-  const f = await fixture()
-  expect(await f.account.getNotifications(clientMetadata('en'))).toBeNull()
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).toBe(false)
-  expect(f.requests).toEqual([])
-})
-
 it('discards a list response invalidated by a credential change', async () => {
   const f = await fixture()
   await f.grant('test-account-token')
@@ -511,36 +347,6 @@ it('discards a list response invalidated by a credential change', async () => {
   expect(f.requests.map(request => [request.url, request.token])).toEqual([
     ['/api/v0/users/notifications/list', 'test-account-token'],
   ])
-})
-
-it('queries notifications and reports events while profile data is unavailable', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failProfile(17, 503)
-  expect((await f.account.getNotifications(clientMetadata()))?.notifications).toHaveLength(2)
-  expect(await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())).toMatchObject({ id: ORDER })
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).toBe(true)
-  expect(f.requests.map(request => request.url)).toEqual([
-    '/api/v0/users/notifications/list', `/api/v0/users/notifications/content?id=${ORDER}`, '/api/v0/users/notifications/events',
-  ])
-})
-
-it('reuses a cached identity for the same credential after a failed query', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  expect(await f.account.getProfile(clientMetadata())).toMatchObject({ status: 'ready' })
-  f.failProfile()
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).resolves.toBe(true)
-})
-
-it('queries notifications independently of a profile without a user ID', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.profileId(null)
-  expect(await f.account.getProfile(clientMetadata())).toMatchObject({ status: 'ready' })
-  f.failProfile()
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).resolves.toBe(true)
-  expect(f.requests.at(-1)?.url).toBe('/api/v0/users/notifications/events')
 })
 
 it('reads localized content of a consumed notification without listing or acknowledging it', async () => {
@@ -599,32 +405,11 @@ it('discards content when the credential changes before its response', async () 
   expect(await f.ctx.credentials.readRecord(f.key)).toMatchObject({ payload: { token: 'replacement-token' } })
 })
 
-it.each(['list', 'content', 'display'] as const)('discards a successful %s response whose reader cleanup overlaps credential replacement', async (operation) => {
+
+it('never creates a notification interaction reporting capability', async () => {
   const f = await fixture()
   await f.grant('test-account-token')
-  await f.account.getProfile(clientMetadata())
-  const payload = operation === 'list' ? { next_poll_after: 300, notifications: [wire(ORDER)] } : operation === 'content' ? wire(ORDER) : { acked: true }
-  const response = new Response(JSON.stringify({ code: 0, data: { biz_code: 0, biz_data: payload } }))
-  const body = response.body!
-  const reader = body.getReader()
-  const cancel = reader.cancel.bind(reader)
-  const cleanup = vi.spyOn(reader, 'cancel').mockImplementationOnce(async () => {
-    await f.grant('replacement-token')
-    await cancel()
-  })
-  const getReader = vi.spyOn(body, 'getReader').mockReturnValue(reader)
-  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response)
-  try {
-    const result = operation === 'list' ? await f.account.getNotifications(clientMetadata())
-      : operation === 'content' ? await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())
-        : await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())
-    expect(result).toBe(operation === 'display' ? false : null)
-    expect(cleanup).toHaveBeenCalledOnce()
-    expect(await f.ctx.credentials.readRecord(f.key)).toMatchObject({ payload: { token: 'replacement-token' } })
-  } finally {
-    fetcher.mockRestore()
-    getReader.mockRestore()
-    cleanup.mockRestore()
-    if (body.locked) { await reader.cancel(); reader.releaseLock() }
-  }
+  await f.account.getNotifications(clientMetadata())
+  expect('reportNotificationEvent' in f.account).toBe(false)
+  expect(f.requests.map(request => request.url)).toEqual(['/api/v0/users/notifications/list'])
 })

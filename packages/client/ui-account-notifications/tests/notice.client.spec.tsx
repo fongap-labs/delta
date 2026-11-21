@@ -56,13 +56,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); disconnect.mockClear() })
 
 function mount(id: string, onShown = vi.fn(), onDismiss = vi.fn()) {
-  const onCtaClicked = vi.fn()
   const view = render(<>
     <AccountNoticeStack key={id} closeLabel="Close" onOpenAccount={() => {}}
       notices={[notification(id, { displayUntil: '2099-01-01T00:00:00Z' })]}
-      onShown={onShown} onCtaClicked={onCtaClicked} onDismiss={onDismiss} />
+      onShown={onShown} onDismiss={onDismiss} />
   </>)
-  return { view, onShown, onCtaClicked, onDismiss }
+  return { view, onShown, onDismiss }
 }
 
 /**
@@ -109,15 +108,6 @@ it('waits for another visible frame when the document hides before the follow-up
   expect(onShown).not.toHaveBeenCalled()
   await presentFrames()
   expect(onShown).toHaveBeenCalledExactlyOnceWith('order-1')
-})
-
-it('reports dismissal without a CTA click when the close icon is clicked', async () => {
-  const { onShown, onCtaClicked, onDismiss } = mount('order-1')
-  await presentFrames()
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-  expect(onDismiss).toHaveBeenCalledWith('order-1')
-  expect(onShown).toHaveBeenCalledOnce()
-  expect(onCtaClicked).not.toHaveBeenCalled()
 })
 
 it('reports neither display nor dismissal when unmounted before its frame', async () => {
@@ -170,7 +160,7 @@ it('keeps back cards mounted but inaccessible and reports them only after promot
   }))
   const tree = (remaining: typeof notices) => <>
     <AccountNoticeStack notices={remaining} closeLabel="Close" onOpenAccount={() => {}}
-      onShown={onShown} onCtaClicked={vi.fn()} onDismiss={onDismiss} />
+      onShown={onShown} onDismiss={onDismiss} />
   </>
   const view = render(tree(notices))
   const second = screen.getByText('second copy').closest('aside')
@@ -224,45 +214,11 @@ it('does not report when the card leaves the viewport before the presentation ta
   expect(onShown).not.toHaveBeenCalled()
 })
 
-it.each(['primary', 'secondary'] as const)('reports non-dismiss %s actions and keeps focus while localized content changes', async (style) => {
-  const onShown = vi.fn()
-  const onDismiss = vi.fn()
-  const onOpenAccount = vi.fn()
-  const onCtaClicked = vi.fn()
-  const content = (chinese: boolean) => notification('notice', {
-    title: chinese ? '产品公告' : 'Product news', body: chinese ? '新功能已上线' : 'New features',
-    actions: [
-      { label: chinese ? '查看余额' : 'View balance', style, target: { type: 'app_route', name: 'account' } },
-      { label: chinese ? '知道了' : 'Got it', style, target: { type: 'dismiss' } },
-    ],
-  })
-  const tree = (chinese: boolean) => <>
-    <AccountNoticeStack closeLabel="Close" notices={[content(chinese)]}
-      onShown={onShown} onCtaClicked={onCtaClicked} onDismiss={onDismiss} onOpenAccount={onOpenAccount} />
-  </>
-  const view = render(tree(false))
-  await presentFrames()
-  const button = screen.getByRole('button', { name: 'View balance' })
-  button.focus()
-  fireEvent.click(button)
-  expect(onOpenAccount).toHaveBeenCalledOnce()
-  expect(onCtaClicked).toHaveBeenCalledExactlyOnceWith('notice')
-  expect(onDismiss).not.toHaveBeenCalled()
-  view.rerender(tree(true))
-  expect(screen.getByRole('button', { name: '查看余额' })).toBe(button)
-  expect(document.activeElement).toBe(button)
-  await presentFrames()
-  expect(onShown).toHaveBeenCalledExactlyOnceWith('notice')
-  fireEvent.click(screen.getByRole('button', { name: '知道了' }))
-  expect(onDismiss).toHaveBeenCalledExactlyOnceWith('notice')
-  expect(onCtaClicked).toHaveBeenCalledOnce()
-})
-
 it('renders separate buttons for repeated action targets', () => {
   const output = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   render(<>
     <AccountNoticeStack closeLabel="Close" onOpenAccount={() => {}}
-      onShown={vi.fn()} onCtaClicked={vi.fn()} onDismiss={vi.fn()} notices={[notification('notice', { actions: [
+      onShown={vi.fn()} onDismiss={vi.fn()} notices={[notification('notice', { actions: [
         { label: 'Got it', style: 'primary', target: { type: 'dismiss' } },
         { label: 'Later', style: 'secondary', target: { type: 'dismiss' } },
       ] })]} />
