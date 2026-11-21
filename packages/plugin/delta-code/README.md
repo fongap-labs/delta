@@ -40,6 +40,18 @@ pnpm --filter @fongap-labs/delta-code run build
 
 该验证**不运行真实用户 Profile，不执行文件写入、Git 或外部请求**。它并不能代替以下后续发行验收：使用独立测试 Profile 执行安装/选择/移除、应用进程真实启动与停机、更新后配置保留、Windows 桌面和便携版安装及完整功能回归。在这些完成前，本包继续保持 `private: true`，不发布、不默认启用。
 
+## 隔离 Profile 选择与停用验收
+
+中央 [Action Worker #1948](https://github.com/fongap-labs/action-worker/pull/1948) 通过临时 Profile 验证 Delta Code 的 Bundle 层与启停配置。验收调用现行 `initProfile`、`loadProfileDirectory`、`composeEntries`、`writePluginEnabled`，检查：
+
+- 已选择 `@fongap-labs/delta-code` 时只生成一个 `delta-code` 条目；
+- 停用后该条目被禁用，重复停用不会重复写入；
+- 重新启用后条目恢复，重复启用保持幂等；
+- 取消选择该 Bundle 后，其条目不再进入组合结果；
+- 全部操作只发生在临时目录，测试结束后清理，不访问用户 Profile。
+
+测试使用指向已构建工作区包的临时符号链接模拟**已安装后的包解析**，不调用真实 pnpm 安装器。因此其成功不意味着安装、依赖拉取、卸载、桌面热重载或 Windows 发布已完成。以上仍属于后续独立验收项，插件保持私有且默认不启用。
+
 ## 唯一插件身份与数据边界
 
 - 包名统一为 `@fongap-labs/delta-code`；Cordis 注册 ID、设置表单、提示区块、日志前缀及 GitHub User-Agent 使用 `delta-code`。
