@@ -15,22 +15,22 @@ function fixture() {
   return { choice, operations, recovery: new DesktopFatalRecovery(operations) }
 }
 
-it('shows fatal errors locally without diagnostic download or export', async () => {
+it('shows fatal errors only in the native dialog', async () => {
   const { choice, operations, recovery } = fixture()
-  const job = recovery.report(new Error('local backend failure'), 'host')
+  const job = recovery.present(new Error('local backend failure'), 'host')
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
   const shown = operations.show.mock.calls[0]![0]
   expect(shown.detail).toContain('local backend failure')
   expect(shown.buttons).toHaveLength(3)
-  expect(shown.buttons).not.toContain(operations.messages().getDiagnosticReport)
+  expect(shown.buttons).toEqual([operations.messages().exitApplication, operations.messages().restartApplication, operations.messages().disableThirdPartyPlugins])
   choice.resolve({ response: 0, checkboxChecked: false })
   await job
   expect(operations.exit).toHaveBeenCalledOnce()
 })
 
-it('allows recovery from a listener conflict without report persistence', async () => {
+it('allows local recovery from a listener conflict', async () => {
   const { choice, operations, recovery } = fixture()
-  const job = recovery.report(new Error('listen EADDRINUSE'), 'main')
+  const job = recovery.present(new Error('listen EADDRINUSE'), 'main')
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
   expect(operations.show.mock.calls[0]![0].buttons).toHaveLength(2)
   choice.resolve({ response: 1, checkboxChecked: false })
@@ -40,9 +40,9 @@ it('allows recovery from a listener conflict without report persistence', async 
 
 it('deduplicates failures in the current process', async () => {
   const { choice, operations, recovery } = fixture()
-  const first = recovery.report(new Error('first failure'), 'renderer')
+  const first = recovery.present(new Error('first failure'), 'renderer')
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
-  await recovery.report(new Error('second failure'), 'main')
+  await recovery.present(new Error('second failure'), 'main')
   expect(operations.show.mock.calls[0]![0].detail).not.toContain('second failure')
   choice.resolve({ response: 0, checkboxChecked: false })
   await first

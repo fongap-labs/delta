@@ -12,10 +12,13 @@ describe('Delta desktop diagnostic privacy', () => {
       'email=person@example.org',
       'path=C:\\Users\\Someone\\Documents\\secret.txt',
       'url=https://api.example.org/private?api_key=secret',
+      'token=opaque-token-value',
+      'account_id=account-private-123',
+      'ip=192.0.2.44',
     ]
     const sanitized = redactDiagnostic(leaked.join(' | '))
     for (const secret of ['abcDEF_1234', '0123456789abcdefghijklmnop', 'session-private-123',
-      'user-private-567', 'person@example.org', 'Someone', 'api.example.org']) {
+      'user-private-567', 'person@example.org', 'Someone', 'api.example.org', 'opaque-token-value', 'account-private-123', '192.0.2.44']) {
       expect(sanitized).not.toContain(secret)
     }
     expect(sanitized).toContain('[redacted]')

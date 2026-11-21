@@ -84,7 +84,7 @@ describe('desktop backend controller', () => {
     const f = fixture()
     const invalid = new Error('invalid profile')
     await expect(f.controller.start(async () => { throw invalid })).rejects.toThrow('invalid profile')
-    expect(f.controller.state).toEqual({ phase: 'error', message: 'invalid profile', failure: invalid })
+    expect(f.controller.state).toEqual({ phase: 'error', message: 'invalid profile' })
     expect(f.create).not.toHaveBeenCalled()
     f.ready.resolve()
     await f.controller.start(async () => {})
@@ -103,8 +103,8 @@ describe('desktop backend controller', () => {
     await f.stopping.promise
     f.exited.resolve()
     await rejected
-    // The original error object travels with the state so a crash report keeps its stack and properties.
-    expect(f.controller.state).toEqual({ phase: 'error', message: 'plugin failed', failure: pluginFailure })
+    // Only the safe UI summary is retained; the original error stays out of application state.
+    expect(f.controller.state).toEqual({ phase: 'error', message: 'plugin failed' })
     expect(f.host.stop).toHaveBeenCalledTimes(1)
     await f.controller.close()
   })
@@ -115,7 +115,7 @@ describe('desktop backend controller', () => {
     await f.controller.start(async () => {})
     const transportFailure = new Error('transport failed')
     f.fail(transportFailure)
-    expect(f.controller.state).toEqual({ phase: 'error', message: 'transport failed', failure: transportFailure })
+    expect(f.controller.state).toEqual({ phase: 'error', message: 'transport failed' })
     expect(f.controller.host).toBeUndefined()
     await f.stopping.promise
     const prepare = vi.fn(async () => {})
@@ -140,7 +140,7 @@ describe('desktop backend controller', () => {
     await f.stopping.promise
     f.exited.resolve()
     await rejected
-    expect(f.states).toEqual([{ phase: 'starting' }, { phase: 'error', message: 'immediate failure', failure: immediate }])
+    expect(f.states).toEqual([{ phase: 'starting' }, { phase: 'error', message: 'immediate failure' }])
     await f.controller.close()
   })
 

@@ -82,7 +82,7 @@ process.on('message', message => {
   })
   server.closeAllConnections()
 })
-process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
+process.send({ type: 'starting' })
 `
 
 function projectWithHost(source = HTTP_HOST): string {
@@ -109,40 +109,38 @@ afterEach(async () => {
 })
 
 describe('desktop host process', () => {
-  it('retains the announced run identity when startup fails before readiness', async () => {
+  it('accepts only a startup failure summary without diagnostic metadata', async () => {
     const runtime = projectWithHost(`
 process.once('message', message => {
   if (message.type !== 'desktop-auth') throw new Error('expected authentication')
-  process.send({ type: 'fatal', message: 'profile startup failed', diagnostic: 'required plugin failed' }, () => process.disconnect())
+  process.send({ type: 'fatal', message: 'profile startup failed' }, () => process.disconnect())
 })
-process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
+process.send({ type: 'starting' })
 `)
     const host = hostProcess(runtime)
     const failure: unknown = await host.start().catch((error: unknown) => error)
     await host.stop()
     expect(failure).toBeInstanceOf(DesktopHostFatalError)
-    expect(failure).toHaveProperty('hostRunId', 'c254ab28-97c9-4382-95e6-2db9c66f98c8')
+    expect(failure).toHaveProperty('message', 'profile startup failed')
+    expect(failure).not.toHaveProperty('diagnostic')
+    expect(failure).not.toHaveProperty('hostRunId')
   })
 
-  it.each([
-    ['exception', 'queueMicrotask(() => { throw new Error("qualification-exception", { cause: new Error("qualification-runtime-cause") }) })'],
-    ['rejection', 'Promise.reject(new Error("qualification-rejection"))'],
-    ['exit', 'process.stderr.write("qualification-exit", () => process.exit(7))'],
-  ])('retains real child %s evidence in the final report after readiness', async (kind, trigger) => {
-    const failed = Promise.withResolvers<Error>()
+  it('does not retain child stderr output in the failure message', async () => {
     const runtime = projectWithHost(`
-process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
+process.send({ type: 'starting' })
 process.once('message', message => {
-  if (message.type !== 'desktop-auth') throw new Error('expected authentication')
-  process.send({ type: 'ready', url: 'http://127.0.0.1:3080/' }, () => { ${trigger} })
+  if (message.type === 'desktop-auth') process.send({ type: 'ready', url: 'http://127.0.0.1:3080/' },
+    () => process.stderr.write('private-token=fixture-secret', () => process.exit(7)))
 })
 `)
-    const host = hostProcess(runtime, runtime, failed.resolve)
+    const failure = vi.fn()
+    const host = hostProcess(runtime, runtime, failure)
     await host.start()
-    const failure = await failed.promise
+    await expect.poll(() => failure.mock.calls.length).toBe(1)
+    expect(failure.mock.calls[0]![0].message).toBe('dsh desktop host exited with 7')
+    expect(failure.mock.calls[0]![0].message).not.toContain('fixture-secret')
     await host.stop()
-    expect(failure.message).toContain(`qualification-${kind}`)
-    // No crash-report serialization or export; recovery consumes this error in memory.
   })
 
   it('correlates authorized file resources and rejects Host denial over private IPC', async () => {
@@ -199,7 +197,7 @@ process.once('message', message => {
     'process.exit(0)',
   ])('refuses installation when exit lacks successful teardown acknowledgement: %s', async (exit) => {
     const host = hostProcess(projectWithHost(`
-      process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
+      process.send({ type: 'starting' })
       process.on('message', message => {
         if (message.type === 'desktop-auth') process.send({ type: 'ready', url: 'http://127.0.0.1:3080/' })
         if (message.type === 'shutdown') process.stderr.write('token=fixture-secret', () => { ${exit} })
@@ -229,14 +227,13 @@ process.once('message', message => {
 process.on('message', message => {
   if (message.type === 'desktop-auth') process.send({ type: 'ready', url: ${JSON.stringify(url)} })
 })
-process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
+process.send({ type: 'starting' })
 `))
     await expect(host.start()).rejects.toThrow('invalid IPC event')
   })
 
   it('provides a private per-child authentication Cookie with the ordinary ready address', async () => {
     const source = `
-import { randomUUID } from 'node:crypto'
 process.on('message', message => {
   if (message.type === 'desktop-auth') {
     if (!/^[A-Za-z0-9_-]{43}$/.test(message.secret)) throw new Error('invalid credential')
@@ -244,7 +241,7 @@ process.on('message', message => {
   }
   if (message.type === 'shutdown') process.send({ type: 'shutdown-complete' }, () => process.disconnect())
 })
-process.send({ type: 'starting', runId: randomUUID() })
+process.send({ type: 'starting' })
 `
     const runtime = projectWithHost(source)
     const first = await hostProcess(runtime).start()
@@ -256,8 +253,8 @@ process.send({ type: 'starting', runId: randomUUID() })
   })
 
   it('sends the credential once even when the child repeats starting', async () => {
-    const source = HTTP_HOST.replace("process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })",
-      "process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }); process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })")
+    const source = HTTP_HOST.replace("process.send({ type: 'starting' })",
+      "process.send({ type: 'starting' }); process.send({ type: 'starting' })")
     const host = hostProcess(projectWithHost(source))
     const ready = await host.start()
     expect((await fetch(ready.url)).status).toBe(200)
@@ -326,27 +323,8 @@ process.send({ type: 'starting', runId: randomUUID() })
     await expect.poll(() => failure.mock.calls.length).toBe(1)
     await host.stop()
     expect(failure).toHaveBeenCalledTimes(1)
-    expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: 'plugin unavailable', hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }))
-  })
-
-  it('reports a child crash after readiness with its stderr diagnostic', async () => {
-    const runtime = projectWithHost()
-    const failure = vi.fn()
-    const host = hostProcess(runtime, runtime, failure)
-    const { url } = await host.start()
-    await fetch(new URL('/crash', url))
-    await expect.poll(() => failure.mock.calls.length).toBe(1)
-    expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: 'dsh desktop host exited with 7: plugin crashed', hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }))
-  })
-
-  it('retains only recent diagnostics from a noisy child', async () => {
-    const runtime = projectWithHost('process.stderr.write(\'discarded-prefix\' + \'x\'.repeat(70_000) + \'recent-failure\', () => { process.exitCode = 7; process.disconnect() })')
-    const failure = await hostProcess(runtime).start().catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(Error)
-    const message = (failure as Error).message
-    expect(message).not.toContain('discarded-prefix')
-    expect(message.endsWith('recent-failure')).toBe(true)
-    expect(message.length).toBeLessThan(66_000)
+    expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: 'plugin unavailable' }))
+    expect(failure.mock.calls[0]![0]).not.toHaveProperty('hostRunId')
   })
 
   it('settles teardown when the executable cannot be spawned', async () => {
@@ -372,25 +350,13 @@ process.send({ type: 'starting', runId: randomUUID() })
   it.each([
     ["process.send({ type: 'fatal', message: 'startup failed' }); process.disconnect()", 'startup failed'],
     ["process.send({ type: 'ready', url: 4 })", 'invalid IPC event'],
-    ["process.send({ type: 'fatal', message: 'startup failed', diagnostic: 42 })", 'invalid IPC event'],
+    ["process.send({ type: 'fatal', message: 'startup failed', diagnostic: 'private details' })", 'invalid IPC event'],
     ['process.exit(0)', 'host stopped'],
   ])('rejects startup when the child fails before readiness: %s', async (source, message) => {
     const host = hostProcess(projectWithHost(source))
     await expect(host.start()).rejects.toThrow(message)
   })
 
-  it('keeps the Host\'s inspected error separate from the message it reports', async () => {
-    const diagnostic = "Error: startup failed\\n    at boot (lib/index.js:3:9) {\\n  code: 'ENOENT',\\n  path: '/profile/cordis.yml'\\n}"
-    const failures: Error[] = []
-    const host = hostProcess(projectWithHost(
-      `process.send({ type: 'fatal', message: 'startup failed', diagnostic: ${JSON.stringify(diagnostic)} }); process.disconnect()`,
-    ), undefined, (error) => { failures.push(error) })
-    await expect(host.start()).rejects.toThrow('startup failed')
-    const [failure] = failures
-    expect(failure).toBeInstanceOf(DesktopHostFatalError)
-    expect((failure as DesktopHostFatalError).diagnostic).toBe(diagnostic)
-    expect(Object.keys(failure!)).not.toContain('diagnostic')
-  })
 })
 
 it.each([null, 'stable-account'])('carries Platform identity %s over private IPC and clears credentials on shutdown', async (userId) => {
