@@ -7,8 +7,8 @@ export function requirePluginString(value: unknown, name: string): string {
 }
 
 /** Reject implicit boolean coercion of string-valued configuration. */
-export function optionalPluginBoolean(value: unknown, name: string, fallback: boolean): boolean {
-  if (value === undefined) return fallback
+export function optionalPluginBoolean(value: unknown, name: string, isDefaultEnabled: boolean): boolean {
+  if (value === undefined) return isDefaultEnabled
   if (typeof value !== 'boolean') throw new TypeError(`plugin config ${name} must be a boolean`)
   return value
 }
