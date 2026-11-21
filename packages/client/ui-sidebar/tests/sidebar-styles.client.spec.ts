@@ -109,8 +109,8 @@ describe('SidebarRoot.module.css', () => {
   })
 
   it('keeps the reviewed expanded spacing separate from rail and caption controls', () => {
-    expect(declarations('.logoRow')?.get('padding')).toBe('8px 0 8px 8px')
-    expect(declarations('.logoRow')?.get('margin-bottom')).toBe('0')
+    expect(declarations('.headerRow')?.get('padding')).toBe('8px 0 8px 8px')
+    expect(declarations('.headerRow')?.get('margin-bottom')).toBe('0')
     expect(declarations('.newSessionRow')?.get('margin')).toBe('0 calc(var(--dsh-sidebar-paint-inset) + 1px) 6px')
     expect(declarations('.newSession')?.get('margin')).toBe('0')
     expect(declarations('.newSessionContent')?.get('justify-content')).toBe('center')
@@ -180,19 +180,16 @@ describe('SidebarRoot.module.css', () => {
   })
 
   it('gives shell rail controls the same base anchor for their shared translation', () => {
-    expect(declarations('.collapsed .logoRow')?.get('justify-content')).toBe('flex-start')
+    expect(declarations('.collapsed .headerRow')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.collapsed .newSessionRow')?.get('align-items')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
-  it('keeps full-size brand artwork with a compact mark-to-name gap', () => {
-    expect(declarations('.brandIdentity')?.get('gap')).toBe('5px')
-    expect(declarations('.brandIdentity')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('line-height')).toBe('24px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('18px')
-    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
-    expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
+  it('renders navigation controls without vendor brand artwork styles', () => {
+    expect(declarations('.headerRow')?.get('justify-content')).toBe('flex-end')
+    for (const selector of ['.brand', '.brandIdentity', '.brandMark', '.brandName', '.railMark']) {
+      expect(declarations(selector)).toBeUndefined()
+    }
   })
 
   it('lays panel trailing content out after the title like a Session row, reserving no room without content', () => {
