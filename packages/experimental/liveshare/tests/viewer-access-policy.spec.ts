@@ -44,7 +44,6 @@ const CALL = { request: {} }
 const GLOBAL_ACTIONS = [
   'commands/list', 'llm/listConfigurableProviders', 'llm/listProviders', 'session/canOpenWorkspacePath',
   'session/control', 'session/list', 'session/modelCatalog', 'pluginEvents/follow',
-  'productAnalytics/enabled', 'productAnalytics/report', 'productAnalytics/watchPolicy',
   'speech/cancelPreparation', 'speech/catalog', 'speech/follow', 'speech/prepare', 'speech/transcribe',
   'workspace/follow',
 ] as const
@@ -460,7 +459,7 @@ describe('viewer page startup contract', () => {
 
   it('keeps the owner’s own surfaces refused and out of the reader’s snapshot', async () => {
     const { decide, grants } = await fixture()
-    const ownerOnly = ['account/watch', 'account/getNotifications', 'account/getNotificationContent', 'account/reportNotificationEvent',
+    const ownerOnly = ['account/watch', 'account/getNotifications', 'account/getNotificationContent',
       'settings/describe',
       'credentials/describe', 'pluginManager/listPlugins', 'schedule/catalog', 'schedule/create',
       'schedule/deliveryLimits', 'schedule/deleteInactive', 'schedule/edit', 'schedule/history',
