@@ -43,9 +43,6 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'session/canOpenWorkspacePath': 'reader-global-read', // the page asks whether a path can be opened
   'session/modelCatalog': 'reader-global-read', // the page reads the model catalog
   'pluginEvents/follow': 'reader-global-read', // the page follows the plugin graph; the Host sends a non-owner schema defaults, never configured values
-  'productAnalytics/enabled': 'reader-global-read', // the page asks whether this host accepts analytics
-  'productAnalytics/report': 'reader-global-read', // the page reports its own product events
-  'productAnalytics/watchPolicy': 'reader-global-read', // the page follows the analytics policy
   'speech/cancelPreparation': 'reader-global-read', // the page cancels its recognizer preparation
   'speech/catalog': 'reader-global-read', // the page reads recorder providers and limits
   'speech/follow': 'reader-global-read', // the page follows recognizer readiness

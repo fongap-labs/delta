@@ -6,7 +6,6 @@
  * A plugin that carries its own configuration renders it on this page through
  * the slots the page declares (`slot-contract.ts`).
  */
-import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the ctx.modules Context merge.
 import type {} from '@deepseek-ai/dsh-client-modules/client'
