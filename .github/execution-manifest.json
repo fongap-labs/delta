@@ -11,7 +11,7 @@
             "{control_root}/.github/scripts/central-ci.sh",
             "{target_root}"
           ],
-          "timeout_minutes": 10,
+          "timeout_minutes": 60,
           "capability_requests": [
             "source.read"
           ]

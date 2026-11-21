@@ -8,6 +8,7 @@ import { isDesktopUpdateChannel } from './settings-file.ts'
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -71,6 +72,16 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+
+// The legacy Delta launcher supplies an explicit portable data root. Keep Electron's
+// profile under Data/; other Harness home-path migrations are validated separately.
+if (process.env.DELTA_PORTABLE === '1') {
+  const dataDir = process.env.DELTA_DATA_DIR
+  if (!dataDir) throw new Error('Delta Portable requires DELTA_DATA_DIR')
+  const profileDir = join(dataDir, 'desktop')
+  mkdirSync(profileDir, { recursive: true })
+  app.setPath('userData', profileDir)
+}
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }

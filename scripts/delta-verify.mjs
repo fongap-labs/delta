@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { resolve } from 'node:path'
+
+const root = resolve(import.meta.dirname, '..')
+const read = path => readFileSync(resolve(root, path))
+const text = path => read(path).toString('utf8')
+const hash = path => createHash('sha256').update(read(path)).digest('hex')
+const asset = 'branding/legacy/delta-logo-512x512.png'
+for (const path of ['apps/desktop/resources/icon.png', 'apps/desktop/resources/icon-windows.png',
+  'apps/desktop/resources/icon-macos.png', 'apps/desktop/renderer/assets/delta-logo-512x512.png']) {
+  assert.equal(hash(path), hash(asset), 'brand drift: ' + path)
+}
+assert.equal(hash('packages/client/ui-brand-official/src/client/assets/delta-logo-256x256.png'),
+  hash('branding/legacy/delta-logo-256x256.png'))
+assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /delta-brand-logo/)
+assert.match(text('apps/desktop/renderer/welcome.css'), /Delta legacy v0\.0\.1 visual treatment/)
+const build = text('apps/desktop/scripts/electron-builder-config.mjs')
+assert.match(build, /productName: 'Delta'/)
+assert.match(build, /CFBundleLocalizations: \['en', 'zh_CN'\]/)
+assert.match(build, /schemes: \['dsh'\]/, 'Preserve the Harness protocol')
+const locale = text('packages/client/locale/src/locale-settings.ts')
+assert.match(locale, /LOCALE_IDS = \['zh', 'en'\]/)
+assert.match(text('apps/desktop/src/locale.ts'), /const dictionaries = \{ en, zh \}/)
+assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /startSignIn\(\)/,
+  'Must retain the Harness sign-in flow')
+assert.match(text('packaging/portable/build-portable.ps1'), /Delta-Windows-Portable\.zip/)
+const lock = JSON.parse(text('upstream.lock.json'))
+assert.equal(lock.baseline_sha, '2e39e70496aa02986ca6a820c5d497e816b69d7e')
+const manifest = JSON.parse(text('release.manifest.json'))
+assert.equal(manifest.root, '.')
+assert.equal(manifest.builds[0].assets[0], 'delta-windows-x64-portable.zip')
+console.log('Delta branding, packaging contract, locale and baseline assertions passed')
