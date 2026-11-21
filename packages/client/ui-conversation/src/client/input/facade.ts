@@ -48,7 +48,6 @@ export interface SessionInputDeps {
   /** Snapshot the Session facts before asynchronous command arbitration. */
   submissionState?: () => MessageSubmissionState
   /** Notify one ordinary message attempt before reference serialization. */
-  messageSubmitted?: (submission: MessageSubmission) => void
   /** Enter adjudication face resolver; absent/undefined answer = every '/' line falls to the default sink. */
   inputTriggers?: (() => InputTriggerController | undefined) | undefined
   /** PopupSelect shell face resolver (dismissal on submit lock / escape). */
@@ -777,7 +776,6 @@ export class SessionInputShell implements SessionInput {
 
   private notifySubmission(submission: MessageSubmission | undefined): void {
     if (submission === undefined) return
-    try { this.deps.messageSubmitted?.(submission) } catch (_error) { /* Notification consumers cannot interrupt submission. */ }
   }
 
   /**

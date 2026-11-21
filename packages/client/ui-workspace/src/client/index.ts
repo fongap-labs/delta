@@ -18,7 +18,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-context-menu/client'
  * its relative time and its trailing status line. Export discipline:
  * packages/client/AGENTS.md.
  */
-import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SyncedConfig } from '@deepseek-ai/dsh-client-config/types'
 import type { WorkspaceNavigationConfig } from '../types.ts'
@@ -283,9 +282,7 @@ export function apply(ctx: Context, config: SyncedConfig<WorkspaceNavigationConf
   })
   const forkInjected = (): ForkSessionInjected => ({
     forkSession: (sessionId) => {
-      uiWorkspace.forkSession(sessionId, (childId) => {
-        ctx.get('productAnalytics')?.track('branch_session_click', { session_id: childId, parent_session_id: sessionId, click_position: 'sidebar' })
-      }, { allowMigration: false }).catch((error: unknown) => {
+      uiWorkspace.forkSession(sessionId, undefined, { allowMigration: false }).catch((error: unknown) => {
         if (error instanceof Error && error.name === 'SessionForkError'
           && (error as SessionForkError).rpcError.code === 'session/migration-required') {
           notify({ kind: 'forkRequiresOpen', sessionId })
