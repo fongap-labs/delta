@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 记录 Delta Code 原生代码编辑工具在临时 Linux 工作区的真实调用、安全预检、符号链接拒绝、SHA-256 条件写入和有效写入验收边界；保持插件私有可选。
+
 - 维护: 将上游遗留的 CI 工作流测试由约 1,900 行精简为当前仍有效的 GitLab、bubblewrap 和 Git Hook 六项检查；正式 Actions 桥接合同由 Action Worker 可信测试包维护。
 
 - 维护: 补充 Delta Code 私有插件离线 .tgz 制品的 Host/Client、Cordis、语言资源、依赖协议及私有文件排除验收说明；不发布插件或改变默认装载。
