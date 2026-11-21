@@ -341,3 +341,46 @@ body {
 .actions .welcome-loading { color: inherit; }
 
 .auth-waiting .copy-link:disabled { cursor: default; }
+
+/* Delta legacy v0.0.1 visual treatment: presentation only, no authentication changes. */
+#root {
+  --dsw-alias-brand-primary: #286f78;
+  --dsw-alias-button-primary-hover: #205960;
+  --dsw-alias-label-primary: #1d3f45;
+  --dsw-alias-label-primary-inverted: #fff;
+  --welcome-tint: #edf4f4;
+  background: var(--welcome-tint);
+}
+.welcome {
+  grid-template-rows: 160px minmax(0, 1fr) 104px;
+  padding: 24px 32px 64px;
+}
+.delta-brand {
+  grid-row: 1;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  align-self: center;
+  user-select: none;
+}
+.delta-brand-logo { width: 84px; height: 84px; object-fit: contain; -webkit-user-drag: none; }
+.delta-brand-name {
+  color: #1d3f45;
+  font: 700 28px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: .025em;
+}
+.tagline { font-size: 20px; line-height: 1.6; white-space: normal; }
+.tagline em { color: #286f78; font-size: inherit; font-weight: 600; }
+.actions button { border-radius: 10px; }
+@media (prefers-color-scheme: dark) {
+  #root {
+    --dsw-alias-label-primary: #e7f0f1;
+    --dsw-alias-label-secondary: #b7cdd0;
+    --welcome-tint: #172b30;
+  }
+  .delta-brand-name { color: #e7f0f1; }
+  .tagline em { color: #8acbd1; }
+}

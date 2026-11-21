@@ -176,7 +176,10 @@ export function Welcome({ api }: { api: WelcomeApi }) {
     {expiryNotice && <Toast text={m.welcomeSessionExpired} onDone={() => { setExpiryNotice(false) }} />}
     <div className="titlebar" aria-hidden="true" />
     <main className="welcome" aria-labelledby={heading}>
-      <img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />
+      <div className="delta-brand" aria-label={m.welcomeBrand}>
+        <img className="delta-brand-logo" src="assets/delta-logo-512x512.png" alt="" width="84" height="84" />
+        <span className="delta-brand-name">Delta</span>
+      </div>
       <div id="tagline" className="tagline" hidden={page !== 'entry'}>
         <h1 id="welcome-heading"><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></h1>
         <p id="welcome-description">{m.welcomeDescription}</p>

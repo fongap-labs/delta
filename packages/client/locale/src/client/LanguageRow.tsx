@@ -29,7 +29,7 @@ export type LanguageRowComponentProps =
  */
 export function LanguageRow({ t, setLocale, useStore }: LanguageRowComponentProps) {
   const active = useStore(s => s.active)
-  const options = useStore(s => s.options)
+  const options = useStore(s => s.options).filter(option => option.id === 'zh' || option.id === 'en')
   const [open, setOpen] = useState(false)
   const activeLabel = options.find(o => o.id === active)?.label ?? active
 

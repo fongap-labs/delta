@@ -1,19 +1,13 @@
-import { BrandWordmark, FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 
-/**
- * Render the official mark with the presentation requested by its host surface.
- * @param props - Host-supplied mark presentation.
- * @returns the official whale mark.
- */
+const logoUrl = new URL('./assets/delta-logo-256x256.png', import.meta.url).href
+
+/** Delta's legacy mark, without changing the Harness plugin slot contract. */
 export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
-  return <FishLogo size={size} />
+  return <img src={logoUrl} alt="Delta" width={size} height={size} style={{ objectFit: 'contain' }} />
 }
 
-/**
- * Render the official name artwork without its independently slotted mark.
- * @returns the official name wordmark.
- */
+/** Delta product name for the existing brand-name slot. */
 export function OfficialBrandName() {
-  return <BrandWordmark includeMark={false} />
+  return <span style={{ color: 'inherit', fontWeight: 700, fontSize: 20, letterSpacing: '.02em' }}>Delta</span>
 }
