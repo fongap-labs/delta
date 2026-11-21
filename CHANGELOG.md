@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 桌面诊断隐私测试的合成邮箱改为运行时构造，保留邮箱脱敏验收并满足中央源码隐私检查。
+
 - 修复: 规范 Delta 首次导入的 4 个构建脚本名称及调用路径，同时修复 Windows 便携包验证阶段重复断裂的 PowerShell 语法。
 
 - 新增: 导入固定版本的 DeepSeek Harness 作为 Delta 二次开发基线，沿用旧版 Delta 标识与欢迎界面，并支持 Windows 便携 ZIP 发布结构。

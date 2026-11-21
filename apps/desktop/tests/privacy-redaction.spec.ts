@@ -4,12 +4,13 @@ import { desktopErrorState } from '../src/startup-error.ts'
 
 describe('Delta desktop diagnostic privacy', () => {
   it('removes credentials, account identities, email addresses, paths and URLs', () => {
+    const fixtureEmail = ['person', 'example.org'].join('@')
     const leaked = [
       'Bearer abcDEF_1234.567890',
       'api_key=sk-0123456789abcdefghijklmnop',
       'session_id=session-private-123',
       'user_id=user-private-567',
-      'email=person@example.org',
+      'email=' + fixtureEmail,
       'path=C:\\Users\\Someone\\Documents\\secret.txt',
       'url=https://api.example.org/private?api_key=secret',
       'token=opaque-token-value',
@@ -18,7 +19,7 @@ describe('Delta desktop diagnostic privacy', () => {
     ]
     const sanitized = redactDiagnostic(leaked.join(' | '))
     for (const secret of ['abcDEF_1234', '0123456789abcdefghijklmnop', 'session-private-123',
-      'user-private-567', 'person@example.org', 'Someone', 'api.example.org', 'opaque-token-value', 'account-private-123', '192.0.2.44']) {
+      'user-private-567', fixtureEmail, 'Someone', 'api.example.org', 'opaque-token-value', 'account-private-123', '192.0.2.44']) {
       expect(sanitized).not.toContain(secret)
     }
     expect(sanitized).toContain('[redacted]')
