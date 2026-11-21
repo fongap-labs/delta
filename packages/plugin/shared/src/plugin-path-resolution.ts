@@ -2,9 +2,13 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 
 /** Lexical containment violation. Inherits RangeError for existing callers. */
 export class SandboxViolationError extends RangeError {
-  constructor(message: string) {
+  readonly root: string | undefined
+  readonly target: string | undefined
+  constructor(message: string, options: { root?: string; target?: string } = {}) {
     super(message)
     this.name = 'SandboxViolationError'
+    this.root = options.root
+    this.target = options.target
   }
 }
 
