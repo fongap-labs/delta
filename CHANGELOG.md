@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 确立当前 main 作为 Delta 开发基线，冻结 v0.0.1 旧版分支，并明确与 Harness 独立提交历史的比较规则。
+
 - 修复: 将 Delta Windows 便携版发布清单迁移到 Action Workers 标准目录，补齐构建字段与 Node 版本配置，并支持隔离凭据的离线打包。
 
 - 修复: 为 Delta Windows x64 便携版发布补齐中央规范的产品清单、Node 版本与 SBOM 字段，隔离未签名离线测试打包与正式签名及更新策略，保留产物和发布门禁。

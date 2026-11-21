@@ -55,15 +55,26 @@ Delta 自研模块使用 Delta 标识；Harness 既有 `dsh`、Cordis、上游�
 - 共享包变化应验证受影响插件；插件迁移须核对旧安装配置、Cordis ID、构建闭包、权限与版本兼容，避免双重注册。
 - 可外置插件测试由 Action Worker `tests/packs/delta/` 管理。未经中央例外，不在插件目录新增本地测试文件或 CI 执行器。
 
-## 5. 分支与交付
+## 5. 分支、基线与提交历史
 
-- `main`：Delta 正式产品主线，仅通过中央验证的 PR 合并。
-- `upstream/deepseek-harness`：官方上游镜像，目标是只跟踪、不直接修改 Delta 主线；自动跟踪是否部署成功须单独核验。
-- `baseline/deepseek-harness`：人工审核提升的固定上游基线，不自动追随镜像。
-- `legacy/delta-v0.0.1`：历史存档，不是产品当前资源目录。
-- `feature/*`、`fix/*`、`docs/*`：开发工作分支。
+- `main`：Delta 正式产品主线。以 2026-11-21 的 `584e6c77ad424b1b388014854d2ecda13c9b2433` 所含代码为当前 Delta 自有开发基线；未来变更通过中央验证的 PR 合并，不将 `main` 重置到上游。
+- `baseline/delta-main-2026-11-21`：上述 `main` 提交的固定快照，仅用于追溯此轮整理前后的 Delta 改动；约定保持指向该 SHA，不参与日常开发。
+- `legacy/v0.0.1`：旧版 Delta 的冻结入口；与保留的原分支 `legacy/delta-v0.0.1` 一同指向 `d9eb5531b4b708a96c0874712b3205be29741e73`。现有 `Protect Legacy Branches` 规则对 `legacy/**` 禁止更新、删除与非快进修改，不得继续在旧版分支开发。
+- `baseline/deepseek-harness`：人工审核提升的固定 Harness 上游参考版本，不是 Delta `main` 的 Git 祖先，也不是 Delta 产品开发基线。
+- `upstream/deepseek-harness`：仅跟踪官方上游，不直接覆盖 `main`；自动跟踪是否部署成功仍须单独核验。
+- `feature/*`、`fix/*`、`docs/*`：从最新 Delta `main` 创建的开发分支。
 
-上游常规差异以基线与镜像比较，不以 Delta `main` 对官方上游的提交差异衡量二开进度。升级基线前校验 Delta 的 UI、隐私、数据、Agent、插件与便携构建。
+当前 `main` 是通过源码导入建立的**独立线性 Git 历史**，与 Harness 上游历史没有共同祖先。GitHub 在这些互不相连的分支间显示的 `Ahead/Behind` 数量不是 Delta 漏掉的更新数；不得通过伪合并、强推或绕过 `main` 的线性历史 / Squash 合并门禁来消除数字。
+
+按需要使用工作树差异或各自历史比较，而不是用无共同祖先的三点提交比较：
+
+```bash
+git diff --stat baseline/delta-main-2026-11-21 main
+git diff --stat baseline/deepseek-harness upstream/deepseek-harness
+git diff --stat baseline/deepseek-harness main
+```
+
+第一项表示冻结快照以来的 Delta 主线变动；第二项表示 Harness 上游相对审核基线的变动；第三项只比较当下代码内容，不把两份独立提交历史解释成继承关系。上游升级应经人工核对、迁移和验证，再用正常 Delta PR 应用必要修改，保留品牌、隐私、插件兼容与打包要求。
 
 主程序及插件独立管理制品和版本，但实际签名、构建执行、发布编排及权限仍由 Action Worker 治理。发布清单按中央合同维护，不假定尚未提交的清单已经存在。
 
