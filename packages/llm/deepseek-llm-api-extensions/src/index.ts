@@ -86,6 +86,11 @@ export class DeepSeekLlmApiExtensionRegistry extends Service {
     if (fieldName.length === 0 || fieldName.trim() !== fieldName) {
       throw new Error('deepseek-llm-api-extensions: field must be a non-blank trimmed string')
     }
+    // Delta has physically removed these collectors; a plugin cannot re-enable
+    // their sensitive outbound request fields via extension registration.
+    if (fieldName === 'dsh_session_log' || fieldName === 'dsh_plugin_packages') {
+      throw new Error('Delta privacy: request-level session or plugin inventory disclosure is unsupported')
+    }
     const providers = this.providers
     const erased = provider as ErasedProvider
     const dispose = this.ctx.effect(() => {

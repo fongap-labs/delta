@@ -101,3 +101,15 @@ for (const path of removedCollectorPackages) {
 }
 assert.doesNotMatch(text('packages/boot/app-boot/src/profile-context.ts'), /telemetryDisabledEnv|resolveTelemetryPatch/)
 assert.doesNotMatch(text('packages/api/remotes/src/client/index.ts'), /productAnalytics/)
+
+assert.doesNotMatch(basePatch, /^    - id: plugin-package-inventory-deepseek$/m)
+assert.doesNotMatch(text('packages/bundle/sdk-minimal/cordis.patch.yml'), /^    - id: plugin-package-inventory-deepseek$/m)
+assert.equal(existsSync(resolve(root, 'packages/llm/plugin-package-inventory-deepseek')), false)
+const extensionRegistry = text('packages/llm/deepseek-llm-api-extensions/src/index.ts')
+assert.match(extensionRegistry, /fieldName === 'dsh_session_log'/)
+assert.match(extensionRegistry, /fieldName === 'dsh_plugin_packages'/)
+const exportRoutes = text('packages/session-query/session-log-export/src/index.ts')
+assert.match(exportRoutes, /'cache-control': 'no-store'/)
+assert.match(exportRoutes, /'x-content-type-options': 'nosniff'/)
+assert.doesNotMatch(text('packages/account/deepseek-account/src/protocol.ts'), /\/api\/v0\/users\/notifications\/events/)
+assert.doesNotMatch(text('packages/account/deepseek-account/src/index.ts'), /reportNotificationEvent/)

@@ -146,7 +146,7 @@ async function sessionMarkdownResponse(ctx: Context, request: Request): Promise<
     const metadata = await ctx.get('sessionPersistence')?.stat(sessionId, { signal: request.signal })
     request.signal.throwIfAborted()
     return new Response(formatSessionMarkdown(snapshot.events, metadata?.location?.path), {
-      headers: { 'content-type': 'text/markdown; charset=utf-8' },
+      headers: { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
     })
   } catch (error: unknown) {
     request.signal.throwIfAborted()
@@ -227,6 +227,8 @@ async function sessionLogExportResponse(
       headers: {
         'content-type': 'application/zip',
         'content-disposition': `attachment; filename="${sessionLogZipFilename(sessionId)}"`,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
       },
     },
   )
