@@ -19,7 +19,6 @@ import LlmRuntime, { type ToolCallId, createUserMessage,
   userAgent,
 } from '@deepseek-ai/dsh-llm'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import DeepSeekLlmApiExtensionRegistry from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import type { PreparedDeepSeekLlmApiExtensions } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
@@ -40,7 +39,6 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-const TEST_USER_ID = '00000000-0000-4000-8000-000000000001' as AnonymousUserId
 let testHome: string
 
 beforeEach(() => {
@@ -82,7 +80,6 @@ function adapterOf(
   return new DeepSeekAdapter({
     options: () => resolveAdapterOptions({ ...rest }),
     resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': apiKey ?? 'k' } }),
-    resolveUserId: () => TEST_USER_ID,
     resolveAttachments: () => attachments,
     ...files === undefined ? {} : { resolveFiles: () => files },
     prepareExtensions: noExtensions,
@@ -212,7 +209,6 @@ describe('request image target', () => {
     const adapter = new DeepSeekAdapter({
       options: () => resolveAdapterOptions({ models: [{ id: 'vision', inputModalities: ['text', 'image'] }] }),
       resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': 'k' } }),
-      resolveUserId: () => TEST_USER_ID,
       resolveAttachments: () => attachments,
       resolveImageAccess: (store, ref) => (store === attachments && ref === imageRef
         ? { readonlyPath: '/world/img.png' }
@@ -235,7 +231,6 @@ describe('DeepSeekAdapter against a mock server', () => {
     const adapter = new DeepSeekAdapter({
       options: () => resolveAdapterOptions({ baseURL: server.url }),
       resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': 'k' } }),
-      resolveUserId: () => TEST_USER_ID,
       prepareExtensions: prepareExtensions as never,
     })
 
@@ -250,7 +245,6 @@ describe('DeepSeekAdapter against a mock server', () => {
     const base = {
       options: () => resolveAdapterOptions({ baseURL: server.url }),
       resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': 'k' } }),
-      resolveUserId: () => TEST_USER_ID,
     }
     const failed = new DeepSeekAdapter({
       ...base,
@@ -279,7 +273,6 @@ describe('DeepSeekAdapter against a mock server', () => {
     const adapter = new DeepSeekAdapter({
       options: () => resolveAdapterOptions({ baseURL: server.url }),
       resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': 'k' } }),
-      resolveUserId: () => TEST_USER_ID,
       prepareExtensions: ((request: { signal: AbortSignal }) => {
         signalSeen = request.signal
         started.resolve(undefined)
@@ -344,7 +337,6 @@ describe('DeepSeekAdapter against a mock server', () => {
     const adapter = new DeepSeekAdapter({
       options: () => resolveAdapterOptions({ baseURL: server.url }),
       resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': 'k' } }),
-      resolveUserId: () => TEST_USER_ID,
       prepareExtensions: () => Promise.resolve({ fields: { dsh_test: 1 }, accept: async () => { accept() } }) as never,
     })
     const request = { provider: 'deepseek-official', model: 'm', messages: [] }
@@ -362,7 +354,6 @@ describe('DeepSeekAdapter against a mock server', () => {
     const base = {
       options: () => resolveAdapterOptions({ baseURL: server.url }),
       resolveAuth: () => Promise.resolve({ headers: { 'x-api-key': 'k' } }),
-      resolveUserId: () => TEST_USER_ID,
       prepareExtensions: () => Promise.resolve({
         fields: { dsh_test: 1 },
         accept: () => Promise.reject(failure),
@@ -400,7 +391,7 @@ describe('DeepSeekAdapter against a mock server', () => {
     })
     // App attribution and DeepSeek request identity are independent wire facts.
     expect(server.headers[0]?.['user-agent']).toBe(userAgent())
-    expect(server.headers[0]?.['x-deepseek-harness-user-id']).toBe(getOrCreateAnonymousUserId())
+    expect(server.headers[0]).not.toHaveProperty('x-deepseek-harness-user-id')
     expect(server.headers[0]).not.toHaveProperty('x-deepseek-harness-session-id')
     expect(server.headers[0]).not.toHaveProperty('http-referer')
     expect(server.headers[0]).not.toHaveProperty('x-openrouter-title')
@@ -1174,7 +1165,6 @@ describe('DeepSeekAdapter against a mock server', () => {
       const adapter = new DeepSeekAdapter({
         options: () => resolveAdapterOptions({ baseURL: server.url }),
         resolveAuth,
-        resolveUserId: () => TEST_USER_ID,
         resolveAttachments,
         prepareExtensions: noExtensions,
       })
@@ -1202,7 +1192,6 @@ describe('DeepSeekAdapter against a mock server', () => {
         models: [{ id: 'deepseek-v4-flash-vision-exp', inputModalities: ['text', 'image'] }],
       }),
       resolveAuth,
-      resolveUserId: () => TEST_USER_ID,
       prepareExtensions: noExtensions,
     })
 
@@ -1236,7 +1225,7 @@ describe('DeepSeekAdapter against a mock server', () => {
     expect(kinds).toEqual(['block-start', 'text-delta', 'block-end', 'usage', 'finish'])
   })
 
-  it('forwards the harness user and session ids for host-side trajectory routing', async () => {
+  it('does not transmit Harness identity or Session IDs to the model provider', async () => {
     const server = await mockServer([{ kind: 'sse', events: textEvents }])
     const ctx = await harness(server.url)
 
@@ -1249,8 +1238,8 @@ describe('DeepSeekAdapter against a mock server', () => {
       sessionId: brandString<SessionId>('child-session'),
     })
 
-    expect(server.headers[0]?.['x-deepseek-harness-session-id']).toBe('child-session')
-    expect(server.headers[0]?.['x-deepseek-harness-user-id']).toBe(getOrCreateAnonymousUserId())
+    expect(server.headers[0]).not.toHaveProperty('x-deepseek-harness-session-id')
+    expect(server.headers[0]).not.toHaveProperty('x-deepseek-harness-user-id')
   })
 
   it('marks the auxiliary compaction call on the wire', async () => {
@@ -2379,14 +2368,12 @@ describe('plugin registration and config', () => {
     const server = await mockServer([{ kind: 'sse', events: textEvents }])
     const options = vi.fn(() => resolveAdapterOptions({ baseURL: server.url }))
     const resolveAuth = vi.fn(() => Promise.resolve({ headers: { 'x-api-key': 'per-request-key' } }))
-    const resolveUserId = vi.fn(() => TEST_USER_ID)
-    const adapter = new DeepSeekAdapter({ options, resolveAuth, resolveUserId, prepareExtensions: noExtensions })
+    const adapter = new DeepSeekAdapter({ options, resolveAuth, prepareExtensions: noExtensions })
 
     for await (const _chunk of adapter.stream({ provider: 'deepseek-official', model: 'm', messages: [] })) { /* drain */ }
 
     expect(options).toHaveBeenCalledTimes(1)
     expect(resolveAuth).toHaveBeenCalledTimes(1)
-    expect(resolveUserId).toHaveBeenCalledTimes(1)
     expect(server.headers[0]?.['x-api-key']).toBe('per-request-key')
   })
 
