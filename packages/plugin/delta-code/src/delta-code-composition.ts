@@ -91,7 +91,7 @@ export function mountDeltaCode(ctx: Context, settings: Settings): () => void {
       commandDisposers.clear()
       const stop = (injected as { dispose?: () => Promise<void> } | null)?.dispose
       if (typeof stop === 'function') void Promise.resolve(stop.call(injected)).catch(() => {
-        ctx.logger?.warn?.('dsh-delta-code: subprocess injector disposal failed')
+        ctx.logger?.warn?.('delta-code: subprocess injector disposal failed')
       })
     })
     releases.push(registerGatewayRetryCoordinator(ctx, () => settings.enabled))

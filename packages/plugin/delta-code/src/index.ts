@@ -32,7 +32,7 @@ export function apply(ctx: Context, config?: CodeWorkerConfig): () => void {
       try {
         release = mountDeltaCode(ctx, previousSettings)
       } catch (restoreError) {
-        ctx.logger?.error?.('dsh-delta-code: failed to restore previous configuration after reload: ' +
+        ctx.logger?.error?.('delta-code: failed to restore previous configuration after reload: ' +
           String(restoreError))
         throw new AggregateError([error, restoreError], 'Delta Code reload and rollback both failed')
       }

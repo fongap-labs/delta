@@ -82,7 +82,7 @@ export function registerCodingSkills(ctx: Context): () => void {
     if (!registry || registrations.has(registry) || unsupported.has(registry)) return
     if (typeof registry.registerProvider !== 'function') {
       unsupported.add(registry)
-      ctx.logger?.warn?.('dsh-delta-code: native Skill provider lifecycle unavailable; coding Skills disabled')
+      ctx.logger?.warn?.('delta-code: native Skill provider lifecycle unavailable; coding Skills disabled')
       return
     }
     let isEnabled = true
@@ -94,7 +94,7 @@ export function registerCodingSkills(ctx: Context): () => void {
         return codingProvider(lifecycle, () => isActive && isEnabled)
       })
     } catch (error) {
-      ctx.logger?.warn?.('dsh-delta-code: coding Skill provider registration failed: ' +
+      ctx.logger?.warn?.('delta-code: coding Skill provider registration failed: ' +
         (error instanceof Error ? error.message : String(error)))
       return
     }
@@ -104,7 +104,7 @@ export function registerCodingSkills(ctx: Context): () => void {
       isEnabled = false
       unsupported.add(registry)
       try { control?.invalidate() } catch { /* legacy Host invalidation is optional */ }
-      ctx.logger?.warn?.('dsh-delta-code: coding Skill provider has no disposer; coding Skills disabled')
+      ctx.logger?.warn?.('delta-code: coding Skill provider has no disposer; coding Skills disabled')
       return
     }
     const unregister = dispose
@@ -115,7 +115,7 @@ export function registerCodingSkills(ctx: Context): () => void {
       isEnabled = false
       registrations.delete(registry)
       try { unregister() } catch {
-        ctx.logger?.warn?.('dsh-delta-code: coding Skill provider disposal failed')
+        ctx.logger?.warn?.('delta-code: coding Skill provider disposal failed')
       }
     }
     registrations.set(registry, release)
