@@ -107,6 +107,14 @@ assert.match(portableBuild, /Join-Path \$delta "App\\Delta"/)
 assert.match(portableBuild, /"Delta\/Data\/"/)
 assert.match(portableBuild, /"Delta\/Other\/"/)
 assert.match(portableBuild, /SelectSingleNode\('\/appinfo\/version'\)/)
+assert.match(portableBuild, /sign-windows-binaries\.ps1/)
+assert.equal((portableBuild.match(/Central asset checksum mismatch/g) ?? []).length, 1,
+  'ZIP checksum validation must have exactly one final guard')
+assert.equal((portableBuild.match(/Write-Host "Delta Portable asset:/g) ?? []).length, 1,
+  'ZIP completion should be emitted only once')
+assert.match(JSON.stringify(JSON.parse(text('.github/execution-manifest.json'))), /central-ci-verify\.sh/)
+assert.equal(manifest.builds[0].script, 'packaging/portable/release-build-package.ps1')
+
 assert.match(text('packaging/portable/launcher/src/main.rs'), /root\.join\("App"\)\.join\("Delta"\)\.join\("Delta.exe"\)/)
 
 const privacy = text('apps/desktop/src/privacy-redaction.ts')
