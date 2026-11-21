@@ -15,10 +15,7 @@ import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
 import { ModelsSection } from '../src/client/ModelsSection.tsx'
-import { DeepSeekOnboardingDialog } from '../src/client/DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from '../src/client/WelcomeNotice.tsx'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import * as hostPlugin from '../src/index.ts'
 
 afterEach(() => { vi.unstubAllGlobals() })
@@ -66,12 +63,6 @@ function declare(slots: SlotRegistry): () => void {
   )
 }
 
-/** The official-DeepSeek step's injected automatic-onboarding source. */
-function automaticSource(slots: SlotRegistry): ObservableSnapshot<boolean> {
-  const entry = slots.entries('settings.onboarding').find(candidate => candidate.options.id === 'deepseek-official')!
-  return (entry.inject as () => { hooks: { automatic: ObservableSnapshot<boolean> } })().hooks.automatic
-}
-
 describe('ui-settings-models apply', () => {
   it('declares a live credential-onboarding switch without Host behavior', () => {
     expect(hostPlugin.Config({}).credentialOnboarding.get()).toBe(true)
@@ -80,51 +71,16 @@ describe('ui-settings-models apply', () => {
     hostPlugin.apply(new Context(), hostPlugin.Config({}))
   })
 
-  it('keeps manual credential onboarding available when automatic onboarding is off', async () => {
+  it('exposes Models while leaving official-provider onboarding unregistered', async () => {
     const { ctx, slots } = await bench()
     declare(slots)
     try {
       const plugin = ctx.plugin({ inject: [...inject], apply }, syncedConfig({ credentialOnboarding: false }))
       await plugin.await()
-      expect(slots.entries('settings.onboarding').map(entry => entry.options.id)).toEqual(['welcome-notice', 'deepseek-official'])
-      expect(automaticSource(slots).getSnapshot()).toBe(false)
       expect(slots.entries('settings.section').map(entry => entry.options.id)).toEqual(['models'])
+      expect(slots.entries('settings.onboarding').map(entry => entry.options.id)).toEqual(['welcome-notice'])
       await plugin.dispose()
       expect(slots.entries('settings.onboarding')).toEqual([])
-    } finally {
-      await ctx.fiber.dispose()
-    }
-  })
-
-  it('follows Host edits of the credential-onboarding switch and defaults it when absent', async () => {
-    const { ctx, slots } = await bench()
-    declare(slots)
-    try {
-      const value = createSnapshotStore<boolean | undefined>(undefined)
-      const read = (): boolean | undefined => value.getSnapshot()
-      const ref = { get: read, getSnapshot: read, subscribe: (fn: () => void) => value.subscribe(fn) }
-      await ctx.plugin({ inject: [...inject], apply }, { credentialOnboarding: ref }).await()
-      const source = automaticSource(slots)
-      expect(source.getSnapshot()).toBe(true)
-      const listener = vi.fn()
-      const unsubscribe = source.subscribe(listener)
-      value.set(false)
-      expect(listener).toHaveBeenCalledTimes(1)
-      expect(source.getSnapshot()).toBe(false)
-      unsubscribe()
-    } finally {
-      await ctx.fiber.dispose()
-    }
-  })
-
-  it('leaves automatic onboarding and the welcome notice to the native shell', async () => {
-    vi.stubGlobal('dshDesktop', {})
-    const { ctx, slots } = await bench()
-    declare(slots)
-    try {
-      await ctx.plugin({ inject: [...inject], apply }, syncedConfig({ credentialOnboarding: true })).await()
-      expect(slots.entries('settings.onboarding').map(entry => entry.options.id)).toEqual(['deepseek-official'])
-      expect(automaticSource(slots).getSnapshot()).toBe(false)
     } finally {
       await ctx.fiber.dispose()
     }
@@ -156,20 +112,11 @@ describe('ui-settings-models apply', () => {
     expect(injected.hooks.snapshot).toBe(injected.controller.store)
     expect(typeof injected.operations.writeSettings).toBe('function')
     const onboarding = before.slots.entries('settings.onboarding')
-    expect(onboarding).toHaveLength(2)
+    expect(onboarding).toHaveLength(1)
     expect(onboarding.find(entry => entry.options.id === 'welcome-notice')).toMatchObject({
       component: WelcomeNotice,
       options: { id: 'welcome-notice', order: -100 },
     })
-    const deepSeek = onboarding.find(entry => entry.options.id === 'deepseek-official')!
-    expect(deepSeek.component).toBe(DeepSeekOnboardingDialog)
-    expect(deepSeek.options).toMatchObject({ id: 'deepseek-official', order: 0 })
-    const deepSeekInjected = (
-      deepSeek.inject as unknown as () => import('../src/client/DeepSeekOnboardingDialog.tsx').DeepSeekOnboardingInjected
-    )()
-    expect(deepSeekInjected.hooks.models).toBe(injected.controller.store)
-    expect(typeof deepSeekInjected.operations.storeCredential).toBe('function')
-
     const after = await bench()
     await after.ctx.plugin({ inject: [...inject], apply }, syncedConfig({})).await()
     expect(after.slots.entries('settings.section')).toHaveLength(0)
@@ -288,20 +235,17 @@ describe('pushed invalidations', () => {
     expect(loads).toHaveLength(1)
   })
 
-  it('routes pushed credential invalidation into the shared onboarding join', async () => {
+  it('refreshes loaded Models when credentials change without mounting provider onboarding', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }, syncedConfig({})).await()
-    const entry = b.slots.entries('settings.onboarding')
-      .find(candidate => candidate.options.id === 'deepseek-official')!
-    const injected = (
-      entry.inject as unknown as
-      () => import('../src/client/DeepSeekOnboardingDialog.tsx').DeepSeekOnboardingInjected
-    )()
-    injected.controller.store.update((state) => { state.status = 'ready' })
+    expect(b.slots.entries('settings.onboarding').map(entry => entry.options.id)).toEqual(['welcome-notice'])
+    const injected = (b.slots.entries('settings.section')[0]!.inject as unknown as
+      () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected)()
+    injected.controller.store.update(state => { state.status = 'ready' })
     const load = vi.spyOn(injected.controller, 'load').mockResolvedValue()
-    b.remote.emit('credentials/reference-updated', ['DEEPSEEK_API_KEY'])
-    expect(load).toHaveBeenCalledTimes(1)
+    b.remote.emit('credentials/reference-updated', ['CUSTOM_API_KEY'])
+    expect(load).toHaveBeenCalledOnce()
   })
 
   it('welcome state follows the shared mirror across document commits', async () => {
