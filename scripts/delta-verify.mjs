@@ -16,7 +16,7 @@ for (const path of ['apps/desktop/resources/icon.png', 'apps/desktop/resources/i
 assert.equal(hash('packages/client/ui-brand-official/src/client/assets/delta-logo-256x256.png'),
   hash('branding/delta-logo-256x256.png'))
 assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /delta-brand-logo/)
-assert.match(text('apps/desktop/renderer/welcome.css'), /Delta legacy v0\.0\.1 visual treatment/)
+assert.match(text('apps/desktop/renderer/welcome.css'), /Delta official brand visual treatment/)
 const build = text('apps/desktop/scripts/electron-builder-config.mjs')
 assert.match(build, /productName: 'Delta'/)
 const packagedSmoke = text('apps/desktop/scripts/smoke-packaged-runtime.ts')
