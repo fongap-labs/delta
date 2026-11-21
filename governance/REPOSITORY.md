@@ -23,7 +23,7 @@ delta/
 │   ├── llm/                    # 现有 Harness 模型运行能力
 │   ├── session/                # 现有 Harness 会话能力
 │   └── ...                     # 其他上游工作区，原路径保留
-├── branding/                   # Delta 唯一正式品牌资源目录
+├── resources/                  # Delta 产品级静态资源（品牌母版位于 brand/）
 ├── packaging/                  # 产品专属打包描述和便携资源
 ├── native/                     # 现有原生能力
 ├── vendor/                     # 上游依赖
@@ -40,7 +40,7 @@ delta/
 
 ## 3. 品牌与上游边界
 
-`branding/legacy/` 中的正式品牌资产迁至 `branding/`，不再区分 Legacy；应用、启动页、图标与打包引用同步调整，避免维护多份品牌源文件。Git 历史分支 `legacy/delta-v0.0.1` 仅作为历史参考保留。
+Delta 官方品牌母版唯一维护在 `resources/brand/`，不再区分 Legacy；应用、启动页、图标与打包引用同步调整，避免维护多份品牌源文件。Git 历史分支 `legacy/delta-v0.0.1` 仅作为历史参考保留。
 
 Delta 自研模块使用 Delta 标识；Harness 既有 `dsh`、Cordis、上游包名与插件协议标识按兼容要求保留，不进行无收益的全局重命名。对上游的修改保持最小且可追踪。
 

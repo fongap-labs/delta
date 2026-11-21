@@ -6,7 +6,7 @@ Delta 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 - **应用名称**：Delta。保留上游 `dsh` 命令、Cordis API、插件标识和协议，以避免破坏已有插件。
 - **语言**：产品界面只选择中文、英文；保留原有国际化 API，不进行语言系统重构。
-- **品牌**：原始 Logo 来自 `legacy/v0.0.1` 的 `projects/delta/resources/brand/`，已复制到 `branding/legacy/`，并用于桌面图标、托盘和启动欢迎页。
+- **品牌**：原始 Logo 来自 `legacy/v0.0.1` 的 `projects/delta/resources/brand/`，官方母版现统一保存在 `resources/brand/`，用于生成桌面图标、托盘和启动欢迎页资源。
 - **启动页**：参照旧版品牌配色、图标和视觉层级；账号/API Key 操作保持 Harness 原逻辑。
 - **运行架构**：保持 DeepSeek Harness 的 Electron + Node/TypeScript 运行时，**未迁移**旧版 Tauri/Rust 底座。
 - **打包**：Windows x64 的正式目标为 `Delta-Windows-Portable.zip` 风格的可移动目录：`Delta/Delta.exe`、`Delta/App/Delta/Delta.exe`、`Delta/Data/`、`Delta/Other/AppInfo/appinfo.xml`。中央发布资产名仍为 `delta-windows-x64-portable.zip`。由旧版 Rust launcher 负责启动 Electron 程序，并通过 `DSH_HOME` / `DSH_AGENTS_HOME` 把 Harness 数据重定向到 `Delta/Data`。
