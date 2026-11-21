@@ -14,6 +14,21 @@ Delta Code 是 Delta 自行维护的**可选编程插件**，与 Delta 主程序
 
 独立插件发行前必须完成 Cordis 装载、停用、卸载、主程序与平台回归。只接受新的 `@fongap-labs/delta-code` 包及 `delta-code` 注册 ID；旧插件不再兼容、不迁移、不提供别名，也不自动启用或卸载旧版本。
 
+## 内部构建及装载验证
+
+本插件保持 `private: true`，尚不对外发布；`package.json` 已声明现行 Cordis Bundle 补丁和 Web 客户端脚本，并分别导出 `lib/index.js`、`lib/client.js`。
+
+工作区内编译顺序：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run build:lib:host
+pnpm --filter @fongap-labs/delta-plugin-shared run build
+pnpm --filter @fongap-labs/delta-code run build
+```
+
+`scripts/delta-verify.mjs --ci` 会检查共享库、Host 入口、Client 入口、TypeScript 声明文件，并尝试在 Node 环境导入 Host 入口。构建与导入成功不等于用户 Profile 已安装或启用本插件；运行时安装、停用、卸载以及 Windows 宿主回归仍需独立验收。
+
 ## 唯一插件身份与数据边界
 
 - 包名统一为 `@fongap-labs/delta-code`；Cordis 注册 ID、设置表单、提示区块、日志前缀及 GitHub User-Agent 使用 `delta-code`。
