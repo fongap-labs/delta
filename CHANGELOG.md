@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 将 Delta 品牌母版迁移至 resources/brand，更新资源引用、验收脚本和项目说明，保持图标内容不变。
+
 - 维护: 补充 Delta Code 临时隔离 Profile 中 Bundle 选择、停用、启用和取消选择的验收范围，继续区分模拟包解析与真实 pnpm 安装卸载。
 
 - 维护: 明确 Delta Code 真实 Cordis 工具注册/释放生命周期冒烟的覆盖范围，以及尚未完成的 Profile 安装卸载和 Windows 发行验收。
