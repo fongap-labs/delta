@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-sdk-minimal",
-  "description": "The standalone minimal SDK profile bundle: JSON-RPC, one DeepSeek adapter, persistent shell, and JSONL sessions",
+  "description": "The standalone minimal SDK profile bundle: JSON-RPC, a custom model API, persistent shell, and JSONL sessions",
   "version": "0.2.2-rc.5",
   "publishConfig": {
     "access": "public"
@@ -43,7 +43,6 @@
     "@deepseek-ai/dsh-attachment-local": "workspace:*",
     "@deepseek-ai/dsh-compaction-basic": "workspace:*",
     "@deepseek-ai/dsh-compaction-image-offload": "workspace:*",
-    "@deepseek-ai/dsh-deepseek-llm-api-extensions": "workspace:*",
     "@deepseek-ai/dsh-jobs-local": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-llm-retry": "workspace:*",
@@ -69,7 +68,6 @@
     "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/dsh-working-directory": "workspace:*",
     "@deepseek-ai/dsh-fs-local": "workspace:*",
-    "@deepseek-ai/dsh-deepseek-auth": "workspace:*",
     "@deepseek-ai/dsh-llm-pi-ai": "workspace:*"
   },
   "peerDependencies": {
