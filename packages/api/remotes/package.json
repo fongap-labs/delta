@@ -102,7 +102,6 @@
     "@deepseek-ai/dsh-client-ui-plugin-manager": "workspace:*",
     "@deepseek-ai/dsh-office-kit": "workspace:*",
     "@deepseek-ai/dsh-deepseek-account": "workspace:*",
-    "@deepseek-ai/dsh-client-product-analytics": "workspace:*",
     "@deepseek-ai/dsh-client-ui-session-status": "workspace:*",
     "@deepseek-ai/dsh-agent-team": "workspace:*",
     "@deepseek-ai/dsh-client-ui-trajectory": "workspace:*",
