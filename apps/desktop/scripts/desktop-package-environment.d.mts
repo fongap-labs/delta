@@ -1,6 +1,13 @@
 /** Select local test defaults or platform release settings without changing the caller's environment. */
 
 /**
+ * Select unsigned Windows portable defaults without inheriting release credentials.
+ * @param environment Parent environment, retained for build tools and networking.
+ * @returns Unsigned Delta portable environment with signing and update settings removed.
+ */
+export function localWindowsPortableEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv
+
+/**
  * Select local macOS test defaults without reading dotenv files or inheriting release settings.
  * @param environment Parent environment, retained for build tools and networking.
  * @returns Unsigned build environment with the standard application identifier and no update policy.

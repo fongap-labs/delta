@@ -4,7 +4,7 @@
   "target_repository": "fongap-labs/delta",
   "release_key": "delta",
   "release_name": "Delta",
-  "release_notes": "Delta Windows x64 portable ZIP, based on the pinned DeepSeek Harness runtime.",
+  "release_notes": "Delta v0.1.0 beta Windows x64 portable ZIP. Unsigned application build for testing; bundled Harness runtime keeps its upstream internal version.",
   "license_expression": "Apache-2.0 AND MIT",
   "builds": [
     {
@@ -18,5 +18,8 @@
       "attest_asset": "delta-windows-x64-portable.zip"
     }
   ],
-  "root": "."
+  "root": "",
+  "node_version_file": ".nvmrc",
+  "python_version_file": "",
+  "sbom_asset": "delta-sbom.cdx.json"
 }
