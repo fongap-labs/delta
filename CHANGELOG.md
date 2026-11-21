@@ -4,6 +4,12 @@
 
 - 维护: 增加 Delta Code 与第一方共享包实际离线打包版本闭包的验收说明，区分一方压缩包完整性与完整 Harness 依赖的独立安装要求。
 
+- 维护: 精简上游 Runner 与 Windows 旧工作流测试，保留实际 Node 工具缓存隔离及 Windows PowerShell 优先级只读检查，移除失去调用者的旧归档测试辅助模块。
+
+- 维护: 删除仅依赖已移除 GitHub Actions 工作流的桌面发布、Cloudflare 预览及 macOS 打包测试文件；实际 CI 桥接及执行清单持续由 Action Worker 可信测试包检查。
+
+- 维护: 将上游遗留的 CI 工作流测试由约 1,900 行精简为当前仍有效的 GitLab、bubblewrap 和 Git Hook 六项检查；正式 Actions 桥接合同由 Action Worker 可信测试包维护。
+
 - 维护: 补充 Delta Code 私有插件离线 .tgz 制品的 Host/Client、Cordis、语言资源、依赖协议及私有文件排除验收说明；不发布插件或改变默认装载。
 
 - 维护: 明确 Delta Code 仅中英文资源、默认关闭高权限操作、缺失宿主进程服务时拒绝本机回退，以及 GitHub 明文凭据与跨账号绑定的中央运行时验收。
@@ -55,3 +61,5 @@
 - 修复: 为 Delta 引导仓库补齐安全批准的 Action Worker 中央 CI 通知桥接，继续保持原有受保护分支与合并门禁。
 - 维护: 固定 DeepSeek Harness 初始候选基线，并规定日常上游差异以基线分支为比较起点。
 - 新增: 建立 Delta 第一方插件共享工作区，提供宿主能力校验、配置解析、生命周期、脱敏和路径辅助并同步冻结锁文件。
+
+- 维护: 记录 Delta Code 原生代码编辑工具在隔离 Linux 工作区的真实 dryRun、批量预检、越界与符号链接拒绝、SHA-256 条件写入及有效编辑验收；保持插件私有可选。

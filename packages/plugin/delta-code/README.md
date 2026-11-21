@@ -63,6 +63,18 @@ pnpm --filter @fongap-labs/delta-code run build
 
 该验收局限于**工作区私有包的本地离线链接**，不等同于公开 npm 制品分发、跨机器安装、用户应用热更新或 Windows 桌面发行。实际运行和高权限功能仍需单独验证，插件保持私有且不默认启用。
 
+## 原生代码编辑功能回归
+
+中央 [Action Worker #1955](https://github.com/fongap-labs/action-worker/pull/1955) 已加入通过 Cordis Host 的真实 `code_multi_edit` 调用验收。在独立的临时工作区验证：
+
+- `dryRun` 预演检查目标与当前内容，不得写盘；
+- 一批编辑中出现工作区外路径时，默认预检必须阻止此前合法目标被部分改写；
+- 指向工作区外文件的符号链接必须拒绝，外部文件不能被更改；
+- 过期的 `expectedSha256` 必须拒绝写入，有效的 SHA-256 应允许正常编辑并真实落盘；
+- 编辑完毕释放 Cordis 服务、插件和临时文件，不读取真实用户 Profile，也不调用 Git、外网或凭据。
+
+该测试覆盖 Linux 本地文件路径的实际调用，不代表远程 Host FS 提供者、Windows/macOS 权限策略或完整 Git/LSP/GitHub 功能已验收。默认不自动安装插件，不兼容旧插件身份或历史配置。
+
 ## 私有插件压缩包验收
 
 中央 [Action Worker #1951](https://github.com/fongap-labs/action-worker/pull/1951) 对当前工作区中**已经构建**的 Delta Code 运行本地离线 `pnpm pack`（禁用安装脚本，不发布到任何注册表），并核验实际生成的 `.tgz`：
