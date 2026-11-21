@@ -35,3 +35,13 @@ console.log('Delta branding, packaging contract, locale and baseline assertions 
 
 assert.match(text('packaging/portable/launcher/src/main.rs'), /"DSH_HOME"/)
 assert.match(text('packaging/portable/launcher/src/main.rs'), /"DSH_AGENTS_HOME"/)
+
+const modelAdapter = text('packages/llm/llm-deepseek/src/adapter.ts')
+assert.doesNotMatch(modelAdapter, /x-deepseek-harness-user-id/)
+assert.doesNotMatch(modelAdapter, /x-deepseek-harness-session-id/)
+const basePatch = text('packages/bundle/base/cordis.patch.yml')
+assert.doesNotMatch(basePatch, /^    - id: (session-log-deepseek|session-telemetry-otel|otel)$/m)
+const webPatch = text('packages/bundle/web-app/cordis.patch.yml')
+assert.doesNotMatch(webPatch, /^    - id: (desktop-product-telemetry|product-analytics|session-log-download|ui-settings-session-log)$/m)
+const desktopMain = text('apps/desktop/src/main.ts')
+assert.doesNotMatch(desktopMain, /writeCrashReport|persistCrashReport|productAnalytics\/report|productAnalytics\/watchPolicy|rendererConsole|OperationJournal/)

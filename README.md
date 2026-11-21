@@ -40,3 +40,7 @@ Windows 中央发布入口为 `packaging/portable/release-build.ps1`，接受 `-
 
 Delta 自有部分采用 Apache-2.0；Harness 上游采用 MIT，详见 [UPSTREAM_LICENSE](UPSTREAM_LICENSE)。第三方组件版权与许可参见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
+
+## 隐私约束（Delta）
+
+Delta 默认运行中不装配 Session-log 的 DeepSeek 请求上传扩展、Session ZIP/Markdown 日志导出、OTLP Session/产品遥测或桌面崩溃报告写盘。模型请求不附带 Harness 的匿名用户 UUID 或 Session ID 追踪请求头。基本会话持久化仅服务于本地会话恢复，不属于上传日志。第三方插件和模型服务仍可能按其自身协议处理实际请求内容，应单独审计。

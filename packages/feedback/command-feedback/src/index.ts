@@ -13,7 +13,6 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CommandDefinitionId } from '@deepseek-ai/dsh-commands/types'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import type { Session } from '@deepseek-ai/dsh-session'
-import { getOrCreateAnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   FeedbackCategory,
@@ -68,8 +67,7 @@ export function recordFeedback(session: Session, entry: FeedbackRecord): void {
  * Validate, record, and acknowledge one feedback entry. Returning an error
  * leaves no `feedback/record` event.
  * @param invocation - receiving agent, raw command input, and UI cancellation.
- * @returns an acknowledgement containing the receiving session and anonymous
- * user ids, or a usage error when no feedback text was supplied.
+ * @returns a local-only acknowledgement, or a usage error when no feedback text was supplied.
  */
 function executeFeedbackCommand(invocation: CommandInvocation): CommandResult {
   if (invocation.rawInput.trim().length === 0) {
@@ -78,7 +76,7 @@ function executeFeedbackCommand(invocation: CommandInvocation): CommandResult {
   recordFeedback(invocation.agent.session, { text: invocation.rawInput })
   return {
     kind: 'success',
-    text: `Feedback recorded for session ${invocation.agent.session.id}\nAnonymous user: ${getOrCreateAnonymousUserId()}.`,
+    text: `Feedback recorded locally for session ${invocation.agent.session.id}.`,
   }
 }
 
