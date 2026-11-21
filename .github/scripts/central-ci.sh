@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-TARGET_ROOT="\${1:-}"
+TARGET_ROOT="${1:-}"
 if [[ -z "$TARGET_ROOT" || ! -d "$TARGET_ROOT/.git" ]]; then
   echo "central-ci: checked-out target root required" >&2
   exit 64
