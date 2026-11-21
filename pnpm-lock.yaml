@@ -3007,9 +3007,9 @@ importers:
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
         version: link:../../llm/llm
-      '@deepseek-ai/dsh-llm-deepseek-api-key':
+      '@deepseek-ai/dsh-llm-pi-ai':
         specifier: workspace:*
-        version: link:../../llm/llm-deepseek-api-key
+        version: link:../../llm/llm-pi-ai
       '@deepseek-ai/dsh-llm-retry':
         specifier: workspace:*
         version: link:../../llm/llm-retry
@@ -3155,9 +3155,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-attachment':
         specifier: workspace:*
         version: link:../../client/ui-attachment
-      '@deepseek-ai/dsh-client-ui-brand-official':
-        specifier: workspace:*
-        version: link:../../client/ui-brand-official
       '@deepseek-ai/dsh-client-ui-chat':
         specifier: workspace:*
         version: link:../../client/ui-chat
