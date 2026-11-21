@@ -11,7 +11,7 @@ Delta is a planned desktop-first distribution derived from the pinned `baseline/
 | `main` | Delta application source derived from the accepted baseline (not imported yet) | Governed PRs and Central CI |
 | `legacy/v0.0.1` | Preserved historical source | Do not update |
 
-The current baseline was initially created from the upstream mirror. It is only a **candidate**: build, desktop, plugin, and security compatibility tests have not yet been completed. [`upstream.lock.json`](upstream.lock.json) records the candidate's immutable commit SHA and `verification_status: pending`. **Do not release a Delta product from this metadata-only bootstrap.**
+The current baseline was initially created from the upstream mirror at official commit [`2e39e70496aa02986ca6a820c5d497e816b69d7e`](https://github.com/deepseek-ai/deepseek-harness/commit/2e39e70496aa02986ca6a820c5d497e816b69d7e). This is a **candidate**: build, desktop, plugin and security compatibility tests have not yet been completed. The commit is temporarily pinned by this branch and documented here; the machine-readable `upstream.lock.json` will be introduced with the first governed product/CI migration. **Do not release a Delta product from this metadata-only bootstrap.**
 
 ## Daily upstream comparison — always relative to the baseline
 
@@ -21,7 +21,7 @@ The authoritative daily gap report is **`baseline/deepseek-harness` → `upstrea
 - An empty comparison means no upstream changes **since Delta's accepted baseline**; it does not prove Delta product compatibility.
 - Run comparison as a read-only central Action Worker scheduled operation when implemented. It must not update the baseline, `main`, the lock, tags, or releases.
 - A separate Delta-patch report may later compare `baseline/deepseek-harness` → `main` **after the first product import**. Do not compare these Git histories today: the bootstrap `main` and upstream do not have a common ancestor.
-- The on-repository mirror and the daily comparison scheduler are **not yet enabled**. The scheduling work is tracked in [Action Worker issue #1897](https://github.com/fongap-labs/action-worker/issues/1897).
+- The mirror branch exists, but automatic synchronization and the daily comparison scheduler are **not yet enabled**. The scheduling work is tracked in [Action Worker issue #1897](https://github.com/fongap-labs/action-worker/issues/1897).
 
 For a local read-only check of the upstream gap after fetching both refs:
 
