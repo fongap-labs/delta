@@ -1,0 +1,38 @@
+# Delta Code bundle patch
+#
+# 该文件是 dsh.bundle.patch 层：通过 `dsh plugin --profile <name> add` 安装后，
+# The plugin manager adds delta-code to dsh.profile.bundles at profile startup.
+# 合并本 patch（一条 insert 行）。
+- insert:
+    - id: delta-code
+      name: '@fongap-labs/delta-code'
+      config:
+        enabled: true
+        autoRouting: true
+        # 当 ctx.workingDirectory 不可用时回退到此绝对路径；留空表示用 process.cwd()。
+        workspaceRoot: ''
+        git:
+          enabled: true
+          command: 'git'
+        # GitHub accounts are configured in the local user profile, not in this bundle.
+        github:
+          enabled: true
+          allowWrites: false
+          accounts: []
+        lsp:
+          servers:
+            - language: typescript
+              command: 'typescript-language-server'
+              args: ['--stdio']
+            - language: javascript
+              command: 'typescript-language-server'
+              args: ['--stdio']
+            - language: python
+              command: 'pyright-langserver'
+              args: ['--stdio']
+            - language: rust
+              command: 'rust-analyzer'
+              args: ['--stdio']
+            - language: go
+              command: 'gopls'
+              args: ['serve']
