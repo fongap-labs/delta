@@ -114,6 +114,9 @@ assert.equal((portableBuild.match(/Write-Host "Delta Portable asset:/g) ?? []).l
   'ZIP completion should be emitted only once')
 assert.match(JSON.stringify(JSON.parse(text('.github/execution-manifest.json'))), /central-ci-verify\.sh/)
 assert.equal(manifest.builds[0].script, 'packaging/portable/release-build-package.ps1')
+assert.match(text('.github/scripts/central-ci-verify.sh'), /node scripts\\/delta-verify\\.mjs/)
+assert.match(text('packaging/portable/release-build-package.ps1'), /build-portable-package\\.ps1/)
+
 
 assert.match(text('packaging/portable/launcher/src/main.rs'), /root\.join\("App"\)\.join\("Delta"\)\.join\("Delta.exe"\)/)
 
