@@ -77,6 +77,19 @@ pnpm --filter @fongap-labs/delta-code run build
 
 命令通过宿主已有的 subprocess 服务执行；宿主服务缺失或不可用时拒绝执行，**不回退到 `node:child_process`**。工作区词法路径检查不构成 OS 级文件隔离或符号链接防护，不能替代宿主授权、安全确认与真实运行时验收。
 
+## 默认权限与语言资源验收
+
+中央 [Action Worker #1950](https://github.com/fongap-labs/action-worker/pull/1950) 将以下安全断言加入 Delta Code 的可信生产构建检查：
+
+- 仅提供 `locale/en.json` 和 `locale/zh.json`，两种语言的插件名称和说明均有效；
+- `normalizeConfig` 默认拒绝命令执行、工作树写入和 GitHub 写入，不自动绑定 GitHub 凭据；
+- 共享宿主 `runCommand` 在没有 `subprocess` 服务时失败，不允许退回本机子进程；
+- 配置拒绝明文 GitHub Token、跨所有者共用凭据引用和跨所有者仓库路由。
+
+这些测试只检查打包后的运行时配置与资源；不会运行有副作用的命令、写入用户配置或发起 GitHub 请求。它们并不能代替真实应用 UI、操作系统授权、Git/LSP/GitHub 写操作及 Windows 发行验收。
+
+**发行阻断条件：** 当前中央 Delta Linux 验收中的 Windows 作业仍为跳过，不得把其视为 Windows 通过。正式交付前需在独立的 Windows 测试环境启动打包后的 Electron 程序，验证中英文 UI 切换、隔离用户 Profile 的安装与移除、Host 授权和拒绝路径，并留存与源码 SHA 对应的制品证据。
+
 ## 维护与治理
 
 `packages/plugin/shared/` 维护可被多个第一方插件复用的能力；具体业务保持在本插件。源码和产品特有约束以 Delta 的 `governance/REPOSITORY.md` 为准；CI、测试、合并与发布一律以 [Action Worker](https://github.com/fongap-labs/action-worker) 中央治理为准。
