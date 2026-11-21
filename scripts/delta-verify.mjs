@@ -28,7 +28,7 @@ assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /startSignIn\(\)/,
 // A clean Delta profile enters the workspace directly; model setup is custom-only.
 assert.match(text('apps/desktop/src/welcome-api.ts'),
   /export function needsWelcome\(_authentication: WelcomeAuthentication\): boolean \{\s*return false\s*\}/)
-assert.match(text('packaging/portable/build-portable.ps1'), /Delta-Windows-Portable\.zip/)
+assert.match(text('packaging/portable/build-portable-package.ps1'), /Delta-Windows-Portable\.zip/)
 const lock = JSON.parse(text('upstream.lock.json'))
 assert.equal(lock.baseline_sha, '2e39e70496aa02986ca6a820c5d497e816b69d7e')
 const manifest = JSON.parse(text('release.manifest.json'))
@@ -102,7 +102,7 @@ assert.match(exportClient, /copyController\.copy\(sessionId\)/)
 assert.doesNotMatch(basePatch, /^    - id: session-log-deepseek$/m)
 
 // Match the historical Windows portable root layout while keeping Electron inside App.
-const portableBuild = text('packaging/portable/build-portable.ps1')
+const portableBuild = text('packaging/portable/build-portable-package.ps1')
 assert.match(portableBuild, /Join-Path \$delta "App\\Delta"/)
 assert.match(portableBuild, /"Delta\/Data\/"/)
 assert.match(portableBuild, /"Delta\/Other\/"/)

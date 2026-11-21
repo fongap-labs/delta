@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 规范 Delta 首次导入的 4 个构建脚本名称及调用路径，同时修复 Windows 便携包验证阶段重复断裂的 PowerShell 语法。
+
 - 新增: 导入固定版本的 DeepSeek Harness 作为 Delta 二次开发基线，沿用旧版 Delta 标识与欢迎界面，并支持 Windows 便携 ZIP 发布结构。
 - 新增: 将客户端可选语言收敛为简体中文和英文，桌面应用继续使用 Electron 和兼容 Harness 的插件接口。
 - 修复: 左侧边栏顶部不再显示上游 Harness 的 Logo 和文字，保留导航与窗口控制。

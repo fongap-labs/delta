@@ -11,7 +11,7 @@
       "id": "windows-portable",
       "runner_profile": "windows-build",
       "target": "x86_64-pc-windows-msvc",
-      "script": "packaging/portable/release-build.ps1",
+      "script": "packaging/portable/release-build-package.ps1",
       "assets": [
         "delta-windows-x64-portable.zip"
       ],

@@ -19,5 +19,5 @@ $artifacts = Join-Path $root 'apps\desktop\.desktop-build\targets\win-x64\unsign
 $matches = @(Get-ChildItem -LiteralPath $artifacts -Recurse -Filter Delta.exe -File |
   Where-Object { Test-Path -LiteralPath (Join-Path $_.DirectoryName 'resources\app.asar') })
 if ($matches.Count -ne 1) { throw "Expected one Delta Electron unpacked directory, got $($matches.Count)" }
-& (Join-Path $PSScriptRoot 'build-portable.ps1') -ElectronAppDir $matches[0].DirectoryName -Version $Version -OutputDir $OutputDir
+& (Join-Path $PSScriptRoot 'build-portable-package.ps1') -ElectronAppDir $matches[0].DirectoryName -Version $Version -OutputDir $OutputDir
 if ($LASTEXITCODE -ne 0) { throw 'Delta Portable ZIP build failed' }

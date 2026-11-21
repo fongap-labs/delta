@@ -8,7 +8,7 @@
           "runner_profile": "linux-standard",
           "command": [
             "bash",
-            "{control_root}/.github/scripts/central-ci.sh",
+            "{control_root}/.github/scripts/central-ci-verify.sh",
             "{target_root}"
           ],
           "timeout_minutes": 60,

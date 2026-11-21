@@ -23,7 +23,7 @@ pnpm run build:desktop
 node scripts/delta-verify.mjs
 ```
 
-Windows 中央发布入口为 `packaging/portable/release-build.ps1`，接受 `-Target`、`-Version`、`-OutputDir`，通过原 Harness 构建获得完整 Electron 目录，再调用 `build-portable.ps1` 组装便携 ZIP。必须在真实的 Windows x64 runner 上验证。
+Windows 中央发布入口为 `packaging/portable/release-build-package.ps1`，接受 `-Target`、`-Version`、`-OutputDir`，通过原 Harness 构建获得完整 Electron 目录，再调用 `build-portable-package.ps1` 组装便携 ZIP。必须在真实的 Windows x64 runner 上验证。
 
 ## 分支规则
 

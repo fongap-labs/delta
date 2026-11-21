@@ -66,7 +66,7 @@ $info.LoadXml("<appinfo><name>Delta Portable</name><version></version><launcher>
 $info.SelectSingleNode('/appinfo/version').InnerText = [string]$Version
 $info.Save((Join-Path $delta "Other\AppInfo\appinfo.xml"))
 
-& (Join-Path $PSScriptRoot "sign-windows.ps1") -Path @((Join-Path $delta "Delta.exe"), (Join-Path $dest "Delta.exe"))
+& (Join-Path $PSScriptRoot "sign-windows-binaries.ps1") -Path @((Join-Path $delta "Delta.exe"), (Join-Path $dest "Delta.exe"))
 if ($LASTEXITCODE -ne 0) { throw "Portable code signing failed" }
 
 $zip = Join-Path $root "releases\Delta-Windows-Portable.zip"
@@ -91,15 +91,7 @@ foreach ($expected in $required) {
 foreach ($directory in $requiredDirectories) {
   if ($directory -notin $normalizedEntries) { throw "ZIP is missing required directory $directory" }
 }
-if (@($normalizedEntries | Where-Object { $_ -match '^Delta/(?:Data|Other)/.*\.exe
-if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw "SHA256 validation failed" }
-New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
-$central = Join-Path $OutputDir "delta-windows-x64-portable.zip"
-Copy-Item -LiteralPath $zip -Destination $central -Force
-if ((Get-FileHash -LiteralPath $central -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw "Central asset checksum mismatch" }
-Write-Host "Delta Portable asset: $central"
-Write-Host "Delta Portable SHA256: $hash"
- }).Count -gt 0) {
+if (@($normalizedEntries | Where-Object { $_ -match '^Delta/(?:Data|Other)/.*\.exe$' }).Count -gt 0) {
   throw "ZIP has unexpected executables outside App/Delta and the root launcher"
 }
 if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw "SHA256 validation failed" }
