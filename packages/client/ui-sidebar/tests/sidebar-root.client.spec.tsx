@@ -47,7 +47,7 @@ function makeHeaderProps(): HeaderLeadingControlsProps {
     usePanels: selector => selector([]), useShortcuts: selector => selector([]),
     useEntryPins: selector => selector([]), useEntryActions: selector => selector(false),
     selectPanel: vi.fn(), setPinned: vi.fn(), toggleSidebar: vi.fn(),
-    startSession: vi.fn(), trackEntryClick: vi.fn(), t,
+    startSession: vi.fn(), t,
   }
 }
 
@@ -61,7 +61,6 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
 } = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
-  const trackEntryClick = vi.fn<SidebarRootComponentProps['trackEntryClick']>()
   let regionOwner: SidebarSectionOwnerProps | undefined
   let regionContext: SidebarSectionHookContext | undefined
   let settingsOwner: SidebarSettingsOwnerProps | undefined
@@ -81,7 +80,7 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
       useShortcuts={selector => selector(shortcuts)}
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
-      startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={trackEntryClick} t={t}
+      startSession={startSession} toggleSidebar={toggleSidebar} t={t}
       renderFactorySlot={() => null}
       renderSlot={((
         key: string,
@@ -115,7 +114,6 @@ function mountShell({ collapsed = false, width = 300, drawer = false, shortcuts 
   return {
     startSession,
     toggleSidebar,
-    trackEntryClick,
     regionOwner: () => {
       if (regionOwner === undefined) throw new Error('region owner not rendered')
       return regionOwner
@@ -186,7 +184,7 @@ describe('SidebarRoot shell', () => {
     expect(Array.from(expanded.querySelectorAll('kbd'), key => key.textContent)).toEqual(['Ctrl', 'N'])
     cleanup()
     document.documentElement.dataset.platform = 'darwin'
-    render(<HeaderLeadingControls toggleSidebar={vi.fn()} startSession={vi.fn()} selectPanel={vi.fn()} trackEntryClick={vi.fn()} t={t}
+    render(<HeaderLeadingControls toggleSidebar={vi.fn()} startSession={vi.fn()} selectPanel={vi.fn()} t={t}
       usePanelInfo={neverHook} useSessions={neverHook} useSessionStatus={neverHook}
       useSessionRetainInfo={neverHook} useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
@@ -198,32 +196,16 @@ describe('SidebarRoot shell', () => {
     fireEvent.focus(button)
     expect(Array.from(screen.getByRole('tooltip').querySelectorAll('kbd'), key => key.textContent)).toEqual(['Ctrl', 'N'])
   })
-  it('routes New Session (capsule + wordmark) and the column toggle', () => {
-    // Occupied brand slots keep New Session even when the build carries a version.
-    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
+  it('starts a new session from the dedicated button and shows no vendor brand', () => {
     const b = mountShell()
-    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
-    expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
-    // Expanded, both the wordmark and the capsule start a session and report a sidebar New Session click first.
-    const starters = screen.getAllByRole('button', { name: 'New session' })
-    expect(starters).toHaveLength(2)
-    for (const button of starters) fireEvent.click(button)
-    expect(b.startSession).toHaveBeenCalledTimes(2)
-    expect(b.trackEntryClick.mock.calls).toEqual([
-      [{ menu_name: 'new_session', position: 'sidebar' }],
-      [{ menu_name: 'new_session', position: 'sidebar' }],
-    ])
-    expect(b.trackEntryClick.mock.invocationCallOrder[0]).toBeLessThan(b.startSession.mock.invocationCallOrder[0]!)
+    expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
+    expect(screen.queryByTestId('custom-brand-name')).toBeNull()
+    const buttons = screen.getAllByRole('button', { name: 'New session' })
+    expect(buttons).toHaveLength(1)
+    fireEvent.click(buttons[0]!)
+    expect(b.startSession).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
-    expect(b.trackEntryClick).toHaveBeenCalledTimes(2)
-  })
-
-  it('reports the collapsed rail New Session as a sidebar click outside the Windows caption', () => {
-    const b = mountShell({ collapsed: true, width: 56 })
-    fireEvent.click(screen.getByRole('button', { name: 'New session' }))
-    expect(b.startSession).toHaveBeenCalledOnce()
-    expect(b.trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'sidebar' })
   })
 
   it('offers no New Session control while the access snapshot excludes session/create', () => {
@@ -239,7 +221,7 @@ describe('SidebarRoot shell', () => {
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
       useRemoteAccess={useRemoteAccess}
-      startSession={startSession} toggleSidebar={toggleSidebar} trackEntryClick={vi.fn()} t={t}
+      startSession={startSession} toggleSidebar={toggleSidebar} t={t}
       renderFactorySlot={() => null}
       renderSlot={((key: string) => {
         if (key === 'sidebar.brand.mark') return <span data-testid="brand-mark">M</span>
@@ -251,139 +233,19 @@ describe('SidebarRoot shell', () => {
     // Neither the brand row nor the dedicated button starts a Session; the brand still renders.
     expect(useRemoteAccess).toHaveBeenCalledWith('session/create')
     expect(screen.queryByRole('button', { name: 'New session' })).toBeNull()
-    expect(screen.getByTestId('brand-mark')).toBeTruthy()
-    expect(screen.getByTestId('brand-name')).toBeTruthy()
+    expect(screen.queryByTestId('brand-mark')).toBeNull()
+    expect(screen.queryByTestId('brand-name')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(toggleSidebar).toHaveBeenCalledOnce()
     expect(startSession).not.toHaveBeenCalled()
   })
 
-  it('renders generic brand fallbacks when no package fills the slots', () => {
-    vi.stubEnv('DSH_CLIENT_COMMIT_HASH', '0123456')
-    vi.stubEnv('DSH_CLIENT_GIT_DIRTY', 'true')
-    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3-rc.4')
-    const { container } = render(<SidebarRoot
-      drawer={false}
-      collapsed={false} width={300}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useEntryPins={selector => selector([])}
-      useEntryActions={selector => selector(false)} setPinned={vi.fn()}
-      useShortcuts={selector => selector([])}
-      useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
-      {...allowAllAccess}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
-      renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
-    expect(container.querySelector('svg')).not.toBeNull()
-  })
-
-  it.each([
-    [{ DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
-    [{ DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3-abcdef0'],
-  ])('omits unavailable build-version suffixes from %j', (environment, expected) => {
-    for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value)
-    render(<SidebarRoot
-      drawer={false}
-      collapsed={false} width={300}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useEntryPins={selector => selector([])}
-      useEntryActions={selector => selector(false)} setPinned={vi.fn()}
-      useShortcuts={selector => selector([])}
-      useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
-      {...allowAllAccess}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
-      renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText(expected)).toBeTruthy()
-  })
-
-  it.each([false, true])('copies the local-build version from the fallback mark and name (darwin=%s)', async (darwin) => {
-    if (darwin) document.documentElement.dataset.platform = 'darwin'
-    vi.stubEnv('DSH_CLIENT_COMMIT_HASH', 'abcdef0')
-    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
-    const writeText = vi.fn<(text: string) => Promise<void>>()
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('denied'))
-      .mockResolvedValueOnce(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    const startSession = vi.fn()
-    const trackEntryClick = vi.fn<SidebarRootComponentProps['trackEntryClick']>()
-    render(<SidebarRoot
-      collapsed={false} width={300} drawer={false}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useEntryPins={selector => selector([])}
-      useEntryActions={selector => selector(false)} setPinned={vi.fn()}
-      useShortcuts={selector => selector([])}
-      useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
-      {...allowAllAccess}
-      startSession={startSession} toggleSidebar={vi.fn()} trackEntryClick={trackEntryClick} t={t}
-      renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-    vi.useFakeTimers()
-
-    const copiedToasts = () => screen.queryAllByRole('alert').map(toast => toast.textContent)
-    await act(async () => { fireEvent.click(screen.getByText('DSH Local Build')) })
-    expect(writeText).toHaveBeenLastCalledWith('1.2.3-abcdef0')
-    expect(copiedToasts()).toEqual(['Version copied'])
-    // The brand itself keeps its title and version.
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('1.2.3-abcdef0')).toBeTruthy()
-    act(() => { vi.advanceTimersByTime(4000) })
-    expect(copiedToasts()).toEqual([])
-
-    // A refused write claims no success.
-    await act(async () => { fireEvent.click(screen.getByText('1.2.3-abcdef0')) })
-    expect(copiedToasts()).toEqual([])
-
-    // The fallback mark copies too, and its click still reaches document.
-    const documentClick = vi.fn()
-    document.addEventListener('click', documentClick)
-    const mark = screen.getByText('DSH Local Build').closest('[aria-hidden]')!.querySelector('svg')!
-    await act(async () => { fireEvent.click(mark) })
-    document.removeEventListener('click', documentClick)
-    expect(documentClick).toHaveBeenCalledOnce()
-    expect(writeText).toHaveBeenCalledTimes(3)
-    expect(copiedToasts()).toEqual(['Version copied'])
-    expect(startSession).not.toHaveBeenCalled()
-    // Copying the version is not a New Session click.
-    expect(trackEntryClick).not.toHaveBeenCalled()
-
-    // The rest of the brand button still starts and reports a session.
-    if (!darwin) {
-      fireEvent.click(screen.getAllByRole('button', { name: 'New session' })[0]!)
-      expect(startSession).toHaveBeenCalledOnce()
-      expect(trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'sidebar' })
-    }
-  })
-
-  it('retains the local-build fallback without complete build metadata', () => {
-    render(<SidebarRoot
-      drawer={false}
-      collapsed={false} width={300}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useEntryPins={selector => selector([])}
-      useEntryActions={selector => selector(false)} setPinned={vi.fn()}
-      useShortcuts={selector => selector([])}
-      useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
-      {...allowAllAccess}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
-      renderFactorySlot={() => null}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+  it('renders no brand mark or text even when slots provide a logo', () => {
+    mountShell()
+    expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
+    expect(screen.queryByTestId('custom-brand-name')).toBeNull()
+    expect(screen.queryByText('DSH Local Build')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeTruthy()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {
@@ -449,7 +311,7 @@ describe('SidebarRoot shell', () => {
       useShortcuts={selector => selector([])}
       useContextMenu={contextMenuHook()} useResource={useResource} useWorkspaces={neverHook}
       {...allowAllAccess}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} trackEntryClick={vi.fn()} t={t}
+      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderFactorySlot={() => null}
       renderSlot={((key: string) => key === 'sidebar.toggle.badge'
         ? <Tooltip label="Update — V1.2.3"><span data-testid="badge" /></Tooltip>
@@ -482,27 +344,22 @@ it('keeps the macOS sidebar toggle in its top strip', () => {
   expect(screen.getAllByRole('button', { name: 'New session' })).toHaveLength(1)
   expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'New session' }))
-  expect(shell.trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'sidebar' })
 })
 
 it('wires the shell.leading controls to the shared sidebar actions', () => {
   document.documentElement.dataset.platform = 'darwin'
   const toggleSidebar = vi.fn()
   const startSession = vi.fn()
-  const trackEntryClick = vi.fn<HeaderLeadingControlsProps['trackEntryClick']>()
   // This occupant only consumes its actions, the global access Hook, and locale, not Session hooks.
-  const props: HeaderLeadingControlsProps = { ...makeHeaderProps(), toggleSidebar, startSession, trackEntryClick,
+  const props: HeaderLeadingControlsProps = { ...makeHeaderProps(), toggleSidebar, startSession,
     useShortcuts: select => select([{ id: 'sidebar.left.toggle' as ShortcutCommandId, label: 'Toggle sidebar', aliases: [], binding: null, modified: false, conflicts: [], issue: null, keys: ['⌘', 'B'], aria: 'Meta+B' }]),
   }
   render(<HeaderLeadingControls {...props} />)
   fireEvent.click(screen.getByRole('button', { name: en['toggle.open'] }))
   expect(toggleSidebar).toHaveBeenCalledOnce()
-  expect(trackEntryClick).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: en['session.new.label'] }))
   expect(startSession).toHaveBeenCalledOnce()
   // The window-chrome New Session control reports a titlebar click before starting the Session.
-  expect(trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'titlebar' })
-  expect(trackEntryClick.mock.invocationCallOrder[0]).toBeLessThan(startSession.mock.invocationCallOrder[0]!)
   cleanup()
 
   // A page whose access snapshot excludes starting a Session keeps only the sidebar toggle.
@@ -519,28 +376,23 @@ it.each([undefined, 'darwin', 'win32'] as const)('shows the collapsed-header New
   expect(screen.queryByRole('button', { name: en['session.new.label'] }) !== null).toBe(platform !== undefined)
 })
 
-describe('Windows caption New Session analytics', () => {
+describe('Windows caption New Session controls', () => {
   afterEach(() => { document.documentElement.removeAttribute('data-windows-titlebar') })
 
-  it('reports the collapsed caption New Session as a titlebar click', () => {
+  it('starts a session in the collapsed Windows caption', () => {
     document.documentElement.setAttribute('data-windows-titlebar', '')
     const b = mountShell({ collapsed: true, width: 0 })
     fireEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(b.startSession).toHaveBeenCalledOnce()
-    expect(b.trackEntryClick).toHaveBeenCalledExactlyOnceWith({ menu_name: 'new_session', position: 'titlebar' })
   })
 
-  it('reports the expanded brand and New Session button as sidebar clicks', () => {
+  it('has exactly one dedicated New Session control when expanded', () => {
     document.documentElement.setAttribute('data-windows-titlebar', '')
     const b = mountShell()
-    const starters = screen.getAllByRole('button', { name: 'New session' })
-    expect(starters).toHaveLength(2)
-    for (const button of starters) fireEvent.click(button)
-    expect(b.startSession).toHaveBeenCalledTimes(2)
-    expect(b.trackEntryClick.mock.calls).toEqual([
-      [{ menu_name: 'new_session', position: 'sidebar' }],
-      [{ menu_name: 'new_session', position: 'sidebar' }],
-    ])
+    const controls = screen.getAllByRole('button', { name: 'New session' })
+    expect(controls).toHaveLength(1)
+    fireEvent.click(controls[0]!)
+    expect(b.startSession).toHaveBeenCalledOnce()
   })
 })
 
