@@ -25,6 +25,9 @@ assert.match(locale, /LOCALE_IDS = \['zh', 'en'\]/)
 assert.match(text('apps/desktop/src/locale.ts'), /const dictionaries = \{ en, zh \}/)
 assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /startSignIn\(\)/,
   'Must retain the Harness sign-in flow')
+// A clean Delta profile enters the workspace directly; model setup is custom-only.
+assert.match(text('apps/desktop/src/welcome-api.ts'),
+  /export function needsWelcome\(_authentication: WelcomeAuthentication\): boolean \{\s*return false\s*\}/)
 assert.match(text('packaging/portable/build-portable.ps1'), /Delta-Windows-Portable\.zip/)
 const lock = JSON.parse(text('upstream.lock.json'))
 assert.equal(lock.baseline_sha, '2e39e70496aa02986ca6a820c5d497e816b69d7e')
