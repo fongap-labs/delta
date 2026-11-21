@@ -17,7 +17,7 @@ delta/
 │   │   └── framework/          # 自有功能模块（按需落地）
 │   ├── plugin/                 # Delta 第一方插件区
 │   │   ├── shared/             # 从第一阶段建立的共享包
-│   │   ├── delta-code/         # 原 dsh-delta-code（迁移目标）
+│   │   ├── delta-code/         # Delta Code 第一方可选插件
 │   │   └── delta-*/            # 后续插件
 │   ├── core/                   # 现有 Harness 核心
 │   ├── llm/                    # 现有 Harness 模型运行能力
@@ -49,10 +49,11 @@ Delta 自研模块使用 Delta 标识；Harness 既有 `dsh`、Cordis、上游�
 必须先建立 `packages/plugin/shared/`，再迁移第一方插件。共享库建议命名 `@fongap-labs/delta-plugin-shared`，提供公共宿主访问辅助、配置解析、生命周期处理、错误分类、脱敏与兼容检查，但不建立新的权限决策中心、插件管理器或业务服务。
 
 - 每个插件一个独立 workspace package，包名建议为 `@fongap-labs/delta-<capability>`，例如 `@fongap-labs/delta-code`。
-- `dsh-delta-code` 迁移为 `packages/plugin/delta-code/`；保留 `dsh.bundle` 等 Harness 协议字段和既有 `code_*` 工具调用接口。
+- `packages/plugin/delta-code/` 使用唯一包名 `@fongap-labs/delta-code`、唯一 Cordis ID `delta-code`；保留宿主所需 `dsh.bundle` 协议字段与当前 `code_*` 工具接口，不为历史插件提供别名或适配器。
 - 插件可以依赖共享模块；共享模块不能反向依赖插件，插件之间原则上不直接依赖。
 - 插件按需安装或启用，不默认将全部可选插件装进主程序；同仓不等于强制同版本或同步发行。
-- 共享包变化应验证受影响插件；插件迁移须核对旧安装配置、Cordis ID、构建闭包、权限与版本兼容，避免双重注册。
+- 共享包变化应验证受影响插件；新插件必须核对构建闭包、权限、当前 Cordis 装载和独立版本，不承担旧插件包名、注册 ID、旧工作树目录或旧配置迁移。
+- 不自动清理、重写或迁移用户磁盘上的旧插件数据；新插件仅管理 `.delta-code/worktrees/`，旧目录不属于其管理范围。Harness 宿主与上游协议兼容不等于支持旧 Delta Code 插件。
 - 可外置插件测试由 Action Worker `tests/packs/delta/` 管理。未经中央例外，不在插件目录新增本地测试文件或 CI 执行器。
 
 ## 5. 分支、基线与提交历史
