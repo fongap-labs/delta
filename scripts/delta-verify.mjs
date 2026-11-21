@@ -19,6 +19,13 @@ assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /delta-brand-logo/
 assert.match(text('apps/desktop/renderer/welcome.css'), /Delta legacy v0\.0\.1 visual treatment/)
 const build = text('apps/desktop/scripts/electron-builder-config.mjs')
 assert.match(build, /productName: 'Delta'/)
+const packagedSmoke = text('apps/desktop/scripts/smoke-packaged-runtime.ts')
+assert.match(packagedSmoke, /join\(application, 'Delta\\.exe'\)/)
+assert.match(packagedSmoke, /'Delta\\.app'/)
+assert.match(packagedSmoke, /'MacOS', 'Delta'/)
+assert.doesNotMatch(packagedSmoke, /DeepSeek Harness/)
+assert.doesNotMatch(text('apps/desktop/scripts/package-target.ts'), /'DeepSeek Harness\\.app'/)
+
 assert.match(build, /CFBundleLocalizations: \['en', 'zh_CN'\]/)
 assert.match(build, /schemes: \['dsh'\]/, 'Preserve the Harness protocol')
 const locale = text('packages/client/locale/src/locale-settings.ts')
