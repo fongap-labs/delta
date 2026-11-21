@@ -8,13 +8,13 @@ const root = resolve(import.meta.dirname, '..')
 const read = path => readFileSync(resolve(root, path))
 const text = path => read(path).toString('utf8')
 const hash = path => createHash('sha256').update(read(path)).digest('hex')
-const asset = 'branding/delta-logo-512x512.png'
+const asset = 'resources/brand/delta-logo-512x512.png'
 for (const path of ['apps/desktop/resources/icon.png', 'apps/desktop/resources/icon-windows.png',
   'apps/desktop/resources/icon-macos.png', 'apps/desktop/renderer/assets/delta-logo-512x512.png']) {
   assert.equal(hash(path), hash(asset), 'brand drift: ' + path)
 }
 assert.equal(hash('packages/client/ui-brand-official/src/client/assets/delta-logo-256x256.png'),
-  hash('branding/delta-logo-256x256.png'))
+  hash('resources/brand/delta-logo-256x256.png'))
 assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /delta-brand-logo/)
 assert.match(text('apps/desktop/renderer/welcome.css'), /Delta official brand visual treatment/)
 const build = text('apps/desktop/scripts/electron-builder-config.mjs')
