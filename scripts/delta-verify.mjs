@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
@@ -112,9 +113,10 @@ assert.equal((portableBuild.match(/Central asset checksum mismatch/g) ?? []).len
   'ZIP checksum validation must have exactly one final guard')
 assert.equal((portableBuild.match(/Write-Host "Delta Portable asset:/g) ?? []).length, 1,
   'ZIP completion should be emitted only once')
-assert.match(JSON.stringify(JSON.parse(text('.github/execution-manifest.json'))), /central-ci-verify\.sh/)
+const ciCommand = JSON.parse(text('.github/execution-manifest.json')).operations.ci.jobs[0].command
+assert.deepEqual(ciCommand, ['node', '{target_root}/scripts/delta-verify.mjs', '--ci'])
 assert.equal(manifest.builds[0].script, 'packaging/portable/release-build-package.ps1')
-assert.match(text('.github/scripts/central-ci-verify.sh'), /node scripts\/delta-verify\.mjs/)
+assert.match(text('scripts/delta-verify.mjs'), /build:desktop/)
 assert.match(text('packaging/portable/release-build-package.ps1'), /build-portable-package\.ps1/)
 
 assert.match(text('packaging/portable/launcher/src/main.rs'), /root\.join\("App"\)\.join\("Delta"\)\.join\("Delta.exe"\)/)
@@ -164,3 +166,15 @@ const accountController = text('packages/client/ui-account-notifications/src/cli
 assert.doesNotMatch(accountController, /reportEvent|ctaClicked|requestNotificationEvent|sendNotificationEvent/)
 assert.doesNotMatch(text('packages/llm/llm-deepseek/src/adapter.ts'), /x-deepseek-harness-(user-id|session-id)/)
 assert.doesNotMatch(text('apps/desktop/src/main.ts'), /DSH_DESKTOP_UPDATE_JOURNAL_DIR|DesktopUpdateJournal/)
+
+
+// CI invokes the same product verification entry point. Keep the build attached
+// to its package manifest rather than introducing a repository-owned CI launcher.
+if (process.argv.includes('--ci')) {
+  assert.ok(Number(process.versions.node.split('.')[0]) >= 24, 'Node.js 24 or newer is required')
+  for (const args of [['install', '--frozen-lockfile'], ['run', 'build:desktop']]) {
+    const result = spawnSync('pnpm', args, { cwd: root, stdio: 'inherit' })
+    if (result.error) throw result.error
+    assert.equal(result.status, 0, 'pnpm ' + args.join(' ') + ' failed')
+  }
+}
