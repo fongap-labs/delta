@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "source_repository": "deepseek-ai/deepseek-harness",
+  "baseline_branch": "baseline/deepseek-harness",
+  "baseline_sha": "2e39e70496aa02986ca6a820c5d497e816b69d7e",
+  "upstream_mirror": "upstream/deepseek-harness",
+  "legacy_ref": "legacy/v0.0.1",
+  "legacy_sha": "d9eb5531b4b708a96c0874712b3205be29741e73",
+  "note": "Pinned source only. Never update baseline automatically; validate Delta compatibility before promoting."
+}

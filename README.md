@@ -1,58 +1,58 @@
 # Delta
 
-Delta is a planned desktop-first distribution derived from the pinned `baseline/deepseek-harness` source of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The `main` branch currently contains governance bootstrap code, **not a buildable Delta application or an imported Harness-based product tree**.
+Delta 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的桌面应用发行版。当前代码来自固定的 `baseline/deepseek-harness`，在此基础上应用 Delta 品牌与发行约定。
 
-## Branch policy
+## 当前实现范围
 
-| Branch | Purpose | Update policy |
-| --- | --- | --- |
-| `upstream/deepseek-harness` | Byte-preserving mirror of the official `master` history | Upstream synchronization only; never pushes to `main` |
-| `baseline/deepseek-harness` | Pinned, pristine upstream source that Delta product development is based on | Advance only after compatibility review |
-| `main` | Delta application source derived from the accepted baseline (not imported yet) | Governed PRs and Central CI |
-| `legacy/v0.0.1` | Preserved historical source | Do not update |
+- **应用名称**：Delta。保留上游 `dsh` 命令、Cordis API、插件标识和协议，以避免破坏已有插件。
+- **语言**：产品界面只选择中文、英文；保留原有国际化 API，不进行语言系统重构。
+- **品牌**：原始 Logo 来自 `legacy/v0.0.1` 的 `projects/delta/resources/brand/`，已复制到 `branding/legacy/`，并用于桌面图标、托盘和启动欢迎页。
+- **启动页**：参照旧版品牌配色、图标和视觉层级；账号/API Key 操作保持 Harness 原逻辑。
+- **运行架构**：保持 DeepSeek Harness 的 Electron + Node/TypeScript 运行时，**未迁移**旧版 Tauri/Rust 底座。
+- **打包**：Windows x64 的正式目标为 `Delta-Windows-Portable.zip` 风格的可移动目录：`Delta/Delta.exe`、`Delta/App/Delta/Delta.exe`、`Delta/Data/`、`Delta/Other/AppInfo/appinfo.xml`。中央发布资产名仍为 `delta-windows-x64-portable.zip`。由旧版 Rust launcher 负责启动 Electron 程序，并通过 `DSH_HOME` / `DSH_AGENTS_HOME` 把 Harness 数据重定向到 `Delta/Data`。
 
-The current baseline was initially created from the upstream mirror at official commit [`2e39e70496aa02986ca6a820c5d497e816b69d7e`](https://github.com/deepseek-ai/deepseek-harness/commit/2e39e70496aa02986ca6a820c5d497e816b69d7e). This is a **candidate**: build, desktop, plugin and security compatibility tests have not yet been completed. The commit is temporarily pinned by this branch and documented here; the machine-readable `upstream.lock.json` will be introduced with the first governed product/CI migration. **Do not release a Delta product from this metadata-only bootstrap.**
+**限制**：严格复制旧版 Tauri/Rust 的构建内部机制与保持 Harness 的 Electron 底座两者不能同时成立。这里保留旧版的用户可见便携包结构、启动器、产物命名和校验方式，而不是把 Harness 重写成 Tauri。当前未完成完整 Windows 集成构建、搬迁后运行及插件兼容性验收，禁止当作已验证发布版本。
 
-## Daily upstream comparison — always relative to the baseline
+## 开发和打包
 
-The authoritative daily gap report is **`baseline/deepseek-harness` → `upstream/deepseek-harness`**. Never use `main` as the base for upstream-change detection: Delta's product changes would make that report noisy and misleading. Resolve both branch tips to immutable commit SHAs and verify that the baseline is an ancestor of the upstream mirror; fail closed if the official source rewrites history.
-
-- Report the baseline SHA, mirror SHA, number of upstream commits not yet adopted, changed files, breaking/compatibility-relevant changes, and a comparison link.
-- An empty comparison means no upstream changes **since Delta's accepted baseline**; it does not prove Delta product compatibility.
-- Run comparison as a read-only central Action Worker scheduled operation when implemented. It must not update the baseline, `main`, the lock, tags, or releases.
-- A separate Delta-patch report may later compare `baseline/deepseek-harness` → `main` **after the first product import**. Do not compare these Git histories today: the bootstrap `main` and upstream do not have a common ancestor.
-- The mirror branch exists, but automatic synchronization and the daily comparison scheduler are **not yet enabled**. The scheduling work is tracked in [Action Worker issue #1897](https://github.com/fongap-labs/action-worker/issues/1897).
-
-For a local read-only check of the upstream gap after fetching both refs:
+需要 Node.js >= 24.9.0、pnpm 11.28.5。Windows 便携版还需要 Rust stable 和 Windows 构建工具。
 
 ```sh
-git fetch origin baseline/deepseek-harness upstream/deepseek-harness
-git merge-base --is-ancestor origin/baseline/deepseek-harness origin/upstream/deepseek-harness
-git log --oneline origin/baseline/deepseek-harness..origin/upstream/deepseek-harness
-git diff --stat origin/baseline/deepseek-harness origin/upstream/deepseek-harness
+pnpm install --frozen-lockfile
+pnpm run build:desktop
+node scripts/delta-verify.mjs
 ```
 
-If the ancestry check fails, stop and investigate rather than calculating or promoting a potentially unsafe delta.
+Windows 中央发布入口为 `packaging/portable/release-build-package.ps1`，接受 `-Target`、`-Version`、`-OutputDir`，通过原 Harness 构建获得完整 Electron 目录，再调用 `build-portable-package.ps1` 组装便携 ZIP。必须在真实的 Windows x64 runner 上验证。
 
-## Baseline import and upgrade process
+## 分支规则
 
-1. First initialize Delta product development **from the exact pristine source tree recorded in `baseline/deepseek-harness`**, with Delta-only adjustments isolated wherever possible. Preserve upstream licensing and plugin API contracts. This has **not** happened yet.
-2. The first import must replace the metadata-only CI with real build, desktop and plugin compatibility tests **in the same governed PR**. Avoid mistaking a squash-only source-copy PR for Git ancestry: the existing bootstrap `main` has unrelated history. A one-time ancestry-preserving migration requires its own governance-approved strategy; do not force-push or bypass protected `main`.
-3. For each later upstream update, always compute the change set between the **current accepted baseline SHA** and the desired new commit in `upstream/deepseek-harness`. Never compute upstream changes relative to Delta `main`.
-4. Integrate those upstream changes into a temporary Delta integration branch, resolve Delta-specific changes, then run compatibility, plugin lifecycle, desktop smoke, security and multi-platform tests. Obtain PR governance and acceptance before promotion.
-5. Only after Delta integration succeeds, advance the pristine `baseline/deepseek-harness` to the accepted **official** commit and update `upstream.lock.json` and a baseline tag in a controlled, auditable promotion. The lock and baseline must agree.
-6. Release Delta only from centrally verified `main` source with Main Write Guard provenance.
+| 分支 | 用途 |
+| --- | --- |
+| `upstream/deepseek-harness` | 上游镜像，仅跟踪，不写入 `main` |
+| `baseline/deepseek-harness` | 固定的干净上游代码，日常比对以此为基线 |
+| `main` | Delta 产品代码，需经 Action Worker 统一治理 |
+| `legacy/v0.0.1` | 历史 Delta 版本，仅供品牌和发行约定参考 |
 
-**Automatic upstream synchronization, daily diff reporting, product import and baseline compatibility verification are not yet enabled.** A pinned reference is not equivalent to a validated release.
+上游版本记录见 [upstream.lock.json](upstream.lock.json)。引入新版本前需完成兼容审查，不能由定时任务自动合并。
 
-## Architecture guidelines
+## 开源许可
 
-- Retain upstream Cordis and `dsh` plugin/API contracts; do not mass-rename upstream packages to `delta-*`.
-- Keep branding, desktop experience and application-specific adapter code isolated from upstream packages wherever feasible.
-- Use the existing Electron desktop carrier initially. Changing the carrier requires independently tested plugin and runtime compatibility.
-- Keep central governance, CI orchestration and eventual release authorization in [`fongap-labs/action-worker`](https://github.com/fongap-labs/action-worker), not duplicate heavyweight GitHub workflows in Delta.
-- The current [central CI execution manifest](.github/execution-manifest.json) is a bootstrap-only gate. Before introducing product source, replace this gate with real builds and tests in the **same PR**.
+Delta 自有部分采用 Apache-2.0；Harness 上游采用 MIT，详见 [UPSTREAM_LICENSE](UPSTREAM_LICENSE)。第三方组件版权与许可参见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## Upstream acknowledgment
 
-This project derives from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), licensed under MIT. Preserve upstream license and third-party notices when introducing upstream product files.
+## 隐私约束（Delta）
+
+Delta 默认运行中不装配 Session-log 的 DeepSeek 请求上传扩展、OTLP Session/产品遥测或桌面崩溃报告写盘。模型请求不附带 Harness 的匿名用户 UUID 或 Session ID 追踪请求头。基本会话持久化仅服务于本地会话恢复，不属于上传日志。第三方插件和模型服务仍可能按其自身协议处理实际请求内容，应单独审计。
+
+Delta 保留用户主动触发的 Session ZIP 下载、Markdown 复制以及 `/export` 命令；这些操作由本机 Web/桌面 Host 的同源受保护接口完成，不连接遥测收集端点。Session 日志自动上传和匿名跟踪仍然禁用。
+
+桌面更新操作日志模块已从产品中移除；崩溃、启动和恢复错误在本地显示时先执行凭据、路径、邮箱和 URL 的脱敏处理。正常应用诊断只输出脱敏后的有限长度文本，不收集会话内容。
+
+### 代码层隐私治理
+
+Delta 的第一方遥测、产品行为采集、匿名机器或用户标识、自动 Session 请求日志上传、插件清单自动披露、账号通知事件 POST、崩溃诊断文件及更新操作日志已从产品源码、装配、相关工作区包和锁文件中删除，不再提供这些模块的设置开关或空实现。模型 API 扩展注册明确拒绝 `dsh_session_log` 与 `dsh_plugin_packages` 两种敏感披露字段。
+
+权限最小化原则：用户会话只为本地恢复而存储；用户主动点击时才通过已认证的同源接口导出 ZIP 或复制 Markdown，响应使用 `Cache-Control: no-store`，且不向遥测端点发送。桌面错误提示和本地控制台输出均须脱敏并限制长度，避免输出凭据、用户身份、邮箱、URL、路径和 Session ID。**用户主动导出的原始会话和附件可能包含其自身敏感信息，不能当作脱敏诊断数据转发。**
+
+完全隐私验收仍依赖实际构建后的出站网络审计、插件能力审查和便携数据目录测试；第三方插件及所选模型服务的联网行为不能仅凭移除 Delta 第一方采集代码作出保证。

@@ -7,11 +7,11 @@
           "id": "linux",
           "runner_profile": "linux-standard",
           "command": [
-            "bash",
-            "{control_root}/.github/scripts/central-ci.sh",
-            "{target_root}"
+            "node",
+            "{target_root}/scripts/delta-verify.mjs",
+            "--ci"
           ],
-          "timeout_minutes": 10,
+          "timeout_minutes": 60,
           "capability_requests": [
             "source.read"
           ]
