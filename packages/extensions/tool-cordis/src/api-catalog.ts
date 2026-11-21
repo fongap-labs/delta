@@ -3070,11 +3070,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Absolute command-line overlay files in argv order, read on every composition and applied above profile and home patches.',
         parameters: [],
       },
-      {
-        signature: 'readonly telemetryDisabledEnv: string | undefined',
-        description: 'Launch-time DSH_TELEMETRY_DISABLED value; any non-empty value opts out.',
-        parameters: [],
-      },
     ],
   },
   {

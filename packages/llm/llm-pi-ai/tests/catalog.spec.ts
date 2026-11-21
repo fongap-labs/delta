@@ -7,7 +7,6 @@ const configurations = new WeakMap<Context, Awaited<ReturnType<typeof liveConfig
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import type { Api, Model } from '@earendil-works/pi-ai'
-import { catalogModels, catalogProvider } from '../src/catalog.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { getSupportedThinkingLevels } from '../src/models.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'

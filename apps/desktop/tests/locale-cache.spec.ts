@@ -1,5 +1,4 @@
-import { SHIPPED_LOCALE_IDS } from '../../../scripts/shipped-locales.ts'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished, vi } from 'vitest'
@@ -23,16 +22,17 @@ it('uses the confirmed Chinese language for recovery before Host settings are av
   expect(readDesktopLocaleCache(directory)).toBe('en')
 })
 
-it('uses the confirmed Japanese language for recovery before Host settings are available', () => {
+it('ignores a cached language that Delta does not offer', () => {
   const directory = fixture()
-  writeDesktopLocaleCache(directory, 'ja')
-  const cached = readDesktopLocaleCache(directory)
-  const locale = cached === undefined ? resolveDesktopStartupLocale(null, ['en-US']) : resolveDesktopLocale(cached)
-  expect(locale.id).toBe('ja')
-  expect(locale.messages.getDiagnosticReport).toBe('診断レポートを取得')
+  mkdirSync(join(directory, 'desktop'), { recursive: true })
+  writeFileSync(join(directory, 'desktop', 'locale-cache'), 'ja\n')
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  onTestFinished(() => { warn.mockRestore() })
+  expect(readDesktopLocaleCache(directory)).toBeUndefined()
+  expect(resolveDesktopStartupLocale(null, ['en-US']).id).toBe('en')
 })
 
-it.each(SHIPPED_LOCALE_IDS)('restores the confirmed shipped language %s before Host settings are available', (id) => {
+it.each(['zh-CN', 'en'] as const)('restores the confirmed Delta language %s before Host settings are available', (id) => {
   const directory = fixture()
   const selected = resolveDesktopLocale(id)
   writeDesktopLocaleCache(directory, selected.id)

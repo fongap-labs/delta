@@ -4,12 +4,11 @@ import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
 import { boot, StartupError } from '@deepseek-ai/dsh-app-boot'
 import { formatFatalDiagnostic, MAX_FATAL_DIAGNOSTIC_CHARS } from '../src/fatal-diagnostic.ts'
-import { renderCrashReport } from '../../desktop/src/crash-report.ts'
 
 it.each([
   ['import', 'throw new Error("qualification-import-failure")'],
   ['initialize', 'export function apply() { throw new Error("qualification-initialize-failure", { cause: new Error("qualification-root-cause") }) }'],
-])('retains real plugin %s failure evidence in the Desktop report after Loader disposal', async (stage, source) => {
+])('retains real plugin %s failure evidence in the Host diagnostic after Loader disposal', async (stage, source) => {
   const directory = await mkdtemp(join(tmpdir(), 'desktop-plugin-failure-'))
   onTestFinished(async () => { await rm(directory, { recursive: true, force: true }) })
   await writeFile(join(directory, 'failure.mjs'), source + '\n')
@@ -21,15 +20,10 @@ it.each([
   }, (error: unknown) => error)
   expect(failure).toBeInstanceOf(StartupError)
   const diagnostic = formatFatalDiagnostic(failure)
-  const report = renderCrashReport({ source: 'host', phase: 'startup', error: failure,
-    hostDiagnostic: diagnostic, rendererConsole: [], operationHistoryPlanned: true,
-    time: new Date('2026-10-19T00:00:00Z'),
-    app: { name: 'qualification', version: 'test', platform: 'win32', arch: 'x64', electron: 'test', node: process.version, locale: 'zh-CN' },
-  })
-  expect(report).toContain(`qualification-${stage}-failure`)
-  expect(report).toContain('./failure.mjs')
-  expect(report).toContain('--- startup composition ---')
-  if (stage === 'initialize') expect(report).toContain('qualification-root-cause')
+  expect(diagnostic).toContain(`qualification-${stage}-failure`)
+  expect(diagnostic).toContain('./failure.mjs')
+  expect(diagnostic).toContain('--- startup composition ---')
+  if (stage === 'initialize') expect(diagnostic).toContain('qualification-root-cause')
 })
 
 it('includes non-enumerable startup entries without copying arbitrary startup logger arguments', () => {

@@ -1,18 +1,56 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { collectInstalledUpdateJournals, createInstalledUpdateRun, inspectInstalledUpdateJournals } from '../scripts/installed-update-qualification.ts'
-import { DesktopUpdateJournal } from '../src/update-journal.ts'
+import type { DesktopUpdateState } from '../src/ipc.ts'
 
 const versions = ['0.1.6-alpha.1.20260916.1', '0.1.6-alpha.1.20260916.2'] as const
 const source = { version: '0.1.6-alpha.1', commit: 'a'.repeat(40), dirtyFiles: [' M apps/desktop/example.ts'] }
 interface CollectionReport {
   readonly evidence: unknown
   readonly files: readonly { path: string; sha256: string; bytes: number }[]
+}
+
+/** Test-only JSONL producer for the retained installed-update inspector. */
+class DesktopUpdateJournal {
+  readonly path: string
+  private sequence = 0
+  private previousState: string | undefined
+
+  constructor(directory: string, private readonly version: string) {
+    mkdirSync(directory, { recursive: true })
+    this.path = join(directory, `${Date.now()}-${randomUUID()}.jsonl`)
+    writeFileSync(this.path, '', { flag: 'wx' })
+    this.action('started')
+  }
+
+  action(event: string): void { this.append({ event }) }
+
+  state(state: DesktopUpdateState): void {
+    const fields = {
+      phase: state.phase,
+      ...state.version === undefined ? {} : { targetVersion: state.version },
+      ...state.phase === 'downloading' && state.percent !== undefined ? { percent: Math.floor(state.percent) } : {},
+      ...state.phase === 'error' ? {
+        failedOperation: state.failedOperation,
+        errorCode: state.message?.includes('ERR_CONNECTION_RESET') ? 'ERR_CONNECTION_RESET' : 'UNCLASSIFIED',
+      } : {},
+    }
+    const encoded = JSON.stringify(fields)
+    if (encoded === this.previousState) return
+    this.append({ event: 'state', ...fields })
+    this.previousState = encoded
+  }
+
+  private append(fields: object): void {
+    appendFileSync(this.path, `${JSON.stringify({ schemaVersion: 1, sequence: this.sequence++,
+      time: new Date().toISOString(), pid: process.pid, version: this.version, ...fields })}\n`)
+  }
 }
 
 async function fixture<T>(body: (directory: string) => Promise<T>): Promise<T> {
@@ -76,7 +114,7 @@ describe('installed-update qualification materials', () => {
     })
   })
 
-  it('reads real journal output while keeping observed flow separate from installation and data acceptance', async () => {
+  it('reads representative journal records while keeping observed flow separate from installation and data acceptance', async () => {
     await fixture(async (directory) => {
       const original = new DesktopUpdateJournal(directory, versions[0])
       failedDownload(original)

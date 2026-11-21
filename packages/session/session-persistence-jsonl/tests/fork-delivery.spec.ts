@@ -1,6 +1,6 @@
-/** Fork history retains delivery ownership without requiring a source relationship. */
+/** Fork history round-trips through both storage formats without rewriting the source. */
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { Session, type SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
+import SessionStore, { Session, type SessionId } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -26,19 +26,16 @@ async function fixture(compression: 'none' | 'zstd') {
   return { ctx, persist }
 }
 
-function delivered(session: Session): void {
-  const start = session.append('turn/start', { turn: 1 })
+function completedTurn(session: Session): void {
+  session.append('turn/start', { turn: 1 })
   session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
-  session.append('session-log-deepseek/delivery-accepted', {
-    sessionId: session.id, sessionFormatVersion: 4, throughSeq: start.seq,
-  })
 }
 
-describe.each(['none', 'zstd'] as const)('fork delivery persistence (%s)', (compression) => {
+describe.each(['none', 'zstd'] as const)('fork history persistence (%s)', (compression) => {
   it.each(['ordinary', 'nested', 'subagent', 'legacy'] as const)('restores %s fork history through read and write access', async (kind) => {
     const { ctx, persist } = await fixture(compression)
     const source = ctx.sessions.create(brandString<SessionId>('source'))
-    delivered(source)
+    completedTurn(source)
     const ordinary = ctx.sessions.fork(source, undefined, brandString<SessionId>('ordinary'))
     const child = kind === 'ordinary' ? ordinary : kind === 'nested'
       ? ctx.sessions.fork(ordinary, undefined, brandString<SessionId>('nested'))
@@ -64,24 +61,4 @@ describe.each(['none', 'zstd'] as const)('fork delivery persistence (%s)', (comp
     }
   })
 
-  it.each(['foreign-own', 'invalid-through', 'inherited-through'] as const)('refuses %s delivery without modifying the file', async (damage) => {
-    const { ctx, persist } = await fixture(compression)
-    const source = ctx.sessions.create(brandString<SessionId>('source'))
-    delivered(source)
-    const invalidTarget = damage === 'inherited-through' ? source : ctx.sessions.fork(source, undefined, brandString<SessionId>('child'))
-    invalidTarget.append('session-log-deepseek/delivery-accepted', {
-      sessionId: damage === 'foreign-own' ? source.id : invalidTarget.id,
-      sessionFormatVersion: 4,
-      throughSeq: damage === 'foreign-own' ? SessionSeq(0) : SessionSeq(invalidTarget.seq),
-    })
-    const child = damage === 'inherited-through' ? ctx.sessions.fork(source) : invalidTarget
-    const path = await persist(child)
-    const bytes = await readFile(path)
-    for (const access of ['read', 'write'] as const) {
-      await expect(ctx.sessionPersistence.open(child.id, access)).rejects.toThrow(
-        damage === 'foreign-own' ? 'wrong Session' : 'throughSeq must precede',
-      )
-      expect(await readFile(path)).toEqual(bytes)
-    }
-  })
 })

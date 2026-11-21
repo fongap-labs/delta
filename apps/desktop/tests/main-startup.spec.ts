@@ -160,7 +160,6 @@ const harness = await vi.hoisted(async () => {
       readonly primaryRuntime?: string,
       readonly packageManager?: { pnpm: string; nodeBin: string },
       readonly onPlatformSession?: ConstructorParameters<typeof DesktopHostProcess>[8],
-      readonly onPluginOperation?: ConstructorParameters<typeof DesktopHostProcess>[9],
     ) { hosts.push(this) }
   }
   const app = Object.assign(new EventEmitter(), {
@@ -1339,7 +1338,7 @@ describe('desktop main startup', () => {
     harness.prepared.resolve()
     await harness.hostStarted.promise
     const host = harness.hosts[0]!
-    const failure = new DesktopHostFatalError('test plugin failed', 'missing required services')
+    const failure = new DesktopHostFatalError('test plugin failed')
     host.onFailure!(failure)
     host.ready.reject(failure)
     await host.stopping.promise

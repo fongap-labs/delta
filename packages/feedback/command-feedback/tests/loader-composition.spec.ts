@@ -12,7 +12,6 @@ import type { Agent, AgentStatus } from '@deepseek-ai/dsh-agent'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import SessionStore, { type SessionId } from '@deepseek-ai/dsh-session'
 import * as CommandFeedback from '@deepseek-ai/dsh-command-feedback'
-import { getOrCreateAnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import { unsupportedModel, unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
@@ -97,10 +96,9 @@ describe('/feedback real Loader composition through cordis.yml', () => {
     expect(context.commands.list(owner).map(command => command.name)).toContain('feedback')
 
     const accepted = await context.commands.execute(owner, '/feedback the diff view is unreadable', [], signal)
-    const userId = getOrCreateAnonymousUserId({ env: { DSH_HOME: root } })
     expect(accepted?.result).toEqual({
       kind: 'success',
-      text: `Feedback recorded for session feedback-loader-agent\nAnonymous user: ${userId}.`,
+      text: 'Feedback recorded locally for session feedback-loader-agent.',
     })
     const rejected = await context.commands.execute(owner, '/feedback', [], signal)
     expect(rejected?.result).toEqual({

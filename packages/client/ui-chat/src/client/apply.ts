@@ -269,7 +269,6 @@ export function apply(ctx: Context): void {
         const binding = ctx.sessions.binding(sessionId)
         if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
         const session = binding.session
-        const chat = chatSource(binding)
         return {
           ...nodeSources(binding),
           fileDrag: ctx.fileDrag.actions,

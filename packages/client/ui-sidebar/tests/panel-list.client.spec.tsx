@@ -22,7 +22,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 const ALPHA = 'sidebar-test-alpha' as MainPanelId
 const BETA = 'sidebar-test-beta' as MainPanelId
 const PLUGINS = 'plugins' as MainPanelId
-const SCHEDULES = 'schedules' as MainPanelId
 const runtimes = new Set<SlotTestRuntime>()
 
 afterEach(async () => {
@@ -104,16 +103,6 @@ function ProbeActions({ entries, onOpen, onPinnedChange, onDismiss }: PropsRunti
 /** Requests a panel id that the test unregisters while the menu is open. */
 function StaleOpen({ onOpen }: PropsRuntime<'sidebar.panellist.actions'>) {
   return <button type="button" role="menuitem" onClick={() => { onOpen(ALPHA) }}>Open removed panel</button>
-}
-
-/** Requests the official panels by id, including Plugins, which the menu entries omit. */
-function OfficialOpen({ onOpen }: PropsRuntime<'sidebar.panellist.actions'>) {
-  return (
-    <>
-      <button type="button" role="menuitem" onClick={() => { onOpen(PLUGINS) }}>Open Plugins by id</button>
-      <button type="button" role="menuitem" onClick={() => { onOpen(SCHEDULES) }}>Open Automation by id</button>
-    </>
-  )
 }
 
 async function mountProbeActions(runtime: SlotTestRuntime, id = 'probe', component = ProbeActions) {
