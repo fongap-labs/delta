@@ -29,6 +29,17 @@ pnpm --filter @fongap-labs/delta-code run build
 
 `scripts/delta-verify.mjs --ci` 会检查共享库、Host 入口、Client 入口、TypeScript 声明文件，并尝试在 Node 环境导入 Host 入口。构建与导入成功不等于用户 Profile 已安装或启用本插件；运行时安装、停用、卸载以及 Windows 宿主回归仍需独立验收。
 
+## 运行时装载验收边界
+
+中央 [Action Worker #1947](https://github.com/fongap-labs/action-worker/pull/1947) 新增对**真实 Cordis 服务接口**的生命周期验证；它在编译后创建独立的 Cordis Context、SystemPrompt 与 ToolsService，验证以下行为：
+
+- 插件以 `enabled: false` 装载时不注册任何 Delta 工具。
+- 开启插件且存在 Host ToolsService 时，能注册 `code_multi_edit`。
+- 不提供 Host subprocess 时，`code_git_worktree` 等命令执行类工具不能注册。
+- 停用后工具从原生注册器移除；相同上下文再次启用、停用不遗留旧工具。
+
+该验证**不运行真实用户 Profile，不执行文件写入、Git 或外部请求**。它并不能代替以下后续发行验收：使用独立测试 Profile 执行安装/选择/移除、应用进程真实启动与停机、更新后配置保留、Windows 桌面和便携版安装及完整功能回归。在这些完成前，本包继续保持 `private: true`，不发布、不默认启用。
+
 ## 唯一插件身份与数据边界
 
 - 包名统一为 `@fongap-labs/delta-code`；Cordis 注册 ID、设置表单、提示区块、日志前缀及 GitHub User-Agent 使用 `delta-code`。
