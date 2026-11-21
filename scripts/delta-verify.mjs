@@ -42,7 +42,7 @@ assert.doesNotMatch(modelAdapter, /x-deepseek-harness-session-id/)
 const basePatch = text('packages/bundle/base/cordis.patch.yml')
 assert.doesNotMatch(basePatch, /^    - id: (session-log-deepseek|session-telemetry-otel|otel)$/m)
 const webPatch = text('packages/bundle/web-app/cordis.patch.yml')
-assert.doesNotMatch(webPatch, /^    - id: (desktop-product-telemetry|product-analytics|session-log-download|ui-settings-session-log)$/m)
+assert.doesNotMatch(webPatch, /^    - id: (desktop-product-telemetry|product-analytics|ui-settings-session-log)$/m)
 const desktopMain = text('apps/desktop/src/main.ts')
 assert.doesNotMatch(desktopMain, /writeCrashReport|persistCrashReport|productAnalytics\/report|productAnalytics\/watchPolicy|rendererConsole|OperationJournal/)
 
@@ -60,3 +60,13 @@ for (const path of [
 const inspectorPatch = text('packages/experimental/inspector-profile/cordis.patch.yml')
 assert.doesNotMatch(inspectorPatch, /- id: session-inspector/)
 assert.match(inspectorPatch, /captureFetch: false/)
+
+// ZIP and Markdown are user-initiated local exports, not outbound telemetry.
+assert.match(webPatch, /^    - id: session-log-download$/m)
+const exportHost = text('packages/session-query/session-log-export/src/index.ts')
+const exportClient = text('packages/session-query/session-log-export/src/client/index.ts')
+assert.match(exportHost, /SESSION_LOG_EXPORT_PATH/)
+assert.match(exportHost, /SESSION_MARKDOWN_EXPORT_PATH/)
+assert.match(exportClient, /controller\.download\(sessionId\)/)
+assert.match(exportClient, /copyController\.copy\(sessionId\)/)
+assert.doesNotMatch(basePatch, /^    - id: session-log-deepseek$/m)

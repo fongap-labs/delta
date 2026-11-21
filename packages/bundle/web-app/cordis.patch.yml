@@ -46,7 +46,10 @@
       config:
         maxNoteBytes: 8192
 
-    # Delta: Session-log export routes and /export are not installed.
+    # Delta: user-initiated local ZIP/Markdown exports only; never upload.
+    # The Host handles same-origin authenticated downloads and /export.
+    - id: session-log-download
+      name: '@deepseek-ai/dsh-session-log-export'
 
     # Session-menu application choices over Host resolution on macOS, Windows,
     # and Linux. An empty catalog hides the action. The Host routes and browser
