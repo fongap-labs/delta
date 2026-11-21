@@ -15348,7 +15348,31 @@ importers:
         specifier: workspace:*
         version: link:../../core/system-prompt
 
-  packages/plugin/shared: {}
+
+  packages/plugin/delta-code:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@fongap-labs/delta-plugin-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+
+  packages/plugin/shared:
+    dependencies:
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
 
   packages/ptc-runtime/ptc-runtime:
     devDependencies:

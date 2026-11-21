@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 将 Delta Code 源码迁入主程序与第一方插件共用仓库，调整独立插件包名和共享模块依赖，保留 Harness 装载协议。
+
 - 维护: 将 Delta 官方 Logo 母版无损迁至 branding 根目录，更新品牌清单、欢迎界面注释与一致性校验。
 
 - 维护: 完成一次性受审计的 Delta main 历史迁移；保留全部 Delta 代码和旧主线快照，现有 main 已继承 Harness 固定基线（迁移时 Behind 0 / Ahead 8），并通过 Windows 打包与保护规则恢复验收。
