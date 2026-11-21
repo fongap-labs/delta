@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为 Delta Code 引入只读 Profile 迁移预检，识别旧插件包、旧 Cordis ID 与新插件混用；拒绝自动修改用户配置和凭据。
+
 - 修复: Delta Code 内部插件 ID、设置表单、日志、凭据默认前缀及工作树目录统一采用 delta-code，并保留旧工作树的安全移除兼容。
 
 - 新增: 将 Delta Code 源码迁入主程序与第一方插件共用仓库，调整独立插件包名和共享模块依赖，保留 Harness 装载协议。
