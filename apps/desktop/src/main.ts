@@ -79,6 +79,14 @@ if (process.env.DELTA_PORTABLE === '1') {
 }
 
 let focusPrimaryWindow = (): void => {}
+/** Avoid logging exception objects, arbitrary URLs, local paths or credentials. */
+function logPrivateError(...items: unknown[]): void {
+  console.error(...items.map(value => desktopErrorState(value).message))
+}
+function logPrivateWarning(...items: unknown[]): void {
+  console.warn(...items.map(value => desktopErrorState(value).message))
+}
+
 let stopForRecovery = async (): Promise<void> => {}
 let shuttingDown = false
 /**
@@ -102,7 +110,7 @@ const recovery = new DesktopFatalRecovery({
   disablePlugins: async () => {
     const manager = new DesktopProjectManager(resolveDesktopPaths(), runtimeResources())
     const backupPath = await manager.disableAllPlugins()
-    console.info('Desktop profile recovery completed:', { profilePatchBackup: backupPath ?? null, homePatch: 'unchanged' })
+    console.info('Delta desktop profile recovery completed')
   },
   exit: () => { quitWithoutConfirmation() },
   restart: () => { app.relaunch(); quitWithoutConfirmation() },
@@ -110,10 +118,10 @@ const recovery = new DesktopFatalRecovery({
 
 /** Fatal errors stay in the native dialog, with no crash report generation or upload. */
 function reportFatal(error: unknown, source: 'host' | 'web-boot' | 'renderer' | 'main'): void {
-  console.error('Delta desktop fatal error:', desktopErrorState(error).message)
+  logPrivateError('Delta desktop fatal error:', desktopErrorState(error).message)
   if (shuttingDown) return
   void recovery.report(error, source).catch((failure: unknown) => {
-    console.error(failure)
+    logPrivateError(failure)
     shuttingDown = true
     app.exit(1)
   })
@@ -328,7 +336,7 @@ async function main(): Promise<void> {
   const loginShell = readDesktopLoginShellEnvironment(process.env, resolveDesktopLoginShellConfig(process.env), {
     signal: loginShellRead.signal,
   }).then((result) => {
-    for (const failure of result.failures) console.warn(`desktop login shell: ${failure.shell} failed (${failure.reason})`)
+    for (const failure of result.failures) logPrivateWarning(`desktop login shell: ${failure.shell} failed (${failure.reason})`)
     return result.environment
   })
   let hostEnvironment: NodeJS.ProcessEnv = process.env
@@ -466,7 +474,7 @@ async function main(): Promise<void> {
         hostCookie = cookie
         hostUrl = ready.url
         void removeLegacyHostCookies(session.defaultSession.cookies, ready.url)
-          .catch((error: unknown) => { console.error('desktop: legacy Host cookie cleanup failed', error) })
+          .catch((error: unknown) => { logPrivateError('desktop: legacy Host cookie cleanup failed', error) })
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')
         injections = ready.injections
         welcomeBackend = connectDesktopWelcome(ready.url, cookie)
@@ -569,7 +577,7 @@ async function main(): Promise<void> {
           if (workspaceRecovery === recovery) workspaceRecovery = undefined
         })
       }
-      void showUpdateFailure(state).catch((error: unknown) => { console.error(error) })
+      void showUpdateFailure(state).catch((error: unknown) => { logPrivateError(error) })
     }
     return state
   }
@@ -635,7 +643,7 @@ async function main(): Promise<void> {
         mandatoryUI?.preparingRestart(stillActive)
         // The embedded Platform document holds credentials issued by the Host that is about to stop.
         await platformView.closeAndWait()
-        await disposeFileDrag().catch((error: unknown) => { console.error(error) })
+        await disposeFileDrag().catch((error: unknown) => { logPrivateError(error) })
         requireCleanStop = true
         updateStopFailure = undefined
         await backend.stop()
@@ -645,7 +653,7 @@ async function main(): Promise<void> {
         if (stopFailure !== undefined) throw new DesktopUpdatePreparationError('stop-failed', locale.messages.updateStopFailed, stopFailure.message)
         shellInstallerOwnsQuit = true
       } catch (error) {
-        if (!updateStoppedHost) await host.updateTasks('unlock').catch((unlockError: unknown) => { console.error(unlockError) })
+        if (!updateStoppedHost) await host.updateTasks('unlock').catch((unlockError: unknown) => { logPrivateError(unlockError) })
         throw error
       } finally {
         requireCleanStop = false
@@ -819,10 +827,10 @@ async function main(): Promise<void> {
           throw error
         }
       })
-      if (kind === 'applied') void mandatoryPolicy?.check('channel-change', true).catch((error: unknown) => { console.error(error) })
+      if (kind === 'applied') void mandatoryPolicy?.check('channel-change', true).catch((error: unknown) => { logPrivateError(error) })
       return { kind, state: publishChannel({ channel: updates.selectedChannel, packagedChannel, changing: --channelRequests > 0 }) }
     } catch (error) {
-      console.error('desktop update: channel change failed', error)
+      logPrivateError('desktop update: channel change failed', error)
       const state = publishChannel({ ...channelState, changing: --channelRequests > 0,
         ...(updates.configurationFailure === 'cleanup' ? { error: 'cleanup' as const } : {}) })
       return { kind: 'failed', state, reason: channelSaveFailure(error) }
@@ -880,7 +888,7 @@ async function main(): Promise<void> {
                 publishChannel({ channel: updates.selectedChannel, packagedChannel, changing: true })
                 return true
               } catch (error) {
-                console.error('desktop update: settings reload failed', error)
+                logPrivateError('desktop update: settings reload failed', error)
                 publishChannel({ ...channelState,
                   ...(updates.configurationFailure === 'cleanup' ? { error: 'cleanup' as const } : {}) })
                 return false
@@ -915,9 +923,9 @@ async function main(): Promise<void> {
         detail: updates.state.phase === 'downloading' ? locale.messages.updateDownloadDetail : '', buttons: [locale.messages.updateClose], cancelId: 0,
       }
       return ordinaryMessageBox(options).then(() => {}).catch(async (error: unknown) => {
-        console.error(error)
+        logPrivateError(error)
         try { await dialog.showMessageBox(options) }
-        catch (nativeError) { console.error(nativeError) }
+        catch (nativeError) { logPrivateError(nativeError) }
       })
     }
     let failedOperation: 'check' | 'download' | 'install' = 'check'
@@ -941,7 +949,7 @@ async function main(): Promise<void> {
           progress = parent === undefined ? Promise.resolve() : updateDialog.show(parent, { type: 'info', title: locale.messages.updateCheckTitle,
             message: locale.messages.updateChecking, buttons: [locale.messages.later], cancelId: 0, signal: controller.signal })
           if (!joinedPolicyAuthentication) {
-            void checkPolicyManually('deferred').catch((error: unknown) => { console.error(error) })
+            void checkPolicyManually('deferred').catch((error: unknown) => { logPrivateError(error) })
           }
           state = await updateSchedule.check(true)
         }
@@ -995,7 +1003,7 @@ async function main(): Promise<void> {
     if (!policyAuthenticationQueued || promptOperation !== undefined || authenticationOperation !== undefined
       || isMandatory() || quitting) return
     policyAuthenticationQueued = false
-    void authenticatePolicy().catch((error: unknown) => { console.error(error) })
+    void authenticatePolicy().catch((error: unknown) => { logPrivateError(error) })
   }
   const queuePolicyAuthentication = (): void => {
     if (!desktopSettings.updates.allowTestAuthPopupWindow) return
@@ -1037,8 +1045,8 @@ async function main(): Promise<void> {
   }
 
   const automaticCheck = (): void => {
-    if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
-    if (!quitting) void updateSchedule.check().catch((error: unknown) => { console.error(error) })
+    if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { logPrivateError(error) })
+    if (!quitting) void updateSchedule.check().catch((error: unknown) => { logPrivateError(error) })
   }
   powerMonitor.on('resume', automaticCheck)
   app.on('will-quit', () => {
@@ -1097,7 +1105,7 @@ async function main(): Promise<void> {
     // message box, so the shell shows its own dimmed dialog instead.
     process.platform === 'win32'
       ? { label: currentDesktopLocale().messages.aboutMenu,
-        click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
+        click: () => { void showAbout().catch((error: unknown) => { logPrivateError(error) }) } }
       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
     { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
@@ -1138,7 +1146,7 @@ async function main(): Promise<void> {
     try {
       tray = new DesktopTray({ iconPath: trayIconPath, locale: currentDesktopLocale,
         open: () => { focusPrimaryWindow() }, quit: () => { app.quit() } })
-    } catch (error) { console.warn('desktop tray: unavailable', error) }
+    } catch (error) { logPrivateWarning('desktop tray: unavailable', error) }
   }
   const backgroundNotice = process.platform === 'win32'
     ? new DesktopBackgroundNotice({ markerPath: join(app.getPath('userData'), 'background-close-confirmed'),
@@ -1399,7 +1407,7 @@ async function main(): Promise<void> {
       backend.close(),
       platformView.dispose(),
       disposeFileDrag(),
-    ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))
+    ].map(cleanup => cleanup.catch((error: unknown) => { logPrivateError(error) })))
       .then(() => { app.quit() })
   }
   app.on('before-quit', (event) => {
@@ -1411,7 +1419,7 @@ async function main(): Promise<void> {
       updateDialog.dispose()
       mandatoryUI?.dispose()
       // Installation preparation already awaited Platform storage cleanup.
-      void platformView.dispose().catch((error: unknown) => { console.error(error) })
+      void platformView.dispose().catch((error: unknown) => { logPrivateError(error) })
       return
     }
     if (quitting) return
@@ -1422,7 +1430,7 @@ async function main(): Promise<void> {
       if (approved) { finishQuit(); return }
       // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
       if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
-    }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
+    }).catch((error: unknown) => { logPrivateError(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 
   mainWindow = createMainWindow()
@@ -1450,7 +1458,7 @@ async function main(): Promise<void> {
         if (!wasBlocking) updateDialog.cancel()
       }
       mandatoryUI?.sync()
-      if (state.blocking && !wasBlocking) void updateSchedule.check(false, true).catch((error: unknown) => { console.error(error) })
+      if (state.blocking && !wasBlocking) void updateSchedule.check(false, true).catch((error: unknown) => { logPrivateError(error) })
       wasBlocking = state.blocking
     }, policyAuth?.request, () => desktopClientMetadata(locale.id))
     const policy = mandatoryPolicy
@@ -1467,7 +1475,7 @@ async function main(): Promise<void> {
     })
     void mandatoryPolicy.check('launch').then((state) => {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
-    }).catch((error: unknown) => { console.error(error) })
+    }).catch((error: unknown) => { logPrivateError(error) })
   }
   automaticCheck()
   await reconcileBackend().catch(() => undefined)
@@ -1483,10 +1491,10 @@ async function main(): Promise<void> {
 const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })
 
 if (ownsDesktopInstance) void app.whenReady().then(main).catch(async (error: unknown) => {
-  console.error(error)
+  logPrivateError(error)
   reportFatal(error, 'main')
 }).catch(async (error: unknown) => {
-  console.error(error)
+  logPrivateError(error)
   shuttingDown = true
   app.exit(1)
 })

@@ -36,7 +36,7 @@ export class DesktopFatalRecovery {
         buttons, defaultId: 1, cancelId: 0, noLink: true,
       })
       if (response === 0) {
-        try { await this.operations.stop() } catch (failure) { console.error(failure) }
+        try { await this.operations.stop() } catch (failure) { console.error('Delta recovery operation failed:', desktopErrorState(failure).message) }
         this.operations.exit()
         return
       }
@@ -46,7 +46,7 @@ export class DesktopFatalRecovery {
         this.operations.restart()
         return
       } catch (failure) {
-        console.error(failure)
+        console.error('Delta recovery operation failed:', desktopErrorState(failure).message)
         message = messages.recoveryOperationFailed
         detail = desktopErrorState(failure).message
       }

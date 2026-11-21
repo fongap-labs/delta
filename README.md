@@ -46,3 +46,5 @@ Delta 自有部分采用 Apache-2.0；Harness 上游采用 MIT，详见 [UPSTREA
 Delta 默认运行中不装配 Session-log 的 DeepSeek 请求上传扩展、OTLP Session/产品遥测或桌面崩溃报告写盘。模型请求不附带 Harness 的匿名用户 UUID 或 Session ID 追踪请求头。基本会话持久化仅服务于本地会话恢复，不属于上传日志。第三方插件和模型服务仍可能按其自身协议处理实际请求内容，应单独审计。
 
 Delta 保留用户主动触发的 Session ZIP 下载、Markdown 复制以及 `/export` 命令；这些操作由本机 Web/桌面 Host 的同源受保护接口完成，不连接遥测收集端点。Session 日志自动上传和匿名跟踪仍然禁用。
+
+桌面更新操作日志模块已从产品中移除；崩溃、启动和恢复错误在本地显示时先执行凭据、路径、邮箱和 URL 的脱敏处理。正常应用诊断只输出脱敏后的有限长度文本，不收集会话内容。
