@@ -236,7 +236,7 @@ export function createWorkerHost(options: WorkerHostOptions): WorkerHost {
       // Resolved once the tunnel serves; a failed start never resolves it.
       const started = Promise.withResolvers<void>()
 
-      const { patches, profile, environment } = prepareProfile(appBoot, mounted, manifest, root, processShim.env)
+      const { patches, profile, environment } = prepareProfile(appBoot, mounted, manifest, root)
       const profileConfig = join(profile.dir, 'cordis.yml')
       const ctx = await appBoot.boot(BIN_NAME, profileConfig, patches, async (hostCtx) => {
         hostCtx.provide('profileContext', profile)
@@ -419,7 +419,6 @@ function deferLazyArchives(vfs: MemoryVfs, manifest: ImageManifest, root: string
  * @param vfs - Filesystem holding the profile.
  * @param manifest - Validated image manifest naming the profile and installation.
  * @param root - Virtual root, the process working directory.
- * @param env - The process shim's environment, after the launch layers applied.
  * @returns Effective boot patches, the profile context, and the launch environment snapshot.
  * @throws When the image names no installation manifest to anchor bundle resolution.
  */
@@ -428,7 +427,6 @@ function prepareProfile(
   vfs: MemoryVfs,
   manifest: ImageManifest,
   root: string,
-  env: Readonly<Record<string, string>>,
 ): { patches: unknown[]; profile: ProfileContext; environment: unknown } {
   if (manifest.installation === undefined) {
     throw new Error('webworker host: the image names no installation manifest, so no profile bundle can resolve; rebuild the image')
