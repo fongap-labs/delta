@@ -10,7 +10,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
     style=""
   >
     <div
-      class="logoRow"
+      class="headerRow"
       data-window-drag="true"
     >
       <button
@@ -117,66 +117,9 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
     style="width: 300px;"
   >
     <div
-      class="logoRow"
+      class="headerRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="New session"
-        class="brand wide"
-        type="button"
-      >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
-        >
-          <span
-            class="brandMark"
-          >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="17.6580310880829"
-                  viewBox="0 0 23.16 17.04"
-                  width="24"
-                />
-              </span>
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
-            >
-              <span
-                class="localBuildBrand copyVersion"
-                data-copy-version="true"
-              >
-                <span
-                  class="localBuildTitle"
-                >
-                  DSH Local Build
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
-        </span>
-      </button>
       <button
         aria-label="Collapse sidebar"
         class="iconButton toggle"
@@ -283,7 +226,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
     style=""
   >
     <div
-      class="logoRow"
+      class="headerRow"
       data-window-drag="true"
     >
       <button
@@ -292,24 +235,6 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
         data-sidebar-toggle="true"
         type="button"
       >
-        <span
-          aria-hidden="true"
-          class="railMark"
-        >
-          <div
-            data-slot="sidebar.brand.mark"
-            style="display: contents;"
-          >
-            <svg
-              aria-hidden="true"
-              data-content="965fe321"
-              fill="none"
-              height="17.6580310880829"
-              viewBox="0 0 23.16 17.04"
-              width="24"
-            />
-          </div>
-        </span>
         <svg
           aria-hidden="true"
           class="panelIcon"
@@ -398,7 +323,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
 </div>
 `;
 
-exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsule, empty holes) 1`] = `
+exports[`sidebar shell snapshots > renders the expanded column (navigation, capsule, empty holes) 1`] = `
 <div
   data-slot="sidebar"
   style="display: contents;"
@@ -408,66 +333,9 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
     style="width: 300px;"
   >
     <div
-      class="logoRow"
+      class="headerRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="New session"
-        class="brand wide"
-        type="button"
-      >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
-        >
-          <span
-            class="brandMark"
-          >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="17.6580310880829"
-                  viewBox="0 0 23.16 17.04"
-                  width="24"
-                />
-              </span>
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
-            >
-              <span
-                class="localBuildBrand copyVersion"
-                data-copy-version="true"
-              >
-                <span
-                  class="localBuildTitle"
-                >
-                  DSH Local Build
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
-        </span>
-      </button>
       <button
         aria-label="Collapse sidebar"
         class="iconButton toggle"
@@ -574,66 +442,9 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
     style="width: 300px;"
   >
     <div
-      class="logoRow"
+      class="headerRow"
       data-window-drag="true"
     >
-      <button
-        aria-label="新建会话"
-        class="brand wide"
-        type="button"
-      >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
-        >
-          <span
-            class="brandMark"
-          >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <span
-                class="copyVersion"
-                data-copy-version="true"
-              >
-                <svg
-                  aria-hidden="true"
-                  data-content="965fe321"
-                  fill="none"
-                  height="17.6580310880829"
-                  viewBox="0 0 23.16 17.04"
-                  width="24"
-                />
-              </span>
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
-            >
-              <span
-                class="localBuildBrand copyVersion"
-                data-copy-version="true"
-              >
-                <span
-                  class="localBuildTitle"
-                >
-                  DSH 本地构建
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
-        </span>
-      </button>
       <button
         aria-label="收起侧边栏"
         class="iconButton toggle"
