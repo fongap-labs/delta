@@ -2,6 +2,10 @@
 
 DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 
+## Delta 产品治理与架构
+
+Delta 的主程序和第一方插件同仓、共享插件基础模块；遵循 [Delta 架构](governance/ARCHITECTURE.md)、[仓库归属](governance/REPOSITORY.md) 和 [中央治理引用](governance/GOVERNANCE.md)。跨仓库治理以 [Action Worker](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 的机器合同与共享规范为准，不在本仓库复制门禁。以下 Harness 开发规范仅在不与中央治理及 Delta 产品边界冲突时适用。
+
 ## Pre-stable APIs and released Session data
 
 Public APIs are pre-stable; update every consumer. Follow [version/status](docs/session-format-status.md) and [type acknowledgements](docs/cookbook/reviewing-persistence-type-changes.md). [Adjacent migration](.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md) may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.
