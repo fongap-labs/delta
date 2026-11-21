@@ -43,8 +43,12 @@ const basePatch = text('packages/bundle/base/cordis.patch.yml')
 // Delta exposes only user-declared model API routes by default.
 assert.doesNotMatch(basePatch, /^    - id: (deepseek-llm-api-extensions|llm-deepseek|llm-deepseek-account|llm-deepseek-api-key)$/m)
 assert.match(basePatch, /^    - id: llm-pi-ai$/m)
+assert.equal((basePatch.match(/^    - id: llm-pi-ai$/gm) ?? []).length, 1,
+  'Delta base must have exactly one generic custom-model adapter')
 const minimalSdkPatch = text('packages/bundle/sdk-minimal/cordis.patch.yml')
 assert.match(minimalSdkPatch, /^    - id: llm-pi-ai$/m)
+assert.equal((minimalSdkPatch.match(/^    - id: llm-pi-ai$/gm) ?? []).length, 1,
+  'Delta SDK must have exactly one generic custom-model adapter')
 assert.doesNotMatch(minimalSdkPatch, /^    - id: (deepseek-llm-api-extensions|deepseek-auth|llm-deepseek|llm-deepseek-account|llm-deepseek-api-key)$/m)
 assert.doesNotMatch(text('packages/bundle/sdk-minimal/package.json'), /"@deepseek-ai\/dsh-deepseek-(auth|llm-api-extensions)":/)
 assert.doesNotMatch(text('packages/bundle/base/package.json'), /"@deepseek-ai\/dsh-deepseek-llm-api-extensions":/)
