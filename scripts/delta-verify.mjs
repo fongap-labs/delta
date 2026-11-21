@@ -59,6 +59,11 @@ assert.doesNotMatch(text('packages/client/ui-sidebar/src/client/SidebarRoot.modu
 assert.match(text('packages/client/ui-settings-models/src/client/ModelsSection.tsx'), /<CustomProviderCard/)
 const piCatalog = text('packages/llm/llm-pi-ai/src/catalog.ts')
 assert.match(piCatalog, /export function catalogProviderIds\(\): readonly string\[\] \{ return \[\] \}/)
+const customTransports = text('packages/llm/llm-pi-ai/src/provider.ts')
+for (const protocol of ['openai-completions', 'openai-responses', 'anthropic-messages', 'google-generative-ai']) {
+  assert.match(customTransports, new RegExp(`^  '${protocol}': `, 'm'),
+    `missing custom model API transport: ${protocol}`)
+}
 const modelsCopy = text('packages/client/ui-settings-models/src/client/locales.ts')
 assert.match(modelsCopy, /welcomeBody: 'Delta does not include a preconfigured model provider/)
 assert.match(modelsCopy, /welcomeBody: 'Delta \u4e0d\u9884\u88c5\u6a21\u578b\u63d0\u4f9b\u5546/)
