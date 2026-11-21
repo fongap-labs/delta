@@ -57,9 +57,6 @@
     {
       "path": "../ui-settings/tsconfig.client.json"
     },
-    {
-      "path": "../product-analytics/tsconfig.client.json"
-    }
   ],
   "include": [
     "src/client",
