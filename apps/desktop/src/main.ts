@@ -109,8 +109,7 @@ const recovery = new DesktopFatalRecovery({
   stop: () => { shuttingDown = true; return stopForRecovery() },
   disablePlugins: async () => {
     const manager = new DesktopProjectManager(resolveDesktopPaths(), runtimeResources())
-    const backupPath = await manager.disableAllPlugins()
-    console.info('Delta desktop profile recovery completed')
+    await manager.disableAllPlugins()
   },
   exit: () => { quitWithoutConfirmation() },
   restart: () => { app.relaunch(); quitWithoutConfirmation() },

@@ -1,0 +1,30 @@
+import { describe, expect, it } from 'vitest'
+import { redactDiagnostic } from '../src/privacy-redaction.ts'
+import { desktopErrorState } from '../src/startup-error.ts'
+
+describe('Delta desktop diagnostic privacy', () => {
+  it('removes credentials, account identities, email addresses, paths and URLs', () => {
+    const leaked = [
+      'Bearer abcDEF_1234.567890',
+      'api_key=sk-0123456789abcdefghijklmnop',
+      'session_id=session-private-123',
+      'user_id=user-private-567',
+      'email=person@example.org',
+      'path=C:\\Users\\Someone\\Documents\\secret.txt',
+      'url=https://api.example.org/private?api_key=secret',
+    ]
+    const sanitized = redactDiagnostic(leaked.join(' | '))
+    for (const secret of ['abcDEF_1234', '0123456789abcdefghijklmnop', 'session-private-123',
+      'user-private-567', 'person@example.org', 'Someone', 'api.example.org']) {
+      expect(sanitized).not.toContain(secret)
+    }
+    expect(sanitized).toContain('[redacted]')
+  })
+
+  it('bounds diagnostics before they cross the renderer or native dialog', () => {
+    expect(redactDiagnostic('x'.repeat(10_000)).length).toBeLessThanOrEqual(1200)
+    const message = desktopErrorState(new Error('Bearer secret-token-ABC123')).message
+    expect(message).not.toContain('secret-token-ABC123')
+    expect(message).toContain('[credential redacted]')
+  })
+})
