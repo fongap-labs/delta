@@ -99,6 +99,17 @@ pnpm --filter @fongap-labs/delta-code run build
 
 命令通过宿主已有的 subprocess 服务执行；宿主服务缺失或不可用时拒绝执行，**不回退到 `node:child_process`**。工作区词法路径检查不构成 OS 级文件隔离或符号链接防护，不能替代宿主授权、安全确认与真实运行时验收。
 
+## 原生 LSP 命令可用性探测
+
+中央 [Action Worker #1957](https://github.com/fongap-labs/action-worker/pull/1957) 通过真实 Cordis Host subprocess，在独立临时工作区测试 `code_lsp_probe`：
+
+- 对可运行的本机命令执行 `--version` 并返回 `available=true`，对不存在的语言服务命令返回不可用结果；不得误报为已安装。
+- 宿主 subprocess 仅准许运行测试列入清单的探测命令，且工作目录被限制为临时工作区。
+- `cwd` 越界和已取消的请求必须在调用宿主进程前拒绝。
+- 插件卸载后原生 ToolsService 不应残留 `code_lsp_probe`；所有临时文件与服务必须清理。
+
+该验收仅覆盖 Linux 命令可用性探测，**不代表 LSP 语言诊断、补全、跳转、索引或跨平台编辑器完整能力**。未验证的 Windows 桌面装载和真实用户 Profile 仍属于正式发行阻断项。
+
 ## 默认权限与语言资源验收
 
 中央 [Action Worker #1950](https://github.com/fongap-labs/action-worker/pull/1950) 将以下安全断言加入 Delta Code 的可信生产构建检查：
