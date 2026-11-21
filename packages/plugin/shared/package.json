@@ -25,5 +25,8 @@
     "lib/types/**/*.d.ts.map",
     "lib/**/*.js.map",
     "src"
-  ]
+  ],
+  "dependencies": {
+    "@deepseek-ai/dsh-tools": "workspace:*"
+  }
 }
