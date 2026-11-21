@@ -32,3 +32,19 @@ Delta Code 是 Delta 自行维护的**可选编程插件**，与 Delta 主程序
 `packages/plugin/shared/` 维护可被多个第一方插件复用的能力；具体业务保持在本插件。源码和产品特有约束以 Delta 的 `governance/REPOSITORY.md` 为准；CI、测试、合并与发布一律以 [Action Worker](https://github.com/fongap-labs/action-worker) 中央治理为准。
 
 对应迁移任务：[Delta Issue #14](https://github.com/fongap-labs/delta/issues/14)。
+
+
+## 旧用户 Profile 迁移预检（只读）
+
+维护人员可以对现有 Harness/Delta Profile 目录执行以下检查，确认是否仍引用旧包和旧 Cordis ID：
+
+    node scripts/delta-code-profile-audit.mjs /absolute/path/to/profile
+
+输出只有固定布尔值、数量和状态，不打印配置值、Token、环境变量内容或原始 YAML；程序只读取 Profile 的 package.json 与 cordis.patch.yml，不会改动文件，也不会执行 YAML 内的 !!js 表达式。
+
+- **absent / current-only**：退出码 0；只代表这两个文件没有检测到旧插件，不代表已验收实际装载。
+- **legacy-only**：退出码 1；需要使用现有插件管理器完成停用旧 bundle、核查配置和后续迁移。新插件仍为私有工作区包，不得直接作为正式插件向用户发布。
+- **mixed**：退出码 2；旧包或注册条目与新包并存，拒绝自动替换，以免 code_* 工具重复注册。
+- **invalid**：退出码 2；输入缺失、格式错误或不可读取时明确失败，不假装迁移安全。
+
+此预检**不扫描**其他 Home/Invocation overlay、锁文件及实际插件运行状态，也不能取代安装、禁用、卸载与数据迁移测试。正式迁移必须通过 Harness 原生插件管理器受控执行，保留原配置备份，并核验其他叠加层是否仍使用旧注册 ID。不得自动删除旧工作树或改写用户已保存的 Token 引用。
