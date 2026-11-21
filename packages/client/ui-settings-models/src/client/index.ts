@@ -74,7 +74,7 @@ export const inject = [
  * @param ctx - client root context.
  * @param config - Host-synced credential-onboarding choice, followed live until the official-DeepSeek step mounts.
  */
-export function apply(ctx: ClientContext, config: SyncedConfig<ModelsConfig>): void {
+export function apply(ctx: ClientContext, _config: SyncedConfig<ModelsConfig>): void {
   const nativeShell = 'dshDesktop' in globalThis
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-models: copy dictionaries')
 

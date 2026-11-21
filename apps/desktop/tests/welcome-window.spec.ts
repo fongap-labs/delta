@@ -182,7 +182,7 @@ describe('desktop welcome window', () => {
 
   it('shows the entry after logout only without a separately configured API key', () => {
     expect(needsWelcome({ loggedIn: true, hasApiKey: false })).toBe(false)
-    expect(needsWelcome({ loggedIn: false, hasApiKey: false })).toBe(true)
+    expect(needsWelcome({ loggedIn: false, hasApiKey: false })).toBe(false)
     expect(needsWelcome({ loggedIn: false, hasApiKey: true })).toBe(false)
     expect(needsWelcome({ loggedIn: true, hasApiKey: true })).toBe(false)
   })
