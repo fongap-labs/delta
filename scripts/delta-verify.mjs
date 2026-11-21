@@ -172,7 +172,7 @@ assert.doesNotMatch(text('apps/desktop/src/main.ts'), /DSH_DESKTOP_UPDATE_JOURNA
 // to its package manifest rather than introducing a repository-owned CI launcher.
 if (process.argv.includes('--ci')) {
   assert.ok(Number(process.versions.node.split('.')[0]) >= 24, 'Node.js 24 or newer is required')
-  for (const args of [['install', '--frozen-lockfile'], ['run', 'build:lib'], ['run', 'build:desktop']]) {
+  for (const args of [['install', '--frozen-lockfile'], ['run', 'build:lib:host'], ['run', 'build:desktop']]) {
     const result = spawnSync('pnpm', args, { cwd: root, stdio: 'inherit' })
     if (result.error) throw result.error
     assert.equal(result.status, 0, 'pnpm ' + args.join(' ') + ' failed')
