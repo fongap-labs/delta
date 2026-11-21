@@ -342,7 +342,7 @@ body {
 
 .auth-waiting .copy-link:disabled { cursor: default; }
 
-/* Delta legacy v0.0.1 visual treatment: presentation only, no authentication changes. */
+/* Delta official brand visual treatment: presentation only, no authentication changes. */
 #root {
   --dsw-alias-brand-primary: #286f78;
   --dsw-alias-button-primary-hover: #205960;
