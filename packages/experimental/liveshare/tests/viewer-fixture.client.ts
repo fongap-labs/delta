@@ -438,7 +438,6 @@ const FIXTURE_SESSION_READS = [
 /** Endpoint actions the owner's share policy allows a reader on the global resource. */
 const FIXTURE_GLOBAL_READS = [
   'commands/list', 'llm/listConfigurableProviders', 'llm/listProviders',
-  'productAnalytics/enabled', 'productAnalytics/report', 'productAnalytics/watchPolicy',
   'speech/cancelPreparation', 'speech/catalog', 'speech/follow', 'speech/prepare', 'speech/transcribe',
   'session/canOpenWorkspacePath', 'session/control', 'session/list', 'session/modelCatalog', 'pluginEvents/follow',
   'workspace/follow',

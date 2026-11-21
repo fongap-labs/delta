@@ -128,60 +128,15 @@ describe('ui-settings-general apply', () => {
     }
   }, COLD_BOOT_TIMEOUT_MS)
 
-  it('reports a Coding Tools toggle only when a known value changes to the requested one', async ({ mock, start }) => {
+  it('updates developer tools locally without emitting events', async ({ mock, start }) => {
     const { c } = await client(mock, start)
-    const track = vi.fn()
-    c.ctx.provide('productAnalytics', { enabled: true, track } as never)
-    const form = c.ctx.configForms.get<{ enabled: boolean }>('ui-settings')
-    const snapshot = form.getSnapshot()
-    let value: { enabled: boolean } | undefined = { enabled: false }
-    let accepted = true
-    let now = 100
-    const reads = vi.spyOn(form, 'getSnapshot').mockImplementation(() => ({ ...snapshot, value }))
-    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const write = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockImplementation(async (enabled) => {
-      now += 50
-      if (accepted) value = { enabled }
-    })
-    onTestFinished(() => {
-      reads.mockRestore()
-      clock.mockRestore()
-      write.mockRestore()
-    })
+    const write = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockResolvedValue(undefined)
     const row = developerToolsRowOf(c)
-
-    // The event carries the click time, before the write settles.
     await row.setEnabled(true)
-    expect(track).toHaveBeenCalledExactlyOnceWith('code_work_view_toggle', { is_enabled: true }, 100)
-
-    // Requesting the current value writes but changes nothing.
-    await row.setEnabled(true)
-    expect(write).toHaveBeenCalledTimes(2)
-    expect(track).toHaveBeenCalledOnce()
-
-    // A write that settles without the requested value is not a toggle.
-    accepted = false
+    expect(write).toHaveBeenCalledExactlyOnceWith(true)
     await row.setEnabled(false)
-    expect(value).toEqual({ enabled: true })
-    expect(track).toHaveBeenCalledOnce()
-
-    // A rejected write reports its failure and no toggle.
-    accepted = true
-    write.mockRejectedValueOnce(new Error('not accepted'))
-    await expect(row.setEnabled(false)).rejects.toThrow('not accepted')
-    expect(track).toHaveBeenCalledOnce()
-
-    // Without a known previous value the change cannot be attributed.
-    value = undefined
-    await row.setEnabled(false)
-    expect(value).toEqual({ enabled: false })
-    expect(track).toHaveBeenCalledOnce()
-
-    value = { enabled: true }
-    now = 300
-    await row.setEnabled(false)
-    expect(track).toHaveBeenCalledTimes(2)
-    expect(track).toHaveBeenLastCalledWith('code_work_view_toggle', { is_enabled: false }, 300)
+    expect(write).toHaveBeenLastCalledWith(false)
+    write.mockRestore()
   })
 
   it('registers the zh/en settings dictionaries and frees the seats when its row unloads', async ({ mock, start }) => {
