@@ -45,3 +45,13 @@ const webPatch = text('packages/bundle/web-app/cordis.patch.yml')
 assert.doesNotMatch(webPatch, /^    - id: (desktop-product-telemetry|product-analytics|session-log-download|ui-settings-session-log)$/m)
 const desktopMain = text('apps/desktop/src/main.ts')
 assert.doesNotMatch(desktopMain, /writeCrashReport|persistCrashReport|productAnalytics\/report|productAnalytics\/watchPolicy|rendererConsole|OperationJournal/)
+
+import { existsSync } from 'node:fs'
+for (const path of [
+  'apps/desktop/src/crash-report.ts',
+  'apps/desktop/src/operation-history.ts',
+  'apps/desktop/src/operation-journal.ts',
+  'apps/desktop/src/operation-report.ts',
+  'apps/desktop/src/operation-report-job.ts',
+  'apps/desktop/src/operation-report-worker.ts',
+]) assert.equal(existsSync(resolve(root, path)), false, `privacy module still present: ${path}`)
