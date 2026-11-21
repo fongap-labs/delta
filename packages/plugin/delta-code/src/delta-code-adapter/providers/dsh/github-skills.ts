@@ -52,7 +52,7 @@ export function registerApprovedGitHubSkills(ctx: Context, fetcher: GitHubSkillF
             if (task.isExternalDisabled) return undefined
             const signal = task.signal === undefined ? options?.signal :
               options?.signal === undefined ? task.signal : AbortSignal.any([task.signal, options.signal])
-            return provider.get(candidate, { ...options, signal })
+            return provider.get(candidate, { ...options, ...(signal === undefined ? {} : { signal }) })
           },
         }
       })

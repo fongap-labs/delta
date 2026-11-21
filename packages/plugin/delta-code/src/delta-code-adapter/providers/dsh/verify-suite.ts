@@ -80,7 +80,10 @@ export function createVerifySuiteTool(ctx: Context, settings: Settings): ToolDef
         // Later checks reuse that snapshot while still reauthorizing the Host
         // cwd and checking processPath for each planned script.
         prepared.push(await prepareVerify(ctx, settings, exec, {
-          script, cwd: args.cwd, project: args.project, timeoutMs: args.timeoutMs,
+          script,
+          ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
+          ...(args.project === undefined ? {} : { project: args.project }),
+          ...(args.timeoutMs === undefined ? {} : { timeoutMs: args.timeoutMs }),
         }, prepared[0]?.probe))
       }
       // Every step must target the same Host execution filesystem.

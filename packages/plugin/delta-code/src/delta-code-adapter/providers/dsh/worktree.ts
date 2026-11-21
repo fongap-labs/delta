@@ -78,7 +78,7 @@ function registeredTaskWorktree(output: string, target: string, branch: string):
 
 /** Host-Git only: refuse to remove non-managed, dirty or detached worktrees. */
 async function removeManagedWorktree(
-  ctx: Context, settings: Settings, root: string, cwd: string,
+  ctx: Context, settings: Settings, _root: string, cwd: string,
   target: string, task: string, signal: AbortSignal, shouldDeleteMergedBranch: boolean,
 ): Promise<string> {
   const branch = 'code-worker/' + task

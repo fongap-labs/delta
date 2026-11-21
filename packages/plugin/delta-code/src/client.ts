@@ -95,7 +95,7 @@ function readDraft(value: any): Draft {
       : defaults,
   }
 }
-function validation(draft: Draft, value: any): string | undefined {
+function validation(draft: Draft, _value: any): string | undefined {
   const owners = new Set<string>()
   const repositories = new Set<string>()
   const credentialRefs = new Set<string>()
@@ -111,7 +111,7 @@ function validation(draft: Draft, value: any): string | undefined {
     const assigned = repositoryList(account.repositories)
     for (const item of assigned) {
       if (!REPOSITORY.test(item)) return 'GitHub repository must be owner/name: ' + item
-      if (item.split('/')[0].toLowerCase() !== owner) return '仓库必须属于对应的 GitHub 账号或组织：' + item
+      if ((item.split('/')[0] ?? '').toLowerCase() !== owner) return '仓库必须属于对应的 GitHub 账号或组织：' + item
       const key = item.toLowerCase()
       if (repositories.has(key)) return 'Duplicate GitHub repository binding: ' + key
       repositories.add(key)

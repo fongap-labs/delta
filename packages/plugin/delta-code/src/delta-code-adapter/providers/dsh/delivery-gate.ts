@@ -171,7 +171,9 @@ export function createDeliveryGateTool(ctx: Context, settings: Settings, nativeR
       try {
         for (const script of scripts) {
           prepared.push(await prepareVerify(ctx, settings, exec, {
-            script, cwd: args.cwd, project: args.project,
+            script,
+            ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
+            ...(args.project === undefined ? {} : { project: args.project }),
           }))
         }
       } catch (error) {

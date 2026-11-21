@@ -159,7 +159,8 @@ export function createMultiEditTool(ctx: Context, settings: Settings): ToolDefin
                 throw new Error('rollbackOnFailure snapshot exceeds 2 MiB')
               }
               const content = applyTextEdit(original, plan, true)
-              prepared.push({ path, action: 'replace', content, original, pinnedIntent, note: 'replaced 1 occurrence' })
+              prepared.push({ path, action: 'replace', content, original,
+                 ...(pinnedIntent === undefined ? {} : { pinnedIntent }), note: 'replaced 1 occurrence' })
               checked.push({ path, action: 'replace', ok: true, note: 'replaced 1 occurrence' })
             } else {
               let original: string | undefined
@@ -180,7 +181,10 @@ export function createMultiEditTool(ctx: Context, settings: Settings): ToolDefin
                 const actualSha256 = createHash('sha256').update(original, 'utf8').digest('hex')
                 if (actualSha256 !== edit.expectedSha256) throw new Error('expectedSha256 mismatch; file changed')
               }
-              prepared.push({ path, action: 'overwrite', content: plan.content, original, pinnedIntent, note: plan.content.length + ' characters' })
+              prepared.push({ path, action: 'overwrite', content: plan.content,
+                 ...(original === undefined ? {} : { original }),
+                 ...(pinnedIntent === undefined ? {} : { pinnedIntent }),
+                 note: plan.content.length + ' characters' })
               checked.push({ path, action: 'overwrite', ok: true, note: plan.content.length + ' characters' })
             }
           } catch (error) {
@@ -211,7 +215,9 @@ export function createMultiEditTool(ctx: Context, settings: Settings): ToolDefin
         const compensate = async (): Promise<{
           attempted: number; restored: number; failed: number; skippedReason?: string
         }> => {
-          const rollback = { attempted: 0, restored: 0, failed: 0, skippedReason: undefined as string | undefined }
+          const rollback: { attempted: number; restored: number; failed: number; skippedReason?: string } = {
+            attempted: 0, restored: 0, failed: 0,
+          }
           if (exec.signal.aborted) {
             // Do not use a new signal to circumvent a cancelled Host operation.
             rollback.skippedReason = 'operation cancelled; no further writes authorized'
