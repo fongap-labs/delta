@@ -55,3 +55,8 @@ for (const path of [
   'apps/desktop/src/operation-report-job.ts',
   'apps/desktop/src/operation-report-worker.ts',
 ]) assert.equal(existsSync(resolve(root, path)), false, `privacy module still present: ${path}`)
+
+// The optional diagnostics profile must not expose raw Session-log inspection.
+const inspectorPatch = text('packages/experimental/inspector-profile/cordis.patch.yml')
+assert.doesNotMatch(inspectorPatch, /- id: session-inspector/)
+assert.match(inspectorPatch, /captureFetch: false/)
