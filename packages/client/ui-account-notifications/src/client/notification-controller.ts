@@ -47,7 +47,7 @@ export interface NotificationController {
   setLocale(locale: string): Promise<void>
   /** @param id - notice whose card passed a presented frame while visible. */
   shown(id: AccountNotificationId): void
-  /** @param id - foreground notice the user explicitly closed; reports only a dismissed event. */
+  /** @param id - foreground notice the user explicitly closed; only updates local UI state. */
   dismiss(id: AccountNotificationId): void
 }
 
@@ -71,7 +71,7 @@ function expired(displayUntil: string | null, at: number): boolean {
 }
 
 /**
- * Own the read, display, and interaction reporting lifecycle of account notifications.
+ * Own the read, display, and local presentation lifecycle of account notifications.
  * @param options - collaborators and timings.
  * @returns the controller the account plugin drives from account and settings state.
  */
@@ -82,7 +82,7 @@ export function createNotificationController(options: NotificationControllerOpti
   /** Notice currently published to the sidebar, including the expiration checked at display time. */
   let current: readonly AccountNotice[] = []
   let poll: NotificationPoll | undefined
-  /** Notifications the card on screen already presented, so one mount cannot report display twice. */
+  /** Notifications the card on screen already presented, so one mount cannot activate the same presentation twice. */
   const presented = new Set<AccountNotificationId>()
   const setCurrent = (notices: readonly AccountNotice[]): void => {
     if (notices.length === current.length && notices.every((notice, index) => {

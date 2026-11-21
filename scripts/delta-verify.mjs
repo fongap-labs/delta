@@ -119,3 +119,8 @@ const mainPrivacy = text('apps/desktop/src/main.ts')
 assert.match(mainPrivacy, /function logPrivateError/)
 assert.doesNotMatch(mainPrivacy, /console\.error\(error\)/)
 assert.doesNotMatch(mainPrivacy, /console\.error\(failure\)/)
+
+const accountController = text('packages/client/ui-account-notifications/src/client/notification-controller.ts')
+assert.doesNotMatch(accountController, /reportEvent|ctaClicked|requestNotificationEvent|sendNotificationEvent/)
+assert.doesNotMatch(text('packages/llm/llm-deepseek/src/adapter.ts'), /x-deepseek-harness-(user-id|session-id)/)
+assert.doesNotMatch(text('apps/desktop/src/main.ts'), /DSH_DESKTOP_UPDATE_JOURNAL_DIR|DesktopUpdateJournal/)
