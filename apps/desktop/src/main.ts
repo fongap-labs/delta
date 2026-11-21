@@ -48,7 +48,6 @@ import { DesktopFatalRecovery } from './fatal-recovery.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
 import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
-import { DesktopUpdateJournal } from './update-journal.ts'
 import { DesktopUpdatePreparationError } from './update-error.ts'
 import { DesktopUpdateSchedule, resolveDesktopUpdateScheduleConfig } from './update-schedule.ts'
 import { desktopUpdateErrorSummary, presentDesktopUpdate } from './update-presentation.ts'
@@ -314,8 +313,6 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
 
 async function main(): Promise<void> {
   const desktopSettings = await readDesktopSettings(app.getPath('userData'))
-  const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
-  const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
   const paths = resolveDesktopPaths()
   const development = !app.isPackaged
@@ -543,7 +540,6 @@ async function main(): Promise<void> {
     return shown
   }
   const publishUpdate = (state: DesktopUpdateState): DesktopUpdateState => {
-    updateJournal?.state(state)
     updateState = state
     mandatoryUI?.sync()
     for (const window of BrowserWindow.getAllWindows()) {
@@ -566,7 +562,6 @@ async function main(): Promise<void> {
           // A replacement Host can have a new port, cookie, or boot injections even at the same URL.
           navigation = undefined
           await navigateMain(applicationUrl)
-          if (backend.host !== undefined) updateJournal?.action('workspace-ready')
         })
         workspaceRecovery = recovery
         void recovery.catch((error: unknown) => { reportFatal(error, 'main') }).finally(() => {
@@ -592,10 +587,8 @@ async function main(): Promise<void> {
         await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
       })
       if (backend.host !== undefined) await openInitialWindow()
-      if (backend.host !== undefined) updateJournal?.action('workspace-ready')
       // The existing Web document resumes through the boot IPC response.
     })().catch((error: unknown) => {
-      updateJournal?.action('workspace-failed')
       reportFatal(error, 'main')
       throw error
     }).finally(() => { startup = undefined })
@@ -650,7 +643,6 @@ async function main(): Promise<void> {
         // The backend's async cleanup callback can assign this after the reset above.
         const stopFailure = updateStopFailure as DesktopHostUncleanExitError | undefined
         if (stopFailure !== undefined) throw new DesktopUpdatePreparationError('stop-failed', locale.messages.updateStopFailed, stopFailure.message)
-        updateJournal?.action('install-confirmed')
         shellInstallerOwnsQuit = true
       } catch (error) {
         if (!updateStoppedHost) await host.updateTasks('unlock').catch((unlockError: unknown) => { console.error(unlockError) })
@@ -678,7 +670,6 @@ async function main(): Promise<void> {
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
-    updateJournal?.action('download-requested')
     const state = await updates.download(version, revision)
     if (state.phase !== 'ready' || quitting) return state
     // Only a completed user-driven download opens this prompt; cancelling installation does not reopen it.
@@ -931,7 +922,6 @@ async function main(): Promise<void> {
     }
     let failedOperation: 'check' | 'download' | 'install' = 'check'
     promptOperation ??= Promise.resolve().then(async () => {
-      if (manual) updateJournal?.action('check-requested')
       const joinedPolicyAuthentication = authenticationOperation !== undefined
       if (joinedPolicyAuthentication) await authenticatePolicy()
       if (isMandatory()) {
@@ -1396,7 +1386,6 @@ async function main(): Promise<void> {
   const finishQuit = (): void => {
     quitting = true
     shuttingDown = true
-    updateJournal?.action('quit-requested')
     quitConfirmation.dispose()
     backgroundNotice?.dispose()
     tray?.dispose()
@@ -1418,7 +1407,6 @@ async function main(): Promise<void> {
       shuttingDown = true
       quitConfirmation.dispose()
       backgroundNotice?.dispose()
-      updateJournal?.action('quit-requested')
       tray?.dispose()
       updateDialog.dispose()
       mandatoryUI?.dispose()
@@ -1447,8 +1435,7 @@ async function main(): Promise<void> {
   if (policyConfig !== undefined) {
     if (policyConfig.authentication === 'feishu-test') {
       policyAuth = new DesktopPolicyTestAuth(policyConfig.origin, policyConfig.allowedAuthOrigins, locale,
-        () => mandatoryUI?.confirmationWindow ?? currentDialogWindow(),
-        (event) => { console.info(`desktop policy authentication: ${event}`); updateJournal?.action(`policy-login-${event}`) })
+        () => mandatoryUI?.confirmationWindow ?? currentDialogWindow())
     }
     if (!['win32', 'darwin'].includes(process.platform) || !['x64', 'arm64'].includes(process.arch)) throw new Error('desktop policy: unsupported platform')
     let wasBlocking = false
