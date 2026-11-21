@@ -10,5 +10,7 @@ export function redactPluginMessage(message: string, secrets: readonly string[] 
 
 /** Do not include arbitrary error.message or stack content in default logs. */
 export function describePluginError(error: unknown): string {
-  return error instanceof Error ? error.name || 'Error' : 'UnknownError'
+  if (!(error instanceof Error)) return 'UnknownError'
+  const allowed = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError', 'MissingPluginHostServiceError'])
+  return allowed.has(error.name) ? error.name : 'Error'
 }
