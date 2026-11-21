@@ -8,7 +8,6 @@
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SyncedConfig } from '@deepseek-ai/dsh-client-config/types'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 // Type-only: pulls the shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -19,8 +18,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { ModelsSection } from './ModelsSection.tsx'
 import type { ModelsSectionInjected } from './ModelsSection.tsx'
-import { DeepSeekOnboardingDialog } from './DeepSeekOnboardingDialog.tsx'
-import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from './WelcomeNotice.tsx'
 import type { WelcomeNoticeInjected } from './WelcomeNotice.tsx'
 import { WelcomeNoticeStore } from './welcome-store.ts'
@@ -44,9 +41,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Dictionary namespace owned by this plugin. */
 const NS = 'settings.models'
-
-/** Credential-onboarding choice while the Host sends none; the Host schema default. */
-const ABSENT_CREDENTIAL_ONBOARDING = true
 
 export type {
   ModelsSettingsState, ProviderDirectoryEntry, ProviderRow,
@@ -82,11 +76,6 @@ export const inject = [
  */
 export function apply(ctx: ClientContext, config: SyncedConfig<ModelsConfig>): void {
   const nativeShell = 'dshDesktop' in globalThis
-  // Whether the official-DeepSeek step opens on its own; the native shell owns its own onboarding.
-  const automatic: ObservableSnapshot<boolean> = {
-    getSnapshot: () => !nativeShell && (config.credentialOnboarding.get() ?? ABSENT_CREDENTIAL_ONBOARDING),
-    subscribe: listener => config.credentialOnboarding.subscribe(listener),
-  }
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-models: copy dictionaries')
 
   const schema = createSettingsSchemaOperations(ctx.settingsSchema)
@@ -100,13 +89,6 @@ export function apply(ctx: ClientContext, config: SyncedConfig<ModelsConfig>): v
   const injected = (): ModelsSectionInjected => ({
     controller,
     hooks: { snapshot: controller.store },
-    operations,
-    schema,
-    t,
-  })
-  const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
-    controller,
-    hooks: { models: controller.store, automatic },
     operations,
     schema,
     t,
@@ -155,11 +137,5 @@ export function apply(ctx: ClientContext, config: SyncedConfig<ModelsConfig>): v
     order: -100,
     inject: welcomeInjected,
   }, WelcomeNotice))
-  ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
-    name: 'settings.onboarding',
-    id: 'deepseek-official',
-    children: { 'settings.models.sign-in': { kind: 'single', scope: 'root' } },
-    order: 0,
-    inject: deepSeekOnboardingInjected,
-  }, DeepSeekOnboardingDialog))
+
 }
