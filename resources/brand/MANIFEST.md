@@ -1,6 +1,6 @@
 # Delta 品牌资产清单
 
-`branding/` 是 Delta 正式 Logo 母版的唯一来源。历史版本资源保留在 Git 历史分支中，不在当前产品品牌目录下区分 Legacy。
+`resources/brand/` 是 Delta 正式 Logo 母版的唯一来源。历史版本资源保留在 Git 历史分支中，不在当前产品品牌目录下区分 Legacy。
 
 ## 母版
 
