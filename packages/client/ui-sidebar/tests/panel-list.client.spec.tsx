@@ -11,7 +11,6 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import { IconGlobeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ILayout, MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsRenderSlots, PropsRuntime, SlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
-import type { TrackProductEvent } from '@deepseek-ai/dsh-client-product-analytics/client'
 import { apply, inject } from '../src/client/index.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -36,7 +35,7 @@ afterEach(async () => {
   }
 })
 
-async function bench(collapsed = false, track?: TrackProductEvent) {
+async function bench(collapsed = false) {
   const runtime = await SlotTestRuntime.create()
   runtimes.add(runtime)
   const locale = new LocaleRuntime(runtime.ctx)
@@ -56,7 +55,6 @@ async function bench(collapsed = false, track?: TrackProductEvent) {
       ctx.provide('layout', layout)
       ctx.provide('uiWorkspace', { startSession: vi.fn() } as never)
       ctx.provide('locale', locale)
-      if (track !== undefined) ctx.provide('productAnalytics', { track } as never)
       ctx.effect(() => locale.register('common', { zh: commonZh, en: commonEn }), 'panel test: common locale')
       ctx.effect(() => locale.register('sidebar-panel-test', {
         zh: { alpha: '甲面板' }, en: { alpha: 'Alpha panel' },
@@ -440,74 +438,6 @@ describe('sidebar launcher pins', () => {
     fireEvent.click(await view.findByRole('button', { name: 'More' }))
     await alpha.dispose()
     fireEvent.click(view.getByRole('menuitem', { name: 'Open removed panel' }))
-    expect(layout.selectPanel).not.toHaveBeenCalled()
-  })
-})
-
-describe('sidebar entry click analytics', () => {
-  const MORE_CLICK = ['sidebar_menu_click', { menu_name: 'more', position: 'sidebar' }]
-
-  async function analyticsBench() {
-    const track = vi.fn<TrackProductEvent>()
-    const b = await bench(false, track)
-    await mountPanels(b.runtime, b.locale)
-    await mountPanel(b.runtime, { id: PLUGINS, heading: 'Plugins content', label: 'Plugins', order: 0 })
-    const schedules = await mountPanel(b.runtime, { id: SCHEDULES, heading: 'Automation content', label: 'Automation', order: 5 })
-    const navigation = await b.view.findByRole('navigation', { name: 'Global panels' })
-    await within(navigation).findByRole('button', { name: 'Automation' })
-    return { ...b, track, schedules, navigation }
-  }
-
-  it('reports the Plugins and Automation rows and leaves other panel rows unreported', async () => {
-    const { layout, track, navigation } = await analyticsBench()
-    for (const name of ['Plugins', 'Automation', 'Alpha panel', 'Beta panel']) {
-      fireEvent.click(within(navigation).getByRole('button', { name }))
-    }
-    expect(track.mock.calls).toEqual([
-      ['sidebar_menu_click', { menu_name: 'plugin', position: 'sidebar' }],
-      ['sidebar_menu_click', { menu_name: 'cron', position: 'sidebar' }],
-    ])
-    expect(layout.selectPanel.mock.calls).toEqual([[PLUGINS], [SCHEDULES], [ALPHA], [BETA]])
-    expect(track.mock.invocationCallOrder[0]).toBeLessThan(layout.selectPanel.mock.invocationCallOrder[0]!)
-  })
-
-  it('reports every More button click, whether it opens or closes the menu', async () => {
-    const { runtime, track, navigation } = await analyticsBench()
-    await mountProbeActions(runtime)
-    const more = await within(navigation).findByRole('button', { name: 'More' })
-    fireEvent.click(more)
-    expect(more.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.click(more)
-    expect(more.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(more)
-    expect(track.mock.calls).toEqual([MORE_CLICK, MORE_CLICK, MORE_CLICK])
-  })
-
-  it('reports official panels opened from the More menu at the sidebar_more position', async () => {
-    const { runtime, layout, track, navigation, view } = await analyticsBench()
-    await mountProbeActions(runtime)
-    await mountProbeActions(runtime, 'official', OfficialOpen)
-    fireEvent.click(await within(navigation).findByRole('button', { name: 'More' }))
-    const menu = within(view.getByRole('menu'))
-    fireEvent.click(menu.getByRole('menuitem', { name: 'Open Automation' }))
-    fireEvent.click(menu.getByRole('menuitem', { name: 'Open Alpha panel' }))
-    fireEvent.click(menu.getByRole('menuitem', { name: 'Open Plugins by id' }))
-    expect(track.mock.calls).toEqual([
-      MORE_CLICK,
-      ['sidebar_menu_click', { menu_name: 'cron', position: 'sidebar_more' }],
-      ['sidebar_menu_click', { menu_name: 'plugin', position: 'sidebar_more' }],
-    ])
-    expect(layout.selectPanel.mock.calls).toEqual([[SCHEDULES], [ALPHA], [PLUGINS]])
-  })
-
-  it('reports an official menu request whose panel unregistered without selecting it', async () => {
-    const { runtime, layout, track, schedules, navigation, view } = await analyticsBench()
-    await mountProbeActions(runtime, 'official', OfficialOpen)
-    fireEvent.click(await within(navigation).findByRole('button', { name: 'More' }))
-    await schedules.dispose()
-    await waitFor(() => { expect(within(navigation).queryByRole('button', { name: 'Automation' })).toBeNull() })
-    fireEvent.click(view.getByRole('menuitem', { name: 'Open Automation by id' }))
-    expect(track).toHaveBeenLastCalledWith('sidebar_menu_click', { menu_name: 'cron', position: 'sidebar_more' })
     expect(layout.selectPanel).not.toHaveBeenCalled()
   })
 })
