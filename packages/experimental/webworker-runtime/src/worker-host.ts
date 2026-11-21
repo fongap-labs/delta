@@ -186,7 +186,7 @@ export function createWorkerHost(options: WorkerHostOptions): WorkerHost {
   const start = async (): Promise<void> => {
     try {
       const home = join(root, IMAGE_HOME_DIRECTORY)
-      const processShim = installProcessGlobal({ cwd: root, env: { DSH_HOME: home, HOME: home, ...options.env } })
+      installProcessGlobal({ cwd: root, env: { DSH_HOME: home, HOME: home, ...options.env } })
 
       const [bytes, overlays] = await Promise.all([
         readImage(options.image),
