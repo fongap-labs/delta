@@ -25,7 +25,7 @@ import {
 const REPOSITORY = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9_.-]{1,100}$/
 const SHA = /^[a-f0-9]{40}$/
 const CHANGELOG_HEADER = '## [Unreleased]\n\n'
-const CATALOG_PATH = 'packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts'
+const CATALOG_PATH = 'packages/plugin/delta-code/src/delta-code-strategy/trusted-github-skills.ts'
 
 function parseToolResult(tool: { result: string }): any {
   const parsed = JSON.parse(tool.result)
