@@ -1,0 +1,29 @@
+{
+  "name": "@fongap-labs/delta-plugin-shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Internal shared host-safe helpers for Delta first-party plugins",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "license": "MIT",
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "lib/**/*.js.map",
+    "src"
+  ]
+}
