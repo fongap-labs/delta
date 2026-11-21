@@ -85,6 +85,16 @@ pnpm --filter @fongap-labs/delta-code run build
 
 **此阶段不改变 `private: true`，不会发布或自动安装插件。** 离线压缩包结构合格只是独立发行的必要条件，仍需跨机器安装、桌面真实启动/热重载、Windows 便携包回归及可追溯制品发布验收。
 
+## 共享包压缩包与版本闭包
+
+中央 [Action Worker #1953](https://github.com/fongap-labs/action-worker/pull/1953) 将对 Delta Code 的第一方共享依赖增加第二份**实际打包**验证，要求：
+
+- 私有 `@fongap-labs/delta-plugin-shared` 也能通过 `pnpm pack --offline --ignore-scripts` 生成包含 `lib/index.js` 和类型声明的压缩包；
+- Delta Code 的 `.tgz` 对共享包的版本引用必须与共享包自身的打包版本严格一致；打包后不得残留 `workspace:` 协议；
+- 两份归档均不得含 `node_modules`、环境文件与 Git 元数据；打包不得使用真实用户 Profile 或公开发布。
+
+**限制：** 共享包仍依赖 Harness 的 `@deepseek-ai/dsh-tools`，Delta Code 也依赖当前 Harness 的 Schemastery 和 Cordis。通过两份一方归档的版本闭包测试，不等于已经完成脱离仓库的整套运行时依赖安装。正式分发需要进一步证明宿主提供这些运行时依赖或有完整、可离线解析的发行闭包。
+
 ## 唯一插件身份与数据边界
 
 - 包名统一为 `@fongap-labs/delta-code`；Cordis 注册 ID、设置表单、提示区块、日志前缀及 GitHub User-Agent 使用 `delta-code`。
