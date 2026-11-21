@@ -1,7 +1,6 @@
 /** The adapter refuses a request whose provider releases no credential, with the provider's diagnostic when it names one. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { LlmError } from '@deepseek-ai/dsh-llm'
-import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import { DeepSeekAdapter, resolveAdapterOptions } from '../src/index.ts'
 import type { DeepSeekAdapterOptions } from '../src/index.ts'
 import { chunks, options as request, prepareExtensions } from './helpers.ts'
@@ -15,7 +14,6 @@ function adapterWithout(missingCredential?: DeepSeekAdapterOptions['missingCrede
   return new DeepSeekAdapter({
     options: connection,
     resolveAuth: () => Promise.resolve(undefined),
-    resolveUserId: () => 'fixture-user' as AnonymousUserId,
     prepareExtensions,
     ...missingCredential === undefined ? {} : { missingCredential },
   })

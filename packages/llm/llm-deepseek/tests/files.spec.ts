@@ -1,5 +1,4 @@
 /** Messages file-reference admission, bounded recovery and request-wide inline fallback. */
-import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { AttachmentId, ImageVariantId } from '@deepseek-ai/dsh-attachment/types'
@@ -41,7 +40,6 @@ function harness(config: Config = {}, revoked?: AbortSignal) {
   const adapter = new DeepSeekAdapter({
     options: () => resolveAdapterOptions(Object.assign({ baseURL: 'https://gateway.example/custom' }, config)),
     resolveAuth: async () => ({ headers: { 'x-api-key': 'test-key' }, ...revoked === undefined ? {} : { revoked } }),
-    resolveUserId: () => 'test-user' as AnonymousUserId, resolveAttachments: () => attachments,
     resolveImageAccess: () => ({ readonlyPath: '/workspace/image.png' }), resolveFiles: () => files, prepareExtensions: prepare,
   })
   return { adapter, ensureUploaded, invalidate, readImageRequest, prepare }
