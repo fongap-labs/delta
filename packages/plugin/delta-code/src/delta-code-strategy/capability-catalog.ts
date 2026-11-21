@@ -250,7 +250,10 @@ export function createCodingCapabilitiesTool(): ToolDefinition {
       if (input.action === 'list') return queryCodingCapabilities({ action: 'list' })
       if (input.action === 'get') return queryCodingCapabilities({ action: 'get', id: input.id ?? '' })
       if (input.action === 'compose') return queryCodingCapabilities({ action: 'compose', ids: input.ids ?? [] })
-      if (input.action === 'plan') return queryCodingCapabilities({ action: 'plan', ids: input.ids ?? [], completed: input.completed, active: input.active })
+      if (input.action === 'plan') return queryCodingCapabilities({ action: 'plan', ids: input.ids ?? [],
+          ...(input.completed === undefined ? {} : { completed: input.completed }),
+          ...(input.active === undefined ? {} : { active: input.active }),
+        })
       throw new Error('unsupported capability action')
     },
   })

@@ -71,7 +71,7 @@ function repositoryName(value: unknown): string {
     throw new Error('invalid experience source repository')
   }
   const [owner, repo] = value.split('/')
-  if (repo === '.' || repo === '..' || repo.endsWith('.git')) {
+  if (!owner || !repo || repo === '.' || repo === '..' || repo.endsWith('.git')) {
     throw new Error('invalid experience source repository')
   }
   return owner.toLowerCase() + '/' + repo.toLowerCase()
@@ -97,12 +97,15 @@ export function buildExperienceCandidate(input: unknown): ExperienceCandidate {
       throw new Error('invalid GitHub Actions evidence URL')
     }
     const matches = ACTION_RUN.exec(item.runUrl)
-    if (!matches || matches[2] === '.' || matches[2] === '..') {
+    const runOwner = matches?.[1]
+    const runRepo = matches?.[2]
+    const runId = matches?.[3]
+    if (!runOwner || !runRepo || !runId || runRepo === '.' || runRepo === '..') {
       throw new Error('invalid GitHub Actions evidence URL')
     }
     return {
-      runUrl: 'https://github.com/' + matches[1].toLowerCase() +
-        '/' + matches[2].toLowerCase() + '/actions/runs/' + matches[3] +
+      runUrl: 'https://github.com/' + runOwner.toLowerCase() +
+        '/' + runRepo.toLowerCase() + '/actions/runs/' + runId +
         (item.runUrl.includes('/job/') ? '/job/' + item.runUrl.split('/job/')[1] : ''),
       verifies: requiredText(item.verifies, 'evidence.verifies'),
     }

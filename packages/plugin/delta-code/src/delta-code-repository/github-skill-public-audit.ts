@@ -37,7 +37,7 @@ function audited(value: unknown, label: string, pattern: RegExp): string {
 function frontmatterName(source: string): string | null {
   const match = /^---\r?\n([\s\S]{1,4096}?)\r?\n---\r?\n/.exec(source)
   if (!match || !source.slice(match[0].length).trim()) return null
-  return /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(match[1])?.[1] ?? null
+  return /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(match[1] ?? '')?.[1] ?? null
 }
 
 /** Uses exactly one credential-free read per immutable commit/tree/Skill/license. */

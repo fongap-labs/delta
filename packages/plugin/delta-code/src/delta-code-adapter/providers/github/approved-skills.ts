@@ -137,7 +137,7 @@ export function createApprovedGitHubSkillProvider(
       const readPinned = async (path: string, sha: string, maximum: number): Promise<string> => {
         const url = 'https://raw.githubusercontent.com/' + approved.owner + '/' + approved.repository +
           '/' + approved.commit + '/' + path
-        const response = await fetcher(url, { signal, redirect: 'error' })
+        const response = await fetcher(url, { ...(signal === undefined ? {} : { signal }), redirect: 'error' })
         signal?.throwIfAborted()
         if (!response.ok) throw new Error('Pinned GitHub Skill could not be loaded: HTTP ' + response.status)
         if (Number(response.headers.get('content-length') ?? '0') > maximum) {
@@ -151,7 +151,7 @@ export function createApprovedGitHubSkillProvider(
       }
       const markdown = await readPinned(approved.path, approved.blobSha, MAX_BYTES)
       const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(markdown)
-      if (!match || !new RegExp('^name:\\s*' + sourceName + '\\s*$', 'm').test(match[1])) {
+      if (!match || !new RegExp('^name:\\s*' + sourceName + '\\s*$', 'm').test(match[1] ?? '')) {
         throw new Error('Pinned GitHub Skill metadata mismatch')
       }
       const body = markdown.slice(match[0].length).trim()

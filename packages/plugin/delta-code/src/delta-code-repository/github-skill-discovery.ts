@@ -39,8 +39,8 @@ function candidateMetadata(markdown: string): { name: string; description: strin
   if (!frontmatter || !markdown.slice(frontmatter[0].length).trim()) {
     throw Error('Skill candidate has no bounded SKILL.md frontmatter or body')
   }
-  const name = /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(frontmatter[1])?.[1]
-  const description = /^description:\s*(.+?)\s*$/m.exec(frontmatter[1])?.[1]
+  const name = /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(frontmatter[1] ?? '')?.[1]
+  const description = /^description:\s*(.+?)\s*$/m.exec(frontmatter[1] ?? '')?.[1]
   if (!name || !description) throw Error('Skill candidate name or description unavailable')
   return {
     name, description: description.slice(0, 200),

@@ -168,7 +168,7 @@ export function createPublicSkillDiscoverySpecs(transport: DeltaGitHubTransport)
             }
             const skillName = skillNameFromPath(skill.path)
             const frontmatter = /^---\r?\n([\s\S]{1,4096}?)\r?\n---\r?\n/.exec(markdown)
-            const declaredName = frontmatter && /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(frontmatter[1])?.[1]
+            const declaredName = frontmatter && /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(frontmatter[1] ?? '')?.[1]
             if ((!cost.eligible && !isBundledCandidate) || !skillName || declaredName !== skillName ||
                 !markdown.slice(frontmatter?.[0].length ?? 0).trim()) {
               excludedByCost++
