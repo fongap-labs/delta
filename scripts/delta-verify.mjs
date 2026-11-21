@@ -185,9 +185,40 @@ assert.doesNotMatch(text('apps/desktop/src/main.ts'), /DSH_DESKTOP_UPDATE_JOURNA
 // to its package manifest rather than introducing a repository-owned CI launcher.
 if (process.argv.includes('--ci')) {
   assert.ok(Number(process.versions.node.split('.')[0]) >= 24, 'Node.js 24 or newer is required')
-  for (const args of [['install', '--frozen-lockfile'], ['run', 'build:lib:host'], ['run', 'build:desktop']]) {
+  for (const args of [
+    ['install', '--frozen-lockfile'],
+    ['run', 'build:lib:host'],
+    ['--filter', '@fongap-labs/delta-plugin-shared', 'run', 'build'],
+    ['--filter', '@fongap-labs/delta-code', 'run', 'build'],
+    ['run', 'build:desktop'],
+  ]) {
     const result = spawnSync('pnpm', args, { cwd: root, stdio: 'inherit' })
     if (result.error) throw result.error
     assert.equal(result.status, 0, 'pnpm ' + args.join(' ') + ' failed')
   }
+
+  for (const file of [
+    'packages/plugin/shared/lib/index.js',
+    'packages/plugin/delta-code/lib/index.js',
+    'packages/plugin/delta-code/lib/client.js',
+    'packages/plugin/delta-code/lib/types/index.d.ts',
+  ]) assert.equal(existsSync(resolve(root, file)), true, 'missing compiled plugin artifact: ' + file)
+
+  // The actual Host entry must import after the complete workspace build,
+  // not merely exist as a file. The dynamic import does not install/enable it.
+  const runtimeProbe = [
+    'import assert from "node:assert/strict"',
+    'import { pathToFileURL } from "node:url"',
+    'import { resolve } from "node:path"',
+    'const entry = pathToFileURL(resolve("packages/plugin/delta-code/lib/index.js")).href',
+    'const plugin = await import(entry)',
+    'assert.equal(plugin.name, "@fongap-labs/delta-code")',
+    'assert.equal(typeof plugin.apply, "function")',
+    'assert.ok(plugin.inject.includes("tools"))',
+  ].join(';\n')
+  const probe = spawnSync(process.execPath, ['--input-type=module', '-e', runtimeProbe], {
+    cwd: root, stdio: 'inherit',
+  })
+  if (probe.error) throw probe.error
+  assert.equal(probe.status, 0, 'Delta Code compiled Host entry failed to import')
 }
