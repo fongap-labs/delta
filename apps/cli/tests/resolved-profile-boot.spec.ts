@@ -101,7 +101,6 @@ describe('runProfile with an application-owned profile', () => {
     writeFileSync(join(localPackageDir, 'package.json'), localManifest)
     writeFileSync(join(localPackageDir, 'index.cjs'), 'module.exports = "profile"\n')
     vi.stubEnv('DSH_HOME', home)
-    vi.stubEnv('DSH_TELEMETRY_DISABLED', '1')
     vi.spyOn(process, 'on').mockReturnValue(process)
     const oldExitCode = process.exitCode
     const ctx = new Context()
