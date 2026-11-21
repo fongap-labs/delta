@@ -29,6 +29,11 @@ describe('dsh-base bundle', () => {
     expect(rows.length).toBeGreaterThan(50)
     expect(rows.some(row => row.id === 'agent-loop')).toBe(true)
     expect(rows.some(row => /telemetry|analytics|otel/.test(row.id ?? ''))).toBe(false)
+    // Delta has one generic adapter and no bundled vendor model routes.
+    expect(rows.filter(row => /^(llm-pi-ai|llm-deepseek|llm-deepseek-account|llm-deepseek-api-key|deepseek-llm-api-extensions)$/.test(row.id ?? '')).map(row => row.id))
+      .toEqual(['llm-pi-ai'])
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-llm-pi-ai')
+    expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-deepseek-llm-api-extensions')
     expect(rows.find(row => row.id === 'hmr')).toMatchObject({
       config: { root: [] },
     })
