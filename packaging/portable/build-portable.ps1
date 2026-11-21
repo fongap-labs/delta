@@ -63,7 +63,7 @@ Delta Portable
 "@
 $info = New-Object System.Xml.XmlDocument
 $info.LoadXml("<appinfo><name>Delta Portable</name><version></version><launcher>Delta.exe</launcher><layout relocatable='true' runtime='harness-electron' /></appinfo>")
-$info.DocumentElement.version = [string]$Version
+$info.SelectSingleNode('/appinfo/version').InnerText = [string]$Version
 $info.Save((Join-Path $delta "Other\AppInfo\appinfo.xml"))
 
 & (Join-Path $PSScriptRoot "sign-windows.ps1") -Path @((Join-Path $delta "Delta.exe"), (Join-Path $dest "Delta.exe"))
@@ -83,9 +83,24 @@ $entryNames = @(& tar -tf $zip)
 if ($LASTEXITCODE -ne 0 -or -not $entryNames.Count) { throw "Portable ZIP verification failed" }
 if (@($entryNames | Where-Object { $_ -notlike 'Delta/*' }).Count -gt 0) { throw "ZIP has a non-Delta root" }
 $required = @("Delta/Delta.exe", "Delta/App/Delta/Delta.exe", "Delta/Other/AppInfo/appinfo.xml")
+$requiredDirectories = @("Delta/App/", "Delta/Data/", "Delta/Other/")
 $normalizedEntries = @($entryNames | ForEach-Object { $_.Replace('\', '/') })
 foreach ($expected in $required) {
   if ($expected -notin $normalizedEntries) { throw "ZIP is missing $expected" }
+}
+foreach ($directory in $requiredDirectories) {
+  if ($directory -notin $normalizedEntries) { throw "ZIP is missing required directory $directory" }
+}
+if (@($normalizedEntries | Where-Object { $_ -match '^Delta/(?:Data|Other)/.*\.exe
+if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw "SHA256 validation failed" }
+New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+$central = Join-Path $OutputDir "delta-windows-x64-portable.zip"
+Copy-Item -LiteralPath $zip -Destination $central -Force
+if ((Get-FileHash -LiteralPath $central -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw "Central asset checksum mismatch" }
+Write-Host "Delta Portable asset: $central"
+Write-Host "Delta Portable SHA256: $hash"
+ }).Count -gt 0) {
+  throw "ZIP has unexpected executables outside App/Delta and the root launcher"
 }
 if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw "SHA256 validation failed" }
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null

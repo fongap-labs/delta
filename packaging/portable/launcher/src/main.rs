@@ -50,21 +50,14 @@ fn run() -> Result<(), String> {
     cmd.env("DELTA_PORTABLE", "1")
         .env("DELTA_PORTABLE_ROOT", &root)
         .env("DELTA_DATA_DIR", &data_dir)
-        // Single source of truth for every Rust store, preference, log, database, and
-        // secret: all portable state lands under Data, never %APPDATA%.
+        // Compatibility for Delta-only optional stores; the Electron and Harness paths
+        // are separately redirected below so ordinary user state stays under Data.
         .env("DELTA_STATE_DIR", &data_dir)
         // Harness uses a single DSH_HOME for profiles, sessions, credentials,
         // cache and extensions. Keep that home alongside Electron userData,
         // rather than letting a portable launch touch ~/.dsh or ~/.agents.
         .env("DSH_HOME", data_dir.join("harness"))
         .env("DSH_AGENTS_HOME", data_dir.join("agents"))
-        // Best-effort WebView2 profile redirect. wry may pin its own data folder (in which
-        // case this is ignored and WebView2 stays in its default location — reported as a
-        // known limitation); when honored, the browser profile moves with the portable.
-        .env(
-            "WEBVIEW2_USER_DATA_FOLDER",
-            data_dir.join("runtime").join("webview2"),
-        )
         // Anchor the child's CWD at ROOT so no logic depends on where the user launched from.
         .current_dir(&root)
         // Pass every argument through unchanged (Unicode-safe on Windows).

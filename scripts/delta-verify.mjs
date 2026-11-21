@@ -70,3 +70,11 @@ assert.match(exportHost, /SESSION_MARKDOWN_EXPORT_PATH/)
 assert.match(exportClient, /controller\.download\(sessionId\)/)
 assert.match(exportClient, /copyController\.copy\(sessionId\)/)
 assert.doesNotMatch(basePatch, /^    - id: session-log-deepseek$/m)
+
+// Match the historical Windows portable root layout while keeping Electron inside App.
+const portableBuild = text('packaging/portable/build-portable.ps1')
+assert.match(portableBuild, /Join-Path \$delta "App\\Delta"/)
+assert.match(portableBuild, /"Delta\/Data\/"/)
+assert.match(portableBuild, /"Delta\/Other\/"/)
+assert.match(portableBuild, /SelectSingleNode\('\/appinfo\/version'\)/)
+assert.match(text('packaging/portable/launcher/src/main.rs'), /root\.join\("App"\)\.join\("Delta"\)\.join\("Delta.exe"\)/)
