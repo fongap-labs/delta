@@ -257,7 +257,7 @@ export function SidebarRoot({
       {/* macOS hiddenInset titlebar: the strip shares the row with the
           traffic lights and keeps the toggle at the sidebar's top-right. */}
       {darwinDesktop && <div className={css.topStrip} data-window-drag>{toggle}</div>}
-      <div className={css.logoRow} data-window-drag>
+      <div className={css.headerRow} data-window-drag>
         {!darwinDesktop && toggle}
       </div>
 
