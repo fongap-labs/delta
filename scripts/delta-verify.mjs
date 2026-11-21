@@ -30,6 +30,12 @@ assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /startSignIn\(\)/,
 assert.match(text('apps/desktop/src/welcome-api.ts'),
   /export function needsWelcome\(_authentication: WelcomeAuthentication\): boolean \{\s*return false\s*\}/)
 assert.match(text('packaging/portable/build-portable-package.ps1'), /Delta-Windows-Portable\.zip/)
+// The standalone ZIP signing helper reads these variables directly from the PowerShell process.
+// An offline unsigned release must never inherit release signing credentials.
+const portableRelease = text('packaging/portable/release-build-package.ps1')
+for (const key of ['WINDOWS_SIGNING_CERT', 'WINDOWS_SIGNING_PASSWORD', 'WINDOWS_SIGNING_TIMESTAMP_URL']) {
+  assert.ok(portableRelease.includes('$env:' + key + ' = $null'), 'unsigned portable build must clear ' + key)
+}
 const lock = JSON.parse(text('upstream.lock.json'))
 assert.equal(lock.baseline_sha, '2e39e70496aa02986ca6a820c5d497e816b69d7e')
 const manifest = JSON.parse(text('.github/release.manifest.json'))
