@@ -4,6 +4,8 @@
 
 - 维护: 将 Delta 品牌母版迁移至 resources/brand，更新资源引用、验收脚本和项目说明，保持图标内容不变。
 
+- 维护: 根目录仅保留中文 README.md，移除旧版 Harness 中文介绍及对应的双语记录，保留其他文档双语校验。
+
 - 维护: 记录 Delta Code 私有工作区包经真实 pnpm 离线 link 安装与移除的隔离 Profile 验收范围，以及尚未覆盖的注册表发行、桌面进程和 Windows 验收。
 
 - 维护: 补充 Delta Code 临时隔离 Profile 中 Bundle 选择、停用、启用和取消选择的验收范围，继续区分模拟包解析与真实 pnpm 安装卸载。
