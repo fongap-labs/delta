@@ -15352,7 +15352,7 @@ importers:
   packages/plugin/delta-code:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: workspace:~
+        specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
       '@fongap-labs/delta-plugin-shared':
         specifier: workspace:*
