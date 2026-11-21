@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Settings } from '../../../types.js'
 import { DEFAULT_GUIDANCE, errorMessage } from '../../../runtime.js'
 
-const PROMPT_SECTION_NAME = 'dsh-delta-code:guidance'
+const PROMPT_SECTION_NAME = 'delta-code:guidance'
 
 /** A deferred Host service cannot install a prompt after this generation stops. */
 export function registerDeltaCodePrompt(ctx: Context, settings: Settings): () => void {
@@ -19,7 +19,7 @@ export function registerDeltaCodePrompt(ctx: Context, settings: Settings): () =>
       })
       if (typeof release === 'function') disposers.push(release)
     } catch (error) {
-      ctx.logger?.warn?.('dsh-delta-code: failed to register system prompt section: ' + errorMessage(error))
+      ctx.logger?.warn?.('delta-code: failed to register system prompt section: ' + errorMessage(error))
     }
   })
   return () => {

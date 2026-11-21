@@ -34,7 +34,7 @@ export function registerNativeResume(ctx: Context): NativeResumeReader {
   const disposeHandle = (old: ProjectionHandle | undefined): void => {
     if (!old) return
     void Promise.resolve().then(() => old.dispose()).catch(() => {
-      ctx.logger?.warn?.('dsh-delta-code: native resume projection disposal failed')
+      ctx.logger?.warn?.('delta-code: native resume projection disposal failed')
     })
   }
   const clearHandle = (): void => {
@@ -66,10 +66,10 @@ export function registerNativeResume(ctx: Context): NativeResumeReader {
         }
         handle = registered
       }).catch(() => {
-        ctx.logger?.warn?.('dsh-delta-code: native resume projection registration failed')
+        ctx.logger?.warn?.('delta-code: native resume projection registration failed')
       })
     } catch {
-      ctx.logger?.warn?.('dsh-delta-code: native resume projection registration failed')
+      ctx.logger?.warn?.('delta-code: native resume projection registration failed')
     }
     return () => {
       isScopeActive = false
@@ -93,7 +93,7 @@ export function registerNativeResume(ctx: Context): NativeResumeReader {
       const disposeInjection = (injected as { dispose?: () => Promise<void> } | null)?.dispose
       if (typeof disposeInjection === 'function') {
         void Promise.resolve().then(() => disposeInjection.call(injected)).catch(() => {
-          ctx.logger?.warn?.('dsh-delta-code: native resume injection disposal failed')
+          ctx.logger?.warn?.('delta-code: native resume injection disposal failed')
         })
       }
     },

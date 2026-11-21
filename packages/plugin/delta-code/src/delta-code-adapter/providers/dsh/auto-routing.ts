@@ -153,7 +153,7 @@ export function registerAutomaticCodingRouter(
     const service = (child as { systemPrompt?: RuntimePromptService }).systemPrompt
     if (typeof service?.context !== 'function') return
     const dispose = service.context({
-      name: 'dsh-delta-code:auto-routing',
+      name: 'delta-code:auto-routing',
       order: 1301,
       interpolate: false,
       text(context) {
