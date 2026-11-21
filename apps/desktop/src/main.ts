@@ -111,7 +111,7 @@ const recovery = new DesktopFatalRecovery({
 
 /** Fatal errors stay in the native dialog, with no crash report generation or upload. */
 function reportFatal(error: unknown, source: 'host' | 'web-boot' | 'renderer' | 'main'): void {
-  console.error(error)
+  console.error('Delta desktop fatal error:', desktopErrorState(error).message)
   if (shuttingDown) return
   void recovery.report(error, source).catch((failure: unknown) => {
     console.error(failure)

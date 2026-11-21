@@ -78,3 +78,8 @@ assert.match(portableBuild, /"Delta\/Data\/"/)
 assert.match(portableBuild, /"Delta\/Other\/"/)
 assert.match(portableBuild, /SelectSingleNode\('\/appinfo\/version'\)/)
 assert.match(text('packaging/portable/launcher/src/main.rs'), /root\.join\("App"\)\.join\("Delta"\)\.join\("Delta.exe"\)/)
+
+const privacy = text('apps/desktop/src/privacy-redaction.ts')
+assert.match(privacy, /redactDiagnostic/)
+assert.match(text('apps/desktop/src/startup-error.ts'), /redactDiagnostic\(message\)/)
+assert.doesNotMatch(text('apps/desktop/src/main.ts'), /console\.error\(error\)\n  if \(shuttingDown\)/)
