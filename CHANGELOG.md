@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 完成一次性受审计的 Delta main 历史迁移；保留全部 Delta 代码和旧主线快照，现有 main 已继承 Harness 固定基线（迁移时 Behind 0 / Ahead 8），并通过 Windows 打包与保护规则恢复验收。
+
 - 修复: 修正打包后运行检查仍启动 DeepSeek Harness.exe 的路径错误，统一 Delta.exe 与 macOS Delta.app 命名，防止 Windows 便携 ZIP 构建在启动验证阶段失败。
 
 - 维护: 确立当前 main 作为 Delta 开发基线，冻结 v0.0.1 旧版分支，并明确与 Harness 独立提交历史的比较规则。

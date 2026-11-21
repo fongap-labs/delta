@@ -11,7 +11,7 @@ Delta 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 - **运行架构**：保持 DeepSeek Harness 的 Electron + Node/TypeScript 运行时，**未迁移**旧版 Tauri/Rust 底座。
 - **打包**：Windows x64 的正式目标为 `Delta-Windows-Portable.zip` 风格的可移动目录：`Delta/Delta.exe`、`Delta/App/Delta/Delta.exe`、`Delta/Data/`、`Delta/Other/AppInfo/appinfo.xml`。中央发布资产名仍为 `delta-windows-x64-portable.zip`。由旧版 Rust launcher 负责启动 Electron 程序，并通过 `DSH_HOME` / `DSH_AGENTS_HOME` 把 Harness 数据重定向到 `Delta/Data`。
 
-**限制**：严格复制旧版 Tauri/Rust 的构建内部机制与保持 Harness 的 Electron 底座两者不能同时成立。这里保留旧版的用户可见便携包结构、启动器、产物命名和校验方式，而不是把 Harness 重写成 Tauri。当前未完成完整 Windows 集成构建、搬迁后运行及插件兼容性验收，禁止当作已验证发布版本。
+**限制**：严格复制旧版 Tauri/Rust 的构建内部机制与保持 Harness 的 Electron 底座两者不能同时成立。这里保留旧版的用户可见便携包结构、启动器、产物命名和校验方式，而不是把 Harness 重写成 Tauri。Action Workers 已在受控历史迁移验收中完成一次真实 Windows x64 便携 ZIP 构建和打包运行检查；这**不等于**覆盖所有用户机器环境、插件兼容性与正式发布验收，未经完整发布门禁仍不得当作已正式验证的发布版本。
 
 ## 开发和打包
 
@@ -31,7 +31,7 @@ Windows 中央发布入口为 `packaging/portable/release-build-package.ps1`，�
 | --- | --- |
 | `upstream/deepseek-harness` | 上游镜像，仅跟踪，不写入 `main` |
 | `baseline/deepseek-harness` | 固定的干净上游代码，日常比对以此为基线 |
-| `main` | Delta 产品代码，需经 Action Worker 统一治理 |
+| `main` | Delta 产品代码，已继承固定 Harness 基线的 Git 提交历史，需经 Action Worker 统一治理 |
 | `legacy/v0.0.1` | 历史 Delta 版本，仅供品牌和发行约定参考 |
 
 上游版本记录见 [upstream.lock.json](upstream.lock.json)。引入新版本前需完成兼容审查，不能由定时任务自动合并。

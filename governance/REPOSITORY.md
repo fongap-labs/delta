@@ -57,24 +57,34 @@ Delta 自研模块使用 Delta 标识；Harness 既有 `dsh`、Cordis、上游�
 
 ## 5. 分支、基线与提交历史
 
-- `main`：Delta 正式产品主线。以 2026-11-21 的 `584e6c77ad424b1b388014854d2ecda13c9b2433` 所含代码为当前 Delta 自有开发基线；未来变更通过中央验证的 PR 合并，不将 `main` 重置到上游。
-- `baseline/delta-main-2026-11-21`：上述 `main` 提交的固定快照，仅用于追溯此轮整理前后的 Delta 改动；约定保持指向该 SHA，不参与日常开发。
-- `legacy/v0.0.1`：旧版 Delta 的冻结入口；与保留的原分支 `legacy/delta-v0.0.1` 一同指向 `d9eb5531b4b708a96c0874712b3205be29741e73`。现有 `Protect Legacy Branches` 规则对 `legacy/**` 禁止更新、删除与非快进修改，不得继续在旧版分支开发。
-- `baseline/deepseek-harness`：人工审核提升的固定 Harness 上游参考版本，不是 Delta `main` 的 Git 祖先，也不是 Delta 产品开发基线。
-- `upstream/deepseek-harness`：仅跟踪官方上游，不直接覆盖 `main`；自动跟踪是否部署成功仍须单独核验。
-- `feature/*`、`fix/*`、`docs/*`：从最新 Delta `main` 创建的开发分支。
+- `main`：Delta 正式产品开发主线。2026-11-22 经 Action Workers [受控迁移 #44929104924](https://github.com/fongap-labs/action-worker/actions/runs/44929104924)，已**正式继承** `baseline/deepseek-harness` 的 Git 提交历史，历史迁移后的首个 `main` SHA 为 `8b73554a94a115c3fc8310e882036ef887f0569c`。日常开发仍通过受保护分支和中央 CI 通过的 Squash PR。
+- `baseline/deepseek-harness`：固定的、未二开的 Harness 参考提交 `2e39e70496aa02986ca6a820c5d497e816b69d7e`，**现在是 Delta `main` 的真实 Git 祖先**。升级需经人工验证，不自动覆盖 `main`。
+- `upstream/deepseek-harness`：官方 Harness 的只读跟踪分支；在本次迁移核验时与 baseline 同为 `2e39e70496aa02986ca6a820c5d497e816b69d7e`，未来上游更新可能领先 baseline；它永远不得自动覆盖 `main`。
+- `legacy/v0.0.1`：旧版 Delta 的冻结入口，与原分支 `legacy/delta-v0.0.1` 一同指向 `d9eb5531b4b708a96c0874712b3205be29741e73`。现有 `Protect Legacy Branches` 规则保护 `legacy/**`，不得作为日常开发分支。
+- `legacy/main-pre-harness-migration-2026-11-22-v2`：迁移前最后的 Delta `main`，固定在 `4870259d11d8468d6d494f9d609e70c148416cf8`，用于审计、回滚对照。新 `main` 的 Git 文件树与这一提交完全一致（`37516875b61fd6cf149feb6a4c54a1ebea6d3945`），**没有产品代码损失**。
+- `baseline/delta-main-2026-11-21`：早期临时快照，不是现在的开发基线；不再更新，完成归档确认后可清理。
+- `migration/*`：单次迁移时的临时候选及实验分支；当前正式 `main` 已采用 `migration/rebase-delta-on-harness-2026-11-22-v2` 的提交。验证和留档完成后可按权限规范清理临时分支。
+- `feature/*`、`fix/*`、`docs/*`：从最新 Delta `main` 创建的正常开发分支。
 
-当前 `main` 是通过源码导入建立的**独立线性 Git 历史**，与 Harness 上游历史没有共同祖先。GitHub 在这些互不相连的分支间显示的 `Ahead/Behind` 数量不是 Delta 漏掉的更新数；不得通过伪合并、强推或绕过 `main` 的线性历史 / Squash 合并门禁来消除数字。
+迁移将原 Delta 的八次代码快照按顺序重建为 Harness 固定基线的**八个后继提交**。因此刚迁移完成时 `main` 相对 baseline 的正确结果是 `Behind 0 / Ahead 8`；此后普通 PR 会增加 Ahead，不会因为历史脱节突然出现 28,264 个上游提交。不能只根据 Ahead/Behind 推断工作树有多少文件变动。
 
-按需要使用工作树差异或各自历史比较，而不是用无共同祖先的三点提交比较：
+日常比较方式：
 
 ```bash
-git diff --stat baseline/delta-main-2026-11-21 main
-git diff --stat baseline/deepseek-harness upstream/deepseek-harness
-git diff --stat baseline/deepseek-harness main
+# Delta 产品相对固定 Harness 基线的提交
+git log --oneline baseline/deepseek-harness..main
+
+# Delta 产品相对共同祖先的文件变更
+git diff --stat baseline/deepseek-harness...main
+
+# 上游镜像相对固定基线的新提交
+git log --oneline baseline/deepseek-harness..upstream/deepseek-harness
+
+# 新旧 Delta main 是否保持代码一致（本次冻结快照）
+git diff --exit-code legacy/main-pre-harness-migration-2026-11-22-v2 8b73554a94a115c3fc8310e882036ef887f0569c
 ```
 
-第一项表示冻结快照以来的 Delta 主线变动；第二项表示 Harness 上游相对审核基线的变动；第三项只比较当下代码内容，不把两份独立提交历史解释成继承关系。上游升级应经人工核对、迁移和验证，再用正常 Delta PR 应用必要修改，保留品牌、隐私、插件兼容与打包要求。
+上游升级始终先审查差异与兼容性，再通过正常 Delta PR 应用必要变更；保留品牌、隐私、插件兼容、便携打包和中央治理要求。单次历史迁移不构成今后绕过分支保护或强推 `main` 的许可。
 
 主程序及插件独立管理制品和版本，但实际签名、构建执行、发布编排及权限仍由 Action Worker 治理。发布清单按中央合同维护，不假定尚未提交的清单已经存在。
 
