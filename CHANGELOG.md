@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 修正打包后运行检查仍启动 DeepSeek Harness.exe 的路径错误，统一 Delta.exe 与 macOS Delta.app 命名，防止 Windows 便携 ZIP 构建在启动验证阶段失败。
+
 - 维护: 确立当前 main 作为 Delta 开发基线，冻结 v0.0.1 旧版分支，并明确与 Harness 独立提交历史的比较规则。
 
 - 修复: 将 Delta Windows 便携版发布清单迁移到 Action Workers 标准目录，补齐构建字段与 Node 版本配置，并支持隔离凭据的离线打包。
