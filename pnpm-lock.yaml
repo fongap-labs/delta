@@ -15348,6 +15348,8 @@ importers:
         specifier: workspace:*
         version: link:../../core/system-prompt
 
+  packages/plugin/shared: {}
+
   packages/ptc-runtime/ptc-runtime:
     devDependencies:
       '@deepseek-ai/cordis':
