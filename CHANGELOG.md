@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 将上游遗留的 CI 工作流测试由约 1,900 行精简为当前仍有效的 GitLab、bubblewrap 和 Git Hook 六项检查；正式 Actions 桥接合同由 Action Worker 可信测试包维护。
+
 - 维护: 补充 Delta Code 私有插件离线 .tgz 制品的 Host/Client、Cordis、语言资源、依赖协议及私有文件排除验收说明；不发布插件或改变默认装载。
 
 - 维护: 明确 Delta Code 仅中英文资源、默认关闭高权限操作、缺失宿主进程服务时拒绝本机回退，以及 GitHub 明文凭据与跨账号绑定的中央运行时验收。
