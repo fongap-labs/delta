@@ -52,6 +52,17 @@ pnpm --filter @fongap-labs/delta-code run build
 
 测试使用指向已构建工作区包的临时符号链接模拟**已安装后的包解析**，不调用真实 pnpm 安装器。因此其成功不意味着安装、依赖拉取、卸载、桌面热重载或 Windows 发布已完成。以上仍属于后续独立验收项，插件保持私有且默认不启用。
 
+## 本地离线 pnpm 安装与移除验收
+
+中央 [Action Worker #1949](https://github.com/fongap-labs/action-worker/pull/1949) 在隔离临时 Profile 中调用已有的 `runPluginCommand` 包管理器 API，以 `link:` 引用当前工作区构建后的 `@fongap-labs/delta-code` 私有包：
+
+- 使用真实 pnpm 的 `add` 和 `remove`，明确指定 `--offline --ignore-scripts`；
+- 安装后验证依赖清单与 `dsh.profile.bundles` 选择同步，并且只产生一个 `delta-code` Cordis 条目；
+- 移除后确认依赖、Bundle 选择和组合条目全部消失；
+- 测试从不使用用户 Profile，不触发远程注册表或安装脚本，完成后清理临时数据。
+
+该验收局限于**工作区私有包的本地离线链接**，不等同于公开 npm 制品分发、跨机器安装、用户应用热更新或 Windows 桌面发行。实际运行和高权限功能仍需单独验证，插件保持私有且不默认启用。
+
 ## 唯一插件身份与数据边界
 
 - 包名统一为 `@fongap-labs/delta-code`；Cordis 注册 ID、设置表单、提示区块、日志前缀及 GitHub User-Agent 使用 `delta-code`。
