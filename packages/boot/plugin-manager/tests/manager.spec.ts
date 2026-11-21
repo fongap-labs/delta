@@ -70,7 +70,7 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
     ...(packageManager === undefined ? {} : { packageManager }),
     startedBundles: loadProfileDirectory('test', dir, anchor).layers.map(layer => layer.packageName),
     dir, patchPath: join(dir, 'cordis.patch.yml'), installAnchor: anchor, cwd: home, home,
-    overlayPaths: [overlayPath], telemetryDisabledEnv: undefined,
+    overlayPaths: [overlayPath],
   }
   const ctx = await boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', profile), (ctx) => {
     owner = ctx
