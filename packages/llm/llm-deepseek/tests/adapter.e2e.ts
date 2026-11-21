@@ -19,9 +19,7 @@ import LocalAttachments from '@deepseek-ai/dsh-attachment-local'
 import DeepSeekLlmApiExtensionRegistry from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import LlmRuntime, { BlockAssembler, createAssistantMessage, createDeveloperMessage, createSystemMessage, createToolResultMessage, type ReasoningEffortId, type ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Message } from '@deepseek-ai/dsh-llm'
-import * as PluginPackageInventoryDeepSeek from '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
 import SessionStore, { type SessionId } from '@deepseek-ai/dsh-session'
-import * as SessionLogDeepSeek from '@deepseek-ai/dsh-session-log-deepseek'
 import * as Messages from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import DeepSeekAuth from '@deepseek-ai/dsh-deepseek-auth'
 import { DeepSeekFilesClient } from '../src/files-api.ts'
@@ -163,79 +161,6 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('DeepSeek Messages real API', () 
     expect(bodies[2]).toContain(`"file_id":"${fileId}"`)
     expect(bodies[3]).toContain(`"file_id":"${uploads[1]}"`)
     expect(bodies[3]).not.toContain('"type":"base64"')
-  })
-
-  it.each([false, true])('submits Loader package inventory and records HTTP acceptance with session-log enabled=%s', async (enabled) => {
-    const pluginRoot = await mkdtemp(join(tmpdir(), 'dsh-unversioned-plugin-e2e-'))
-    cleanups.push(() => rm(pluginRoot, { recursive: true, force: true }))
-    const unversionedName = 'unversioned-e2e-plugin'
-    await writeFile(join(pluginRoot, 'package.json'), JSON.stringify({ name: unversionedName, type: 'module' }))
-    await writeFile(join(pluginRoot, 'plugin.mjs'), 'export const name = "unversioned-e2e-plugin"\nexport function apply() {}\n')
-    const unversionedModule = pathToFileURL(join(pluginRoot, 'plugin.mjs')).href
-    const ctx = await boot()
-    await ctx.plugin(Loader)
-    await ctx.plugin(SessionProjectionRegistry)
-    await ctx.plugin(AgentRegistry)
-    await ctx.plugin(SessionStore)
-    await ctx.plugin(DeepSeekLlmApiExtensionRegistry)
-    await ctx.plugin(SessionLogDeepSeek, enabled ? {} : { enabled: false })
-    ctx.baseUrl = import.meta.url
-    // Select the source module while Loader owns its active package entry.
-    ctx.loader.internal = sourceModuleLoader(async (specifier) => {
-      if (specifier === unversionedModule) return import(specifier)
-      if (specifier !== '@deepseek-ai/dsh-plugin-package-inventory-deepseek') throw new Error(`unexpected Loader import: ${specifier}`)
-      return PluginPackageInventoryDeepSeek
-    })
-    await ctx.loader.create({ name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek' })
-    await ctx.loader.create({ name: unversionedModule })
-    await ctx.loader.await()
-    const packagePath = createRequire(import.meta.url).resolve('@deepseek-ai/dsh-plugin-package-inventory-deepseek/package.json')
-    const packageIdentity = JSON.parse(await readFile(packagePath, 'utf8')) as { name: string; version: string }
-    const session = ctx.sessions.create(brandString<SessionId>(`real-messages-extensions-${randomUUID()}`))
-    session.append('turn/start', { turn: 1 })
-    const fetchImpl = globalThis.fetch
-    let afterSeq: number = -1
-    let throughSeq = 0
-    let requests = 0
-    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      if (url !== `${Protocol.PUBLIC_BASE_URL}/v1/messages`) return fetchImpl(input, init)
-      if (typeof init?.body !== 'string') throw new Error('expected a JSON Messages request')
-      const body = JSON.parse(init.body) as Record<string, unknown>
-      expect(body.dsh_plugin_packages).toStrictEqual({
-        version: 1, packages: [
-          { name: packageIdentity.name, version: packageIdentity.version },
-          { name: unversionedName },
-        ],
-      })
-      if (enabled) {
-        expect(body).toMatchObject({ dsh_session_log: {
-          version: 1, sessionFormatVersion: session.header.version, session: { id: session.id },
-          afterSeq, throughSeq,
-          events: Array.from({ length: throughSeq - afterSeq }, (_, index) => ({ seq: afterSeq + index + 1 })),
-        } })
-      } else expect(body).not.toHaveProperty('dsh_session_log')
-      expect(SessionLogDeepSeek.acceptedThrough(session)).toBe(afterSeq)
-      const response = await fetchImpl(input, init)
-      expect(response.ok).toBe(true)
-      expect(SessionLogDeepSeek.acceptedThrough(session)).toBe(afterSeq)
-      requests += 1
-      return response
-    })
-    for (let run = 0; run < 2; run++) {
-      afterSeq = SessionLogDeepSeek.acceptedThrough(session)
-      throughSeq = Number(session.seq) - 1
-      const assembler = new BlockAssembler()
-      for await (const chunk of ctx.llm.stream(options({ sessionId: session.id, reasoningEffort: brandString<ReasoningEffortId>('off'), messages: [user('Reply with exactly PONG.')] }))) {
-        expect(SessionLogDeepSeek.acceptedThrough(session)).toBe(enabled ? throughSeq : -1)
-        assembler.push(chunk)
-      }
-      expect(assembler.finish.kind).toBe('stop')
-      expect(assembler.blocks().filter(block => block.type === 'text').map(block => block.text).join('')).toContain('PONG')
-      expect(requests).toBe(run + 1)
-      if (run === 0) session.append('step/start', { turn: 1, step: 1 })
-    }
-    expect(session.snapshotEvents().filter(event => event.type === 'session-log-deepseek/delivery-accepted')).toHaveLength(enabled ? 2 : 0)
   })
 
   it.each(['off', 'low', 'high', 'max'])('streams text with %s effort', async (effort) => {
