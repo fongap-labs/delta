@@ -621,6 +621,7 @@
     { "path": "./packages/host/authentication-desktop" },
     { "path": "./packages/host/open-in-app" },
     { "path": "./packages/host/plugin-inventory" },
+    { "path": "./packages/plugin/shared" },
     { "path": "./packages/boot/plugin-manager" },
     { "path": "./packages/boot/plugin-market" },
     { "path": "./packages/host/webserver" },
