@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Types de configuration synchronisée",
-    "description": "Types pour lire la configuration en direct de l’Host dans les plugins du navigateur."
-  }
-}

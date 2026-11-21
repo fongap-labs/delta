@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Demandes de modification GitLab",
-    "description": "Lit et écrit les merge requests GitLab pour le registre forge via la CLI GitLab de l’hôte."
-  }
-}

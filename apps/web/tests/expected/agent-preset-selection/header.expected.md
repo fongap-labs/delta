@@ -1,5 +1,0 @@
-- navigation "Session hierarchy": Seeded turn
-- text: Minimal mode
-- button "Session panel"
-- button "More actions"
-- button "Open right sidebar"

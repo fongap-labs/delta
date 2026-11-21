@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Запросы на изменение GitLab",
-    "description": "Читает и записывает merge request GitLab для реестра forge через GitLab CLI на хосте."
-  }
-}
