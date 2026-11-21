@@ -1,8 +1,8 @@
-/** Serializable Desktop failure diagnostics; sensitive values never cross the renderer boundary. */
+/** Bounded, redacted error summary for the local Desktop recovery dialog. */
 import { redactDiagnostic } from './privacy-redaction.ts'
 
 /**
- * Preserve nested diagnostics when sending failures to a renderer.
+ * Keep stack traces, enumerable properties and nested causes out of UI state.
  * @param error - Startup or runtime failure.
  * @returns Serializable error state.
  */

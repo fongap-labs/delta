@@ -15,12 +15,12 @@ type FailureSource = 'host' | 'web-boot' | 'renderer' | 'main'
 const DETAIL_BUDGET = 1200
 
 export class DesktopFatalRecovery {
-  private reported = false
+  private shown = false
   constructor(private readonly operations: RecoveryOperations) {}
-  get active(): boolean { return this.reported }
-  async report(error: unknown, _source: FailureSource): Promise<void> {
-    if (this.reported) return
-    this.reported = true
+  get active(): boolean { return this.shown }
+  async present(error: unknown, _source: FailureSource): Promise<void> {
+    if (this.shown) return
+    this.shown = true
     const messages = this.operations.messages()
     let detail = desktopErrorState(error).message
     let message = messages.fatalSummary

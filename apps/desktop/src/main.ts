@@ -119,7 +119,7 @@ const recovery = new DesktopFatalRecovery({
 function reportFatal(error: unknown, source: 'host' | 'web-boot' | 'renderer' | 'main'): void {
   logPrivateError('Delta desktop fatal error:', desktopErrorState(error).message)
   if (shuttingDown) return
-  void recovery.report(error, source).catch((failure: unknown) => {
+  void recovery.present(error, source).catch((failure: unknown) => {
     logPrivateError(failure)
     shuttingDown = true
     app.exit(1)
@@ -530,7 +530,7 @@ async function main(): Promise<void> {
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
     }
   }, (state) => {
-    if (state.phase === 'error') reportFatal(state.failure, 'host')
+    if (state.phase === 'error') reportFatal(new Error(state.message), 'host')
   })
 
   const updateErrors = new WeakMap<DesktopUpdateState, Promise<void>>()

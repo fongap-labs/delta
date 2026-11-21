@@ -1,9 +1,6 @@
 /** Launch the Desktop profile through the Web application and report its URL to Electron. */
 
 import { delimiter, join } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
-import { formatFatalDiagnostic } from './fatal-diagnostic.ts'
 import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -14,14 +11,13 @@ import { localDragResource } from './file-drag.ts'
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
-import { installOperationDiagnostics } from './operation-diagnostics.ts'
 import { DesktopAuthenticationEnd, receiveDesktopSecret } from './authentication.ts'
+import { redactDiagnostic } from './privacy-redaction.ts'
 import * as DesktopAuthentication from '@deepseek-ai/dsh-host-authentication-desktop'
 
 async function main(): Promise<void> {
-  const runId = randomUUID() as PluginOperationRunId
   const authentication = receiveDesktopSecret(process)
-  if (process.connected) process.send?.({ type: 'starting', runId }, (error) => {
+  if (process.connected) process.send?.({ type: 'starting' }, (error) => {
     if (error !== null) authentication.dispose()
   })
   const send = (message: object): Promise<void> => new Promise((resolve, reject) => {
@@ -121,7 +117,7 @@ async function main(): Promise<void> {
         } catch (error) {
           // The shell treats an unknown state as interruptible work and asks before quitting.
           await send({ type: 'quit-inspection', requestId, activeTasks: true, scheduledTasks: false,
-            error: error instanceof Error ? error.message : String(error) })
+            error: redactDiagnostic(error instanceof Error ? error.message : String(error)) })
         }
       })().catch((error: unknown) => { console.error(error) })
       return
@@ -135,7 +131,7 @@ async function main(): Promise<void> {
         await send({ type: 'update-tasks', requestId: message.requestId, active })
       } catch (error) {
         await send({ type: 'update-tasks', requestId: message.requestId, active: true,
-          error: error instanceof Error ? error.message : String(error) })
+          error: redactDiagnostic(error instanceof Error ? error.message : String(error)) })
       }
     })().catch((error: unknown) => { console.error(error) })
   })
@@ -150,7 +146,6 @@ async function main(): Promise<void> {
     authentication.signal.removeEventListener('abort', onAuthenticationEnd)
     authentication.dispose()
   }, 'desktop-host: authentication channel')
-  installOperationDiagnostics(ctx, record => send({ type: 'plugin-operation', record }), 32, runId)
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   control.quitInspection = installDesktopQuitInspection(ctx)
   installPlatformSessionPublisher(ctx, (session) => {
@@ -170,13 +165,9 @@ async function main(): Promise<void> {
 
 if (import.meta.main) {
   main().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error)
-    // The shell receives the complete inspected error here, not through stderr:
-    // stderr bytes and this IPC message race, and the shell reports the first
-    // failure it sees.
-    const diagnostic = formatFatalDiagnostic(error)
-    if (process.connected) process.send?.({ type: 'fatal', message, diagnostic }, (error) => { if (error !== null) console.error(error) })
-    console.error(error)
+    const message = redactDiagnostic(error instanceof Error ? error.message : String(error))
+    if (process.connected) process.send?.({ type: 'fatal', message }, (error) => { if (error !== null) console.error(error) })
+    console.error('Delta Host startup failed:', message)
     process.exitCode = 1
     if (process.connected) process.disconnect()
   })

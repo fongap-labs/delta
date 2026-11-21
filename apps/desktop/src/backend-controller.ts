@@ -6,12 +6,11 @@ import { desktopErrorState } from './startup-error.ts'
 export type DesktopBackendState =
   | { readonly phase: 'starting' }
   | { readonly phase: 'ready' }
-  /** `message` is the rendered text; `failure` is the original error so a crash report keeps its stack, properties, and cause. */
-  | { readonly phase: 'error'; readonly message: string; readonly failure: unknown }
+  | { readonly phase: 'error'; readonly message: string }
 
 /** The error state for one failure: rendered message plus the failure itself. */
 function errorState(failure: unknown): DesktopBackendState {
-  return { ...desktopErrorState(failure), failure }
+  return desktopErrorState(failure)
 }
 
 /** Child lifecycle owned by the desktop backend controller. */
