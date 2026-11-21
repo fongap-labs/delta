@@ -888,3 +888,6 @@
     transition-duration: 0s;
   }
 }
+
+/* Delta: do not substitute a vendor brand mark for the collapsed navigation toggle. */
+.collapsed .toggle .panelIcon { display: inline; }
