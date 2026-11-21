@@ -63,6 +63,16 @@ pnpm --filter @fongap-labs/delta-code run build
 
 该验收局限于**工作区私有包的本地离线链接**，不等同于公开 npm 制品分发、跨机器安装、用户应用热更新或 Windows 桌面发行。实际运行和高权限功能仍需单独验证，插件保持私有且不默认启用。
 
+## 私有插件压缩包验收
+
+中央 [Action Worker #1951](https://github.com/fongap-labs/action-worker/pull/1951) 对当前工作区中**已经构建**的 Delta Code 运行本地离线 `pnpm pack`（禁用安装脚本，不发布到任何注册表），并核验实际生成的 `.tgz`：
+
+- 包内必须包含 Host `lib/index.js`、Client `lib/client.js`、类型声明、Cordis `cordis.patch.yml`、中英文资源及插件图标。
+- 压缩包的插件身份、版本、Bundle 与 Client 入口必须匹配源码声明；第一方共享模块和当前 Harness 依赖不能留有不可分发的 `workspace:` 版本协议。
+- 包内不得夹带 `node_modules`、`.git`、环境文件等工作区私有内容。测试仅操作临时目录并在结束后清理。
+
+**此阶段不改变 `private: true`，不会发布或自动安装插件。** 离线压缩包结构合格只是独立发行的必要条件，仍需跨机器安装、桌面真实启动/热重载、Windows 便携包回归及可追溯制品发布验收。
+
 ## 唯一插件身份与数据边界
 
 - 包名统一为 `@fongap-labs/delta-code`；Cordis 注册 ID、设置表单、提示区块、日志前缀及 GitHub User-Agent 使用 `delta-code`。
