@@ -11,7 +11,7 @@ import type { Options as Config } from '../src/config.ts'
 import { DeepSeekAdapter } from '../src/adapter.ts'
 import { prepareImages } from '../src/images.ts'
 import { providerErrorDetail } from '../src/transport.ts'
-import { chunks, options, prepareExtensions, sse, textEvents, user, requestImageStore } from './helpers.ts'
+import { chunks, options, prepareExtensions, sse, textEvents, user } from './helpers.ts'
 
 const model = 'deepseek-flash'
 const ref: ImageAttachmentRef = { attachmentId: brandString<AttachmentId>(`sha256:${'a'.repeat(64)}`), width: 1, height: 1, mediaType: 'image/png', bytes: 3 }
@@ -35,7 +35,6 @@ function harness(config: Config = {}, revoked?: AbortSignal) {
   const files = Object.assign(new DeepSeekFileStore(), { ensureUploaded, invalidate })
   const readImageRequest = vi.fn(async (attachment: ImageAttachmentRef) => version(attachment))
   // The codec and remote upload are the expensive boundaries; request projection and recovery stay real.
-  const attachments = requestImageStore(readImageRequest)
   const prepare = vi.fn(prepareExtensions)
   const adapter = new DeepSeekAdapter({
     options: () => resolveAdapterOptions(Object.assign({ baseURL: 'https://gateway.example/custom' }, config)),

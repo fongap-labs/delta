@@ -7,7 +7,6 @@ import { Context } from '@deepseek-ai/cordis'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import { LocalCredentialProvider } from '@deepseek-ai/dsh-credentials-local'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
-import type { AccountNotificationId } from '@deepseek-ai/dsh-deepseek-account'
 import { DeepSeekAccount, type Config } from '../src/index.ts'
 
 const cleanups: Array<() => Promise<unknown>> = []

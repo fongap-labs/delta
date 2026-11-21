@@ -4,27 +4,20 @@ import { brandString } from '@deepseek-ai/dsh-brand'
  * Real Messages round trips require credentials; tool replacement also accepts DEEPSEEK_BASE_URL.
  * System-update checks additionally require DEEPSEEK_IN_HISTORY_MODEL.
  */
-import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, LoggerLevel } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
-import AgentRegistry from '@deepseek-ai/dsh-agent'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import LocalAttachments from '@deepseek-ai/dsh-attachment-local'
-import DeepSeekLlmApiExtensionRegistry from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import LlmRuntime, { BlockAssembler, createAssistantMessage, createDeveloperMessage, createSystemMessage, createToolResultMessage, type ReasoningEffortId, type ToolCallId } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createAssistantMessage, createDeveloperMessage, createSystemMessage, createToolResultMessage, type ReasoningEffortId, type ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Message } from '@deepseek-ai/dsh-llm'
 import SessionStore, { type SessionId } from '@deepseek-ai/dsh-session'
 import * as Messages from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import DeepSeekAuth from '@deepseek-ai/dsh-deepseek-auth'
 import { DeepSeekFilesClient } from '../src/files-api.ts'
 import { MESSAGES_FILES_BETA } from '../src/messages-api.ts'
-import { assemble, options, user, sourceModuleLoader } from './helpers.ts'
+import { assemble, options, user } from './helpers.ts'
 
 const IN_HISTORY_MODEL = process.env.DEEPSEEK_IN_HISTORY_MODEL
 const cleanups: (() => Promise<unknown>)[] = []

@@ -118,7 +118,7 @@ describe('advanced Python snapshot workflow ordering', () => {
     h.parent.append('step/start', { turn: 1, step: 1 })
     const callId = brandString<ToolCallId>('direct-child')
     h.parent.append('tool/call', { turn: 1, step: 1, callId, name: 'subagent', arguments: '{}' })
-    const result = h.parent.append('tool/result', {
+    h.parent.append('tool/result', {
       turn: 1, step: 1,
       message: createToolResultMessage({ callId, content: [{ type: 'text', text: 'started subagent child' }], isError: false }),
     }, { surfaceOp: 'append' })
