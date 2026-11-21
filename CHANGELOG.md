@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 修复: 为私有 Delta Code 插件补全 Harness/Cordis Bundle、Host/Client 导出及实际构建，修复共享包缺少运行时入口的问题；中央 CI 额外验证可执行模块，未开放旧插件兼容或默认安装。
+- 修复: 为已有 Host/Client 导出清单补全 Delta Code 与共享包的运行时打包步骤，确保声明的 `lib/index.js` 和 `lib/client.js` 真正生成；中央 CI 验证构建和模块导入，不引入旧插件兼容或默认安装。
 
 - 修复: Delta Code 只接受当前插件包名与注册 ID，删除旧工作树目录查找和移除兼容回退；不自动迁移或删除用户历史数据。
 
