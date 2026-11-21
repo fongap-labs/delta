@@ -10,6 +10,7 @@ import { requireHostFs } from './host-fs.js'
 import { lookupDshHostFs } from './host-adapter.js'
 import type { HostFs } from './host-fs.js'
 import { DEFAULT_LIMIT, MAX_LIMIT, boundedDirectories, assertRepositoryCapacity, prefixTrackedPaths, parseBatchQueries, workspaceMapResult } from '../../../delta-code-repository/workspace-policy.js'
+import { isInternalWorktreePath } from '../../../delta-code-repository/worktree-storage.js'
 
 /** Refuse a symbolic-link .git marker; accept both directory repos and linked worktree files. */
 async function hasGitMarker(directory: string): Promise<boolean> {
@@ -72,7 +73,7 @@ async function listTrackedFiles(
       throw new Error('unsafe Git tracked-file path')
     }
   }
-  return { isGitRepository: true, paths: paths.filter(path => !path.startsWith('.dsh-delta-code/')) }
+  return { isGitRepository: true, paths: paths.filter(path => !isInternalWorktreePath(path)) }
 }
 
 /**
