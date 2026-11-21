@@ -29,7 +29,7 @@ export function dshToolRegistrar(
       const result = registerTool(ctx, tool)
       if (!result.registered) {
         const error = result.error ?? new Error('Host tool registry rejected "' + tool.name + '"')
-        ctx.logger?.warn?.('dsh-delta-code: tool "' + tool.name +
+        ctx.logger?.warn?.('delta-code: tool "' + tool.name +
           '" was not registered: ' + error.message)
         throw error
       }

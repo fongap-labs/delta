@@ -52,7 +52,7 @@ export function observeNativeDelegation(ctx: Context): {
       const disposeInjection = (injection as { dispose?: () => Promise<void> } | null)?.dispose
       if (typeof disposeInjection === 'function') {
         void Promise.resolve().then(() => disposeInjection.call(injection)).catch(() => {
-          ctx.logger?.warn?.('dsh-delta-code: native delegation probe disposal failed')
+          ctx.logger?.warn?.('delta-code: native delegation probe disposal failed')
         })
       }
     },

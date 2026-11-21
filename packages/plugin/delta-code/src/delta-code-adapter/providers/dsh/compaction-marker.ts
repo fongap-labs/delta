@@ -21,7 +21,7 @@ export function registerNativeCompactionMarker(ctx: Context): NativeCompactionRe
   const release = (old?: ProjectionHandle): void => {
     if (!old) return
     void Promise.resolve().then(() => old.dispose()).catch(() => {
-      ctx.logger?.warn?.('dsh-delta-code: native compaction marker disposal failed')
+      ctx.logger?.warn?.('delta-code: native compaction marker disposal failed')
     })
   }
   const clear = (): void => {
@@ -48,10 +48,10 @@ export function registerNativeCompactionMarker(ctx: Context): NativeCompactionRe
         if (!isActive || !isAttached || epoch !== currentEpoch) { release(value); return }
         handle = value
       }).catch(() => {
-        ctx.logger?.warn?.('dsh-delta-code: native compaction marker registration failed')
+        ctx.logger?.warn?.('delta-code: native compaction marker registration failed')
       })
     } catch {
-      ctx.logger?.warn?.('dsh-delta-code: native compaction marker registration failed')
+      ctx.logger?.warn?.('delta-code: native compaction marker registration failed')
     }
     return () => {
       isAttached = false
@@ -75,7 +75,7 @@ export function registerNativeCompactionMarker(ctx: Context): NativeCompactionRe
       const dispose = (injection as { dispose?: () => Promise<void> } | null)?.dispose
       if (typeof dispose === 'function') {
         void Promise.resolve().then(() => dispose.call(injection)).catch(() => {
-          ctx.logger?.warn?.('dsh-delta-code: native compaction injection disposal failed')
+          ctx.logger?.warn?.('delta-code: native compaction injection disposal failed')
         })
       }
     },

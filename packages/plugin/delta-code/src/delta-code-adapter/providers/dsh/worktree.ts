@@ -11,6 +11,7 @@ import { hasCompleteGitEvidence } from '../../../delta-code-repository/git-execu
 import { requireHostFs } from './host-fs.js'
 import type { HostFs } from './host-fs.js'
 import { validateWorktreeName } from '../../../delta-code-repository/worktree-policy.js'
+import { WORKTREE_STORAGE_DIR, LEGACY_WORKTREE_STORAGE_DIR } from '../../../delta-code-repository/worktree-storage.js'
 
 /** Required Host capability set for worktrees. */
 type WorktreeHostFs = HostFs<'resolve' | 'contains' | 'stat' | 'lstat' | 'processPath'>
@@ -28,8 +29,18 @@ async function resolveHostWorktreeTarget(
   const rootTarget = await fs.resolve(root, { cwd: root, signal })
   // Paths passed to Host FS are relative to its own execution world.
   // Do not format them with Node's platform-dependent path.join.
-  const workspace = '.dsh-delta-code'
-  const storage = '.dsh-delta-code/worktrees'
+  let workspace = WORKTREE_STORAGE_DIR
+  if (shouldExist) {
+    // Existing users may still have registered Git worktrees under the former
+    // private directory. Reuse only for verified removal, never new creation.
+    const current = await fs.lstat(WORKTREE_STORAGE_DIR + '/worktrees/' + task, { cwd: root }, signal)
+    if (!current) {
+      const previous = await fs.lstat(LEGACY_WORKTREE_STORAGE_DIR + '/worktrees/' + task,
+        { cwd: root }, signal)
+      if (previous) workspace = LEGACY_WORKTREE_STORAGE_DIR
+    }
+  }
+  const storage = workspace + '/worktrees'
   let storageTarget: unknown
   for (const path of [workspace, storage]) {
     signal.throwIfAborted()
@@ -161,7 +172,21 @@ export function createWorktreeTool(ctx: Context, settings: Settings): ToolDefini
           args.action === 'remove')
       } else {
         const canonicalRoot = await realpath(root)
-        const dir = join(canonicalRoot, '.dsh-delta-code', 'worktrees')
+        let dir = join(canonicalRoot, WORKTREE_STORAGE_DIR, 'worktrees')
+        if (args.action === 'remove') {
+          try {
+            await lstat(join(dir, task))
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+            const previousDir = join(canonicalRoot, LEGACY_WORKTREE_STORAGE_DIR, 'worktrees')
+            try {
+              await lstat(join(previousDir, task))
+              dir = previousDir
+            } catch (previousError) {
+              if ((previousError as NodeJS.ErrnoException).code !== 'ENOENT') throw previousError
+            }
+          }
+        }
         // Only the legacy local workspace uses Node filesystem checks.
         let ancestor = dir
         while (true) {

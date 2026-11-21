@@ -46,7 +46,7 @@ const OWNER = /^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i
 const ENV = /^[A-Z_][A-Z0-9_]*$/
 const REPOSITORY = /^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?\/(?!\.{1,2}$)[a-z0-9_.-]{1,100}$/i
 const defaultGithubTokenRef = (owner: string) => owner && OWNER.test(owner)
-  ? 'DSH_DELTA_CODE_GITHUB_' + owner.toUpperCase().replace(/-/g, '_') + '_TOKEN' : ''
+  ? 'DELTA_CODE_GITHUB_' + owner.toUpperCase().replace(/-/g, '_') + '_TOKEN' : ''
 let nextAccountRow = 0
 const repositoryList = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean)
 const inset: Record<string, string> = { display: 'grid', gap: '10px', margin: '12px 0' }
@@ -404,7 +404,7 @@ function installClient(require: (id: string) => unknown) {
     apply(ctx: any) {
       // The plugin row's Cordis config namespace is its patch id, not its
       // package name. The Settings section uses the same revision-fenced form.
-      const form = ctx.configForms.get('dsh-delta-code')
+      const form = ctx.configForms.get('delta-code')
       const credentials: CredentialsRemote = ctx.remote.credentials
       function NativePage() {
         const [snapshot, setSnapshot] = React.useState<ConfigState>(() => form.getSnapshot())
@@ -419,7 +419,7 @@ function installClient(require: (id: string) => unknown) {
       ctx.effect(() => ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section', id: 'delta-code', order: 65,
         label: () => t('Delta Code', 'Delta Code'),
-      }, NativePage)), 'dsh-delta-code: native settings section')
+      }, NativePage)), 'delta-code: native settings section')
     },
   }
 }

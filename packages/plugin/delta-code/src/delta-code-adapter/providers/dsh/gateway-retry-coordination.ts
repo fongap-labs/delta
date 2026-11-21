@@ -100,7 +100,7 @@ export function registerGatewayRetryCoordinator(
   const unbind = runtime.on('agent/request-error', async (event, next) => {
     if (!isActive || !isEnabled() || event?.retryPolicy?.mode === 'always') return next()
     if (isAccountQuotaExhausted(event?.failure?.message)) {
-      runtime.logger?.info?.('dsh-delta-code: account quota is exhausted; stopping automatic replay')
+      runtime.logger?.info?.('delta-code: account quota is exhausted; stopping automatic replay')
       return undefined
     }
     const hint = gatewayRetryHint(event?.failure?.message)
@@ -109,7 +109,7 @@ export function registerGatewayRetryCoordinator(
     // Mirror the Gateway's explicit no-immediate-replay decision even when
     // its HTTP header did not survive the Host Provider adapter.
     if (hint.suppressAutomaticReplay) {
-      runtime.logger?.info?.('dsh-delta-code: Gateway deferred exhausted mixed failures; stopping automatic replay')
+      runtime.logger?.info?.('delta-code: Gateway deferred exhausted mixed failures; stopping automatic replay')
       return undefined
     }
     const hintMs = hint.retryAfterMs
@@ -120,7 +120,7 @@ export function registerGatewayRetryCoordinator(
     // The original failure went through multiple Gateway dispatches. Do not
     // immediately replay that entire plan when recovery requires a long wait.
     if (hintMs > maximum) {
-      runtime.logger?.info?.('dsh-delta-code: Gateway cooldown exceeds native auto-retry limit; stopping immediate replay')
+      runtime.logger?.info?.('delta-code: Gateway cooldown exceeds native auto-retry limit; stopping immediate replay')
       return undefined
     }
     // DSH owns the only retry decision and its durable session event. Some

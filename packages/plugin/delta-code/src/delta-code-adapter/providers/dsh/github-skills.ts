@@ -25,7 +25,7 @@ export function registerApprovedGitHubSkills(ctx: Context, fetcher: GitHubSkillF
     if (!registry || registrations.has(registry) || unsupported.has(registry)) return
     if (typeof registry.registerProvider !== 'function') {
       unsupported.add(registry)
-      ctx.logger?.warn?.('dsh-delta-code: native Skill provider lifecycle unavailable; approved GitHub Skills disabled')
+      ctx.logger?.warn?.('delta-code: native Skill provider lifecycle unavailable; approved GitHub Skills disabled')
       return
     }
     let isEnabled = true
@@ -59,7 +59,7 @@ export function registerApprovedGitHubSkills(ctx: Context, fetcher: GitHubSkillF
     } catch (error) {
       if (control) controls.delete(control)
       cancelled.abort()
-      ctx.logger?.warn?.('dsh-delta-code: approved GitHub Skill provider unavailable: ' +
+      ctx.logger?.warn?.('delta-code: approved GitHub Skill provider unavailable: ' +
         (error instanceof Error ? error.message : String(error)))
       return
     }
@@ -69,7 +69,7 @@ export function registerApprovedGitHubSkills(ctx: Context, fetcher: GitHubSkillF
       cancelled.abort()
       unsupported.add(registry)
       try { control?.invalidate() } catch { /* missing lifecycle is already disabled */ }
-      ctx.logger?.warn?.('dsh-delta-code: approved GitHub Skill provider has no disposer; remote Skills disabled')
+      ctx.logger?.warn?.('delta-code: approved GitHub Skill provider has no disposer; remote Skills disabled')
       return
     }
     const unregister = dispose
@@ -82,7 +82,7 @@ export function registerApprovedGitHubSkills(ctx: Context, fetcher: GitHubSkillF
       if (control) controls.delete(control)
       registrations.delete(registry)
       try { unregister() } catch {
-        ctx.logger?.warn?.('dsh-delta-code: approved GitHub Skill provider disposal failed')
+        ctx.logger?.warn?.('delta-code: approved GitHub Skill provider disposal failed')
       }
     }
     registrations.set(registry, release)
