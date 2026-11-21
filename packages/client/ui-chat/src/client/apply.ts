@@ -319,8 +319,6 @@ export function apply(ctx: Context): void {
             read: () => chatScrollPositions.get(sessionId) ?? null,
           },
           forkAt: (seq) => {
-            const turn = [...chat.getSnapshot().timeline.turns.values()].find(turn => turn.end?.seq === seq)
-            const messageId = turn?.data.get('turn-tail')?.closing?.finalNode.messageId
             ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })
               .then((childId) => { ctx.uiWorkspace.openSession(childId) })
               .catch(() => {
