@@ -7,7 +7,6 @@ import {
   assertReviewedSkillCatalog,
   reviewedSkillAdmissionPath,
   validateReviewedSkillAdmission,
-  type ReviewedSkillAdmission,
 } from './skill-catalog-admission.js'
 import type { ApprovedGitHubSkill } from './trusted-github-skills.js'
 import { skillNameFromPath } from './skill-source-path.js'
@@ -19,7 +18,7 @@ const MAX_CATALOG_BYTES = 96 * 1024
 export interface PreparedSkillPromotion {
   readonly admissionPath: string
   readonly admissionJson: string
-  readonly catalogPath: 'packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts'
+  readonly catalogPath: 'packages/plugin/delta-code/src/delta-code-strategy/trusted-github-skills.ts'
   readonly catalogContent: string
   readonly entry: ApprovedGitHubSkill
   readonly nextVersion: number
@@ -94,7 +93,7 @@ export function prepareReviewedSkillPromotion(
   return {
     admissionPath: reviewedSkillAdmissionPath(admission),
     admissionJson: JSON.stringify(admission, null, 2) + '\n',
-    catalogPath: 'packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts',
+    catalogPath: 'packages/plugin/delta-code/src/delta-code-strategy/trusted-github-skills.ts',
     catalogContent: versioned,
     entry,
     nextVersion: version + 1,

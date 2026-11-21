@@ -85,7 +85,7 @@ const LEGACY_REVIEWED_ROOTS: readonly LegacySkillRoot[] = Object.freeze([
 
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const REV = /^[a-f0-9]{40}$/
-const REVIEW_DIR = 'packages/dsh-delta-code/skill-admissions/'
+const REVIEW_DIR = 'packages/plugin/delta-code/skill-admissions/'
 
 function ensureKeys(value: unknown, keys: readonly string[], label: string): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -102,7 +102,7 @@ function blobSha(text: string): string {
 function sourceName(markdown: string): string | null {
   const frontmatter = /^---\r?\n([\s\S]{1,4096}?)\r?\n---\r?\n/.exec(markdown)
   if (!frontmatter || !markdown.slice(frontmatter[0].length).trim()) return null
-  return /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(frontmatter[1])?.[1] ?? null
+  return /^name:\s*['"]?([a-z0-9-]+)['"]?\s*$/m.exec(frontmatter[1] ?? '')?.[1] ?? null
 }
 
 function assertCatalogMetadata(entry: ApprovedGitHubSkill): void {

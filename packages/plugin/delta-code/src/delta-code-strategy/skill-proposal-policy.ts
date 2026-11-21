@@ -140,8 +140,8 @@ export function pendingSkillProposalIdentity(proposal: PendingSkillProposal): st
 }
 
 export function pendingSkillProposalPath(proposal: PendingSkillProposal): string {
-  const { repository, path } = proposal.source
+  const { path } = proposal.source
   const skill = skillNameFromPath(path)!
-  return 'packages/dsh-delta-code/skill-proposals/' +
+  return 'packages/plugin/delta-code/skill-proposals/' +
     skill + '-' + pendingSkillProposalIdentity(proposal) + '.json'
 }
