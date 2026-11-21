@@ -100,6 +100,18 @@ pnpm --filter @fongap-labs/delta-code run build
 
 **发行阻断条件：** 当前中央 Delta Linux 验收中的 Windows 作业仍为跳过，不得把其视为 Windows 通过。正式交付前需在独立的 Windows 测试环境启动打包后的 Electron 程序，验证中英文 UI 切换、隔离用户 Profile 的安装与移除、Host 授权和拒绝路径，并留存与源码 SHA 对应的制品证据。
 
+## 原生 Git 只读工具回归
+
+中央 [Action Worker #1956](https://github.com/fongap-labs/action-worker/pull/1956) 在临时本地 Git 仓库中，经真实 Cordis Context 与受限 Host subprocess 实际调用 `code_git_status` 和 `code_git_diff`：
+
+- 临时仓库包含已提交的基线文件、未暂存修改和未跟踪文件，断言宿主工具返回真实状态；
+- 差异查询必须包含基线与修改内容，且短 diff 不得错误报告截断；
+- `../` 越界路径必须在发起 Host subprocess 前被拒绝；
+- Host 测试服务只允许在临时仓库运行 `git status` 或 `git diff`；工具调用不得修改任何文件；
+- 本地 Git 测试身份只在临时仓库内生成，执行结束后移除仓库与服务，不读取用户配置、上传仓库或请求网络。
+
+这只验证 Linux 只读 Git 查询，不证明真实工作树写操作、LSP、GitHub 远程调用、Windows 桌面或完整安装交付。插件仍保持可选、私有，不兼容旧插件身份。
+
 ## 维护与治理
 
 `packages/plugin/shared/` 维护可被多个第一方插件复用的能力；具体业务保持在本插件。源码和产品特有约束以 Delta 的 `governance/REPOSITORY.md` 为准；CI、测试、合并与发布一律以 [Action Worker](https://github.com/fongap-labs/action-worker) 中央治理为准。
