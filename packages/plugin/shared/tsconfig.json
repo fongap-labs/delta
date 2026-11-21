@@ -2,8 +2,8 @@
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "lib",
-    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/types/tsconfig.tsbuildinfo",
     "noEmitOnError": true
   },
   "include": [
