@@ -52,7 +52,7 @@ expected = {
     "upstream_repository": "deepseek-ai/deepseek-harness",
     "upstream_ref": "master",
     "tracking_branch": "upstream/deepseek-harness",
-    "baseline_branch": "delta/baseline",
+    "baseline_branch": "baseline/deepseek-harness",
     "verification_status": "pending",
     "promotion_policy": "manual-pr-after-compatibility-tests",
 }
