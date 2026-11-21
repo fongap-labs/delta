@@ -83,3 +83,21 @@ const privacy = text('apps/desktop/src/privacy-redaction.ts')
 assert.match(privacy, /redactDiagnostic/)
 assert.match(text('apps/desktop/src/startup-error.ts'), /redactDiagnostic\(message\)/)
 assert.doesNotMatch(text('apps/desktop/src/main.ts'), /console\.error\(error\)\n  if \(shuttingDown\)/)
+
+// No dormant collector packages or telemetry opt-out plumbing remain.
+import { existsSync as packageExists } from 'node:fs'
+const removedCollectorPackages = [
+  'packages/client/product-analytics',
+  'packages/client/ui-settings-session-log',
+  'packages/host/product-telemetry-otel',
+  'packages/session/session-telemetry',
+  'packages/session/session-telemetry-otel',
+  'packages/telemetry/otel',
+  'packages/identity/anonymous-user-id',
+  'packages/session/session-log-deepseek',
+]
+for (const path of removedCollectorPackages) {
+  assert.equal(packageExists(resolve(root, path)), false, `privacy collector still present: ${path}`)
+}
+assert.doesNotMatch(text('packages/boot/app-boot/src/profile-context.ts'), /telemetryDisabledEnv|resolveTelemetryPatch/)
+assert.doesNotMatch(text('packages/api/remotes/src/client/index.ts'), /productAnalytics/)
