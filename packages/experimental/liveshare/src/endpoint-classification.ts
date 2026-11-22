@@ -209,10 +209,6 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'dynamicCordisRunner/stopFromPanel': 'owner-only', // owner dynamic plugin runner
   'dynamicCordisRunner/syncInspectManifest': 'owner-only', // owner dynamic plugin runner
   'dynamicCordisRunner/undefineFromPanel': 'owner-only', // owner dynamic plugin runner
-  'sessionFeedback/record': 'owner-only', // owner command feedback
-  'messageFeedback/delete': 'owner-only', // owner message feedback
-  'messageFeedback/list': 'owner-only', // owner message feedback
-  'messageFeedback/put': 'owner-only', // owner message feedback
   'pluginInventory/list': 'owner-only', // owner plugin inventory
   'mcpManager/probe': 'owner-only', // owner MCP server management
   'mcpManager/restart': 'owner-only', // owner MCP server management

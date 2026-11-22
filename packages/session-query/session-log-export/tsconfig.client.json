@@ -22,7 +22,6 @@
     { "path": "../../client/ui-context-menu" },
     { "path": "../../client/ui-conversation/tsconfig.client.json" },
     { "path": "../../client/ui-layout" },
-    { "path": "../../client/ui-message-feedback" },
     { "path": "../../client/ui-primitives" },
     { "path": "../../client/ui-renderer" },
     { "path": "../../client/ui-slots" },

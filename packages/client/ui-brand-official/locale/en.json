@@ -1,5 +1,6 @@
 {
   "meta": {
-    "title": "ui-brand-official"
+    "title": "Delta brand",
+    "description": "Renders Delta identity in the existing sidebar slots."
   }
 }

@@ -1,11 +1,10 @@
-/** Locale namespace owned by Session export browser feedback. */
+/** Locale namespace for local Session ZIP and Markdown exports. */
 export const NS = 'session-log-download'
 
 /** Simplified-Chinese Session export strings. */
 export const zh = {
   'menu.copyMarkdown': '复制会话为 Markdown',
   'menu.download': '下载 Session 日志',
-  'menu.feedback': '反馈',
   'toast.copied': 'Session 已复制为 Markdown',
   'toast.preparationFailed': '无法读取 Session 进行复制，请重试',
   'toast.clipboardFailed': '无法写入剪贴板，请检查剪贴板权限后重试',
@@ -23,7 +22,6 @@ export const zh = {
 export const en: Record<keyof typeof zh, string> = {
   'menu.copyMarkdown': 'Copy Session as Markdown',
   'menu.download': 'Download session log',
-  'menu.feedback': 'Feedback',
   'toast.copied': 'Session copied as Markdown.',
   'toast.preparationFailed': 'Could not read the Session for copying. Try again.',
   'toast.clipboardFailed': 'Could not write to the clipboard. Check clipboard permission and try again.',
@@ -44,7 +42,6 @@ export type SessionLogDownloadKey = keyof typeof zh
 export const ja = {
   'menu.copyMarkdown': 'セッションを Markdown としてコピー',
   'menu.download': 'セッションログをダウンロード',
-  'menu.feedback': 'フィードバック',
   'toast.copied': 'セッションを Markdown としてコピーしました',
   'toast.preparationFailed': 'コピーするセッションを読み取れませんでした。再試行してください。',
   'toast.clipboardFailed': 'クリップボードに書き込めませんでした。クリップボードの権限を確認して再試行してください。',
@@ -62,7 +59,6 @@ export const ja = {
 export const es = {
   'menu.copyMarkdown': 'Copiar sesión como Markdown',
   'menu.download': 'Descargar registro de sesión',
-  'menu.feedback': 'Comentarios',
   'toast.copied': 'Sesión copiada como Markdown.',
   'toast.preparationFailed': 'No se pudo leer la sesión para copiarla. Intentar otra vez.',
   'toast.clipboardFailed': 'No se pudo escribir en el portapapeles. Verifique los permisos del portapapeles e inténtelo nuevamente.',
@@ -80,7 +76,6 @@ export const es = {
 export const fr = {
   'menu.copyMarkdown': 'Copier la session sous Markdown',
   'menu.download': 'Télécharger le journal de session',
-  'menu.feedback': 'Commentaires',
   'toast.copied': 'Session copiée sous le nom Markdown.',
   'toast.preparationFailed': 'Impossible de lire la session pour la copier. Essayer à nouveau.',
   'toast.clipboardFailed': "Impossible d'écrire dans le presse-papiers. Vérifiez l'autorisation du presse-papiers et réessayez.",
@@ -98,7 +93,6 @@ export const fr = {
 export const de = {
   'menu.copyMarkdown': 'Kopieren Sie die Sitzung als Markdown',
   'menu.download': 'Sitzungsprotokoll herunterladen',
-  'menu.feedback': 'Rückmeldung',
   'toast.copied': 'Sitzung als Markdown kopiert.',
   'toast.preparationFailed': 'Die Sitzung zum Kopieren konnte nicht gelesen werden. Versuchen Sie es erneut.',
   'toast.clipboardFailed': 'Es konnte nicht in die Zwischenablage geschrieben werden. Überprüfen Sie die Berechtigung für die Zwischenablage und versuchen Sie es erneut.',
@@ -116,7 +110,6 @@ export const de = {
 export const ru = {
   'menu.copyMarkdown': 'Скопировать сеанс как Markdown',
   'menu.download': 'Скачать журнал сеанса',
-  'menu.feedback': 'Обратная связь',
   'toast.copied': 'Сессия скопирована как Markdown.',
   'toast.preparationFailed': 'Не удалось прочитать сеанс для копирования. Попробуйте еще раз.',
   'toast.clipboardFailed': 'Не удалось записать в буфер обмена. Проверьте разрешение буфера обмена и повторите попытку.',
@@ -134,7 +127,6 @@ export const ru = {
 export const pt = {
   'menu.copyMarkdown': 'Copiar sessão como Markdown',
   'menu.download': 'Baixar registro da sessão',
-  'menu.feedback': 'Comentários',
   'toast.copied': 'Sessão copiada como Markdown.',
   'toast.preparationFailed': 'Não foi possível ler a sessão para cópia. Tente novamente.',
   'toast.clipboardFailed': 'Não foi possível gravar na área de transferência. Verifique a permissão da área de transferência e tente novamente.',

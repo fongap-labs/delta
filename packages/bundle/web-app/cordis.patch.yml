@@ -41,11 +41,6 @@
     - id: subagent-model-selection-settings
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
-    - id: message-feedback
-      name: '@deepseek-ai/dsh-message-feedback'
-      config:
-        maxNoteBytes: 8192
-
     # Delta: user-initiated local ZIP/Markdown exports only; never upload.
     # The Host handles same-origin authenticated downloads and /export.
     - id: session-log-download
@@ -434,12 +429,6 @@
     # Goal surface: GoalBar in the input dock over the goal session projection.
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'
-
-    # The feedback surface: Like/Dislike in the assistant-message action
-    # strip, the feedback dialog behind Dislike and /feedback with its
-    # acknowledgement toast, over the messageFeedback and sessionFeedback Remotes.
-    - id: ui-message-feedback
-      name: '@deepseek-ai/dsh-client-ui-message-feedback'
 
     # Model selection: the /model popupSelect + composer seat over session.models.
     - id: ui-model-selection

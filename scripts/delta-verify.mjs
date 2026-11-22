@@ -9,12 +9,14 @@ const read = path => readFileSync(resolve(root, path))
 const text = path => read(path).toString('utf8')
 const hash = path => createHash('sha256').update(read(path)).digest('hex')
 const asset = 'resources/brand/delta-logo-512x512.png'
+const deltaMark = 'resources/brand/delta-logo-256x256.png'
 for (const path of ['apps/desktop/resources/icon.png', 'apps/desktop/resources/icon-windows.png',
   'apps/desktop/resources/icon-macos.png', 'apps/desktop/renderer/assets/delta-logo-512x512.png']) {
   assert.equal(hash(path), hash(asset), 'brand drift: ' + path)
 }
+assert.ok(read(deltaMark).length > 0, 'missing canonical Delta brand asset')
 assert.equal(hash('packages/client/ui-brand-official/src/client/assets/delta-logo-256x256.png'),
-  hash('resources/brand/delta-logo-256x256.png'))
+  hash(deltaMark), 'Delta sidebar asset must match resources/brand master')
 assert.match(text('apps/desktop/src/client/WelcomePage.tsx'), /delta-brand-logo/)
 assert.match(text('apps/desktop/renderer/welcome.css'), /Delta official brand visual treatment/)
 const build = text('apps/desktop/scripts/electron-builder-config.mjs')
@@ -154,6 +156,17 @@ const removedCollectorPackages = [
 for (const path of removedCollectorPackages) {
   assert.equal(packageExists(resolve(root, path)), false, `privacy collector still present: ${path}`)
 }
+for (const path of ['packages/telemetry', 'packages/feedback', 'packages/client/ui-message-feedback',
+  'packages/client/ui-brand-official/src/client/home-whale']) {
+  assert.equal(packageExists(resolve(root, path)), false, `removed upstream package still present: ${path}`)
+}
+for (const path of ['apps/cli', 'packages/acp', 'packages/sdk', 'packages/account', 'packages/client/ui-settings-account']) {
+  assert.equal(packageExists(resolve(root, path)), true, `required Delta capability missing: ${path}`)
+}
+assert.doesNotMatch(basePatch, /^    - id: command-feedback$/m)
+assert.doesNotMatch(webPatch, /^    - id: (message-feedback|ui-message-feedback)$/m)
+assert.match(webPatch, /^    - id: ui-settings-account$/m)
+assert.doesNotMatch(text('packages/api/remotes/src/client/index.ts'), /messageFeedbackRemote|sessionFeedbackRemote/)
 assert.doesNotMatch(text('packages/boot/app-boot/src/profile-context.ts'), /telemetryDisabledEnv|resolveTelemetryPatch/)
 assert.doesNotMatch(text('packages/api/remotes/src/client/index.ts'), /productAnalytics/)
 
