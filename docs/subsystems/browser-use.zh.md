@@ -6,15 +6,9 @@
 
 ## 选择提供方
 
-在同一组合中挂载 [`dsh-browser-use`](../../packages/browser-use/browser-use/README.zh.md) 和一个提供方。这些提供方是实验性公共 npm 包，需要显式激活。它们最初支持的浏览器引擎是 Chromium。
+Delta 保留了[浏览器操作注册服务](../../packages/browser-use/browser-use/README.zh.md)，但此前的 Playwright MCP、Chrome DevTools MCP、Stagehand 及浏览器运行时实验包已被删除。单独加载注册服务不会启用浏览器操作工具。
 
-| 提供方 | 集成方式 |
-|---|---|
-| [Playwright MCP](../../packages/experimental/browser-use-playwright-mcp/README.zh.md) | Playwright 的浏览器控制 MCP 工具 |
-| [Chrome DevTools MCP](../../packages/experimental/browser-use-chrome-devtools-mcp/README.zh.md) | 通过 MCP 进行 Chrome DevTools 检查与控制 |
-| [Stagehand](../../packages/experimental/browser-use-stagehand-native/README.zh.md) | 原生浏览器操作，支持 AI（人工智能）辅助的动作、观测与提取 |
-
-共享服务只注册名称，并拒绝任何第二次提供方注册，包括同名实例。它不包含通用浏览器操作方法、浏览器资源或模型控制的选择器。Profile 或 preset 中的提供方配置为此次激活选择启动或附加模式。
+另行安装的提供方需自行注册名称，并负责浏览器操作、资源、配置和 Session 生命周期。注册服务同一时间只接受一个具名提供方；它既不执行浏览器操作，也不为模型选择提供方。
 
 ## Session 所有权
 
@@ -28,11 +22,11 @@
 
 MCP 提供方为其加载后创建的每个活动 Agent 初始化一个客户端。现有的串行 `agent/created` 事件等待连接和发现结束后，创建或恢复才完成，排队输入才开始运行。客户端跨轮次归 Session 所有。启动失败或取消会拒绝创建或恢复，并触发客户端清理。
 
-如果附加连接已被占用，本次激活不使用浏览器，但继续运行，后续轮次不会重试。连接释放后，新创建或恢复的激活可以获取它。加载或重新加载提供方不会接管已经活动的 Session；[共享运行时](../../packages/experimental/browser-use-runtime/README.zh.md)拥有这些初始化规则。
+如果附加连接已被占用，本次激活不使用浏览器，但继续运行，后续轮次不会重试。连接释放后，新创建或恢复的激活可以获取它。加载或重新加载提供方不会接管已经活动的 Session。这些初始化规则描述的是此前的实验性浏览器运行时，当前 Delta 不再内置该运行时。
 
 ## 工具与记录结果
 
-提供方工具使用常规 DSH 执行管线与 Session 日志。提供方拥有自己的工具 schema、结果渲染、图像支持、配置和上游限制；共享服务不添加模型可见内容。Stagehand 的 AI 辅助操作使用其显式配置的原生模型，DSH 保留任务循环。DSH 模型路由、凭据复用、底层推理请求/响应捕获，以及与 Session 用量计量的集成均属暂缓工作；返回的 SDK 数据和元数据仍作为普通工具结果记录。
+提供方工具使用常规 DSH 执行管线与 Session 日志。提供方拥有自己的工具 schema、结果渲染、图像支持、配置和上游限制；共享服务不添加模型可见内容。已删除的 Stagehand 集成不再属于 Delta。共享注册服务不提供浏览器模型路由、凭据复用、推理请求记录或 Session 用量计量；另行安装的提供方需自行管理工具结果。
 
 浏览器 MCP 连接还提供[资源和服务器指令](mcp.zh.md)。发往浏览器服务器的资源调用使用其 Session 队列，并拒绝其他 Session 的请求；服务器指令只会组装到所属 Session 的提示词中。
 

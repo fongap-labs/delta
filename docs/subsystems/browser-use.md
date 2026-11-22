@@ -6,15 +6,9 @@ Browser use lets a model inspect and operate web pages through a configured back
 
 ## Choose a provider
 
-Mount [`dsh-browser-use`](../../packages/browser-use/browser-use/README.md) and one provider in the same composition. The providers are experimental public npm packages and require explicit activation. Their initial browser engine is Chromium.
+Delta retains the [shared browser-use registry](../../packages/browser-use/browser-use/README.md), but the previous experimental Playwright MCP, Chrome DevTools MCP, Stagehand, and browser runtime packages have been removed. Loading the registry alone does not enable browser tools.
 
-| Provider | Integration |
-|---|---|
-| [Playwright MCP](../../packages/experimental/browser-use-playwright-mcp/README.md) | Playwright's browser-control MCP tools |
-| [Chrome DevTools MCP](../../packages/experimental/browser-use-chrome-devtools-mcp/README.md) | Chrome DevTools inspection and control through MCP |
-| [Stagehand](../../packages/experimental/browser-use-stagehand-native/README.md) | Native browser operations with AI-assisted actions, observation, and extraction |
-
-The shared service registers only a name and rejects any second provider, including another instance with the same name. It has no common browser-operation methods, browser resources, or model-controlled selector. Provider configuration in a profile or preset selects launch or attachment for that activation.
+A separately installed provider would have to register its name and own browser actions, resources, configuration, and Session lifecycle. The registry accepts only one named provider at a time; it neither performs browser operations nor selects a provider for the model.
 
 ## Session ownership
 
@@ -28,11 +22,11 @@ Provider shutdown stops tool admission and waits for owned work and resource cle
 
 An MCP provider initializes one client for each live Agent created after the provider loads. The existing serial `agent/created` event awaits connection and discovery before creation or resume completes and queued input runs. The client remains with the Session across turns. Startup failure or cancellation rejects creation or resume and triggers client cleanup.
 
-If an attachment is busy, that activation continues without the browser and does not retry on later turns. After release, a newly created or resumed activation can acquire it. Loading or reloading the provider does not adopt already active Sessions; the [shared runtime](../../packages/experimental/browser-use-runtime/README.md) owns these initialization rules.
+If an attachment is busy, that activation continues without the browser and does not retry on later turns. After release, a newly created or resumed activation can acquire it. Loading or reloading the provider does not adopt already active Sessions. These initialization rules describe the former experimental browser runtime, which is no longer bundled in Delta.
 
 ## Tools and recorded results
 
-Provider tools use the normal DSH execution pipeline and Session log. The providers own their tool schemas, result rendering, image support, configuration, and upstream limitations; the shared service adds no model-visible content. Stagehand's AI-assisted operations use its explicitly configured native model while DSH retains the task loop. DSH model routing, credential reuse, underlying inference request/response capture, and integration into Session usage accounting are deferred; returned SDK data and metadata remain ordinary logged tool results.
+Provider tools use the normal DSH execution pipeline and Session log. The providers own their tool schemas, result rendering, image support, configuration, and upstream limitations; the shared service adds no model-visible content. The removed Stagehand integration is no longer part of Delta. The shared registry does not provide browser model routing, credential reuse, inference capture, or Session usage accounting; a separately installed provider would own its tool results.
 
 Browser MCP connections also expose [resources and server instructions](mcp.md). Resource calls addressed to a browser server use its Session queue and reject other Sessions; server instructions are assembled only for its owning Session.
 
