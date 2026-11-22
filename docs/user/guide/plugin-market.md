@@ -1,46 +1,44 @@
-# Plugin indexes
+# 插件索引
 
-English | [中文](plugin-market.zh.md)
+## 概述
 
-## Summary
+插件索引是一个 JSON 文件，列出可安装的 DSH 组合包（bundle）及其标题、图标、作者和版本。打开实验性的**自定义插件索引**组合包后，可以在插件页的**发现**标签页中浏览索引，并在确认后安装列出的版本。要发布索引，编写或生成一个索引文件，并把它和图标文件一起放到任意静态主机上。
 
-A plugin index is one JSON file that lists installable DSH bundles with their titles, icons, authors, and versions. Turn on the experimental **Custom plugin indexes** bundle to browse indexes in a **Discover** tab on the Plugins page and install a listed version after a confirmation. To publish an index, write or generate an index file and serve it, together with its icon files, from any static host.
+## 目录
 
-## Table of Contents
-
-- [Turn on Discover](#turn-on)
-- [Browse and install](#browse-and-install)
-- [Publish an index](#publish-an-index)
-- [Generate an index with the reference generator](#generate-an-index)
-- [Index format reference](#index-format)
-- [Further Exploration](#further-exploration)
+- [打开「发现」](#turn-on)
+- [浏览和安装](#browse-and-install)
+- [发布索引](#publish-an-index)
+- [用参考生成器生成索引](#generate-an-index)
+- [索引格式参考](#index-format)
+- [延伸阅读](#further-exploration)
 
 <a id="turn-on"></a>
-## Turn on Discover
+## 打开「发现」
 
-Open **Plugins**, find **Custom plugin indexes** under **Experimental plugins**, and switch it on. A **Discover** tab appears next to **Installed**, and Creator mode gains the read-only `plugin_market` tool. Switching the bundle off removes both again.
+打开**插件**，在**实验性插件**下找到**自定义插件索引**并打开开关。**已安装**旁边会出现**发现**标签页，Creator 模式也会获得只读的 `plugin_market` 工具。关闭该组合包会再次移除这两者。
 
-DSH ships no index source. Select **Discover**, choose **Add index source**, and enter the URL of an index file. A URL must use `http:` or `https:` and must not contain a user name, password, or `#` fragment. Anyone on the network path can change an `http:` index, including the install specs it lists, so use `https:` for an index reached over a network you do not control. Each source belongs to the current profile.
+DSH 不内置任何索引源。选择**发现**，点击**添加索引源**，输入一个索引文件的 URL。URL 必须使用 `http:` 或 `https:`，并且不能包含用户名、密码或 `#` 片段。网络路径上的任何人都能修改 `http:` 索引，包括其中列出的安装 spec，因此经由不受你控制的网络访问的索引应使用 `https:`。每个索引源属于当前 profile。
 
 <a id="browse-and-install"></a>
-## Browse and install
+## 浏览和安装
 
-The index menu at the left of the toolbar switches between sources and opens **Manage index sources…**, where each source shows its last error. Search matches names, authors, keywords, and titles, descriptions, categories, and labels in every language, and tolerates typos; results come in best-match order until you choose another. The **Labels** menu, category pills, and **Sort** menu use the categories, labels, and sort keys that the index declares, and **Publish date** sorts by each plugin's latest version.
+工具栏左侧的索引菜单用于切换索引源，并可打开**管理索引源…**，其中每个索引源显示它最近一次的错误。搜索匹配名称、作者、关键词，以及所有语言的标题、描述、分类和标签，并容忍拼写错误；在你选择其他排序之前，结果按最佳匹配排序。**标签**菜单、分类按钮和**排序**菜单使用索引声明的分类、标签和排序键，**发布时间**按每个插件最新版本的时间排序。
 
-Each card shows the plugin's recommended version: the highest version compatible with the running DSH that is not a prerelease, or the highest compatible prerelease when the plugin lists no version without a prerelease tag. **Install** opens a confirmation with that version's source: the npm package and registry, or the Git repository, commit, and directory. Confirming starts the normal plugin installation, including its compatibility and registry checks; nothing is installed without that confirmation.
+每张卡片显示插件的推荐版本：与当前运行的 DSH 兼容、且不是预发布版本的最高版本；插件没有列出任何非预发布版本时，则是兼容的最高预发布版本。**安装**会打开确认框，显示该版本的来源：npm 包和注册表，或 Git 仓库、提交和目录。确认后开始常规的插件安装，包括其中的兼容性检查和注册表检查；未经确认不会安装任何内容。
 
-Select a card to open its page. The **Versions** list shows every listed version with its compatibility and offers **Install** for any version DSH accepts, including older releases and prereleases. A card that shows **Installed**, **Update available**, or **Provided by DSH** opens the installed bundle instead.
+选择卡片会打开插件页面。**版本**列表显示列出的每个版本及其兼容性，并为 DSH 接受的任何版本提供**安装**，包括旧版本和预发布版本。显示**已安装**、**有新版本**或**随 DSH 提供**的卡片会改为打开已安装的组合包。
 
-Indexes are third-party content. An index chooses each plugin's title, description, icon, author, and source; DSH checks the file format but not those claims. Add only sources you trust, and check the source in the confirmation before installing.
+索引是第三方内容。每个插件的标题、描述、图标、作者和来源都由索引决定；DSH 检查文件格式，但不验证这些声明。只添加你信任的索引源，并在安装前核对确认框中的来源。
 
 <a id="publish-an-index"></a>
-## Publish an index
+## 发布索引
 
-An index is a UTF-8 JSON file, at most 128 MiB by default, served with a 2xx status and without redirects. Put it on any static host, for example GitLab Pages, GitHub Pages, or an object store behind https.
+索引是 UTF-8 编码的 JSON 文件，默认不超过 128 MiB，以 2xx 状态码返回且不经过重定向。把它放到任意静态主机上即可，例如 GitLab Pages、GitHub Pages，或通过 https 访问的对象存储。
 
-Icons can be inline or separate files. An inline icon is a base64 `data:` URL in the index; it needs no extra request but makes the index larger. A separate icon is a URL. A relative icon resolves against the index URL, the way an image in a web page resolves against the page: for an index at `https://market.example/dsh/index.json`, `"icon": "icons/foo.svg"` loads `https://market.example/dsh/icons/foo.svg`. Publishing the index and an `icons/` directory side by side therefore works on any host without editing the file. An absolute icon URL on another origin (scheme, host, and port) must use `https:`.
+图标可以内联，也可以是单独的文件。内联图标是索引中的 base64 `data:` URL；它不需要额外请求，但会使索引变大。单独的图标是一个 URL。相对图标相对于索引 URL 解析，与网页中的图片相对于页面解析的方式相同：对于位于 `https://market.example/dsh/index.json` 的索引，`"icon": "icons/foo.svg"` 会加载 `https://market.example/dsh/icons/foo.svg`。因此把索引和 `icons/` 目录并排发布，在任何主机上都能使用，无需修改文件。指向其他源（协议、主机和端口）的绝对图标 URL 必须使用 `https:`。
 
-This is a minimal index with one npm plugin and one plugin from a Git monorepo:
+下面是一个最小的索引，包含一个 npm 插件和一个来自 Git monorepo 的插件：
 
 ```json
 {
@@ -79,72 +77,72 @@ This is a minimal index with one npm plugin and one plugin from a Git monorepo:
 }
 ```
 
-DSH rejects the whole index when any rule below is violated and shows the reason, with the JSON path of the offending value, under the source in **Manage index sources…**.
+违反下列任何一条规则时，DSH 会拒绝整个索引，并在**管理索引源…**中该索引源下方显示原因及违规值的 JSON 路径。
 
 <a id="generate-an-index"></a>
-## Generate an index with the reference generator
+## 用参考生成器生成索引
 
-The repository includes a [reference generator](../../../apps/plugin-market-generator/README.md) that builds an index from a plain list. Write one npm package name or https Git repository URL per line; blank lines and lines starting with `#` are ignored:
+仓库包含一个[参考生成器](../../../apps/plugin-market-generator/README.md)，可以从一份纯文本列表构建索引。每行写一个 npm 包名或 https Git 仓库 URL；空行和以 `#` 开头的行会被忽略：
 
 ```text
 @team/dsh-foo
 https://gitlab.example.com/team/dsh-plugins
 ```
 
-Run it from a DSH checkout:
+在 DSH 代码仓库中运行它：
 
 ```sh
 pnpm --filter @deepseek-ai/dsh-plugin-market-generator start --input plugins.txt --output site/index.json --title "Team plugins"
 ```
 
-For an npm package, the index lists every version that is neither deprecated nor private and declares `dsh.bundle`. For a Git repository, it finds the bundle packages on the default branch whose `package.json` does not set `"private": true` and lists their versions at `vX.Y.Z`, `X.Y.Z`, and `<name>@X.Y.Z` tags, plus each package's version on the default branch. Titles, descriptions, icons, authors, and homepages come from each plugin's highest version. Paths are relative to the directory where you run pnpm.
+对于 npm 包，索引列出所有未弃用、未设为私有且声明了 `dsh.bundle` 的版本。对于 Git 仓库，生成器在默认分支上查找 `package.json` 没有设置 `"private": true` 的组合包，列出它们在 `vX.Y.Z`、`X.Y.Z` 和 `<name>@X.Y.Z` 标签处的版本，以及每个包在默认分支上的版本。标题、描述、图标、作者和主页取自每个插件的最高版本。路径相对于你运行 pnpm 的目录。
 
-The generator only downloads and reads files; it never installs packages or runs their code. It keeps package data in `.plugin-market-cache` next to the list and reuses unchanged versions and commits. Each run still reads source documents or Git refs and refreshes enabled metrics; unavailable metric values are omitted. Set `GITHUB_TOKEN` to collect GitHub stars; without a nonblank token, GitHub metric requests and `github_stars` are omitted while npm weekly downloads remain enabled. Publish the output directory, `index.json` together with its `icons/` directory, as described above.
+生成器只下载和读取文件，从不安装包或运行其代码。它在列表旁的 `.plugin-market-cache` 中保存包数据，并复用未变更的版本和提交。每次运行仍会读取源文档或 Git 引用，并刷新已启用的指标；不可用的指标值会被省略。设置 `GITHUB_TOKEN` 以采集 GitHub star 数；没有非空白令牌时，不会发起 GitHub 指标请求，也不会输出 `github_stars`，但 npm 周下载量仍保持启用。按上文所述发布输出目录，即 `index.json` 及其 `icons/` 目录。
 
 <a id="index-format"></a>
-## Index format reference
+## 索引格式参考
 
-Text fields marked `LocalizedText` are a string or an object of strings keyed by lowercase language ids, such as `{ "en": "Foo", "zh": "甲" }`; an object must contain `en`. DSH ignores unknown object fields at every level. Known fields and `source.type` still require valid values; keys inside declaration, localized-text, and plugin sort-value maps are validated as data.
+标为 `LocalizedText` 的文本字段是字符串，或以小写语言 id 为键的字符串对象，例如 `{ "en": "Foo", "zh": "甲" }`；对象必须包含 `en`。DSH 在每一层都忽略未知的对象字段。已知字段和 `source.type` 仍须具有有效值；声明映射、本地化文本映射和插件排序值映射中的键作为数据进行校验。
 
-| Index field | Required | Meaning |
+| 索引字段 | 必填 | 含义 |
 |---|---|---|
-| `format` | yes | `1`. |
-| `title`, `description` | `title` only | Index name and description, `LocalizedText`. |
-| `metadata.categories`, `metadata.labels` | no | Objects mapping an id to `{ "title": LocalizedText }`. |
-| `metadata.sortKeys` | no | Object mapping an id to `{ "title": LocalizedText, "order": "asc" \| "desc" }`; `order` is the initial direction. |
-| `plugins` | yes | Plugins in the publisher's default order; clients must preserve this array order on initial display and when filtering, unless the user chooses another sort or text search ranks by relevance. |
+| `format` | 是 | `1`。 |
+| `title`、`description` | 仅 `title` | 索引名称和描述，类型为 `LocalizedText`。 |
+| `metadata.categories`、`metadata.labels` | 否 | 将 id 映射为 `{ "title": LocalizedText }` 的对象。 |
+| `metadata.sortKeys` | 否 | 将 id 映射为 `{ "title": LocalizedText, "order": "asc" \| "desc" }` 的对象；`order` 是初始方向。 |
+| `plugins` | 是 | 按发布者的默认顺序排列的插件；客户端必须在初次展示和筛选时保留此数组顺序，除非用户选择其他排序方式，或文本搜索按相关性排序。 |
 
-| Plugin field | Required | Meaning |
+| 插件字段 | 必填 | 含义 |
 |---|---|---|
-| `name` | yes | npm package name, unique in the index. |
-| `title`, `description` | no | `LocalizedText`; the card shows `name` without a title. |
-| `icon` | no | Inline `data:` URL (SVG, PNG, JPEG, or WebP, at most 32 KiB) or URL, as described above. |
-| `author` | no | Display text. |
-| `homepage` | no | Absolute `https:` or `http:` URL of a page about the plugin; the plugin page links it. |
-| `repository` | no | `{ "url": string, "directory"?: string }`: the source repository's web page, and the package directory inside it. The plugin page links it as **Source code**. |
-| `metadata.category` | no | One declared category id. |
-| `metadata.labels` | no | Declared label ids. |
-| `metadata.sortKeys` | no | Object mapping declared sort-key ids to finite numbers, or `null` when unavailable. |
-| `versions` | yes | At least one version, in any order. |
+| `name` | 是 | npm 包名，在索引内唯一。 |
+| `title`、`description` | 否 | `LocalizedText`；没有标题时卡片显示 `name`。 |
+| `icon` | 否 | 内联 `data:` URL（SVG、PNG、JPEG 或 WebP，不超过 32 KiB）或 URL，见上文。 |
+| `author` | 否 | 显示文本。 |
+| `homepage` | 否 | 介绍该插件的页面的绝对 `https:` 或 `http:` URL；插件页面会链接到它。 |
+| `repository` | 否 | `{ "url": string, "directory"?: string }`：源代码仓库的网页，以及包在其中的目录。插件页面以**源代码**链接到它。 |
+| `metadata.category` | 否 | 一个已声明的分类 id。 |
+| `metadata.labels` | 否 | 已声明的标签 id。 |
+| `metadata.sortKeys` | 否 | 将已声明的排序键 id 映射为有限数值的对象；不可用时值为 `null`。 |
+| `versions` | 是 | 至少一个版本，顺序不限。 |
 
-A plugin may omit `metadata`, any of its fields, or individual sort values, or use `null` for unavailable data. Missing values sort last in both directions; a real zero is a value, not missing data. The recommended definitions standardize `github_stars` as a repository's GitHub star count and `npm_weekly_downloads` as a public npm package's download count over npm's `last-week` window. Both are non-negative integers; weekly downloads are not a monthly count. Publishers using these keys declare them under root `metadata.sortKeys` and populate available values under each plugin's `metadata.sortKeys`. Other declared numeric keys remain supported.
+插件可以省略 `metadata`、其中的任意字段或单个排序值，也可以用 `null` 表示数据不可用。无论升序还是降序，缺失值都排在最后；实际的零是有效值，不是缺失数据。建议采用的统一定义是：`github_stars` 表示仓库的 GitHub star 数，`npm_weekly_downloads` 表示公共 npm 包在 npm `last-week` 时间窗口内的下载量。两者均为非负整数；周下载量不是月下载量。发布者使用这些键时，在根级 `metadata.sortKeys` 中声明，并在各插件的 `metadata.sortKeys` 中填入可用值。其他已声明的数值键仍受支持。
 
-| Version field | Required | Meaning |
+| 版本字段 | 必填 | 含义 |
 |---|---|---|
-| `version` | yes | Exact SemVer version, unique within the plugin. |
-| `publishTimestamp` | yes | Publish time in Unix seconds. |
-| `source` | yes | `{ "type": "npm", "registry"?: url }`, or `{ "type": "git", "url": https-url, "commit": 40-hex-sha, "path"?: directory }`. |
-| `engines.dsh` | no | SemVer range of DSH versions this version runs on; absent means any. |
+| `version` | 是 | 精确的 SemVer 版本，在插件内唯一。 |
+| `publishTimestamp` | 是 | 发布时间，Unix 秒。 |
+| `source` | 是 | `{ "type": "npm", "registry"?: url }`，或 `{ "type": "git", "url": https-url, "commit": 40 位十六进制 SHA, "path"?: 目录 }`。 |
+| `engines.dsh` | 否 | 该版本可运行的 DSH 版本的 SemVer 范围；缺省表示任意版本。 |
 
-DSH installs an npm version as `name@version`, asking `registry` first when present, and a Git version as `git+<url>.git#<commit>` with `&path:/<path>` for a package in a subdirectory. `engines.dsh` should match the package's own `engines.dsh`, which DSH checks again at installation; a package without one is checked against its `@deepseek-ai/dsh*` peer dependencies instead. The [format note](../../../.agents/notes/implemented/feature/2026-10-02-plugin-market-index-format.md) defines every rule.
+DSH 将 npm 版本安装为 `name@version`，存在 `registry` 时先询问它；将 Git 版本安装为 `git+<url>.git#<commit>`，包位于子目录时追加 `&path:/<path>`。`engines.dsh` 应与包自身的 `engines.dsh` 一致，DSH 会在安装时再次检查；没有该字段的包改为按其 `@deepseek-ai/dsh*` peer 依赖检查。[格式说明](../../../.agents/notes/implemented/feature/2026-10-02-plugin-market-index-format.zh.md)定义了全部规则。
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 延伸阅读
 
-- [Discover tab reference](../../../packages/client/ui-plugin-market/README.md) describes the tab's controls and states.
-- [Plugin index service](../../../packages/boot/plugin-market/README.md) covers fetch limits, caching, and the `plugin_market` tool.
-- [Index validator](../../../packages/util/plugin-market-index/README.md) is the library generators can use to check an index before publishing it.
+- [「发现」标签页参考](../../../packages/client/ui-plugin-market/README.zh.md)说明该标签页的控件和状态。
+- [插件索引服务](../../../packages/boot/plugin-market/README.zh.md)说明获取限制、缓存和 `plugin_market` 工具。
+- [索引校验器](../../../packages/util/plugin-market-index/README.zh.md)是生成器可以用来在发布前检查索引的库。
 
-## Dev Note
+## 开发备注
 
-None.
+无。

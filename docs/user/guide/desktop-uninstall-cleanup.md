@@ -1,25 +1,23 @@
-# Uninstall DSH Desktop
+# 卸载 DSH 桌面端
 
-English | [中文](desktop-uninstall-cleanup.zh.md)
+本指南介绍如何在 macOS 或 Windows 上卸载 Delta 桌面端。清理本地数据是可选操作。
 
-Use this guide to uninstall DeepSeek Harness Desktop on macOS or Windows. Local data cleanup is optional.
+## 1. 卸载应用
 
-## 1. Uninstall the app
+先结束使用桌面端内置 CLI（命令行界面）的命令。如果曾通过 Desktop 安装 `dsh` 命令，请先在应用菜单中选择 **管理 dsh 命令… → 移除**。此操作移除桌面端的命令注册，不卸载独立安装的 CLI 程序。
 
-Finish any commands using Desktop's bundled CLI. If you installed the `dsh` command through Desktop, first select **Manage dsh Command… → Remove** in the application menu. This removes Desktop's command registration without uninstalling independent CLI programs.
+退出 Delta，然后按所在平台的方式卸载：
 
-Quit DeepSeek Harness, then uninstall it using your platform's procedure:
+- **macOS：** 在 Finder 的“应用程序”中删除应用。
+- **Windows：** 在 Windows 11 的“设置 → 应用 → 已安装的应用”，或“控制面板 → 程序 → 程序和功能”中卸载。
 
-- **macOS:** Delete the app from Applications in Finder.
-- **Windows:** Uninstall it through Settings → Apps → Installed apps on Windows 11, or Control Panel → Programs → Programs and Features.
+## 2. 清理本地数据
 
-## 2. Clean up local data
+此步骤为可选操作。如果需要清理本地数据，请选择下方对应平台的脚本，在 macOS 的终端或 Windows 的 PowerShell 中粘贴运行。
 
-This step is optional. If you want to clean up local data, select the script for your platform below, then paste and run it in Terminal on macOS or PowerShell on Windows.
+脚本会永久删除当前用户默认的 Harness 主目录及下方列出的 Desktop 数据路径，包括会话、凭据、设置、插件、缓存和与 CLI 共用的状态。如果配置了 `DSH_HOME`，删除前请单独检查该目录；脚本仍会删除默认的 `~/.dsh`。隔离的开发和测试数据目录不在此清理范围内。
 
-The scripts permanently delete the current user's default Harness home and the Desktop data paths listed below, including sessions, credentials, settings, plugins, caches, and shared CLI state. If you configured `DSH_HOME`, inspect that directory separately before deleting it; the scripts still delete the default `~/.dsh`. Isolated development and test data directories are outside this cleanup scope.
-
-On Windows, the uninstaller normally removes the two application-data directories listed in the script but retains the Harness home. The script also handles those directories if uninstallation left files behind or retained app data.
+Windows 卸载程序通常会删除脚本中列出的两个应用数据目录，但保留 Harness 主目录。若卸载时有文件残留或保留了应用数据，脚本也会清理这些目录。
 
 ::: code-group
 
@@ -55,6 +53,6 @@ $ErrorActionPreference = 'Stop'
 
 :::
 
-## 3. Verify cleanup
+## 3. 验证清理结果
 
-If you ran a cleanup script, confirm before reinstalling that the paths listed in it no longer exist. If the script reports an error, resolve it, rerun the script, and check all listed paths again. The Windows script stops at the first error, so later paths may remain.
+如果运行了清理脚本，请在重新安装前确认脚本中列出的路径已不存在。如果脚本报错，请解决错误后重跑脚本，再次检查所有列出的路径。Windows 脚本会在首次报错时停止，后续路径可能仍未清理。

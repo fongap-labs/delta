@@ -1,23 +1,21 @@
-# Package and install a plugin
+# 打包与安装插件
 
-English | [中文](publish.zh.md)
+前几篇教程通过 `--patch` overlay 加载本地插件。本教程把它打包成可安装的**组合包**（bundle），用 `dsh plugin add` 安装进一个 **profile**，并解释决定组合后配置的层顺序。本文假设 `dsh` CLI 已安装。请先完成[插件配置](./config.md)。
 
-The previous tutorials loaded a local plugin through a `--patch` overlay. This tutorial packages it as an installable **bundle**, installs it into a **profile** with `dsh plugin add`, and explains the layer order that determines the composed configuration. It assumes the `dsh` CLI is installed. Complete [plugin configuration](./config.md) first.
+如果改用全新的源码 checkout，请先按照[从源码运行章节](../../../../README.md#run-from-source)完成准备，将本教程的 `hello-plugin` 目录放在仓库根目录，并从该目录把下文的 `dsh ...` 命令改为 `pnpm dsh ...`。构建与启动器行为见[源码执行](../../../../apps/cli/reference/README.md#source-execution)。
 
-To use a fresh source checkout instead, complete the [run-from-source section](../../../../README.md#run-from-source), keep this tutorial's `hello-plugin` directory at the repository root, and run the remaining `dsh ...` commands from there as `pnpm dsh ...`. See [source execution](../../../../apps/cli/reference/README.md#source-execution) for build and launcher behavior.
+## 两个概念，两种 manifest
 
-## Two concepts, two manifests
+安装机制建立在两个概念之上。二者都由一份 `package.json` 描述，但它们在 `dsh` 键下携带的 manifest（元数据清单）种类不同，回答的问题也不同：
 
-Installation is built on two concepts. Both are described by a `package.json`, but they carry different kinds of manifest under the `dsh` key, and they answer different questions:
+- **组合包**是附带一个配置层的 npm 包。它的 manifest 声明 `dsh.bundle`，回答的是"这个包贡献什么？"：一个插入或覆盖插件行的 patch 文件。
+- **profile** 是位于 `$DSH_HOME/profiles/<name>` 下、描述一份可启动组合的目录。它的 manifest 声明 `dsh.profile`，回答的是"这套配置由哪些组合包按什么顺序组成？"。
 
-- A **bundle** is an npm package that ships a configuration layer. Its manifest declares `dsh.bundle`, answering "what does this package contribute?": a patch file that inserts or overrides plugin rows.
-- A **profile** is a directory under `$DSH_HOME/profiles/<name>` describing one runnable composition. Its manifest declares `dsh.profile`, answering "which bundles compose this setup, in what order?".
+组合包是你编写并分发的东西；profile 是用户用 `dsh --profile <name>` 启动的东西。没有东西同时是两者。
 
-A bundle is what you author and distribute; a profile is what a user boots with `dsh --profile <name>`. Nothing is both.
+### 组合包 manifest
 
-### The bundle manifest
-
-Create the package directory:
+创建包目录：
 
 ```sh
 mkdir -p hello-plugin
@@ -30,7 +28,7 @@ hello-plugin/
 └── index.js           # plugin modules the patch rows reference
 ```
 
-Create `hello-plugin/package.json`:
+创建 `hello-plugin/package.json`：
 
 ```json
 {
@@ -43,7 +41,7 @@ Create `hello-plugin/package.json`:
 }
 ```
 
-Create `hello-plugin/index.js` with the plugin entry point:
+创建 `hello-plugin/index.js`，写入插件入口：
 
 ```js
 export const name = 'hello-plugin'
@@ -53,7 +51,7 @@ export function apply() {
 }
 ```
 
-Create `hello-plugin/cordis.patch.yml`. The patch is a YAML array like the `--patch` overlays you wrote, except plugin rows reference the package by name instead of a relative source path so Node resolution finds the installed code:
+创建 `hello-plugin/cordis.patch.yml`。这个 patch 与你写过的 `--patch` overlay 一样，是一个 patch 条目的 YAML 数组；区别是插件行按包名而不是相对源码路径引用这个包，这样 Node 的模块解析才能找到已安装的代码：
 
 ```yaml
 - insert:
@@ -61,28 +59,28 @@ Create `hello-plugin/cordis.patch.yml`. The patch is a YAML array like the `--pa
       name: dsh-hello-plugin
 ```
 
-`patch` also accepts an ordered list of files, for example `["./base.patch.yml", "./web.patch.yml"]`; the launcher applies them in that order as one layer, and each file's relative plugin paths resolve beside that file. A package without the `dsh.bundle` declaration still installs, but only as a plain dependency: `dsh plugin` prints a warning and activates no layer. Use that package format for a library that plugin packages import rather than a plugin users enable.
+`patch` 也接受一个有序的文件列表，例如 `["./base.patch.yml", "./web.patch.yml"]`；launcher 按该顺序把它们作为同一层应用，每个文件中的相对插件路径相对于该文件解析。没有 `dsh.bundle` 声明的包仍然可以安装，但只作为普通依赖：`dsh plugin` 会打印警告，且不激活任何层。如果一个库供插件包 import，而不是供用户启用，就使用这种包格式。
 
-Declare the DSH releases the bundle supports with an `engines.dsh` SemVer range, for example `"engines": { "dsh": ">=0.2.0 <0.3.0" }`. Installation and profile startup refuse a bundle whose range the running DSH does not satisfy; without `engines.dsh`, they check its `@deepseek-ai/dsh*` peer dependency ranges instead ([rule](../../../../packages/boot/app-boot/README.md#profiles)).
+使用 `engines.dsh` SemVer 范围声明组合包支持的 DSH 版本，例如 `"engines": { "dsh": ">=0.2.0 <0.3.0" }`。安装和 profile 启动会拒绝当前运行的 DSH 不满足该范围的组合包；没有 `engines.dsh` 时，改为检查其 `@deepseek-ai/dsh*` peer 依赖范围（[规则](../../../../packages/boot/app-boot/README.zh.md#profiles)）。
 
-### The profile manifest
+### profile manifest
 
-A profile directory holds two files:
+profile 目录包含两个文件：
 
-- `package.json` — the profile's out-of-tree plugin dependencies (managed by pnpm) plus the `dsh.profile` manifest with its ordered `bundles` list.
-- `cordis.patch.yml` — the user's own patch layer, applied after every bundle layer.
+- `package.json` — profile 的树外插件依赖（由 pnpm 管理），加上 `dsh.profile` manifest 及其有序的 `bundles` 列表。
+- `cordis.patch.yml` — 用户自己的 patch 层，在每个组合包层之后应用。
 
-You never write a profile manifest by hand: `dsh --profile <name> --from-default-profile <template>` can create or reset one from a shipped application template, while `dsh plugin` creates a base-backed profile and maintains its installed bundle list. The [CLI behavior reference](../../../../apps/cli/reference/README.md#profile-boot) owns the creation rules; the next section shows the plugin path.
+profile manifest 从不需要手写：`dsh --profile <name> --from-default-profile <template>` 可以从随附应用模板创建或重置 profile，`dsh plugin` 则创建一个以 base 为基础的 profile，并维护其中已安装的 bundle 列表。创建规则以 [CLI（命令行界面）行为参考](../../../../apps/cli/reference/README.md#profile-boot)为准；下一节展示插件路径。
 
-## Install into a profile
+## 安装进 profile
 
-`dsh plugin --profile <name> <args...>` forwards to pnpm in the profile directory, so every pnpm verb works. From the directory that contains `hello-plugin`, install the package checkout:
+`dsh plugin --profile <name> <args...>` 在 profile 目录内转发给 pnpm，因此所有 pnpm 子命令都可用。在包含 `hello-plugin` 的目录中安装该包的 checkout：
 
 ```sh
 dsh plugin --profile demo add ./hello-plugin
 ```
 
-The first use initializes the profile (with `@deepseek-ai/dsh-base` as its first bundle), pnpm links the checkout, and `dsh` appends the bundle to `dsh.profile.bundles` because the package declares `dsh.bundle`:
+首次使用会初始化 profile（`@deepseek-ai/dsh-base` 作为它的第一个组合包），pnpm 链接该 checkout，而 `dsh` 因为这个包声明了 `dsh.bundle`，把它追加进 `dsh.profile.bundles`：
 
 ```json
 {
@@ -102,51 +100,51 @@ The first use initializes the profile (with `@deepseek-ai/dsh-base` as its first
 }
 ```
 
-A linked checkout keeps its own `node_modules`. Declare dsh packages whose instances the plugin must share with the host under both `peerDependencies` and `devDependencies`, as the harness packages do. At that manifest's lookup position, peers present in the running dsh's runtime resolution use the installation's copy; the devDependency copy serves your type checker and standalone tests. Keep independently versioned third-party dependencies and stateless dsh utilities under `dependencies`.
+通过链接安装的 checkout 保留自己的 `node_modules`。与 harness 自身的包一样，需要与宿主共享实例的 dsh 包同时声明在 `peerDependencies` 与 `devDependencies` 中。在该 manifest 的查询位置，运行中 dsh 的 runtime resolution 已包含的 peer 使用安装中的副本；devDependency 副本供类型检查和独立测试使用。需要独立版本的第三方依赖和无状态 dsh 工具包放在 `dependencies` 中。
 
-Ordinary linked imports follow Node's ancestor order and check each directory's current peer declarations. A nearer physical package wins before a higher peer declaration. A link target can lack `package.json`; ancestor peers still apply, even without a physical `node_modules` beside that manifest. Explicit `require.resolve(..., { paths })` is always native, including paths inside a profile. These rules are shared by npm, Desktop, and source launches; they do not invalidate loaded modules or validate peer version ranges. See the [resolution rules](../../../../.agents/notes/implemented/architecture/2026-09-19-profile-resolution-lookup-order.md) for scope and file-query behavior.
+普通 linked import 遵循 Node 的祖先顺序，检查每个目录当前的 peer 声明。更近的物理包先于更高的 peer 声明。link 目标可以没有 `package.json`，祖先 peer 仍可生效，即使该 manifest 旁没有物理 `node_modules`。显式 `require.resolve(..., { paths })` 始终是原生查询，包括指向 profile 内的路径。npm、Desktop 与源码启动共用这些规则；规则不会使已加载模块失效，也不校验 peer 版本范围。作用域和文件查询行为见[解析规则](../../../../.agents/notes/implemented/architecture/2026-09-19-profile-resolution-lookup-order.zh.md)。
 
-Linking a broad checkout does not apply peer interception to the running installation's own package directories. Links whose targets stay inside the profile, including its pnpm store, remain profile-owned installation content rather than external linked roots. Overlapping external links do not change lookup order: each request still starts from its importer's directory.
+链接整个 checkout 不会对运行中安装自身的包目录应用 peer 拦截。目标仍位于 profile 内的链接（包括它的 pnpm store）属于 profile 自己安装的内容，不算外部 linked root。外部链接互相重叠也不改变查找顺序，每个请求仍从其 importer 所在目录开始。
 
-Verify the layer without booting, then boot:
+先不启动、只验证该层，再启动：
 
 ```sh
 dsh --profile demo --dump-config   # shows a "# == dsh-hello-plugin" layer
 dsh --profile demo
 ```
 
-`dsh plugin --profile demo remove dsh-hello-plugin` removes both the dependency and the layer.
+`dsh plugin --profile demo remove dsh-hello-plugin` 会同时移除依赖和对应的层。
 
-## The loading order
+## 加载顺序
 
-The effective configuration composes over an empty root by applying, in order:
+生效配置在空根之上按以下顺序逐层组合：
 
-1. Each bundle patch named in the profile's `dsh.profile.bundles` list, in list order — `@deepseek-ai/dsh-base` first, then each installed bundle in the order it was added.
-2. The profile's own `cordis.patch.yml`.
-3. The home-level `$DSH_HOME/cordis.patch.yml` — machine-local preferences shared by every profile.
-4. Each `--patch <path>` overlay, in argv order.
+1. profile 的 `dsh.profile.bundles` 列表所列的各个组合包 patch，按列表顺序——先是 `@deepseek-ai/dsh-base`，然后是每个已安装组合包，按其加入顺序。
+2. profile 自己的 `cordis.patch.yml`。
+3. home 级的 `$DSH_HOME/cordis.patch.yml`——各 profile 共享的机器本地偏好。
+4. 每个 `--patch <path>` overlay，按 argv 顺序。
 
-App arguments are not another patch layer. A surface bundle can resolve them through an ordinary app-owned service, described below.
+应用参数不是另一层 patch。表层组合包可以通过下文所述的普通应用自有服务解析它们。
 
-Later layers win per row, and a patch replaces a row's entire `config` value rather than deep-merging keys. Two consequences for bundle authors:
+后应用的层按行胜出，且 patch 会替换目标行的整个 `config` 值，而不是深度合并各键。这给组合包作者带来两个推论：
 
-- Your patch can override rows from earlier layers by `id` — the same way [the `dsh-web-app` bundle](../../../../packages/bundle/web-app/cordis.patch.yml) overrides `dsh-base` rows — but must restate every key the row needs, not just the changed one.
-- Users can override your rows in their profile's `cordis.patch.yml` without touching your package, so prefer configuration defaults users are likely to keep and let the schema carry the rest.
+- 你的 patch 可以按 `id` 覆盖前面各层的行——就像 [`dsh-web-app` 组合包](../../../../packages/bundle/web-app/cordis.patch.yml)覆盖 `dsh-base` 的行那样——但必须重述该行需要的每一个键，而不是只写改动的那个。
+- 用户可以在自己 profile 的 `cordis.patch.yml` 中覆盖你的行，无需改动你的包，所以优先给出用户大概率会保留的配置默认值，其余交给 schema 承担。
 
-In-box bundle names always resolve from the dsh installation itself; pnpm manages only out-of-tree packages, so your bundle can rely on `@deepseek-ai/dsh-base` being present and current.
+内置组合包名称始终从 dsh 安装目录本身解析；pnpm 只管理树外的包，所以你的组合包可以放心依赖 `@deepseek-ai/dsh-base` 存在且与安装保持一致。
 
-## Give a surface bundle its own command line
+## 让表层组合包持有自己的命令行
 
-A bundle that defines a runnable app mounts an ordinary provider plugin:
+定义了可运行应用的组合包挂载一个普通提供方插件：
 
 ```yaml
 - id: hello-startup
   name: 'dsh-hello-plugin/startup'
 ```
 
-The plugin exports `inject = ['cmdlineArgs']`, calls `parseCmdline` from [`@deepseek-ai/dsh-cmdline`](../../../../packages/boot/cmdline/README.md) with its own commander program, and provides its app-owned service from the program's action. The launcher hands every plugin the same immutable arguments after launcher flags, so app-specific flags need no launcher change and multiple plugins may parse the snapshot. The Loader row needs no launcher marker or special kind.
+该插件导出 `inject = ['cmdlineArgs']`，使用自己的 commander program 调用 [`@deepseek-ai/dsh-cmdline`](../../../../packages/boot/cmdline/README.zh.md) 中的 `parseCmdline`，再在 program 自己的 action 中把应用自有服务提供出去。启动器把自身 flag 之后的同一份不可变参数交给每个插件，因此添加应用专属 flag 无需修改启动器，多个插件也可以解析该快照。Loader 行不需要启动器标记或特殊类型。
 
-Rows configured by those arguments inject the provider's service and read it from their own `!!js` options, with the deployment value beside it as the fallback:
+受这些参数配置的行会注入提供方服务，并在自己的 `!!js` 选项中读取它，同时把部署取值写在旁边作为回退：
 
 ```yaml
 - id: my-app
@@ -156,36 +154,36 @@ Rows configured by those arguments inject the provider's service and read it fro
     port: !!js ctx.myAppStartup.port ?? 8080
 ```
 
-On `--help`, the provider publishes no service, so those rows never activate. Loader mounts the composition once, waits for each row's ordinary injections, and only then evaluates that row's `!!js` config against its injected context.
+遇到 `--help` 时，提供方不会发布该服务，所以这些行不会激活。Loader 只挂载一次组合，等待每一行的普通注入，再基于其已注入的上下文求值该行的 `!!js` 配置。
 
-## Installing from GitHub: the build-script catch
+## 从 GitHub 安装：构建脚本这道坎
 
-Publishing to a registry is not required — users can install straight from a git host:
+发布到注册表不是必须的——用户可以直接从 git 托管安装：
 
 ```sh
 dsh plugin --profile demo add github:you/hello-plugin
 ```
 
-But a git install fetches **sources, not built artifacts**: nothing runs your `build` script, so a TypeScript package arrives without its `lib/` output and fails to load. Two things must happen, one on each side:
+但 git 安装拉取的是**源码，不是构建产物**：没有任何环节运行你的 `build` 脚本，因此 TypeScript 包到手时没有 `lib/` 输出，加载会失败。必须两边各做一件事：
 
-- **The author** ships a `prepare` script — pnpm runs it after a git install — that builds the published entry points from source, self-contained: it must not assume dev-only context such as a sibling monorepo checkout. A dedicated tsdown config can transpile `src/` without project references or type checking.
-- **The user** allowlists the build. pnpm ≥10 refuses to run a git dependency's `prepare` script until it is explicitly allowed, so the first `add` fails; `dsh` points at the fix — copy the exact package key pnpm printed into the profile's `pnpm-workspace.yaml`:
+- **作者**提供一个 `prepare` 脚本——pnpm 在 git 安装后运行它——从源码构建出发布入口，且必须自包含：不能假设仅开发环境才有的上下文，例如旁边有一份 monorepo checkout。专用的 tsdown 配置可以直接转译 `src/`，不用项目引用，也不做类型检查。
+- **用户**为构建授权。pnpm ≥10 在得到显式允许之前拒绝运行 git 依赖的 `prepare` 脚本，所以第一次 `add` 会失败；`dsh` 会指出修法——把 pnpm 打印的确切包键复制进该 profile 的 `pnpm-workspace.yaml`：
 
   ```yaml
   allowBuilds:
     dsh-hello-plugin: true
   ```
 
-  and re-run the `add`.
+  然后重新执行 `add`。
 
-Treat that allowance as **permission to execute the package's code on your machine at install time**, outside any sandbox the agent runs under. Only allow packages whose source you trust, and pin a commit (`github:you/hello-plugin#<sha>`) so a later push cannot silently change what runs.
+请把这项授权视为**允许该包的代码在安装时于你的机器上执行**，且不在 agent 运行的任何沙箱之内。只对源码可信的包授权，并锁定 commit（`github:you/hello-plugin#<sha>`），让后续推送无法悄悄改变实际运行的内容。
 
-If you would rather not ask users for the allowance, distribute built artifacts instead — neither form needs any build permission:
+如果不想让用户做这项授权，就改为分发构建产物——以下两种形式都不需要任何构建权限：
 
-- **Publish to npm** with `lib/` built at `pnpm publish` time; `dsh plugin add your-package` then installs prebuilt code.
-- **Ship a tarball** from `pnpm pack`; users run `dsh plugin add ./hello-plugin-0.1.0.tgz`.
+- **发布到 npm**，在 `pnpm publish` 时构建好 `lib/`；`dsh plugin add your-package` 安装的就是预构建代码。
+- **交付 tarball**：用 `pnpm pack` 打包；用户执行 `dsh plugin add ./hello-plugin-0.1.0.tgz`。
 
-## Next steps
+## 下一步
 
-- [Plugins and lifecycle](../framework/index.md) — the full plugin lifecycle
-- [CLI behavior reference](../../../../apps/cli/reference/README.md) — exact layer precedence, flags, and profile mechanics
+- [插件与生命周期](../framework/index.md) — 插件的完整生命周期
+- [CLI（命令行界面）行为参考](../../../../apps/cli/reference/README.md) — 确切的层优先级、flag 与 profile 机制
