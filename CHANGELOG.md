@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 修复: 本地故障诊断在下一次写入时对轮转的 `errors.jsonl.1`、`.2` 同样执行 14 天保留期清理，避免过期归档长期残留；不改变原始异常不落盘、128 KiB 上限及仅本地保存原则。
+
+
 - 修复: 更新浏览器操作包组与注册服务的中英文说明，仅列仍存在的 Playwright MCP、会话运行时及可选组合包，移除 Chrome DevTools 和 Stagehand 失效链接。
 
 - 新增: 恢复候选可选 Browser Use（Playwright MCP）与独立会话运行时，提供默认关闭的 Plugin Bundle；不恢复其余旧浏览器提供方或遥测。待中央 CI 和浏览器实机回归后确认可交付。
