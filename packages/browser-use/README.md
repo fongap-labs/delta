@@ -31,8 +31,8 @@ Choose one provider and mount the shared registration service.
 <a id="related-documentation"></a>
 ## Related documentation
 
-- [Browser use](../../docs/subsystems/browser-use.md) — capability ownership and provider choices.
-- [Experimental packages](../experimental/README.md) — Playwright MCP, Chrome DevTools MCP, and Stagehand providers.
+- [Browser use](../../docs/subsystems/browser-use.md) — registry behavior, opt-in Playwright MCP and Session ownership.
+- [Experimental packages](../experimental/README.md) — the restored Playwright MCP provider, Session runtime and optional Browser Use bundle; Chrome DevTools and Stagehand remain removed.
 
 <a id="dev-note"></a>
 ## Dev Note

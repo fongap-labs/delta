@@ -52,10 +52,10 @@ kind: "package-reference"
 <a id="further-exploration"></a>
 ## 延伸阅读
 
-- [浏览器操作](../../../docs/subsystems/browser-use.zh.md) — 提供方 选择与 Session 所有权。
-- [Playwright MCP 提供方](../../experimental/browser-use-playwright-mcp/README.zh.md) — Playwright 浏览器工具。
-- [Chrome DevTools MCP 提供方](../../experimental/browser-use-chrome-devtools-mcp/README.zh.md) — Chromium 检查与控制。
-- [Stagehand 提供方](../../experimental/browser-use-stagehand-native/README.zh.md) — 支持 AI（人工智能）辅助的原生浏览器操作。
+- [浏览器操作](../../../docs/subsystems/browser-use.zh.md) — 提供方选择与 Session 所有权。
+- [Playwright MCP 提供方](../../experimental/browser-use-playwright-mcp/README.zh.md) — 需主动启用的 Chromium 浏览器工具。
+- [浏览器 Session 运行时](../../experimental/browser-use-runtime/README.zh.md) — 按 Session 管理资源与 MCP 生命周期。
+- [Browser Use 组合包](../../experimental/browser-use-bundle/README.md) — 默认关闭的实验性提供方入口。
 
 -----
 
