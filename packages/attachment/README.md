@@ -1,51 +1,49 @@
 ---
-description: "Package map for the durable image attachment capability family: what you can do with image attachments, and where your images are stored."
+description: "持久图片附件能力族的包映射：你可以用图片附件做什么，以及你的图片存放在哪里。"
 kind: "package-group"
 ---
 
-# attachment/ — durable attachment capability family
+# attachment/：持久附件能力族
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`attachment/` 组提供持久图片附件：把图片附加到提示词和命令，Delta 会把它保存在本机，重新显示在对话历史中，并在后续轮次发送给模型。现有默认组合已接入这一能力。该能力与它的存储拆分为两个包，见下文。已存储的图片在重启后依然存在且永远不会被自动删除，并且只支持光栅图片格式。
 
-The `attachment/` group provides durable image attachments: attach images to prompts and commands, and the harness saves them on your machine, shows them again in conversation history, and sends them to the model in later turns. The shipped `dsh` composition enables this with no setup. The capability and its storage are split across two packages, described below. Stored images survive restarts and are never deleted automatically, and only raster image formats are supported.
+## 目录
 
-## Table of Contents
-
-- [Packages](#packages)
-- [Related documentation](#related-documentation)
-- [Dev Note](#dev-note)
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="packages"></a>
-## Packages
+## 包
 
-These two packages provide durable image attachments; each README describes what you can do with its part.
+这两个包提供持久图片附件；每个 README 描述其各自部分可以做什么。
 
-| Package | Role | ctx key |
+| 包 | 角色 | ctx 键 |
 |---|---|---|
-| [`attachment/`](attachment/README.md) | Image attachments for prompts and commands that persist and come back in history | `ctx.attachments` |
-| [`attachment-local/`](attachment-local/README.md) | Stores your attached images on this machine below `DSH_HOME` | registers on `ctx.attachments` |
+| [`attachment/`](attachment/README.zh.md) | 可用于提示词与命令、会持久保存并回到历史中的图片附件 | `ctx.attachments` |
+| [`attachment-local/`](attachment-local/README.zh.md) | 把附加图片存储在本机 `DSH_HOME` 下 | 注册到 `ctx.attachments` |
 
 -----
 
 <a id="related-documentation"></a>
-## Related documentation
+## 相关文档
 
-Start with the subsystem reference for the service contract, then the capability-seam table and the configuration surface of the local backend.
+先从子系统参考了解服务约定，再看能力 seam 表与本地后端的配置面。
 
-- [Attachment subsystem reference](../../docs/subsystems/attachment.md) — service contract, payload types, and the `ctx.attachments` Cordis surface.
-- [Capability seams](../../docs/capability-seams.md) — the Service Definition / Service Provider / Consumer split this family follows.
-- [Generated configuration catalog](../../docs/config-catalog.md#deepseek-aidsh-attachment-local) — every accepted field of the local backend.
+- [附件子系统参考](../../docs/subsystems/attachment.zh.md)——服务约定、载荷类型与 `ctx.attachments` 的 Cordis 接口面。
+- [能力 seam](../../docs/capability-seams.zh.md)——本家族遵循的 Service Definition / Service Provider / Consumer 拆分。
+- [生成配置目录](../../docs/config-catalog.zh.md#deepseek-aidsh-attachment-local)——本地后端的每个受支持字段。
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
