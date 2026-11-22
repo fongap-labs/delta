@@ -107,12 +107,12 @@ export function mountSessionMcp(ctx: Context, options: SessionMcpOptions): void 
   const clients = new Map<Agent, ClientState>()
   const toolPrefix = `mcp__${options.name}__`
   const resourceTools = new Set(['list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'])
-  let stopping = false
-  let refreshingMasks = false
+  let isStopping = false
+  let isRefreshingMasks = false
 
   const refreshBlockedMasks = (): void => {
-    if (stopping || refreshingMasks) return
-    refreshingMasks = true
+    if (isStopping || isRefreshingMasks) return
+    isRefreshingMasks = true
     try {
       for (const [agent, state] of clients) {
         if (state.status !== 'blocked') continue
@@ -122,7 +122,7 @@ export function mountSessionMcp(ctx: Context, options: SessionMcpOptions): void 
         state.mask.ctx.tools.restrict({ deny: inherited.map(tool => tool.name) })
       }
     } finally {
-      refreshingMasks = false
+      isRefreshingMasks = false
     }
   }
 
@@ -174,7 +174,7 @@ export function mountSessionMcp(ctx: Context, options: SessionMcpOptions): void 
       },
     })
     yield async () => {
-      stopping = true
+      isStopping = true
       await resources.dispose()
       clients.clear()
     }
