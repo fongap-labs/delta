@@ -126,6 +126,8 @@
     "packages/interaction/user-questions/README.md",
     "packages/plan/README.md",
     "packages/plan/plan-mode/README.md",
+    "packages/settings/README.md",
+    "packages/settings/settings/README.md",
     "packages/team/README.md",
     "packages/team/agent-team/README.md",
     "packages/team/tool-agent-team/README.md",
