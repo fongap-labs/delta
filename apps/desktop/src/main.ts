@@ -67,6 +67,14 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { isPackagedDesktopVersionQuery } from './startup-version.ts'
+
+// A relocated Windows executable must answer --version without entering the GUI,
+// reading a user profile, claiming the single-instance lock or starting the Host.
+if (isPackagedDesktopVersionQuery(process.argv, app.isPackaged)) {
+  process.stdout.write(`${app.getVersion()}\n`)
+  process.exit(0)
+}
 
 // The legacy Delta launcher supplies an explicit portable data root. Keep Electron's
 // profile under Data/; other Harness home-path migrations are validated separately.

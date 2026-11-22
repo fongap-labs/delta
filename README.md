@@ -25,6 +25,10 @@ node scripts/delta-verify.mjs
 
 Windows 中央发布入口为 `packaging/portable/release-build-package.ps1`，接受 `-Target`、`-Version`、`-OutputDir`，通过原 Harness 构建获得完整 Electron 目录，再调用 `build-portable-package.ps1` 组装便携 ZIP。必须在真实的 Windows x64 runner 上验证。
 
+Windows **CI 验收**与正式发布是两条独立流程。`.github/execution-manifest.json` 只声明中央受审计的 `windows-standard` 作业；其执行脚本由 [Action Worker 的 Delta 测试包](https://github.com/fongap-labs/action-worker/blob/main/tests/packs/delta/windows-desktop-ci.ps1) 维护，Delta PR 不能提供任意 PowerShell 执行入口。该作业在 Windows x64 Runner 上检查冻结依赖、第一方共享包与 Delta Code 构建、无签名 Electron 便携目录、打包运行时冒烟，并复制目录后用隔离 `APPDATA`/`LOCALAPPDATA` 执行 `Delta.exe --version`。**必须依据具体提交的真实 Windows 和 Linux CI Evidence、PR Governance、validate-merge 结果判定是否通过**；脚本存在、作业跳过、历史构建或 Linux 通过均不能替代 Windows 成功。此项不验证真实 GUI 中英文切换、完整插件热重载、Rust 启动器的最终 ZIP 迁移、签名或公开发行，后续跟踪见 [Issue #14](https://github.com/fongap-labs/delta/issues/14)。
+
+Windows 无签名离线 CI 必须同时选择 Windows x64、目录打包 `--dir`、明确的 `--unsigned` 和 `DELTA_PORTABLE_OFFLINE=1`；仅设置离线标志而未传 `--unsigned` 会进入要求 `.env.windows` 的发布配置路径。受信任脚本已在 [Action Worker #1960](https://github.com/fongap-labs/action-worker/pull/1960) 改用现有 `package:win:x64:dir -- --unsigned` 入口。CI 不创建本地发布配置文件、不加载签名或更新服务凭据，仍须完整执行真正的打包与移动目录启动检查。 已合并的 [Action Worker #1961](https://github.com/fongap-labs/action-worker/pull/1961) 为 Windows 构建失败增加固定阶段诊断标志；该诊断不改变测试通过标准，失败时仍必须保留红叉并修复实际问题。
+
 ## 分支规则
 
 | 分支 | 用途 |
