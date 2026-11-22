@@ -1,127 +1,125 @@
 ---
-description: "Four task-board tools and shared-task guidance for Team-enabled Sessions."
+description: "为开启 Team 的 Session提供四个任务板工具和共享任务指导。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-tool-agent-team
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+此包让 subagent（子智能体）树中的每个 agent 创建、认领并完成共享任务。它添加四个任务 schema 和共享任务板指导。普通 subagent 控制工具负责发现、通信、中断和收件箱等待。基础 bundle 加载服务与工具；新 Session 默认关闭 Team 模式。
 
-This package lets every agent in a subagent tree create, claim, and complete shared tasks. It adds four task schemas and shared-board guidance. Ordinary subagent controls own discovery, messaging, interruption, and inbox waiting. The base bundle loads the service and tools; new Sessions default to Team mode off.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Team tools are available to each model step only while the root Session enables Team mode. Prompt providers read the same selection when evaluated. Ordinary subagent controls remain available.
+仅当根 Session 开启 Team 模式时，各模型步骤才可使用 Team 工具。提示词提供方在求值时读取同一选择。普通 subagent 控制工具始终可用。
 
-Mount this package with `@deepseek-ai/dsh-agent-team` when models need the shared board. The root and descendants receive identical task schemas and task policy.
+模型需要共享任务板时，将此包与 `@deepseek-ai/dsh-agent-team` 一起挂载。根和后代接收相同的任务 schema 和任务策略。
 
-### When to choose it
+### 何时选择
 
-Choose it whenever the Team domain is mounted and models should use the board; without it, the board is reachable only through `ctx.agentTeams`. Teammates are created and reached through the standard `subagent`, `subagent_fork`, `send_message`, `list_agents`, and `interrupt_agent` tools, so the composition also needs `@deepseek-ai/dsh-tool-subagent` and `@deepseek-ai/dsh-tool-subagent-control`.
+只要挂载了 Team 领域包且模型需要使用任务板，就选择本包；没有它时，只能通过 `ctx.agentTeams` 访问任务板。teammate 通过标准 `subagent`、`subagent_fork`、`send_message`、`list_agents` 与 `interrupt_agent` 工具创建和联系，因此组合还需要 `@deepseek-ai/dsh-tool-subagent` 与 `@deepseek-ai/dsh-tool-subagent-control`。
 
-### Smallest working example
+### 最小工作示例
 
-The plugin takes no configuration; mount it beside the Team domain as in the [agent-team setup](../agent-team/README.md#smallest-working-setup):
+本插件不接受配置；按照 [agent-team 配置](../agent-team/README.md#smallest-working-setup)，把它挂载在 Team 领域包旁边：
 
 ```yaml
 - id: tool-agent-team
   name: '@deepseek-ai/dsh-tool-agent-team'
 ```
 
-A row that sets `interrupt`, `freshProvider`, or `forkProvider` does not activate, and dsh names the key in its startup warning. The [upgrade guide](../../../docs/upgrade-guide/v0.2.1-rc.2/agent-team-subagents/guide.md) maps the removed tools and keys to their replacements, and the generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-agent-team) records the empty configuration.
+设置 `interrupt`、`freshProvider` 或 `forkProvider` 的配置行不会激活，dsh 会在启动警告中指出该键。[升级指南](../../../docs/upgrade-guide/v0.2.1-rc.2/agent-team-subagents/guide.zh.md)把已移除的工具与键对应到替代方式，生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-agent-team)记录空配置。
 
-Ask the Lead to start a subagent to review the diff, add a review task, and wait for its result. The `description` explains the subagent’s work; the returned name addresses it.
+让 Lead 启动子代理审查差异、创建审查任务并等待结果。`description` 说明子代理的工作；返回的名称用于寻址。
 
-### What the model can do
+### 模型能做什么
 
-The task tools complement the ordinary subagent controls:
+任务工具补充普通 subagent 控制工具：
 
-- **Manage the task board** — `team_task_create`, `team_task_list`, `team_task_get`, and `team_task_update` add, browse, read, and update shared tasks.
-- **Wait for inbox input** — `wait_agent` belongs to `@deepseek-ai/dsh-tool-subagent-control` and remains available without this package.
-- **Create and reach teammates** — `subagent`, `subagent_fork`, `send_message`, `list_agents`, and `interrupt_agent` come from the subagent tool packages and are unchanged by this package.
+- **管理任务板**——`team_task_create`、`team_task_list`、`team_task_get` 与 `team_task_update` 添加、浏览、读取与更新共享任务。
+- **等待收件箱输入** — `wait_agent` 属于 `@deepseek-ai/dsh-tool-subagent-control`，无需此包即可使用。
+- **创建和联系队友**——`subagent`、`subagent_fork`、`send_message`、`list_agents` 和 `interrupt_agent` 来自子代理工具包，本包不修改它们。
 
-Task `owner` arguments accept the names that `list_agents` shows: `lead`, a full name such as `reviewer/checker`, or a Session id. Task results report `owner` as that name, or as the Session id when the owner has no name; `unowned: true` filters tasks without an owner, while `unowned: false` selects assigned tasks. The `owner` and `unowned` filters cannot be combined. The Team service authorizes `ownerId` Session ids and saves the full name in `ownerName` at assignment. The root may reassign to itself or any reachable continuable descendant; historical roster records grant no authority. Other agents claim ready tasks themselves. Updates enforce ownership and revision checks.
+任务 `owner` 参数接受 `list_agents` 显示的名称：`lead`、完整名称（例如 `reviewer/checker`）或 Session id。任务结果以 `owner` 报告该名称；所有者没有名称时报告其 Session id；`unowned: true` 筛选没有所有者的任务，`unowned: false` 筛选已分配任务。`owner` 和 `unowned` 筛选不可同时使用。Team 服务以 `ownerId` Session id 授权所有者，并在分配时将完整名称保存到 `ownerName`。根可将任务重新分配给自身或任意可达的可继续执行后代；历史名册记录不授予权限。其他 agent 自行认领就绪任务。更新会检查归属和修订。
 
-### What success and failure look like
+### 成功与失败的表现
 
-Task tools return compact JSON task views or pages. Stale revisions, unauthorized actions, and unready tasks return errors.
+任务工具返回紧凑的 JSON 任务视图或分页。过期修订、未授权操作和未就绪任务返回错误。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design decisions behind the adapter and points at the code that realizes them; the observable behavior is fully covered in [Use this package](#use-this-package).
+本节解释适配器背后的设计决策并指出实现它们的代码位置；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
-### Design philosophy
+### 设计理念
 
-The adapter is built on four commitments:
+适配器建立在四项承诺之上：
 
-- **Session-selected tools.** Shared tool registrations select availability from each caller’s root Session; the service resolves tree authority when called.
-- **One tool family.** Team registers no messaging, listing, or interruption tool; the standard subagent tools serve Leads and teammates alike.
-- **Declared results, compact JSON.** Every tool declares its complete result schema and renders that value as compact JSON, so the compiler checks `execute` against what the model is promised and no result spends tokens on indentation.
-- **The domain owns authority.** Tools delegate to `ctx.agentTeams`, which enforces Lead authority and revision checks; the adapter adds no weaker path.
+- **按 Session 选择工具。** 共享工具注册项根据调用方根 Session 选择可用性；服务在调用时解析树权限。
+- **一个工具族。** Team 不注册消息、列表或中断工具；标准 subagent 工具同样服务 Lead 与 teammate。
+- **声明式结果，紧凑 JSON。** 每个工具都声明完整结果 schema，并把该值渲染为紧凑 JSON，因此编译器会对照向模型承诺的结果检查 `execute`，任何结果都不会在缩进上消耗 token。
+- **领域掌握裁决权。** 工具委托给 `ctx.agentTeams`，后者强制执行 Lead 权限与 revision 校验；适配器不添加更弱的路径。
 
-The [subagent teammates Agent Note](../../../.agents/notes/implemented/architecture/2026-10-15-agent-teams-as-subagents.md) owns the model-facing and scoping decisions.
+[subagent teammate Agent Note](../../../.agents/notes/implemented/architecture/2026-10-15-agent-teams-as-subagents.zh.md)负责模型侧与 scoping 决策。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry, removed-key rejection, Team policy and four conditional task tools |
+| [`src/index.ts`](src/index.ts) | 插件入口、已移除键拒绝、Team 策略，以及四个条件任务工具 |
 
-### Policy and tools
+### 策略与工具
 
-One plugin registration provides a dynamic `team:policy` section and four conditional task tools. Each provider reads the caller’s root Session selection, including fork children. An unavailable root disables Team tools and guidance. Tree authority comes from `ctx.subagents.rootOf(agent)`; task owners remain Session ids in `ctx.agentTeams`. Owner arguments resolve through `ctx.subagents.resolveName()`, which grants no authority. Results replace the saved `ownerId` and `ownerName` fields with `owner: ownerName ?? ownerId`. Displaying a task or editing its content requires no descendant catalog reads. Identity, discovery, communication, and waiting belong to [subagent controls](../../subagent/tool-subagent-control/README.md) and keep that ownership when Team mode switches; enabling Team mode removes only their result report instruction. The subagent runtime delivers final results.
+一次插件注册提供动态的 `team:policy` 段落和四个条件任务工具。各提供方读取调用者根 Session 的选择，包括 fork 子级。根不可用时禁用 Team 工具与指导。树权限从 `ctx.subagents.rootOf(agent)` 派生；在 `ctx.agentTeams` 中任务负责人保留为 Session id。所有者参数通过 `ctx.subagents.resolveName()` 解析，解析不授予权限。结果以 `owner: ownerName ?? ownerId` 取代保存的 `ownerId` 和 `ownerName` 字段。展示任务或编辑其内容无需读取后代目录。身份、发现、通信和等待属于 [subagent 控制工具](../../subagent/tool-subagent-control/README.zh.md)，切换 Team 模式时归属不变；开启 Team 模式只会去掉其中的结果汇报要求。subagent 运行时负责投递最终结果。
 
-### Scoped registration and teardown
+### 按作用域注册与拆除
 
-Tool `when` conditions resolve at step preparation, including the first step of new, forked, and resumed Agents. Policy text is evaluated during prompt assembly. An already prepared step retains its tool selection, but task operations check the current mode before starting. Plugin disposal removes all registrations through their owning effects.
+工具的 `when` 条件在步骤准备时求值，包括新建、分叉和恢复的 Agent 的首个步骤。策略文本在提示词组装时求值。已经准备好的步骤保留其工具选择，但任务操作在开始前检查当前模式。插件释放时由各注册所属的 effect 移除全部注册。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the domain service to the exact schemas and the decisions behind the design.
+当包级约定不够用时阅读以下页面。它们从领域服务逐步进入精确 schema 与设计背后的决策。
 
-- [agent-team package](../agent-team/README.md) — the `ctx.agentTeams` domain service behind these tools.
-- [Agent Teams subsystem](../../../docs/subsystems/agent-team.md) — durable Team types and service API.
-- [Subagent control tools](../../subagent/tool-subagent-control/README.md) — messaging, listing, interruption, and inbox waiting.
-- [Generated tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-agent-team) — every tool schema the model receives.
-- [Subagent teammates Agent Note](../../../.agents/notes/implemented/architecture/2026-10-15-agent-teams-as-subagents.md) — model-facing, scoping, and tool-family decisions.
+- [agent-team 包](../agent-team/README.md)——这些工具背后的 `ctx.agentTeams` 领域服务。
+- [Agent Teams 子系统](../../../docs/subsystems/agent-team.zh.md)——持久 Team 类型与服务 API。
+- [subagent 控制工具](../../subagent/tool-subagent-control/README.zh.md) — 通信、列表、中断和收件箱等待。
+- [生成的工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-agent-team)——模型接收的每个工具 schema。
+- [subagent teammate Agent Note](../../../.agents/notes/implemented/architecture/2026-10-15-agent-teams-as-subagents.zh.md)——模型侧、scoping 与工具族决策。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Team policy system prompt
+### Team 策略 system prompt
 
-#### What the model sees
+#### 模型看到什么
 
-Every Team member's system prompt carries one `team:policy` section; the Lead and every teammate see the same text:
+每个 Team 成员的 system prompt 都包含一个 `team:policy` 段落；Lead 与每个 teammate 看到相同的文本：
 
-##### Team policy
+##### Team 策略
 
 ```markdown
 Agent Teams is available in this session.
@@ -133,44 +131,44 @@ Use the names returned by subagent, subagent_fork, or list_agents as owner when 
 Task changes do not end wait_agent calls, add inbox messages, or start idle agents. Use send_message when another agent needs to act on a task.
 ```
 
-#### Token effect
+#### Token 影响
 
-The section is a fixed cost on every request of every Team member.
+该段落是每个 Team 成员每次请求的固定成本。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The text is identical for the Lead and every descendant and does not change while the plugin stays loaded, so it keeps a stable system-prompt prefix, including between a parent and its `subagent_fork` child. Loading or unloading the plugin changes the system prompt of every member and invalidates their cached prefixes.
+该文本对 Lead 与每个后代都相同，并且在插件保持加载期间不会变化，因此它保持稳定的 system prompt 前缀，包括父级与其 `subagent_fork` 子级之间。加载或卸载插件会改变每个成员的 system prompt，并使其已缓存前缀失效。
 
-### Task tool schemas
+### 任务工具 schema
 
-#### What the model sees
+#### 模型看到什么
 
-Every member receives the same four task schemas in the [generated tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-agent-team). Results are compact JSON task views or pages. Root-only reassignment is enforced at execution, not through different schemas.
+每个成员接收[生成工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-agent-team)中的相同四个任务 schema。结果是紧凑的 JSON 任务视图或分页。仅根可重新分配的限制在执行时实施，而非通过不同 schema 实施。
 
-#### Token effect
+#### Token 影响
 
-The four schemas are a fixed cost per request. Tool results add compact JSON; `team_task_list` returns at most 100 tasks per page. An owner name is usually shorter than the 36-character Session id it replaces.
+四个 schema 为每次请求的固定开销。工具结果增加紧凑 JSON；`team_task_list` 每页最多返回 100 个任务。所有者名称通常比其取代的 36 字符 Session id 更短。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The schemas are identical for the Lead and every descendant, including `subagent_fork` children, so a fork's tool list matches its parent's request prefix. Tool results append after the reusable prefix. Loading or unloading the plugin changes every member's tool list and invalidates their cached prefixes.
+这些 schema 对 Lead 与每个后代（包括 `subagent_fork` 子级）都相同，因此 fork 的工具列表与父级请求前缀一致。工具结果追加在可复用前缀之后。加载或卸载插件会改变每个成员的工具列表，并使其已缓存前缀失效。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-These limits describe what the policy and tools cannot guarantee for a team. They are current package constraints, not a comparison with other collaboration surfaces.
+这些限制说明策略与工具无法为一支团队保证什么。它们是当前包约束，不是与其他协作方式的对比。
 
-- **Prompt policy is coordination, not confinement** — it cannot stop Bash or external processes from writing overlapping files.
-- **Task authority needs a live root** — tool availability does not guarantee that the caller’s root remains available when an operation executes.
-- **No Web controls** — browser task-board presentation is outside this runtime package.
+- **提示词策略只负责协调，不负责 confinement**——它无法阻止 Bash 或外部进程写入重叠文件。
+- **任务权限需要在线根** — 工具可用不保证操作执行时调用者的根仍在线。
+- **无 Web 控件** — 浏览器任务板展示不属于此运行时包。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

@@ -1,39 +1,37 @@
 ---
-description: "Plan mode for users and maintainers choosing, configuring, or debugging the per-agent planning feature with deployment guidance, a /plan command, and a user-reviewed exit."
+description: "面向用户与维护者的计划模式说明：用于选择、配置或排查带部署引导、/plan 命令与经用户评审退出的逐 agent（智能体）规划功能。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-plan-mode
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+计划模式要求 agent 先探索和设计再执行，然后把完成的计划呈交你批准。用 `/plan` 进入，并可附带一条消息或按顺序排列的图片与文件附件；用 `/plan off` 离开，批准评审以继续执行，或反馈意见以要求继续规划。部署方定义的引导控制规划行为，但每个工具仍然可用，因此请用沙箱模式与审批提示施加强制限制。激活状态会在会话恢复和 fork 后保留。当你希望 agent 行动前先提交一份经评审的计划时，选择计划模式。
 
-Plan mode asks an agent to explore and design before execution, then presents the finished plan for your approval. Enter it with `/plan`, optionally with a message or ordered image and file attachments; leave with `/plan off`, approve the review to continue, or return feedback for more planning. Deployment-defined guidance controls planning behavior, but every tool remains available, so use sandbox mode and approval prompts for enforced limits. The active state survives session resume and forks. Choose it when you want a reviewed plan before the agent acts.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-When plan mode is active, the agent works under your instructions and presents its plan for review instead of executing right away. The common path: configure the guidance text, enter plan mode with `/plan`, and review the finished plan when the agent calls `exit_plan_mode`.
+计划模式激活时，agent 会按你的指令行事，并先呈交计划供评审，而不是立即执行。常用路径：配置引导文本，用 `/plan` 进入计划模式，agent 调用 `exit_plan_mode` 时评审完成的计划。
 
-### When to choose it
+### 何时选择
 
-Choose plan mode when the agent should explore and design before executing and you want to approve the plan first. It does not restrict the agent: every tool stays callable, so use sandbox mode and approval prompts when you need enforced limits. Skip it when the agent should act on your requests immediately, without a planning phase.
+当希望 agent 先探索和设计再执行、并且想先批准计划时，选择计划模式。它不限制 agent：每个工具仍可调用，因此需要强制限制时请使用沙箱模式与审批提示。当 agent 应立即按你的请求行事、无需规划阶段时，跳过它。
 
-### Minimal configuration
+### 最小配置
 
-The only required configuration is the guidance text the agent follows while planning; anything else you add fails at load.
+唯一必需的配置是 agent 规划期间遵循的引导文本；添加任何其他配置都会在加载时失败。
 
 ```yaml
 - name: '@deepseek-ai/dsh-plan-mode'
@@ -43,163 +41,163 @@ The only required configuration is the guidance text the agent follows while pla
       plan through exit_plan_mode.
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `section` | required | Guidance rendered as the `plan:policy` prompt section while plan mode is active |
+| `section` | 必填 | 计划模式激活时作为 `plan:policy` 提示词段落渲染的引导 |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-plan-mode) is the exhaustive source for every accepted field and its JSDoc.
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-plan-mode)完整列出了所有受支持的字段及其 JSDoc。
 
 <a id="model-and-human-interactions"></a>
-### Entering and leaving plan mode
+### 进入与离开计划模式
 
-Type `/plan` to enter plan mode, or `/plan <message>` to enter with an instruction — the message becomes your next request under plan guidance. Type `/plan off` to leave plan mode directly; it also cancels a plan-mode entry that has not taken effect yet.
+输入 `/plan` 进入计划模式，或输入 `/plan <message>` 连同一条指令一起进入——该消息会成为你在计划引导下的下一条请求。输入 `/plan off` 直接离开计划模式；它还会取消尚未生效的计划模式进入。
 
-You can attach images and generic files to a `/plan` message, and they are included with your instruction in selection order. `/plan off` with attachments is rejected before the mode changes, so the draft and cards remain available. The `/plan` command is available wherever slash commands are supported, such as the Web client.
+你可以在 `/plan` 消息中附带图片与通用文件，它们按选择顺序随指令一起提交。带附件的 `/plan off` 会在模式变更前被拒绝，因此草稿和附件卡仍可继续使用。`/plan` 命令在支持斜杠命令的界面中可用，例如 Web 客户端。
 
-### The reviewed exit
+### 经评审的退出
 
-When the agent has a finished plan, it calls `exit_plan_mode` with the plan written as markdown and starting with a heading. You review that exact plan and choose `Approve` to leave plan mode, or `Keep planning` to send the agent back with feedback.
+agent 完成计划后，会以 markdown 形式、从标题开头书写计划并调用 `exit_plan_mode`。你评审该计划的原文，选择 `Approve` 离开计划模式，或选择 `Keep planning` 带反馈把 agent 送回去。
 
-Choosing `Keep planning` (optionally with free-text feedback) sends the agent back to revise the plan; closing the review to type a message instead ends the agent's turn, and your next message starts the next request. If no interactive review is available, `exit_plan_mode` cannot run and you can still leave plan mode with `/plan off`.
+选择 `Keep planning`（可附自由文本反馈）会让 agent 回去修订计划；关闭评审改为发言，则结束 agent 当前轮次，你的下一条消息开始下一次请求。若没有可用的交互评审，`exit_plan_mode` 无法运行，你仍可用 `/plan off` 离开计划模式。
 
-### Observing plan state
+### 观察计划状态
 
-Interfaces can show whether plan mode is active and whether a mode change you requested is still waiting to take effect. The state is the same in every tab and survives restarts.
+界面可以显示计划模式是否激活，以及你请求的模式变更是否仍在等待生效。该状态在每个标签页中一致，并能在重启后保留。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design decisions behind the package and points at the code that realizes them; the observable behavior is fully covered in [Use this package](#use-this-package).
+本节解释本包背后的设计决策并指出实现它们的代码位置；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
-### Design philosophy
+### 设计理念
 
-Plan mode is a product package, not a capability seam: there is no swappable backend, so the state, guidance, command, and exit tool live in one place. The durable stance is one log-only whole-value-replace event, never a live mirror, so resume, fork, and compaction recover it by folding the log. Guidance is a soft layer — the package registers one prompt section and one tool, and restrains through text rather than filtering capabilities.
+计划模式是产品包，而不是能力 seam：没有可替换的后端，因此状态、引导、命令与退出工具都集中在一处。持久化方案采用单一仅记日志、整值替换的事件，绝不使用实时镜像，因此恢复、fork 与压缩（compaction）都通过折叠日志复原它。引导是软性层——本包注册一个提示词段落和一个工具，通过文本而非过滤能力来约束。
 
-### Durable state and step-boundary appends
+### 持久状态与步骤边界追加
 
-The package persists one log-only whole-value event, `plan/mode`, and the last logged value is the state. A mode change appends immediately when no turn is open; during an open turn it stays pending until the next accepted in-turn pre-step — the only append point while an agent runs — and an append failure cannot block the turn. The `set`/`get` service methods and their exact return states live in [`src/index.ts`](src/index.ts) and read the retained `plan` projection handle, acquired during activation.
+本包持久化一条仅记日志、整值替换的事件 `plan/mode`，最后一条已记录值即为状态。没有轮次开启时，模式变更会立即追加；轮次开启期间，它保持待生效，直到下一个被接受的轮内 pre-step——agent 运行时唯一的追加点——且追加失败不能阻塞轮次。`set`/`get` 服务方法及其确切返回状态见 [`src/index.ts`](src/index.ts)，并通过激活期间取得并保留的 `plan` 投影句柄读取状态。
 
-### The `/plan` command
+### `/plan` 命令
 
-The command child activates only when a commands service is composed. It maps bare `/plan` to active, the exact argument `off` to inactive without model input, and any other non-empty argument to active plus the trimmed text submitted through `agent.steer()` as the next step's ordinary logged user message. Admitted image and file blocks keep their selection order in that message; `/plan off` with attachments fails before any mode change. Entry points other than the command may drive `ctx.planMode` directly; the exact branch handling is in [`src/index.ts`](src/index.ts).
+命令子插件只在组合了命令服务时激活。它把不带参数的 `/plan` 映射为激活，把恰好为 `off` 的参数映射为未激活且不发送模型输入，把其他非空参数映射为激活并把去除首尾空白的文本通过 `agent.steer()` 作为下一步骤的普通已记录用户消息提交。已准入的图片块与文件块按选择顺序进入这条消息；带附件的 `/plan off` 会在模式变更前失败。命令以外的入口可以直接驱动 `ctx.planMode`；确切的分支处理见 [`src/index.ts`](src/index.ts)。
 
-### The exit tool
+### 退出工具
 
-`exit_plan_mode` is disclosed progressively: it is admitted from the first step whose selected plan state is active and stays admitted for the rest of the Session, so entering plan mode the first time adds it together with the guidance, and later transitions change only the guidance; Native and PTC execution use the same admitted set. A call while plan mode is not committed fails with `PlanModeError` `PLAN_NOT_ACTIVE`, and a plan without a leading `#` heading fails with `ToolArgsError` before review. An approved review records a silent pending exit that the next accepted in-turn pre-step appends, keeping plan guidance for the rest of the current tool batch. Without a user-questions channel (`ToolContextUnavailableError`), or after a service reload while the review is pending (`PLAN_REVIEW_INTERRUPTED`), the call fails closed and `/plan off` remains the manual escape. [`src/error.ts`](src/error.ts) lists the `PlanModeError` codes.
+`exit_plan_mode` 采用渐进式披露：从已选计划状态首次为激活的步骤起准入，并在会话剩余部分保持准入，因此首次进入计划模式时它与指引一起出现，之后的切换只改变指引；原生与 PTC 执行使用同一准入集合。计划模式未提交时调用以 `PlanModeError` `PLAN_NOT_ACTIVE` 失败，没有前导 `#` 标题的计划在评审前以 `ToolArgsError` 失败。经批准的评审会记录一个静默的待生效退出，由下一个被接受的轮内 pre-step 追加，当前这批工具调用剩余部分仍保留计划引导。缺少用户交互通道（`ToolContextUnavailableError`），或评审等待期间服务重载（`PLAN_REVIEW_INTERRUPTED`），调用都会以拒绝方式失败，`/plan off` 仍是手动退路。[`src/error.ts`](src/error.ts) 列出 `PlanModeError` 的 code。
 
-### Session projection unit
+### 会话投影单元
 
-The package requires `ctx.sessionProjections` and awaits registration of the `plan` unit during activation. Its prompt section is registered before that wait. Agent prompt assembly, the `/plan` command, and `exit_plan_mode` fail with `PlanModeError` `PLAN_STATE_UNAVAILABLE` while the reader is unavailable, so a restored plan cannot run without its guidance. Callers must await plugin activation before running an agent.
+本包要求 `ctx.sessionProjections`，并在激活期间等待 `plan` 单元注册完成。提示词段落在等待前注册。读取句柄不可用时，Agent 提示词装配、`/plan` 命令与 `exit_plan_mode` 会以 `PlanModeError` `PLAN_STATE_UNAVAILABLE` 明确失败，避免恢复的计划模式缺少指引仍继续运行。调用方必须等待插件激活完成后再运行 Agent。
 
-The unit turns logged `/plan` command runs into a candidate target, commits the logged state on `plan/mode`, and derives `{ active, pending }` for `view`, where `pending` is true only while an unsettled or successful selection differs from the logged state — a pure replay quantity recoverable from the log alone. The key merges into `SessionProjectionMap` from [`src/types.ts`](src/types.ts); the framework drives the unit, and unloading the plugin fiber unregisters the key. State reads use the retained handle and remain available after unregistration.
+该单元把已记录的 `/plan` 命令运行转为候选目标，在 `plan/mode` 上提交已记录状态，并为 `view` 推导 `{ active, pending }`，其中 `pending` 仅在未结算或已成功的选择与已记录状态不同时为 true——这是仅凭日志即可恢复的纯回放量。key 由 [`src/types.ts`](src/types.ts) 的声明合并加入 `SessionProjectionMap`；框架负责驱动该单元，卸载插件 fiber 会注销该 key。状态读取使用保留的句柄，注销后仍然可用。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, the `ctx.planMode` service, `plan:policy` section, `/plan` command, `exit_plan_mode` tool |
-| [`src/types.ts`](src/types.ts) | The `plan` projection-key declaration and `PlanProjection` wire value |
-| [`src/error.ts`](src/error.ts) | `PlanModeError` and its closed code union |
-| [`src/client.ts`](src/client.ts) | Client-namespace re-export of the types outlet |
+| [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、`ctx.planMode` 服务、`plan:policy` 段落、`/plan` 命令、`exit_plan_mode` 工具 |
+| [`src/types.ts`](src/types.ts) | `plan` 投影 key 声明与 `PlanProjection` 协议值 |
+| [`src/error.ts`](src/error.ts) | `PlanModeError` 及其封闭 code 联合类型 |
+| [`src/client.ts`](src/client.ts) | types 出口的客户端命名空间再导出 |
 
-The review intent carries the originating tool-call id, so the Web client can reopen the same submitted plan after the review closes. The complete Markdown remains in the existing native call or PTC dispatch log.
+审批意图携带发起工具调用的标识，让 Web 客户端在审批关闭后重新打开同一份计划。完整 Markdown 保留在已有的原生调用或 PTC dispatch 日志中。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the subsystem semantics to the generated catalogs and the design decision.
+当包级约定不够用时阅读以下页面。它们从子系统语义逐步进入生成的目录与设计决策。
 
-- [Plan mode subsystem reference](../../../docs/subsystems/plan.md) — how plan mode behaves, its configuration, and the exit tool's contract.
-- [plan/ package map](../README.md) — the group and its single package.
-- [exit_plan_mode tool catalog entry](../../../docs/tool-catalog.md#deepseek-aidsh-plan-mode) — the exact schema the model receives.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-plan-mode) — every accepted config field and its meaning.
-- [archived Plan-specific collaboration state](../../../.agents/notes/archived/simplification/2026-07-22-plan-specific-collaboration-state.md) — the design decision behind plan mode.
+- [计划模式子系统参考](../../../docs/subsystems/plan.zh.md)——计划模式的行为、配置与退出工具的约定。
+- [plan/ 包映射](../README.md)——本组及其唯一的包。
+- [`exit_plan_mode` 工具目录条目](../../../docs/tool-catalog.zh.md#deepseek-aidsh-plan-mode)——模型收到的确切 schema。
+- [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-plan-mode)——每个受支持配置字段及其含义。
+- [已归档的plan 专用协作状态](../../../.agents/notes/archived/simplification/2026-07-22-plan-specific-collaboration-state.md)——计划模式背后的设计决策。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Plan policy system prompt
+### Plan 策略系统提示词
 
-#### What the model sees
+#### 模型看到什么
 
-While plan mode is active, the model sees the deployment's exact `section` text at first-party prompt order 500; inactive mode contributes no text.
+计划模式激活时，模型会在 first-party 提示词顺序 500 处看到部署方提供的原样 `section` 文本；未激活模式不贡献任何文本。
 
-##### Configuration example
+##### 配置示例
 
 ```markdown
 You are in plan mode. Explore and design before presenting the complete plan through exit_plan_mode.
 ```
 
-#### Token effect
+#### Token 影响
 
-Inactive mode adds no tokens; active mode adds the configured section to every request.
+未激活模式不增加 token；激活模式把已配置的段落加入每个请求。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The section is stable within plan mode, but entering or leaving changes the system prompt from first-party order 500 onward.
+该段落在计划模式内保持稳定，但进入或离开会从 first-party 顺序 500 起改变系统提示词。
 
-### Human command
+### 人类命令
 
-#### What the model sees
+#### 模型看到什么
 
-`/plan`, `/plan off`, and their terminal results stay outside model history. A non-empty suffix other than the exact `off` argument becomes one user message through `agent.steer()` after plan mode is selected: admitted image and file blocks in selection order, then the trimmed text block. Bare `/plan` with admitted attachments steers one user message containing only those blocks. An active `/plan off` selection contributes the standard logged user-switch notice only when the last request header described plan mode; cancelling a pending entry contributes none because no request observed it.
+`/plan`、`/plan off` 及其终端结果留在模型历史之外。除恰好为 `off` 以外的非空后缀会在选择计划模式后，通过 `agent.steer()` 成为一条用户消息：已准入的图片块与文件块按选择顺序排列，之后是去除首尾空白的文本块。不带参数的 `/plan` 若带有已准入附件，会通过 `agent.steer()` 提交一条只含这些块的用户消息。计划模式已激活时选择 `/plan off`，只会在最后记录的请求头描述了计划模式的情况下追加标准的已记录用户切换通知；取消待生效条目不贡献通知，因为没有请求观测到它。
 
-#### Token effect
+#### Token 影响
 
-The optional message costs the same history tokens as submitting that content separately. Bare `/plan` without attachments and `/plan off` add none; bare `/plan` with attachments has the normal image and file-handle cost. A narrated active exit adds the small retained switch notice.
+可选消息的历史 token 成本与单独提交该内容相同。不带附件的 `/plan` 与 `/plan off` 不增加 token；带附件的 `/plan` 产生常规图片与文件句柄成本。一次带有通知的激活状态退出会追加一条简短且会保留的切换通知。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The user block is append-only conversation growth. Entering or leaving plan mode changes the earlier policy section; a narrated exit notice is appended after the reusable request prefix.
+用户块是仅追加的对话增长。进入或离开计划模式会改变更早的策略段落；用于说明退出的通知会追加在可复用请求前缀之后。
 
-### Exit tool schema and review exchange
+### 退出工具 schema 与评审交互
 
-#### What the model sees
+#### 模型看到什么
 
-The [`exit_plan_mode` schema](../../../docs/tool-catalog.md#deepseek-aidsh-plan-mode) is offered from the first plan-mode entry in a Session; earlier calls return `UNKNOWN_TOOL`, calls after leaving plan mode fail as unavailable outside plan mode, and an approved in-mode review returns the canonical `{ approved: true }` value and renders the existing confirmation text. Rejection remains a failed call with `PLAN_REVISION_REQUESTED` carrying review feedback. A dismissed review returns `{ approved: false }`, renders a note that the user will reply, and concludes the turn without another model request.
+[`exit_plan_mode` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-plan-mode) 从会话首次进入计划模式起提供；此前的调用返回 `UNKNOWN_TOOL`，离开计划模式后的调用会以计划模式之外不可用而失败。模式内获批的评审返回规范值 `{ approved: true }` 并渲染现有确认文本。拒绝仍是以 `PLAN_REVISION_REQUESTED` 失败并携带评审反馈的调用。放弃评审返回 `{ approved: false }`，渲染一条说明用户将自行回复的文本，并结束当前轮次，不再发起模型请求。
 
-#### Token effect
+#### Token 影响
 
-The schema is paid from the first entry on, according to ToolRuntime mode, and each plan argument and review result remains in conversation history.
+schema 从首次进入计划模式起按 ToolRuntime 模式计入开销；每份计划参数与评审结果保留在对话历史中。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The first entry into plan mode adds the exit tool through the route’s tool-update protocol; `in-history` and `addition-only` routes record the addition after cached history, while a route without tool updates resends its changed declaration list once. Later transitions leave the tool list unchanged. Plan arguments and review results extend the conversation normally.
+首次进入计划模式时，退出工具通过路由的工具更新协议新增；`in-history` 与 `addition-only` 路由在已缓存历史之后记录这次新增，不支持工具更新的路由会重新发送一次变化后的声明列表。之后的模式切换不改变工具列表。计划参数与评审结果正常扩展对话。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits describe when plan mode does not behave as you might expect or needs extra care. They are current package constraints, not a roadmap.
+这些限制描述计划模式在哪些情况下不符合你的预期，或需要额外的注意。它们是当前包约束，不是路线图。
 
-- **Guidance, not enforcement** — plan mode restrains through text only; deployments that need enforced restrictions configure sandbox mode and approval policy independently.
-- **Pending selections are process-local** — a selection made after the turn's final accepted pre-step is lost if the process exits before another accepted in-turn pre-step; the UI must reapply it.
-- **No creation-time plan option** — forked agents inherit logged plan state, while newly spawned agents begin inactive.
-- **Subagents cannot open the review** — a Session with subagent origin fails the `exit_plan_mode` call and is told to include the unresolved decision in its final result; historical ordinary forks can open the review despite retained parent metadata.
-- **One specialized review renderer** — only the Web UI has a `plan-review` presentation; another interaction provider presents the same request through its generic option flow.
+- **引导而非强制**——计划模式只通过文本约束；需要强制限制的部署要分别配置沙箱模式与审批策略。
+- **待生效选择只存在于进程内**——某轮最后一个被接受的 pre-step 之后作出的选择，若进程在另一个被接受的轮内 pre-step 之前退出就会丢失；UI 必须重新应用它。
+- **没有创建时 plan 选项**——fork 的 agent 继承已记录的计划状态，新 spawn 的 agent 则从未激活开始。
+- **Subagent 无法打开评审**——来源为 subagent 的 Session 调用 `exit_plan_mode` 会失败，并被要求把尚未解决的决策包含进最终结果；历史普通 fork 即使保留父级元数据也可以打开评审。
+- **只有一个专用评审渲染器**——只有 Web UI 具备 `plan-review` 呈现；其他交互提供方通过其通用选项流程呈现同一请求。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers: open design questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Note.
+本开发备注是维护者的工作上下文：开放的设计问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-#### Future: a second collaboration mode
+#### 未来：第二种协作模式
 
-The design note rejected a generic named-mode registry because the product shipped only `plan`; a future collaboration state would establish a shared seam only from two concrete cases, and any extraction must keep `plan/mode`'s log-only fold, the boundary append, and the reviewed exit intact.
+设计说明拒绝了通用命名模式注册表，因为产品只交付了 `plan`；未来的协作状态只应在出现两个具体用例后建立共享 seam，任何抽取都必须保持 `plan/mode` 的仅记日志折叠、边界追加与经评审的退出不变。
 
 </details>

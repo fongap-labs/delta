@@ -1,39 +1,37 @@
 ---
-description: "The persisted same-session goal service for users and maintainers choosing, configuring, or debugging one durable completion objective per session."
+description: "面向选择、配置或排查同会话持久 goal 服务的用户与维护者：每会话一个持久的完成目标。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-goal
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-goal` 让一个长期完成目标在多轮、会话恢复、fork 与进程重启后持续存在。用户与 agent（智能体）可以 create、edit、pause、resume、complete、block 或 clear 该目标；比较并设置的更新会拒绝陈旧视图。可配置的 Round 上限（默认 256）约束自动续行，被阻塞的 goal 会保留稳定的策略代码和面向人的说明。本包存储 goal 状态但不调度工作，续行权限是进程本地的而非持久状态。单个目标需要横跨多轮时选择本包；常规单轮工作或并行目标不要使用。
 
-`dsh-goal` lets one long-running completion objective persist across turns, session resume, fork, and process restarts. Users and agents can create, edit, pause, resume, complete, block, or clear it; compare-and-set updates reject stale views. A configurable round cap (256 by default) bounds automatic continuation, and blocked goals retain a stable policy code with a human-readable explanation. The package stores goal state but does not schedule work, and continuation permission remains process-local rather than durable. Choose it for one objective spanning many turns; skip it for routine single-turn work or parallel objectives.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount `dsh-goal` whenever a session should remember one long-running completion objective across many turns and restarts. The package is a service: the model tools, the `/goal` command, and the continuation driver are separate packages that consume the same goal state, so mounting only this package stores and serves the goal without starting any work.
+当会话需要在多轮与多次重启之间记住一个长期完成目标时，挂载 `dsh-goal`。本包是服务：模型工具、`/goal` 命令与续行驱动器都是消费同一 goal 状态的独立包，因此只挂载本包只会存储和提供 goal，不会启动任何工作。
 
-### When to use it
+### 何时使用
 
-A goal suits one long-running completion objective that should continue across autonomous goal rounds — for example shipping a migration or fixing every failing documentation gate. Routine single-turn work should not create a goal. The service keeps at most one current goal per session: an unfinished goal must be edited, paused, resumed, blocked, or cleared before another takes its place, while a completed goal can be replaced directly.
+goal 适合一个需要跨自动 Goal Round 持续的长期完成目标——例如完成一次迁移，或修复所有失败的文档门禁。常规单轮工作不应创建 goal。服务每会话至多保留一个当前 goal：未完成的 goal 必须先 edit、pause、resume、block 或 clear，才能被另一个替代；已完成的 goal 可以直接被替换。
 
-### Set up the service
+### 配置服务
 
-Load the package with a composition entry; the only deployment choice is the default round cap applied to creates that do not name their own.
+通过组合配置项加载本包；唯一的部署选择是默认 Round 上限，应用于未自行指定上限的 create。
 
 ```yaml
 - name: '@deepseek-ai/dsh-goal'
@@ -41,39 +39,39 @@ Load the package with a composition entry; the only deployment choice is the def
     defaultMaxGoalRounds: 256
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `defaultMaxGoalRounds` | `256` | Round cap applied when a create request omits its own |
+| `defaultMaxGoalRounds` | `256` | 当 create 请求省略上限时应用的 Round 上限 |
 
-`defaultMaxGoalRounds` must be a positive safe integer; a create request that names its own cap overrides it. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-goal) is the exhaustive source for every accepted field.
+`defaultMaxGoalRounds` 必须是正的安全整数；指定了自身上限的 create 请求会覆盖它。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-goal)是每个受支持字段的穷尽式真源。
 
-### Session projection
+### 会话投影
 
-`GoalService` requires `ctx.sessionProjections` ([`@deepseek-ai/dsh-session-projection`](../../session/session-projection/README.md)) and registers the `goal` projection unit at startup; a composition that omits the projection registry cannot activate `ctx.goals`. The unit's version 6 host state retains the latest valid current goal, every previously used goal id, and the first strict replay failure. Its client view exposes the current goal or `null` before the first create and after a clear tombstone. The client key merges into `SessionProjectionMap`; carriers serve the client value on the history tail page and the `session/projection` push frame.
+`GoalService` 要求组合提供 `ctx.sessionProjections`（[`@deepseek-ai/dsh-session-projection`](../../session/session-projection/README.zh.md)），并在启动时注册 `goal` 投影单元；未组合投影注册表的组合无法激活 `ctx.goals`。该单元版本为 6，其宿主状态保留最新的有效当前 goal、所有曾使用的 goal id，以及第一次严格回放失败。客户端视图提供当前 goal；首次 create 前与 clear tombstone 后为 `null`。客户端键合并到 `SessionProjectionMap`；载体通过历史尾页和 `session/projection` 推送帧提供客户端值。
 
-### Drive the lifecycle
+### 驱动生命周期
 
-A goal moves through four durable phases — `active`, `paused`, `blocked`, `complete` — plus a process-local flag that says whether automatic continuation is armed. The verbs:
+goal 经历四种持久 phase——`active`、`paused`、`blocked`、`complete`——外加一个进程本地标志，表示自动续行是否已启用。动词如下：
 
-| Operation | What it does |
+| 操作 | 作用 |
 |---|---|
-| `create` | Starts an active goal with an objective and round cap |
-| `edit` | Changes the objective and/or round cap without changing the phase |
-| `pause` | Stops automatic continuation and keeps the state |
-| `resume` | Restarts continuation; also rearms an active goal after session resume or fork |
-| `complete` | Marks the goal achieved and stops continuation |
-| `block` | Records a stable blocker code and explanation |
-| `clear` | Removes the current goal; its history stays in the session log |
+| `create` | 以目标和 Round 上限启动一个 active goal |
+| `edit` | 修改目标和/或 Round 上限，不改变 phase |
+| `pause` | 停止自动续行并保留状态 |
+| `resume` | 重新开始续行；也用于会话恢复或 fork 后重新启用 active goal |
+| `complete` | 标记 goal 已完成并停止续行 |
+| `block` | 记录稳定的 blocker 代码与说明 |
+| `clear` | 移除当前 goal；其历史保留在会话日志中 |
 
-Pause, completion, blocking, and clear all disarm continuation. Blocking is the one phase that keeps a policy-owned lower-kebab-case code and a free-form explanation, so provider limits, exhausted budgets, execution errors, and requests for human input share a single durable phase instead of multiplying lifecycle states. Resume accepts a stopped goal, or an active but disarmed one, only while the round cap has remaining capacity, and it clears any former blocker reason.
+pause、complete、block 和 clear 都会停用续行。block 是唯一保留策略自有 lower-kebab-case 代码与自由文本说明的 phase，因此提供方限制、预算耗尽、执行错误与请求人工输入共用一种持久 phase，而不是扩增生命周期状态。resume 只在 Round 上限仍有剩余容量时接受已停止的 goal，或 active 但已停用续行的 goal，并清除任何先前的 blocker reason。
 
-### What survives and what does not
+### 什么会保留，什么不会
 
-Every accepted change is recorded durably in the session log — the only store of goal state — so goal state never depends on transient message delivery. After session resume or fork, the goal, its phase, its revisions, and its admitted-round count are all still there. Automatic continuation is the exception: an active goal is disarmed after any session-start edge, so the agent does not continue on its own until someone explicitly resumes it.
+每项被接受的变更都会持久记录到会话日志——goal 状态的唯一存储——因此 goal 状态绝不依赖临时消息投递。会话恢复或 fork 后，goal、其 phase、其 revision 与已准入 Round 数量都仍然存在。自动续行是例外：任何会话开始边界之后，`active` 的 goal 都会被停用续行——在有人显式 resume 之前，agent 不会自行继续。
 
-### Observing a goal
+### 观察 goal
 
-Consumers read the current goal with `ctx.goals.get(agent)` and receive a detached view: objective, phase, rounds started versus the cap, blocker reason when blocked, and whether continuation is armed. Mutations must carry the exact `{ id, revision }` from that view, so a consumer holding older state receives a clear stale-revision error instead of silently overwriting newer state:
+消费方用 `ctx.goals.get(agent)` 读取当前 goal，获得脱离内部状态的视图：目标、phase、已开始与上限 Round 数量、被阻塞时的 blocker reason，以及续行是否已启用。变更必须携带该视图中的精确 `{ id, revision }`，因此持有旧状态的消费方会收到清晰的陈旧 revision 错误，而不是静默覆盖更新的状态：
 
 ```text
 const view = ctx.goals.get(agent)      // undefined when no goal is current
@@ -85,87 +83,87 @@ view.activation                        // 'armed' | 'disarmed' — not persisted
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains how the service realizes the behavior above; the observable contract is covered in [Use this package](#use-this-package).
+本节解释服务如何实现上述行为；可观察约定已在[使用本包](#use-this-package)中说明。
 
-### Design
+### 设计
 
-- **Event-sourced state.** Every mutation appends a durable `goal/change` event (version 1) carrying the complete post-mutation snapshot; `clear` writes a revisioned tombstone. The session log is the only durable authority.
-- **Compare-and-set mutations.** `ctx.goals` accepts only the exact live `Agent` registered under its id. `get()` returns a detached `GoalView`; mutations take a `GoalRef { id, revision }` and reject stale refs. Creation resolves the deployment default internally before committing.
-- **Activation is process-local.** `armed` and `disarmed` live in a per-session cache and are never persisted. A fresh cache and every `agent/created` edge disarm continuation even when replay finds an active durable phase; `disarm()` removes authority without writing a revision or emitting a mutation.
-- **Strict replay.** The fold derives lifecycle mutations only from `goal/change` and rejects malformed shapes, discontinuous revisions, illegal phase transitions, non-monotonic per-goal timestamps, and non-sequential admitted rounds. Positive rounds advance only on admitted goal-sourced `user/message` events, and mutation timestamps clamp against the preceding update when wall time moves backward.
-- **Projection unit.** The package requires the projection registry and registers a strict `goal` unit. Its host state retains replay validation data and the first failure, while its client view exposes the latest valid whole goal or `null`; `GoalService` rejects access after a retained replay failure with `GoalError` `GOAL_STATE_CORRUPT`.
+- **事件溯源状态。** 每次变更都追加持久的 `goal/change` 事件（版本 1），携带变更后的完整快照；clear 写入带 revision 的 tombstone。会话日志是唯一的持久权威。
+- **比较并设置的变更。** `ctx.goals` 只接受以对应 id 注册的完全相同的活跃 `Agent` 实例。`get()` 返回脱离状态的 `GoalView`；变更携带 `GoalRef { id, revision }` 并拒绝陈旧引用。创建在提交前于内部解析部署默认值。
+- **续行启用状态是进程本地的。** `armed` 与 `disarmed` 保存在每会话缓存中，绝不持久化。新缓存与每次 `agent/created` 边界都会停用续行，即使回放发现持久 phase 为 active；`disarm()` 移除续行权限，不写入 revision 也不发出变更事件。
+- **严格回放。** 折叠只从 `goal/change` 派生生命周期变更，并拒绝形状错误、不连续 revision、非法 phase 转换、每目标时间戳非单调，以及不连续的已准入 Round。只有已准入的来源为 goal 的 `user/message` 事件会推进正数 Round；挂钟时间倒退时，变更时间戳会限制在不早于上一次更新的值。
+- **投影单元。** 本包要求提供投影注册表，并注册一个严格的 `goal` 单元。其宿主状态保留回放校验数据与第一次失败，客户端视图提供最新有效的完整 goal 或 `null`；保留回放失败后，`GoalService` 会以 `GoalError` `GOAL_STATE_CORRUPT` 拒绝访问。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `GoalService`, config schema, mutations, activation cache, projection unit |
-| [`src/domain.ts`](src/domain.ts) | Durable change payloads, `goal/changed` event, goal message-source attribution |
-| [`src/types.ts`](src/types.ts) | Pure client-safe types: `GoalView`, `GoalSnapshot`, `GoalActivationChanged`, projection-key declaration |
-| [`src/fold.ts`](src/fold.ts) | Strict replay fold and decoder for durable goal changes |
-| [`src/runtime.ts`](src/runtime.ts) | `GoalId` brand, `GoalError` codes, change-version constant |
+| [`src/index.ts`](src/index.ts) | 插件入口：`GoalService`、配置 schema、变更、续行启用缓存、投影单元 |
+| [`src/domain.ts`](src/domain.ts) | 持久变更载荷、`goal/changed` 事件、goal 消息来源归属 |
+| [`src/types.ts`](src/types.ts) | 纯客户端安全类型：`GoalView`、`GoalSnapshot`、`GoalActivationChanged`、投影键声明 |
+| [`src/fold.ts`](src/fold.ts) | 持久 goal 变更的严格回放折叠与解码器 |
+| [`src/runtime.ts`](src/runtime.ts) | `GoalId` 品牌、`GoalError` 代码、变更版本常量 |
 
-### Events and attribution
+### 事件与归属
 
-`goal/changed` fires after the durable event commits, with listener failures contained; the payload carries the operation, the exact ref, and the fresh view (absent for a clear tombstone). `goal/activation-changed` forwards a process-local `armed`/`disarmed` edge with the exact current ref, or no goal after a clear, without changing durable state. Admitted continuation rounds are attributed through `GoalMessageSource { goalId, revision, round }` on the `user/message` event, which the strict fold validates as the next admitted round of the current goal.
+`goal/changed` 在持久事件提交后触发，监听器失败会被隔离；载荷携带操作、精确 ref 与最新视图（clear tombstone 时省略）。`goal/activation-changed` 在不改变持久状态的情况下，转发携带精确当前 ref 的进程本地 `armed`／`disarmed` 边界；clear 后则不携带 goal。已准入的续行 Round 通过 `user/message` 事件上的 `GoalMessageSource { goalId, revision, round }` 归属，严格折叠会将其验证为当前 goal 的下一个已准入 Round。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-The package-level contract is enough for most consumers; read these when you need the surrounding domain and the design rationale.
+包级约定对大多数消费方已经足够；需要了解周边领域与设计理由时阅读以下页面。
 
-- [Goal subsystem](../../../docs/subsystems/goal.md) — the goal types, durable change payloads, and generated service API.
-- [Goal group map](../README.md) — the goal packages and how they compose.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-goal) — every accepted config field and its source declaration.
-- [historical Goal domain Agent Note](../../../.agents/notes/archived/feature/2026-07-19-persisted-same-session-goal-domain.md) — the domain design, alternatives, and decisions.
+- [goal 子系统](../../../docs/subsystems/goal.zh.md)——goal 类型、持久的变更载荷与生成的服务 API。
+- [goal 组地图](../README.md)——goal 各包及其组合方式。
+- [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-goal)——每个受支持配置字段及其源声明。
+- [历史goal 领域 Agent Note](../../../.agents/notes/archived/feature/2026-07-19-persisted-same-session-goal-domain.md)——领域设计、备选方案与决策。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Goal-state mutations
+### 目标状态变更
 
-#### What the model sees
+#### 模型看到什么
 
-Goal mutations do not inject model context. Tools such as `get_goal` return the current state, and a continuation consumer may render the objective and round state when it schedules model work.
+Goal 变更不会注入模型上下文。`get_goal` 等工具返回当前状态；续行消费方可以在调度模型工作时渲染目标与 Round 状态。
 
-#### Token effect
+#### Token 影响
 
-Goal mutation events add no model tokens by themselves. Tool results and scheduled continuation prompts account for their own visible state.
+Goal 变更事件本身不增加模型 token。工具结果与续行调度提示词各自暴露的状态会分别计入 token 用量。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-There is no KV-cache effect until another component exposes goal state in model-visible input.
+在其他组件把 goal 状态暴露为模型可见输入之前，不会影响 KV Cache。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the goal service is a poor fit or needs special care. They are current package constraints, not a task backlog.
+这些限制说明 goal 服务何时不合适或需要特别注意。它们是当前包约束，不是任务积压。
 
-- **State, not scheduling** — this package does not decide when an armed goal continues, retry abnormal failures, or cancel an active turn; those policies belong to consumer packages such as `dsh-goal-round-driver`.
-- **Round-count budget only** — `maxGoalRounds` does not meter tokens, currency, wall time, or provider quotas.
-- **No independent evaluator** — the caller that records completion or blocking is authoritative; evaluator-backed certification is deferred to a separate policy layer.
-- **One current goal** — parallel objectives and a separate goal database are intentionally absent; history remains available in the session log after replacement or clear.
-- **Trusted in-process producers** — a plugin with direct `Session` access can append counterfeit `goal/change` data. Strict replay detects malformed or inconsistent records and leaves goal access failed at that record until the log is repaired; this is integrity detection, not plugin isolation.
+- **只负责状态，不负责任务调度**——本包不决定已启用续行的 goal 何时继续，不重试异常失败，也不取消活跃轮次；这些策略属于 `dsh-goal-round-driver` 等消费方包。
+- **只有 Round 数量预算**——`maxGoalRounds` 不计量 token、货币、挂钟时间或提供方配额。
+- **没有独立评估器**——记录完成或阻塞的调用方拥有最终决定权；由评估器支持的认证暂缓到独立策略层。
+- **只有一个当前 goal**——系统有意不支持并行目标或独立 goal 数据库；替换或清除后，历史仍可在会话日志中读取。
+- **信任进程内生产方**——能直接访问 `Session` 的插件可以追加伪造的 `goal/change` 数据。严格回放会检测格式错误或不一致的记录，并使 goal 访问从该记录起失败，直到日志修复；这是完整性检测，不是插件隔离。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers; it is explicitly non-authoritative. Open, undecided directions: an always-visible goal context plugin for deployments that want the objective in every model request, and evaluator-backed certification of completion and blocking claims.
+本开发备注是维护者的工作上下文，明确不具权威性。开放且未决的方向：为需要在每个模型请求中看到目标的部署提供始终可见的 goal 上下文插件，以及由评估器支持的完成与阻塞认证。
 
 </details>
