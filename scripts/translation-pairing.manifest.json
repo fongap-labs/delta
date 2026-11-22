@@ -14,6 +14,13 @@
     "docs/i18n/style-samples.md",
     "docs/i18n/terminology.md",
     "docs/i18n/translation-prompt.md",
+    "native/README.md",
+    "native/system/packages/darwin-arm64/README.md",
+    "native/system/packages/darwin-x64/README.md",
+    "native/system/packages/entry/README.md",
+    "native/system/packages/linux-arm64/README.md",
+    "native/system/packages/linux-x64/README.md",
+    "native/system/README.md",
     "README.md",
     "SAFETY.md"
   ]
