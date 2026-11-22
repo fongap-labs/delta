@@ -2,7 +2,7 @@ import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-side
 
 const logoUrl = new URL('./assets/delta-logo-256x256.png', import.meta.url).href
 
-/** Delta's legacy mark, without changing the Harness plugin slot contract. */
+/** Delta logo using the established sidebar slot contract. */
 export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
   return <img src={logoUrl} alt="Delta" width={size} height={size} style={{ objectFit: 'contain' }} />
 }
