@@ -1,31 +1,29 @@
 ---
-description: "Caller-relative lazy loading for CommonJS-compatible Host dependencies whose initialization is not needed during application startup."
+description: "按调用方解析并惰性加载 CommonJS 兼容的 Host 依赖，使应用启动时不初始化尚未使用的依赖。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-lazy-require
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-lazy-require` 会让 CommonJS 兼容的 Host 依赖保持未加载状态，直到首次实际操作。解析仍以消费方 package 为基准，同一进程 realm 会复用一次成功加载的模块值。
 
-`dsh-lazy-require` keeps a CommonJS-compatible Host dependency unloaded until its first real operation. Resolution remains relative to the consuming package, and one successful module value is reused for the rest of the process realm.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Pass the dependency's literal specifier and the caller's `import.meta.url`:
+传入依赖的字面量 specifier 与调用方的 `import.meta.url`：
 
 ```ts
 import { createLazyRequire } from '@deepseek-ai/dsh-lazy-require'
@@ -34,53 +32,53 @@ interface NativeModule { open(): void }
 const requireNative = createLazyRequire<NativeModule>('native-package', import.meta.url)
 ```
 
-Calling `requireNative()` loads the dependency once. A failed load is not cached.
+调用 `requireNative()` 时才加载依赖，并只加载一次。失败的加载不会被缓存。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The utility creates Node's `require` from the supplied caller URL and caches only a successful return value. The explicit caller URL preserves package-local dependency resolution after publication.
+本工具使用传入的调用方 URL 创建 Node `require`，并且只缓存成功返回的值。显式调用方 URL 会在发布后保留 package 局部的依赖解析。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Caller-relative loader and successful-result cache |
+| [`src/index.ts`](src/index.ts) | 按调用方解析的 loader 与成功结果缓存 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-- [Utility package map](../README.md) — adjacent shared primitives.
-- [NPM release sequences](../../../.agents/notes/implemented/process/2026-08-10-npm-release-sequences.md) — published dependency classification and first-use loading policy.
+- [工具包地图](../README.md)——相邻的共享原语。
+- [NPM 发布序列](../../../.agents/notes/implemented/process/2026-08-10-npm-release-sequences.zh.md)——发布依赖分类与首次使用加载策略。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as this Host utility registers no model-facing behavior.
+无，因为本 Host 工具不注册任何模型可见行为。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None.
+无。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **CommonJS-compatible dependencies only** — ESM-only packages require an asynchronous factory owned by their caller.
-- **WebWorker packaging needs an explicit request** — the static packer does not discover dependencies named only in `createLazyRequire()` calls. A package used in a Preview image must keep the dependency reachable through a supported literal request until the packer recognizes this helper.
+- **仅限兼容 CommonJS 的依赖**——仅 ESM package 需要由调用方拥有异步 factory。
+- **WebWorker 打包需要显式请求**——静态 packer 无法发现仅在 `createLazyRequire()` 调用中命名的依赖。Preview image 使用的 package 必须通过受支持的字面量请求保持该依赖可达，直到 packer 能够识别此 helper。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
-None.
+无。

@@ -1,33 +1,31 @@
 ---
-description: "Bounded model-facing output for tools that must cap how much context they return: item and text retainers plus a standardized omission footer."
+description: "为必须限制返回上下文量的工具提供有界的面向模型输出：项与文本 retainer，以及标准化的省略页脚。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-output-retention
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+使用 `dsh-output-retention` 限制工具返回给模型的项或文本量，并报告省略了什么。`ItemRetainer` 保留有序的头部窗口，并可报告精确的省略项数；`TextRetainer` 保留 head、tail 或 head-and-tail 字节窗口，且不会返回因切割而无效的 UTF-8。`formatRetentionNotice` 添加一致的省略子句，各工具则提供自己的恢复指引。`truncateWithoutSplittingSurrogatePair` 按字符预算截断预览时，不会在切口留下孤立的高位代理项。分组、行号、spill 文件与提供方错误仍归工具负责；消费方直接导入本库，而不通过 `cordis.yml` 加载。
 
-Use `dsh-output-retention` to cap the items or text a tool returns to a model while reporting what was omitted. `ItemRetainer` keeps an ordered head window and can report an exact omitted-item count; `TextRetainer` keeps head, tail, or head-and-tail byte windows without returning invalid UTF-8 cuts. `formatRetentionNotice` adds a consistent omission clause while each tool supplies its own recovery guidance. `truncateWithoutSplittingSurrogatePair` caps a character-budget preview without leaving a lone high surrogate at the cut. Grouping, line numbering, spill files, and provider errors remain tool responsibilities; consumers import this library directly rather than loading it through `cordis.yml`.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Use a retainer wherever a tool must cap how much of its result reaches the model, and report honestly what was dropped. Choose `ItemRetainer` for ordered logical units and `TextRetainer` for byte-oriented streams.
+凡是工具必须限制其结果到达模型的数量、并如实报告丢弃内容的地方，都使用 retainer。有序逻辑单元选 `ItemRetainer`，面向字节的流选 `TextRetainer`。
 
-### Bounding a list of items
+### 限制项列表
 
 ```ts
 import { ItemRetainer } from '@deepseek-ai/dsh-output-retention'
@@ -41,9 +39,9 @@ for await (const entry of candidates) {
 const { items, truncated, omitted } = retainer.finish()
 ```
 
-`push()` reports per item whether it was kept, and `finish()` returns the retained items plus `omitted` — an exact count when the caller kept feeding every observed unit. A search tool can collect the full result set for a spill file while retaining only the first page for the model.
+`push()` 逐项报告该项是否被保留，`finish()` 返回保留的项与 `omitted`——当调用方持续送入每个已观察单元时，这是一个精确计数。搜索工具可以收集完整结果集用于 spill 文件，同时只为模型保留第一页。
 
-### Bounding a text stream
+### 限制文本流
 
 ```text
 import { TextRetainer } from '@deepseek-ai/dsh-output-retention'
@@ -53,9 +51,9 @@ child.stdout.on('data', (chunk: Buffer) => { out.push(chunk) })
 const { text, omittedBytes } = out.finish()
 ```
 
-`head`, `tail`, and `headTail` count bytes, not characters or lines: a child's pipe and an HTTP body are byte streams. `finish()` trims a partial codepoint at each cut, so the returned text never carries a replacement character introduced by the cut, and a codepoint is never reconstructed across the omitted middle.
+`head`、`tail` 与 `headTail` 按字节而非字符或行计数：子进程管道与 HTTP 正文都是字节流。`finish()` 会在每个切割处修剪不完整的码点，因此返回的文本绝不会携带由切割引入的替换字符，码点也绝不会跨被省略的中间部分重建。
 
-### Building the omission footer
+### 构建省略页脚
 
 ```ts
 import { formatRetentionNotice } from '@deepseek-ai/dsh-output-retention'
@@ -72,96 +70,96 @@ const footer = formatRetentionNotice(
 )
 ```
 
-The library standardizes the omission clause (`Omitted 3 items.`) and joins it with the tool's own recovery guidance; only the tool knows the recovery action, so the tool supplies those words.
+库负责标准化省略子句（`Omitted 3 items.`）并把它与工具自有的恢复指引拼接；只有工具知道恢复动作，因此这些措辞由工具提供。
 
-### Capping a character-budget preview
+### 按字符预算截断预览
 
-`truncateWithoutSplittingSurrogatePair` caps a preview measured in UTF-16 code units. A cut that lands inside a surrogate pair drops the unpaired half instead of returning a lone high surrogate, so the kept text stays a prefix. The persistent `bash` and `pwsh` shells and `str_replace_editor` use it for their character-budget previews; each still owns its truncation notice and its `incomplete` prefix.
+`truncateWithoutSplittingSurrogatePair` 按 UTF-16 码元限制预览文本。切口落在代理对内部时丢弃不成对的半个码元，而不是返回孤立高位代理项，因此保留文本仍是前缀。持久 `bash`、`pwsh` 与 `str_replace_editor` 用它处理各自的字符预算预览；截断提示与 `incomplete` 前缀仍由各工具自行负责。
 
-### What `truncated` means
+### `truncated` 意味着什么
 
-`truncated` is a budget fact: the retainer omitted otherwise-available content because of a cap. It never means the upstream was incomplete — permission failures, skipped binary files, provider partial failures, and unreadable candidates stay in tool-domain fields, never folded into `truncated`.
+`truncated` 是预算事实：retainer 因上限而省略了本可获得的内容。它绝不表示上游不完整——权限失败、跳过二进制文件、提供方部分失败与不可读候选项都留在工具领域字段中，绝不并入 `truncated`。
 
-### How the current tools use it
+### 当前工具如何使用它
 
-| Tool | Retainer | What the tool still owns |
+| 工具 | Retainer | 工具仍负责什么 |
 |---|---|---|
-| `glob` | `ItemRetainer`, `head` | Spill-file collection, path mapping, skipped candidates, `incomplete` |
-| `grep` | `ItemRetainer`, `head` | Spill-file collection, per-match preview truncation, grouping, sorting |
-| `bash` | `TextRetainer`, `tail` or `headTail` | Spill files, exit status, signal, timeout, background jobs |
-| `web_fetch` | `TextRetainer`, `head` or `headTail` | Provider and resource caps, error states |
-| `web_search` | `ItemRetainer`, `head` | The "sources capped" notice wording and provider facts |
+| `glob` | `ItemRetainer`，`head` | spill 文件收集、路径映射、已跳过候选项、`incomplete` |
+| `grep` | `ItemRetainer`，`head` | spill 文件收集、逐匹配预览截断、分组、排序 |
+| `bash` | `TextRetainer`，`tail` 或 `headTail` | spill 文件、退出状态、信号、超时、后台任务 |
+| `web_fetch` | `TextRetainer`，`head` 或 `headTail` | 提供方与资源上限、错误状态 |
+| `web_search` | `ItemRetainer`，`head` | 「来源已达上限」通知措辞与提供方事实 |
 
-`read` stays outside this library: its line-window pagination (`offset`/`limit`, line numbers, `totalLines`) is a file-specific renderer that a single omission count cannot represent.
+`read` 不属于本库：它的行窗口分页（`offset`/`limit`、行号、`totalLines`）是文件专属渲染器，单个省略计数无法表示该窗口的两侧。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The library is built on one separation: it owns the mechanical question of what was kept and what was omitted; tool packages own every business meaning.
+本库建立在一个分离之上：它负责「保留了什么、省略了什么」这个机制问题；业务含义全部归工具包所有。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `ItemRetainer`, `TextRetainer`, `describeOmitted`, `formatRetentionNotice`, and `truncateWithoutSplittingSurrogatePair` |
+| [`src/index.ts`](src/index.ts) | `ItemRetainer`、`TextRetainer`、`describeOmitted`、`formatRetentionNotice` 与 `truncateWithoutSplittingSurrogatePair` |
 
-### Two retainers, two resource models
+### 两个 retainer，两种资源模型
 
-`ItemRetainer` bounds ordered logical units and keeps only the first `maxItems`; the caller keeps pushing every observed unit so the omission count is exact. `TextRetainer` bounds bytes with one shared prefix/suffix accumulator: `head` is prefix-only, `tail` is suffix-only, `headTail` is both, and the accumulator holds at most `headBytes + tailBytes + one chunk` in memory, so a large stream does not accumulate unbounded.
+`ItemRetainer` 限制有序逻辑单元，只保留前 `maxItems` 个；调用方持续送入每个已观察单元，因此省略计数是精确的。`TextRetainer` 用同一个前缀/后缀累加器限制字节：`head` 只留前缀，`tail` 只留后缀，`headTail` 两者都留；累加器在内存中至多持有 `headBytes + tailBytes + 一个分片`，因此大流不会无界累积。
 
-### How the budget facts stay honest
+### 预算事实如何保持诚实
 
-`push()` returns `kept` (this unit or chunk fully retained) and `truncated` (anything dropped yet). `finish()` reports omission against the bytes actually returned, so a UTF-8 boundary trim that drops partial-codepoint bytes is counted too — a notice built from the budget alone would overstate the retained text. `describeOmitted` prints a count only for `exact`; `unknown` prints no count because the caller provided none.
+`push()` 返回 `kept`（该单元或分片是否完整保留）与 `truncated`（是否已丢弃任何内容）。`finish()` 按实际返回的字节报告省略，因此丢弃部分码点字节的 UTF-8 边界修剪也会被计入——仅按预算推导的通知会高估保留文本。`describeOmitted` 只为 `exact` 打印计数；`unknown` 不打印计数，因为调用方没有提供。
 
-### The read-render exclusion
+### read 渲染的排除
 
-`read`'s `offset`/`limit` pagination is a line-window renderer with its own byte cap over the selected window; a single `Omitted` value cannot represent both sides of that window, so it stays out of this library.
+`read` 的 `offset`/`limit` 分页是行窗口渲染器，对所选窗口有自己的字节上限；单个 `Omitted` 值无法表示该窗口两侧，因此它不属于本库。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when you need the consumers or the boundary decision behind the library.
+当你需要消费方或库背后的边界决策时，阅读以下页面。
 
-- [Spill policy](../../spill/spill-policy/README.md) — composes `TextRetainer` for a bounded preview around a spill-file notice.
-- [Spill subsystem](../../../docs/subsystems/spill.md) — the spill vocabulary this library's preview mechanics serve.
-- [File search tool](../../fs/tool-fs-search/README.md) — an `ItemRetainer` consumer collecting full results for spill.
+- [spill 策略](../../spill/spill-policy/README.zh.md)——组合 `TextRetainer`，围绕 spill 文件通知构建有界预览。
+- [spill 子系统](../../../docs/subsystems/spill.zh.md)——本库预览机制所服务的 spill 词汇。
+- [文件搜索工具](../../fs/tool-fs-search/README.zh.md)——为 spill 收集完整结果的 `ItemRetainer` 消费方。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-Indirectly, through the retention consumers that render retained content and omission metadata.
+通过渲染保留内容与省略元数据的保留消费方间接影响模型。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-No direct invalidation; the retention consumers own any request-prefix changes.
+不会直接导致失效；请求前缀的任何变更由保留消费方负责。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define what the retainers deliberately do not cover. They are current package constraints, not a task backlog.
+这些限制说明 retainer 刻意不覆盖什么。它们是当前包约束，不是任务积压。
 
-- **Item retention supports `head` only** — tail, head/tail, pagination, grouping, and provider-completeness semantics remain tool-owned.
-- **Text retention is byte-oriented** — `TextRetainer` counts bytes; character-budget head caps go through `truncateWithoutSplittingSurrogatePair`, and line windows such as `read` pagination still require a separate renderer. A cut may discard partial UTF-8 boundary bytes to keep the returned text valid.
+- **项保留只支持 `head`**——tail、head/tail、分页、分组与提供方完整性语义仍归工具所有。
+- **文本保留面向字节**——`TextRetainer` 以字节计数；字符预算的头部截断走 `truncateWithoutSplittingSurrogatePair`，`read` 分页等行窗口仍需独立渲染器；切割可能丢弃部分 UTF-8 边界字节，以保持返回文本有效。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
