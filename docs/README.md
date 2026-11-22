@@ -26,9 +26,11 @@
 
 ## 文档维护边界
 
+具体的分类、写作、生成器、中文迁移和验收规则见 [中文文档维护规范](AGENTS.md)。
+
 - 一项事实只有一个维护来源；其他文档使用链接，不复制规则。
 - 共用工程命名、测试、CI、合并和发布规则以 [Action Worker 共用治理](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 及其机器策略为准。Delta 只记录自身产品边界。
 - 新增说明只使用中文 `.md`；目前未迁移的双语文档与生成区域继续遵守现有配对和构建检查。不得通过关闭门禁完成单语迁移。
-- 本次仅建立导航，没有移动旧文档、修改运行代码或改变网站路由。以后每批迁移需同步校验 Markdown 链接、生成器、文档站点和中央 CI。
+- 分类索引仅负责导航；旧文档在迁移验证完成前保留原路径。以后每批迁移需同步校验 Markdown 链接、生成器、文档站点和中央 CI。
 
 详细的产品边界与既有源码位置见 [Delta 架构](../governance/ARCHITECTURE.md) 和 [仓库归属](../governance/REPOSITORY.md)。
