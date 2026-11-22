@@ -1,52 +1,50 @@
 ---
-description: "The goal group map: one durable completion objective per session, with model tools, a human command, and automatic continuation, for users and maintainers navigating the group."
+description: "goal 组地图：每会话一个持久的完成目标，以及模型工具、用户命令与自动续行，供浏览本组的用户与维护者阅读。"
 kind: "package-group"
 ---
 
 # packages/goal
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+goal 组让一个 agent（智能体）会话在重启、恢复和 fork 后继续追求一个持久的完成目标。agent 可以创建和更新该目标，用户也可以用 `/goal` 直接检查或控制它，而不消耗模型轮次。可选的续行包可以让进行中的工作连续执行多个 Round。每个会话只有一个当前目标，该目标记录完成状态而不调度工作；因此，自动续行必须单独启用。
 
-The goal group lets one agent session pursue a durable completion objective across restarts, resumes, and forks. Agents can create and update the objective, while people can inspect or control it directly with `/goal` without spending a model turn. An optional continuation package can keep active work moving through sequential Rounds. Each session has only one current goal, and that goal records completion state rather than scheduling work; automatic continuation must therefore be enabled separately.
+## 目录
 
-## Table of Contents
-
-- [Packages](#packages)
-- [Related documentation](#related-documentation)
-- [Dev Note](#dev-note)
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="packages"></a>
-## Packages
+## 包
 
-| Package | Role | ctx key |
+| 包 | 职责 | ctx 键 |
 |---|---|---|
-| [`goal`](goal/README.md) | One durable goal per session: create, edit, pause, resume, complete, block, and clear | `ctx.goals` |
-| [`tool-goal`](tool-goal/README.md) | Model tools `get_goal`, `create_goal`, `update_goal` | registers on `ctx.tools` |
-| [`command-goal`](command-goal/README.md) | Human `/goal` command in UI command planes | registers on `ctx.commands` |
-| [`goal-round-driver`](goal-round-driver/README.md) | Automatic continuation: turns an active goal into sequential Rounds | no service key |
+| [`goal`](goal/README.md) | 每个会话一个持久目标：创建、编辑、暂停、恢复、完成、阻塞和清除 | `ctx.goals` |
+| [`tool-goal`](tool-goal/README.md) | 模型工具 `get_goal`、`create_goal`、`update_goal` | 注册到 `ctx.tools` |
+| [`command-goal`](command-goal/README.md) | UI 命令平面中的用户 `/goal` 命令 | 注册到 `ctx.commands` |
+| [`goal-round-driver`](goal-round-driver/README.md) | 自动续行：把进行中的目标变成连续的 Round | 无服务键 |
 
 -----
 
 <a id="related-documentation"></a>
-## Related documentation
+## 相关文档
 
-- [Goal subsystem](../../docs/subsystems/goal.md) — goal types, durable `goal/change` events, and the generated service API.
-- [Generated tool catalog](../../docs/tool-catalog.md#deepseek-aidsh-tool-goal) — the three goal-tool schemas the model receives.
-- [Generated configuration catalog](../../docs/config-catalog.md#deepseek-aidsh-goal) — every accepted config field of the goal service.
-- [historical Goal domain Agent Note](../../.agents/notes/archived/feature/2026-07-19-persisted-same-session-goal-domain.md) — the domain design and its decisions.
+- [目标子系统](../../docs/subsystems/goal.zh.md)——目标类型、持久的 `goal/change` 事件与生成的服务 API。
+- [生成的工具目录](../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-goal)——模型接收的三个目标工具 schema。
+- [生成的配置目录](../../docs/config-catalog.zh.md#deepseek-aidsh-goal)——目标服务的每个受支持配置字段。
+- [历史目标领域 Agent Note](../../.agents/notes/archived/feature/2026-07-19-persisted-same-session-goal-domain.md)——领域设计及其决策。
 
 -----
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
