@@ -1,47 +1,45 @@
 ---
-description: "Windows signing concurrency measurements and retesting on replacement runners."
+description: "Windows 签名并发实测结果与更换 runner 后的复测方法。"
 ---
 
-# Windows signing concurrency qualification
+# Windows 签名并发验收
 
-English | [中文](README.zh.md)
+## 摘要
 
-## Summary
+更换 Windows runner 后，使用本记录选择签名并发参数。结果仅适用于实测的主机、UKey 和软件组合；更换后需重新验收。生产签名仍为串行。
 
-Use this record when choosing signing concurrency on a replacement Windows runner. Results apply to the measured host, token and software combination; repeat qualification after changing them. Production signing remains serial.
+## 目录
 
-## Table of Contents
-
-- [Retest on another machine](#retest-on-another-machine)
-- [Measured reference](#measured-reference)
+- [在另一台机器上复测](#retest-on-another-machine)
+- [实测参考](#measured-reference)
 
 <a id="retest-on-another-machine"></a>
 
-## Retest on another machine
+## 在另一台机器上复测
 
-1. Follow the [operator-approved experiment procedure](../../windows-signing/README.md#verification), using a hash-pinned corpus of real runtime, application and installer files. Compare the same inputs across modes; preserve originals and use isolated copies without signature-cache reuse.
-2. Run `--corpus` with `--rounds 2` to compare 1/1, 2/2 and 4/4 completion workers/hardware requests, reversing the second round. Run the same corpus with `--pipeline-control --rounds 2` for the 4/1 control. Retain the procedure's first-failure stop and interlock handling.
-3. Record the date, test and artifact versions, corpus count/bytes/largest file, CPU/RAM/disk, token/client/provider/SignTool versions, timestamp service, competing jobs and resource pressure. Keep both batch wall times and failure/retry counts; retain detailed output outside Git without credentials. Select a candidate only from completely verified runs, then validate it in the complete signed release workflow. Similar results favor fewer hardware requests; unexpected variation needs more rounds.
+1. 按[经操作人员授权的实验流程](../../windows-signing/README.md#verification)，使用哈希固定的真实 runtime、应用和安装器文件集。各模式使用相同输入，保留原件，使用隔离副本且不复用签名缓存。
+2. 使用 `--corpus` 和 `--rounds 2` 比较完成任务数/硬件请求数为 1/1、2/2、4/4 的模式，第二轮反转顺序。对相同文件集使用 `--pipeline-control --rounds 2` 测量 4/1 对照组。保留流程中的首错停止和 interlock 处理。
+3. 记录日期、测试及产物版本、文件数/总大小/最大文件、CPU/内存/磁盘、UKey/客户端/provider/SignTool 版本、时间戳服务、并行任务和资源压力。保留两轮整批墙钟时间及失败/重试次数；详细输出保存在 Git 外且不含凭据。仅从全部验证通过的结果中选择候选参数，再用完整签名发布流程验收。结果接近时优先减少硬件请求；波动异常时增加轮次。
 
 <a id="measured-reference"></a>
 
-## Measured reference
+## 实测参考
 
-On 2026-10-22, the experiment in PR #6675 used retained files from release run 39725804188, version `0.2.1-rc.2.20261022.50.2`. Each batch contained 148 runtime and 8 application/installer targets: 156 files, 849.2 MiB unsigned, largest 277.5 MiB. Deleted transient targets and repeated intermediate signing passes were excluded.
+2026-10-22，PR #6675 中的实验使用发布 run 39725804188 保留的文件，版本为 `0.2.1-rc.2.20261022.50.2`。每批包含 148 个 runtime 和 8 个应用/安装器签名目标：共 156 个文件，无签名总大小 849.2 MiB，最大文件 277.5 MiB。不含已删除的临时目标及中间产物的重复签名调用。
 
-The host had a Ryzen AI 9 HX 470 (12 cores/24 threads), 32 GiB RAM and a 1 TB UMIS RPJYJ1T24RLS1QWY disk. The operator identified the token as SafeNet 5110; the precise variant/firmware was not verified. Signing used SafeNet Authentication Client 10.9.4482.0, `eToken Base Cryptographic Provider` and the unchanged machine test preset's SignTool/timestamp service. Public signature removal alone used SDK 10.0.26100.0 SignTool. Mode-average host CPU was 7.6–8.9%, minimum sampled free RAM was 9.9 GiB, and no Runner.Worker was sampled; other Node processes shared the host.
+主机使用 Ryzen AI 9 HX 470（12 核/24 线程）、32 GiB 内存和 1 TB UMIS RPJYJ1T24RLS1QWY 磁盘。操作人员确认 UKey 为 SafeNet 5110，未核实具体变体/固件。签名使用 SafeNet Authentication Client 10.9.4482.0、`eToken Base Cryptographic Provider`，以及未变更的机器 test preset 中的 SignTool/时间戳服务。仅公开移除签名使用 SDK 10.0.26100.0 SignTool。各模式主机平均 CPU 为 7.6–8.9%，采样可用内存最低 9.9 GiB，未采样到 Runner.Worker；另有 Node 进程共享主机。
 
-Times below are batch wall seconds, including signing, timestamp completion and all file verification. They exclude preparation, lock waiting, build, cache lookup, package assembly and upload. File-system caches were uncontrolled; these are not cold/hot full-release measurements.
+下表为整批墙钟秒数，包含签名、时间戳完成及全部文件验证。不含准备、等锁、构建、缓存查询、包组装和上传。文件系统缓存未受控，因此不是完整发布的冷/热缓存测量。
 
-| Completion workers / hardware requests | Round 1 (s) | Round 2 (s) | Mean (s) | Reduction vs serial |
+| 完成任务数 / 硬件请求数 | 第 1 轮（秒） | 第 2 轮（秒） | 平均（秒） | 相对串行减少 |
 |---|---:|---:|---:|---:|
 | 1 / 1 | 732.3 | 718.5 | 725.4 | — |
 | 2 / 2 | 398.3 | 394.6 | 396.5 | 45.3% |
 | 4 / 4 | 459.4 | 465.0 | 462.2 | 36.3% |
-| 4 / 1, separate control | 427.7 | 428.3 | 428.0 | 41.0% |
+| 4 / 1，单独对照组 | 427.7 | 428.3 | 428.0 | 41.0% |
 
-All 1,248 signatures, timestamps and final validations passed, with zero hardware failures/timeouts or timestamp retries. Original files and signature-cache payloads remained unchanged. The 2/2 mode was fastest; 4/4 was slower, while pipeline overlap alone delivered most of the observed benefit. This selects candidates for further release testing, not a production default or evidence of parallel operations inside the token. It does not establish a ten-minute complete release.
+共 1,248 次签名、时间戳及最终验证全部通过，硬件失败/超时及时间戳重试均为零。原文件和签名缓存内容保持不变。2/2 模式最快，4/4 更慢；仅流水线重叠已获得大部分实测收益。这些结果用于选择后续发布测试的候选参数，不是生产默认值，也不能证明 UKey 内部并行执行。它们不能证明完整发布达到十分钟。
 
-## Dev Note
+## 开发备注
 
-None.
+无。

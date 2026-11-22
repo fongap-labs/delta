@@ -1,12 +1,10 @@
-# Plugin market index generator
+# 插件市场索引生成器
 
-English | [中文](README.zh.md)
+[插件市场索引](../../.agents/notes/implemented/feature/2026-10-02-plugin-market-index-format.zh.md)文件的参考生成器。它读取一份由 npm 包名和 Git 仓库 URL 组成的纯文本列表，写出一个 `index.json`，DSH 的 **发现** 页面无需额外请求即可展示该文件。它是独立的 Node 程序，不是 Cordis 应用，也从不安装或运行其所描述包的代码。
 
-A reference generator for [plugin market index](../../.agents/notes/implemented/feature/2026-10-02-plugin-market-index-format.md) files. It reads a plain list of npm package names and Git repository URLs and writes one `index.json` that the DSH **Discover** page can show without further requests. It is a standalone Node program, not a Cordis application, and it never installs or runs the code of the packages it describes.
+## 用法
 
-## Usage
-
-Write a source list, one entry per line. Blank lines and lines starting with `#` are ignored.
+编写来源列表，每行一个条目。生成器忽略空行和以 `#` 开头的行。
 
 ```text
 # npm packages: every bundle version that is neither deprecated nor private is listed
@@ -17,68 +15,68 @@ https://github.com/author/dsh-plugin
 https://gitlab.example.com/group/dsh-plugins
 ```
 
-Run the generator from the repository:
+在仓库中运行生成器：
 
 ```sh
 pnpm --filter @deepseek-ai/dsh-plugin-market-generator start \
   --input plugins.txt --output site/index.json --title "Example Market"
 ```
 
-`--input` and `--output` are relative to the directory where you run pnpm. Publish the output directory over https, then add the `index.json` URL as an index source in Discover.
+`--input` 和 `--output` 相对于你运行 pnpm 的目录。通过 https 发布输出目录，然后在「发现」中把该 `index.json` 的 URL 添加为索引来源。
 
-| Option | Default | Meaning |
+| 选项 | 默认值 | 含义 |
 |---|---|---|
-| `--input <file>` | required | Source list. |
-| `--output <file>` | required | Index file. Icons too large to inline are written to `icons/` next to it; generated icon files the index no longer uses are removed from there. |
-| `--title <text>` | required | Market title. |
-| `--description <text>` | none | Market description. |
-| `--cache <dir>` | `.plugin-market-cache` next to the input list | Result cache. It stays out of the output directory, which is published. |
-| `--registry <url>` | `https://registry.npmjs.org/` | npm registry. Any other registry is recorded in each npm version. |
-| `--inline-icon-bytes <n>` | `16384` | Largest icon embedded as a `data:` URL, at most 32768, the format's inline icon limit. |
-| `--concurrency <n>` | `4` | Sources read at the same time. |
-| `--timeout-ms <n>` | `60000` | Deadline for one request or Git command. |
-| `-h`, `--help` | | Print these options and the exit statuses. |
+| `--input <file>` | 必填 | 来源列表。 |
+| `--output <file>` | 必填 | 索引文件。过大而无法内联的图标写入其旁边的 `icons/`；索引不再使用的已生成图标文件会从该目录删除。 |
+| `--title <text>` | 必填 | 市场标题。 |
+| `--description <text>` | 无 | 市场描述。 |
+| `--cache <dir>` | 输入列表旁的 `.plugin-market-cache` | 结果缓存。它不在会被发布的输出目录中。 |
+| `--registry <url>` | `https://registry.npmjs.org/` | npm 注册表。使用其他注册表时，该注册表会记录在每个 npm 版本中。 |
+| `--inline-icon-bytes <n>` | `16384` | 以 `data:` URL 内嵌的图标的最大字节数，不超过格式的内联图标上限 32768。 |
+| `--concurrency <n>` | `4` | 同时读取的来源数。 |
+| `--timeout-ms <n>` | `60000` | 单个请求或 Git 命令的时限。 |
+| `-h`、`--help` | | 打印这些选项和退出状态。 |
 
-Set `GITHUB_TOKEN` to collect `github_stars`. Surrounding whitespace is trimmed; an unset or blank token skips GitHub metric requests and omits that metric. The token is used only in the GitHub API Authorization header and is not written to the index, cache, or diagnostic messages. npm weekly downloads do not require it.
+设置 `GITHUB_TOKEN` 以采集 `github_stars`。生成器会去掉令牌首尾的空白；令牌未设置或为空白时，会跳过 GitHub 指标请求并省略该指标。令牌仅用于 GitHub API 的 Authorization 请求头，不会写入索引、缓存或诊断消息。npm 周下载量不需要该令牌。
 
-The exit status is 0 when every source was read, 1 when a source could not be read, and 2 for invalid arguments or an invalid list. A list line that the index format would reject, such as an `http:` URL, a URL with credentials, a query, or a fragment, a URL with fewer than two path segments, or a tarball URL, is an invalid list. A source that cannot be read keeps its last successful result, so a temporary outage does not remove plugins from the index; the failure is still reported. Metric failures warn and omit the unavailable values, including counts present in an earlier output. They leave exit status 0 only when every source was read successfully; offline source fallback still returns 1.
+所有来源都读取成功时退出状态为 0，有来源无法读取时为 1，参数无效或列表无效时为 2。索引格式会拒绝的列表行属于无效列表，例如 `http:` URL、带凭据、查询或片段的 URL、路径段少于两个的 URL，以及 tarball URL。无法读取的来源保留其上一次成功的结果，因此临时故障不会把插件从索引中移除；生成器仍会报告该失败。指标获取失败时会发出警告并省略不可用的值，包括此前输出中已有的计数。只有所有来源都读取成功时，指标获取失败才仍返回退出状态 0；离线时回退到缓存的来源结果仍返回 1。
 
-## What gets listed
+## 列出的内容
 
-Each package becomes one plugin with one or more versions. A version is listed only when its `package.json` declares `dsh.bundle` with `patch` set to a file path or a list of file paths, and does not set `"private": true`. A Git package whose `package.json` on the default branch sets `"private": true` is not listed, and neither are its tagged versions.
+每个包成为一个插件，带有一个或多个版本。只有 `package.json` 声明了 `dsh.bundle`、其 `patch` 是一个文件路径或文件路径列表、且没有设置 `"private": true` 的版本才会列出。默认分支上的 `package.json` 设置了 `"private": true` 的 Git 包不会列出，它在各个标签上的版本也不列出。
 
-- **npm package**: every version in the registry document that is neither deprecated nor private, declares a bundle, and has a publish time. Versions come from the registry document alone; only the tarball of the highest listed version is downloaded, for its display fields. Its `package.json` must name the requested package and version.
-- **Git repository**: bundle packages are found on the default branch, in this order:
-  1. the root `package.json` declares `dsh.bundle`: the root package only;
-  2. `package.json` `workspaces` or `pnpm-workspace.yaml` `packages` match packages that declare `dsh.bundle`: those packages. Each glob segment is a literal name, a name with `*`, or `**`; negated globs are ignored, and a glob that matches nothing is reported;
-  3. otherwise, every package declaring `dsh.bundle` within three directory levels, outside `node_modules`, `test`, `tests`, `fixtures`, `example`, and `examples`.
+- **npm 包**：注册表文档中未弃用、未设为私有、声明了组合包（bundle）且有发布时间的每个版本。版本只取自注册表文档；生成器只下载最高列出版本的 tarball，用于读取展示字段。该 tarball 的 `package.json` 必须与所请求的包名和版本一致。
+- **Git 仓库**：生成器按以下顺序在默认分支上查找组合包：
+  1. 根 `package.json` 声明了 `dsh.bundle`：仅使用根包；
+  2. `package.json` 的 `workspaces` 或 `pnpm-workspace.yaml` 的 `packages` 匹配到声明了 `dsh.bundle` 的包：使用这些包。每个 glob 段可以是字面名称、含 `*` 的名称或 `**`；生成器忽略否定 glob，并报告未匹配任何内容的 glob；
+  3. 否则，使用三层目录以内、位于 `node_modules`、`test`、`tests`、`fixtures`、`example` 和 `examples` 之外的所有声明了 `dsh.bundle` 的包。
 
-  Each package's versions come from release tags and the default branch. A `vX.Y.Z` or `X.Y.Z` tag applies to every package, and a `<name>@X.Y.Z` tag, such as `@scope/dsh-a@1.2.0`, to the package with that name; the tag version must be an exact SemVer version. A tag lists a package when the package's directory at the tagged commit holds a bundle manifest with the same name and the tag's version. The default branch commit lists each package's current version unless a tag already lists it. When several tags list one version, a `<name>@` tag wins over a unified tag, then the earlier commit wins. The publish time is the commit's committer time.
+  每个包的版本来自发布标签（tag）和默认分支。`vX.Y.Z` 或 `X.Y.Z` 标签适用于所有包，`<name>@X.Y.Z` 标签（例如 `@scope/dsh-a@1.2.0`）适用于同名的包；标签中的版本必须是确切的 SemVer 版本。当包目录在打标签的提交中有一个组合包 manifest（元数据清单），且其名称相同、版本等于标签版本时，该标签列出这个包。默认分支的提交列出每个包的当前版本，除非某个标签已经列出该版本。多个标签列出同一版本时，`<name>@` 标签优先于统一标签，其次是较早的提交。发布时间是该提交的提交者时间。
 
-`engines.dsh` is the manifest's `engines.dsh`, trimmed. Without one, it is the conjunction of the manifest's `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` `peerDependencies` ranges; a peer of exactly `workspace:*`, `workspace:^`, or `workspace:~` means the running DSH version and adds nothing, and identical ranges appear once. A `*` range admits every version, so a version whose ranges are all `*` lists no `engines.dsh`. A version is skipped with a warning when installation would refuse it on every DSH version: an empty range, a `workspace:` value in `engines.dsh` or any other `workspace:` peer, an invalid range, or ranges that no version satisfies together.
+`engines.dsh` 取 manifest 的 `engines.dsh` 并去掉首尾空白。没有该字段时，它是 manifest 中 `@deepseek-ai/dsh` 和 `@deepseek-ai/dsh-*` 的 `peerDependencies` 范围的合取；恰为 `workspace:*`、`workspace:^` 或 `workspace:~` 的 peer 表示当前运行的 DSH 版本，不增加限制；相同的范围只出现一次。`*` 范围接受所有版本，因此范围全为 `*` 的版本不列出 `engines.dsh`。如果安装时在所有 DSH 版本上都会拒绝某个版本，该版本会被跳过并发出警告：范围为空、`engines.dsh` 中出现 `workspace:` 值或 peer 中出现其他 `workspace:` 范围、范围无效，或者没有任何版本能同时满足这些范围。
 
-Display fields come from the highest listed version and follow the rules DSH uses for installed plugins. `./locale/en.json` and `./locale/<language>.json` are resolved through the package `exports` map with the `import`, `node`, and `default` conditions, or literally without one, and every locale file must sit in the English file's directory; their `meta.title` and `meta.description` fall back to the manifest `name` and `description`. The icon is the manifest `icon`, a relative path, or else the exported `./icon`: SVG, PNG, JPEG, or WebP, at most 256 KiB, inside the package. `author` is the name part of the manifest `author` string, without its `<email>` and `(url)`, or the `name` of an author object. `homepage` is the manifest `homepage` as written when it is an absolute http(s) URL; nothing else, such as `repository`, stands in for a missing one. `repository` is the web page of the manifest `repository`, a shorthand such as `github:o/r` or a URL, through [hosted-git-info](https://github.com/npm/hosted-git-info) for hosts it knows, without any `#` committish; another http(s) URL loses a `git+` prefix, credentials, query, fragment, and `.git` suffix. Its `directory` is copied when the format accepts it. A repository with no http(s) page, or an unusable `directory`, is reported and omitted. Malformed locale files, invalid locale names, and rejected icons are reported as warnings. Translations without English text or a manifest fallback are dropped because the format requires English. Every entry is checked with [`dsh-plugin-market-index`](../../packages/util/plugin-market-index/README.md) before it is written.
+展示字段来自最高的列出版本，并遵循 DSH 读取已安装插件时的规则。`./locale/en.json` 和 `./locale/<language>.json` 通过包的 `exports` 映射以 `import`、`node` 和 `default` 条件解析，没有该映射时按字面路径读取，并且每个 locale 文件都必须与英文文件位于同一目录；其 `meta.title` 和 `meta.description` 缺失时回退到 manifest 的 `name` 和 `description`。图标是 manifest 的 `icon`（相对路径），否则是导出的 `./icon`：格式为 SVG、PNG、JPEG 或 WebP，不超过 256 KiB，并位于包内。`author` 是 manifest `author` 字符串中去掉 `<email>` 和 `(url)` 后的名字部分，或 author 对象的 `name`。`homepage` 在 manifest 的 `homepage` 是绝对 http(s) URL 时按原样复制；缺少时不会用 `repository` 等其他字段代替。`repository` 是 manifest `repository`（如 `github:o/r` 这样的简写或 URL）对应的网页：已知主机通过 [hosted-git-info](https://github.com/npm/hosted-git-info) 转换，并去掉 `#` 后的 committish；其他 http(s) URL 去掉 `git+` 前缀、凭据、查询、片段和 `.git` 后缀。格式接受时复制其 `directory`。没有 http(s) 网页的仓库或不可用的 `directory` 会被报告并省略。格式错误的 locale 文件、无效的 locale 名称和被拒绝的图标会作为警告报告。由于该格式要求英文，没有英文文本也没有 manifest 回退值的翻译会被丢弃。每个条目在写出前都经过 [`dsh-plugin-market-index`](../../packages/util/plugin-market-index/README.zh.md) 校验。
 
-`metadata.keywords` is an optional array of strings for discovery. npm `package.json` `keywords` is the convention; index generators may supplement or adjust it. This reference generator copies the highest listed version's manifest `keywords` unchanged, including empty strings, duplicates, and an empty array. An absent field is omitted; a non-array value or an array containing any non-string produces a warning and omits the whole field without dropping the package.
+`metadata.keywords` 是用于发现插件的可选字符串数组。按约定使用 npm `package.json` 的 `keywords`；索引生成器可以补充或调整它。本参考生成器原样复制最高列出版本 manifest 的 `keywords`，包括空字符串、重复值和空数组。字段缺省时省略；如果值不是数组，或数组包含任何非字符串成员，则发出警告并省略整个字段，但保留该包。
 
-The generator reads optional `github_stars` from the GitHub repository API and `npm_weekly_downloads` from npm's `downloads/point/last-week` endpoint. GitHub counts use the actual Git source repository for Git packages and the author-declared manifest repository for npm packages. npm repository ownership and source correspondence are not verified, so stars are not a trust or quality signal. npm counts are requested only for public npm sources, never custom registries or Git-only packages. Weekly means the window returned by npm's `last-week`, not an upstream 30-day total. Available counts, including zero, appear in plugin `metadata.sortKeys`; root `metadata.sortKeys` declares only metrics available for at least one plugin, with descending initial order, and root `metadata` is omitted when no metric is available. Fetch failures and invalid counts produce warnings and omit the metric without dropping the plugin or failing the run.
+生成器从 GitHub 仓库 API 读取可选的 `github_stars`，从 npm 的 `downloads/point/last-week` 端点读取可选的 `npm_weekly_downloads`。Git 包的 GitHub 计数取自实际 Git 来源仓库，npm 包则取自作者在 manifest 中声明的仓库。生成器不验证 npm 包声明的仓库归属或与包源码的对应关系，因此 star 数不代表可信度或质量。npm 计数仅对公共 npm 来源发起请求，不对自定义注册表或仅有 Git 来源的包发起请求。周下载量指 npm 的 `last-week` 返回的时间窗口，不是上游的 30 天总量。可用的计数（包括零）写入插件的 `metadata.sortKeys`；根级 `metadata.sortKeys` 仅声明至少有一个插件提供值的指标，初始顺序为降序；没有可用指标时，省略根级 `metadata`。获取失败和无效计数会产生警告并省略该指标，不会丢弃插件或使运行失败。
 
-When several sources produce the same package name, the first one in the list wins.
+多个来源产生相同包名时，列表中靠前的来源生效。
 
-## Caching and repeated runs
+## 缓存与重复运行
 
-Each run reads the registry document of every npm source and the refs of every Git repository. Results are cached per immutable input: an npm plugin per registry, icon threshold, package, and set of listed versions; a Git repository per default branch commit and release tags; and each Git package per commit and directory. A Git run therefore fetches only the commits whose packages are not cached. Cache files are written atomically, and a cache file that is damaged or that the index format rejects is rebuilt. Enabled metrics are refreshed on every run outside these caches, with shared requests per repository or package and the configured concurrency and timeout limits. Metric failures never reuse stale counts. For unchanged package data and metric responses, output is deterministic: entries follow the list order, and the index and icon files are rewritten only when their contents change, so running the generator again without upstream changes leaves the output untouched.
+每次运行时，生成器读取每个 npm 来源的注册表文档和每个 Git 仓库的引用（ref）。结果按不可变的输入缓存：npm 插件按注册表、图标阈值、包和列出版本的集合缓存；Git 仓库按默认分支提交和发布标签缓存；每个 Git 包按提交和目录缓存。因此 Git 运行只拉取其包尚未缓存的提交。生成器以原子方式写入缓存文件，并重建损坏的或索引格式会拒绝的缓存文件。已启用的指标在这些缓存之外于每次运行时刷新，同一仓库或包共享请求，并遵循配置的并发和超时限制。指标获取失败时绝不复用陈旧计数。包数据和指标响应不变时，输出是确定性的：条目按列表顺序排列，索引文件和图标文件只在内容变化时才重写，因此上游没有变化时再次运行生成器不会改动输出。
 
-## Security
+## 安全
 
-The generator downloads and reads files only. npm tarballs are read in memory: a tarball and its unpacked files may not exceed 64 MiB each, the bytes must match the registry integrity hash, and only regular files outside `node_modules` are kept, without paths that leave the package. Git objects are fetched with depth 1 into a private temporary bare repository and read as blobs, so no working tree exists and no checkout filter, LFS download, or symbolic link takes effect; symbolic links and submodules count as absent. Git runs with hooks and the file-system monitor disabled, no submodules, only the https and ssh transports, and without inherited `GIT_*` variables except `GIT_SSH` and `GIT_SSH_COMMAND`. Your ssh program and `GIT_SSH_COMMAND` keep precedence; without either, ssh runs in batch mode, so it never waits for a prompt. Manifests, locale files, and workspace files over 1 MiB are refused. Private repositories use your Git credential configuration; an https URL can be routed to ssh with `url.<base>.insteadOf`.
+生成器只下载和读取文件。npm tarball 在内存中读取：tarball 及其解包后的文件各自不能超过 64 MiB，字节必须与注册表的完整性哈希一致，并且只保留 `node_modules` 之外的普通文件，不接受离开包目录的路径。Git 对象以深度 1 拉取到一个私有的临时裸仓库，并作为 blob 读取，因此不存在工作树，检出过滤器、LFS 下载和符号链接都不会生效；符号链接和子模块视为不存在。Git 运行时禁用钩子和文件系统监视器、不处理子模块、只允许 https 和 ssh 传输协议，并且不继承除 `GIT_SSH` 和 `GIT_SSH_COMMAND` 之外的 `GIT_*` 变量。你配置的 ssh 程序和 `GIT_SSH_COMMAND` 优先；两者都没有时，ssh 以批处理模式运行，因此不会等待输入。超过 1 MiB 的 manifest、语言文件和工作区文件会被拒绝。私有仓库使用你的 Git 凭据配置；可以用 `url.<base>.insteadOf` 把 https URL 改为通过 ssh 访问。
 
-Index content is what the packages claim about themselves. Review the list you publish: a listed repository can use any package name.
+索引内容是各个包对自身的声明。请审查你发布的列表：列出的仓库可以使用任意包名。
 
-## Limits
+## 限制
 
-- GitHub token permissions and API rate limits apply; refused or rate-limited requests warn and omit the affected counts.
-- Cached package data does not make a run offline: source documents/refs and enabled metrics are requested on each run. Unreachable metric APIs remove those counts from the output, without reusing stale values; source failures follow the exit-status rules above.
-- A Git server must allow fetching a commit by its SHA, as GitHub, GitLab, and Gitea do. When a server refuses, the generator fetches the tags and the default branch by name, which fails if a ref moved after it was listed.
-- Registry tokens from `.npmrc` are not applied; only public or unauthenticated registries work.
-- Git never prompts for credentials. A repository that needs them must be readable through a credential helper or an ssh agent.
+- 请求受 GitHub 令牌权限和 API 速率限制约束；请求被拒绝或受到速率限制时，会发出警告并省略受影响的计数。
+- 已缓存包数据不表示运行可以离线完成：每次运行仍会请求来源文档或引用以及已启用的指标。指标 API 无法访问时，输出会移除这些计数，不复用陈旧值；来源获取失败遵循上述退出状态规则。
+- Git 服务器必须允许按 SHA 拉取提交，GitHub、GitLab 和 Gitea 都允许。服务器拒绝时，生成器按名称拉取标签和默认分支；如果某个引用在列出之后移动了，这一步会失败。
+- 生成器不使用 `.npmrc` 中的注册表令牌；只支持公开或无需认证的注册表。
+- Git 从不提示输入凭据。需要凭据的仓库必须能通过凭据助手或 ssh agent 读取。

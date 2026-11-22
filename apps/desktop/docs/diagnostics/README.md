@@ -1,78 +1,76 @@
 ---
-description: "Use this reference when recovering Desktop failures or collecting reports; it explains report contents, operation history, and shutdown limits."
+description: "排查 Desktop 故障或收集报告时阅读，了解恢复操作、报告内容、操作历史和退出限制。"
 ---
 
-# Desktop recovery and diagnostics
+# Desktop 故障恢复与诊断
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+本参考文档说明 Desktop 的原生故障恢复、诊断报告、近期插件操作记录，以及采集和退出时的限制。
 
-This reference describes Desktop native failure recovery, diagnostic reports, recent plugin operation records, and collection and shutdown limits.
+## 目录
 
-## Table of Contents
-
-- [Recover from a failure](#recovery)
-- [Report contents](#report-contents)
-- [Recent operation records](#operation-records)
-- [Collection and shutdown](#collection-and-shutdown)
+- [遇到故障怎么办](#recovery)
+- [报告包含什么](#report-contents)
+- [近期操作记录](#operation-records)
+- [采集与退出行为](#collection-and-shutdown)
 
 <a id="recovery"></a>
 
-## Recover from a failure
+## 遇到故障怎么办
 
-Fatal main-window creation, main-document loading, preload, renderer, Web initialization, or backend failures open one native recovery dialog per application process. It shows a bounded tail of the first error, notes any truncation, and offers “Exit”, “Restart”, “Disable third-party plugins, back up profile patch, and restart”, and “Get diagnostic report” while report writing is pending or after it succeeds. Startup failures retain the Web loading page and spinner; runtime failures retain the current page. Expected shutdowns, cancelled navigation, and ordinary requests do not trigger recovery. The shared Web plugin manager reports package-operation errors; Host startup failures after plugin changes enter native recovery. There is no startup timeout heuristic. A listener failure containing `listen EADDRINUSE` replaces the diagnostics and reinstall advice with guidance to quit other running DSH instances, and offers “Exit”, “Restart”, and “Get diagnostic report” while report writing is pending or after it succeeds.
+主窗口创建、主文档加载、preload、渲染器、Web 初始化或后端的致命失败，会在每个应用进程中打开一次原生恢复对话框。对话框显示首次错误末尾的限长摘要，标明截断情况，并提供“退出”“重启”“禁用第三方插件、备份 profile patch 并重启”，以及报告仍在保存或已保存时的“获取诊断报告”。启动失败保留 Web 加载页和动画；运行中失败保留当前页面。预期关闭、取消导航和普通请求错误不会触发恢复。共享 Web 插件管理器报告包操作错误；插件变更后的 Host 启动失败会进入原生恢复。不通过启动超时推断故障。包含 `listen EADDRINUSE` 的监听失败以退出其他正在运行的 DSH 实例的提示替代诊断和重装建议，提供“退出”“重启”，以及报告仍在保存或已保存时的“获取诊断报告”。
 
-Recovery uses the last confirmed Desktop language from the local cache before Host settings are available; an absent or invalid cache falls back to system languages.
+Host 设置可用前，恢复对话框使用本地缓存中最后确认的 Desktop 语言；缓存不存在或无效时回退到系统语言。
 
-Recovery waits for Host shutdown before changing plugin activation. The native recovery action calls the shared app-boot recovery function under the profile transaction lock. It disables third-party bundles and renames the profile’s `cordis.patch.yml` to `cordis.patch.yml.bak-<timestamp>` (with an ordinal on collisions) without parsing it; the next startup creates an empty patch. Installed packages and earlier backups remain. The home-level patch is unchanged. The Electron console records the backup path (or its absence) and the unchanged home-level patch. Invalid profile data, rename failures, or write failures are reported as recovery-operation errors; completed changes remain, and Desktop does not restart as though recovery succeeded. Desktop has no profile-reset action or emergency HTML document.
+恢复操作等待 Host 关闭后才修改插件启用状态。原生恢复操作在 profile 事务锁内调用共享 app-boot 恢复函数。它禁用第三方 bundle，并将 profile 的 `cordis.patch.yml` 重命名为 `cordis.patch.yml.bak-<timestamp>`（重名时追加序号），无需解析；下次启动创建空 patch。已安装包和已有备份保留。home 级 patch 不变。Electron 控制台记录备份路径（或原文件不存在）以及 home 级 patch 未修改。profile 数据无效、重命名失败或写入失败会作为恢复操作错误报告；已完成的修改保留，Desktop 不会假装恢复成功后重启。Desktop 不提供 profile 重置操作或应急 HTML 文档。
 
 <a id="report-contents"></a>
 
-## Report contents
+## 报告包含什么
 
-Native dialog details include at most 1,200 UTF-16 code units and eight diagnostic lines, plus the crash report path or its pending/unavailable status. Retrieving a pending or unavailable report preserves any recovery-operation failure headline and details. Configuration paths and startup entries precede the composition inventory so plugin rows cannot displace them when output is truncated. Host error diagnostics retain only the last 64 Ki characters written to stderr. Earlier output is discarded so a long-running Host does not grow the shell’s diagnostic buffer indefinitely.
+原生弹窗详情最多包含 1,200 个 UTF-16 代码单元和八行诊断，并附上崩溃报告路径或仍在保存、无法保存的状态。获取仍在保存或无法保存的报告时，保留恢复操作失败的标题和详情。配置路径和启动条目排在组合清单之前，避免输出截断时被插件记录挤掉。Host 错误诊断仅保留 stderr 输出的最后 64 Ki 个字符。更早的输出会被丢弃，避免长期运行的 Host 使壳的诊断缓冲区无限增长。
 
-Before the first fatal dialog opens, Electron writes a crash report to the platform logs directory (`app.getPath('logs')`: `~/Library/Logs/DeepSeek Harness` on macOS, `logs` under the application’s `userData` directory on Windows and Linux), waiting at most one second for the write; a slow or failed write shows the dialog with an explicit pending or unavailable status. Get diagnostic report checks the same write and reveals a saved file in the system file manager without restarting or stopping the Host; a write that completes after the initial deadline remains available. The user attaches that file to a support ticket. The attachment contains the original failure; later recovery-operation errors remain in the dialog and require a separate screenshot. Retrieving a saved report shows its sharing or reveal-failure heading while retaining the recovery error details. If writing fails, the dialog hides Get diagnostic report and suggests providing a screenshot.
+首个致命弹窗打开前，Electron 会向平台日志目录（`app.getPath('logs')`：macOS 为 `~/Library/Logs/DeepSeek Harness`，Windows 与 Linux 为应用 `userData` 目录下的 `logs`）写入一份崩溃报告，最多等待写入一秒；写入缓慢或失败时明确显示仍在保存或无法保存。“获取诊断报告”检查同一次写入，并在系统文件管理器中定位已保存的文件，不停止 Host 或重启；超过首次等待期限后写入完成的文件仍可获取。用户可将文件作为工单附件。附件只包含最初的故障；后续恢复操作错误保留在对话框中，需要另行截图。获取已保存报告会显示分享或打开失败的标题，同时保留恢复错误详情。写入失败时隐藏获取报告按钮，并提示提供窗口截图。
 
-The file `crash-<UTC time>-<source>.log` records the source (`host` for a Host exit, `web-boot` for a renderer boot failure, `renderer` for a renderer or document failure, `main` for a shell error), whether the backend had reached ready, application and runtime versions, the error with its enumerable properties and cause chain (cut at 256 KiB), the Host’s own error and explicitly selected startup metadata (at most 64 Ki characters, including a truncation notice; startup errors reserve space for metadata by limiting the original error and startup-entry details to 8 Ki characters each, with explicit truncation notices) when the Host reported a startup failure over IPC before exiting, and the primary window’s recent error-level console output (at most 64 KiB).
+文件 `crash-<UTC 时间>-<source>.log` 记录来源（`host` 为 Host 退出、`web-boot` 为渲染进程启动失败、`renderer` 为渲染进程或文档失败、`main` 为壳自身错误）、后端是否已就绪、应用与运行时版本、包含可枚举属性与 cause 链的错误（截至 256 KiB）、Host 在退出前通过 IPC 报告启动失败时的错误及显式选择的启动元数据（最多 64 Ki 个字符，包含截断提示；启动错误的原始错误文本和启动条目详情分别限制为 8 Ki 个字符，并明确标注截断，为结构化元数据保留空间），以及主窗口最近的 error 级 console 输出（最多 64 KiB）。
 
-A Host exit report therefore contains the retained stderr tail, which may include plugin output. A fatal failure during shutdown writes a report without opening a dialog. Files are owner-only where the platform supports it; startup keeps the ten newest reports and removes older ones without touching other files in the directory.
+因此 Host 退出报告包含保留的 stderr 尾部，其中可能含有插件输出。关闭过程中的致命失败只写报告、不弹窗。平台支持时文件仅所有者可读；启动时保留最新十份报告并删除更早的，不触碰目录中的其他文件。
 
 <a id="operation-records"></a>
 
-## Recent operation records
+## 近期操作记录
 
-Operation records and the application single-instance lock are isolated by `userData`; the shared platform logs directory does not store operation records. The reader only reads the two operation files under `userData/plugin-operations`. Repairing an unfinished append preserves complete lines in the current segment and the previous segment.
+操作记录目录与应用单实例锁均按 `userData` 隔离；共享平台日志目录不用于保存操作记录。读取器只读取 `userData/plugin-operations` 下的两个操作记录文件。修复未写完的尾行时保留当前段的完整行与上一段。
 
-Version-exemption changes reuse the bundle enable/disable record fields. When the exemption and installed versions match, the record cannot distinguish an exemption change from a bundle toggle.
+版本豁免变更复用 bundle 启停记录字段。豁免版本与安装版本相同时，记录无法区分豁免变更与 bundle 开关。
 
-Host `transportDropped` is a lower bound as of the last successful delivery; Desktop rejects malformed or mismatched-run records without adding them to that counter.
+Host 的 `transportDropped` 只表示最近一次成功发送时的计数下界；Desktop 拒绝的非法或运行 ID 不匹配记录不计入该值。
 
-The journal retains two 256 KiB segments, accepts records up to 4 KiB, and bounds queued writes to 64 KiB.
+操作历史保留两个 256 KiB 文件段，单条记录不超过 4 KiB，排队写入不超过 64 KiB。
 
-Exit, recovery restart and installer preparation wait at most 500 ms for queued writes; a timeout disables further writes and later drains return immediately without another wait, while an already-issued OS request may still settle.
+退出、恢复重启和安装准备最多等待排队写入 500 ms；超时会停用后续写入，此后的排空调用立即返回，不会再次等待；但已经发出的操作系统请求仍可能随后结束。
 
-Records cover manager operations observed after Host startup, not direct CLI commands or manual file changes. Package-manager output remains in its existing detailed logs and is not copied into this summary. Missing records, a start without an end, and damaged history do not establish a successful operation. This collection does not diagnose kernel hangs, OOM or native crashes.
+记录覆盖 Host 启动后观察到的管理器操作，不包含直接执行的 CLI 命令或手工文件修改。包管理器输出保留在原有详细日志中，不复制到摘要。缺失记录、只有开始没有结束的操作以及损坏的历史，都不能说明操作已成功。此收集不诊断内核卡死、OOM 或原生崩溃。
 
-Persistence failures also disable the writer for the rest of this shell lifetime, including after recovery or installer failure. This bounds repeated failing I/O and avoids appending behind an uncertain partial write. Restarting the application creates a new writer. Omission and repair counters cover only the current shell lifetime. Retained segments provide a larger local troubleshooting window than the deliberately smaller report attachment.
+持久化失败也会在本次壳生命周期内停用写入，包括恢复或安装器失败后继续运行的情况，以限制重复失败的 I/O，并避免在可能残缺的写入后追加记录。重启应用会创建新写入器。遗漏和修复计数仅覆盖当前壳生命周期。保留文件段提供比报告附件更大的本地排障历史窗口。
 
 <a id="collection-and-shutdown"></a>
 
-## Collection and shutdown
+## 采集与退出行为
 
-After saving the basic report, the shell attempts to append recent plugin-management records in an isolated Worker packaged as `lib/operation-report-worker.js` inside `app.asar`. The completion marker and omission counters distinguish a finished collection from missing or partial material.
+基本报告保存后，壳会尝试通过独立 Worker 追加近期插件管理记录；该 Worker 以 `lib/operation-report-worker.js` 打包在 `app.asar` 中。完成标记和遗漏计数用于区分已完成收集与缺失或不完整的材料。
 
-The Host announces its run ID before profile loading; reported Host errors carry that ID as `hostRunId`, matching operation records from the same lifetime. Failure before this announcement leaves the run identity unknown. Recent operations are context, not proof of cause.
+Host 在加载 profile 前报告运行 ID；Host 错误中的 `hostRunId` 与该次运行的操作记录使用同一标识。在此通知之前发生的失败，其运行标识仍为未知。近期操作只是上下文，不是因果证据。
 
-Collection reads only two owned files under `userData/plugin-operations`, at most 64 KiB and 100 records; the complete appended section is limited to 64 KiB.
+收集只读取 `userData/plugin-operations` 下归其管理的两个文件，最多读取 64 KiB 和 100 条记录；完整追加内容不超过 64 KiB。
 
-Only a predecessor whose handle reports the exact bigint file identity of the segment already read is deduplicated as already collected: the predecessor is skipped, so its records are not collected twice, and records appended to it after it was read are not collected. On Windows, opening a segment retries `EACCES`, `EBUSY` and `EPERM` up to four times with a 10→40 ms backoff before the segment counts as unavailable, cancellation ends those retries, and `filesRead` counts owned segments that yielded bytes.
+只有前驱段的句柄给出与已读段完全相同的 bigint 文件身份时才判为已收集：该前驱段会被跳过，因此它的记录不会被重复收集，但在被读取之后追加到它的记录不会被收集。Windows 上打开文件段遇到 `EACCES`、`EBUSY`、`EPERM` 时最多重试四次，退避 10→40 ms，之后该段才计入不可用；取消会结束这些重试；`filesRead` 统计实际读到字节的所属文件段。
 
-The 500 ms collection budget reserves its final 100 ms for cooperative cancellation before requesting forced Worker termination; completion waits for its exit. Application exit, recovery exit or restart, and confirmed update installation also cancel collection and wait at most 500 ms for Worker exit. A rejected shutdown cleanup is logged without skipping the remaining cleanup waits. Shutdown prevents late basic-report saves from starting another collector. An update installation failure permits future collection again.
+500 ms 收集预算中的最后 100 ms 用于协作取消，随后才请求强制终止 Worker；只有 Worker 退出后才确认收集结束。应用退出、恢复退出或重启、确认安装更新也会取消收集，并最多等待 500 ms 确认 Worker 退出。退出清理中的拒绝会被记录，但不会跳过其他清理等待。退出过程中，延迟保存完成的基本报告不会再启动收集器。更新安装失败后可再次收集。
 
-Worker messages interrupt collection between bounded records; an in-flight file open, stat, read or close must settle, and synchronous parsing cannot be preempted within one record. The final append uses an abort signal but can leave partial bytes. Forced termination remains the fallback when cooperative cleanup does not finish.
+Worker 在有界记录之间处理取消消息；已经发出的文件打开、状态读取、读取或关闭操作必须等待完成，单条记录的同步解析不能被抢占。最后的追加写入传入取消信号，但仍可能留下部分字节。协作清理未及时完成时仍需强制终止。
 
-The basic report remains available independently. Only one collector runs at a time; concurrent reports keep their basic content without an auxiliary section. A rejected termination request does not release that slot until exit is observed. Get diagnostic report can reveal the basic file before the append finishes. The completion marker confirms only that collection ended, not that all operations were captured; queued bytes and omission counters describe missing material.
+基本报告独立可用。同时只运行一个收集器；并发报告保留基本内容，不追加辅助部分。终止请求被拒绝时，必须观察到退出才能释放该名额。“获取诊断报告”可能在追加完成前定位基本文件。完成标记仅表示收集结束，不表示捕获了全部操作；排队字节数和遗漏计数说明缺失材料。
 
-See [local verification](../../tests/README.md#verification-diagnostics) for fault setup and acceptance steps, and the [Desktop README](../../README.md) for the application overview and development entry points.
+故障构造与验收步骤见[本地验证](../../tests/README.md#verification-diagnostics)；应用概览与开发入口见 [Desktop README](../../README.md)。
