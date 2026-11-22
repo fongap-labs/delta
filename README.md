@@ -2,6 +2,10 @@
 
 Delta 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的桌面应用发行版。当前代码来自固定的 `baseline/deepseek-harness`，在此基础上应用 Delta 品牌与发行约定。
 
+## 文档入口
+
+仓库技术资料统一从 [中文文档导航](docs/README.md) 查阅。跨仓库合并与测试治理以 [Action Worker 共用规范](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 为准。
+
 ## 当前实现范围
 
 - **应用名称**：Delta。保留上游 `dsh` 命令、Cordis API、插件标识和协议，以避免破坏已有插件。

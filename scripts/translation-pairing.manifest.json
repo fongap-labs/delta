@@ -29,6 +29,7 @@
     "benchmarks/long-session-browser/README.md",
     "benchmarks/session-corpus/README.md",
     "docs/AGENTS.md",
+    "docs/README.md",
     "docs/cookbook/adding-a-package.md",
     "docs/cookbook/adding-a-plugin-preview.md",
     "docs/cookbook/adding-a-remote-api.md",
