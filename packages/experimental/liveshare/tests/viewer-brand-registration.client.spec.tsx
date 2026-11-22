@@ -3,7 +3,7 @@
  * The viewer's brand seats shadow the shipped brand instead of colliding with it.
  *
  * `sidebar.brand.mark` and `sidebar.brand.name` are single slots. A served viewer page mounts the
- * owner's own plugins, so the shipped brand — including `ui-brand-official` on an official build —
+ * owner's own plugins, so the shipped brand — including the Delta sidebar-brand plugin in a normal build —
  * already occupies both slots at the default rank. Registering the viewer entries at that rank is
  * the failure this suite pins: the single-slot conflict leaves the viewer entry unregistered and the
  * shipped brand keeps rendering.
