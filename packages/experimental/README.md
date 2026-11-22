@@ -80,6 +80,9 @@ Promotion requires a named product role, documented public behavior and limitati
 | [`cua-bundle`](cua-bundle/README.md) | Optional Computer Use switch for PTC sessions | — |
 | [`cua-mcp`](cua-mcp/README.md) | Computer Use as an MCP stdio server for external agent harnesses, served by the `cua-mcp` profile | — |
 | [`timeline`](timeline/README.md) | Task trees, progress bars, and interval reports for the current session | `ctx.timeline` |
+| [`browser-use-playwright-mcp`](browser-use-playwright-mcp/README.md) | Playwright browser tools over MCP | `ctx.browserUse` |
+| [`browser-use-runtime`](browser-use-runtime/README.md) | Session-owned browser resources shared by experimental providers | — |
+| [`browser-use-bundle`](browser-use-bundle/README.md) | Opt-in Playwright MCP browser capability bundle, disabled by default | — |
 | [`inspector`](inspector/README.md) | Cross-realm CDP hub for Host debugging, Client Runtime inspection, network capture, and Cordis trees | `ctx.inspector` |
 | [`session-inspector`](session-inspector/README.md) | Sidebar tables for raw Session logs and Chat nodes | — |
 | [`inspector-profile`](inspector-profile/README.md) | Optional Web bundle for Session log and Chat node inspection | — |

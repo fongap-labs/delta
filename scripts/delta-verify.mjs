@@ -90,6 +90,8 @@ assert.doesNotMatch(basePatch, /^    - id: (session-log-deepseek|session-telemet
 const webPatch = text('packages/bundle/web-app/cordis.patch.yml')
 assert.doesNotMatch(webPatch, /^    - id: (desktop-product-telemetry|product-analytics|ui-settings-session-log)$/m)
 const desktopMain = text('apps/desktop/src/main.ts')
+assert.match(desktopMain, /LocalDiagnosticJournal/)
+assert.match(text('apps/desktop/src/local-diagnostics.ts'), /MAX_BYTES = 128 \* 1024/)
 assert.doesNotMatch(desktopMain, /writeCrashReport|persistCrashReport|productAnalytics\/report|productAnalytics\/watchPolicy|rendererConsole|OperationJournal/)
 
 import { existsSync } from 'node:fs'
