@@ -6,6 +6,5 @@ head:
       content: 0; url=./guide/quickstart
 ---
 
-# DeepSeek Harness
+# Delta
 
-English | [中文](index.zh.md)
