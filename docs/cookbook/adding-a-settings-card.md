@@ -1,10 +1,8 @@
-# Cookbook: live configuration forms
+# 实践指南：即时配置表单
 
-English | [中文](adding-a-settings-card.zh.md)
+在插件 Config schema 中声明即时字段，并通过产品所属的设置卡片提供编辑入口。导出的 `Config` 接口描述插件收到的值，包括每个 `Volatile<T>` 引用。
 
-Declare live fields in the plugin Config schema and expose them through a product-owned settings card. The exported `Config` interface describes the values received by the plugin, including each `Volatile<T>` reference.
-
-## 1. Declare live fields
+## 1. 声明即时字段
 
 ```ts
 import type { Context, Volatile } from '@deepseek-ai/cordis'
@@ -27,23 +25,23 @@ export function apply(ctx: Context, config: Config): void {
 }
 ```
 
-Read `.get()` when starting an operation. A request that needs a consistent snapshot captures its values once. Use `.check()` for cross-field Config validation; these checks run on the Host before persistence and are omitted from serialized form schemas.
+在操作开始时读取 `.get()`。需要一致快照的请求一次性捕获所需值。使用 `.check()` 进行跨字段 Config 验证；这些检查在持久化前由 Host 执行，不进入序列化的表单 schema。
 
-## 2. Compose the plugin
+## 2. 组合插件
 
-Give each instance a unique profile entry id. The base bundle mounts settings and config-editor. For custom profiles, see their package READMEs before mounting the same services.
+为每个实例分配唯一的 profile 条目 id。基础组合包挂载 settings 和 config-editor。自定义 profile 挂载这些服务前，请阅读相应包的 README。
 
-`role('secret')` keeps a value out of form responses. Use credential references for values managed by the credentials domain. Ordinary fields stay out of the settings schema.
+`role('secret')` 阻止值进入表单响应。对于凭据域管理的值，使用凭据引用。普通字段不进入设置 schema。
 
-## 3. Verify editing
+## 3. 验证编辑
 
-Change a field in Plugins and save. Verify the profile patch, the next consumer operation, unchanged plugin instance identity, and restoration after restart. Reject an invalid value and verify that neither the file nor the live value changed.
+在插件页面修改字段并保存。验证 profile patch、消费者下一次操作、插件实例标识不变，以及重启后的恢复。提交无效值，并确认文件和即时值均未改变。
 
-Custom plugin pages receive `form.state` and `form.mutate(operations, expectedRevision)` from the Plugins page owner. The Host validates full Config and applies edits through ConfigEditor and volatile HMR. The [Plugins page README](../../packages/client/ui-plugin-manager/README.md#configuration-pages) lists the slots such a page registers into and how a `settings.section` entry also appears there; [ui-settings-shell](../../packages/client/ui-settings-shell/README.md) is an existing page.
+自定义插件页面从 Plugins 页面所有者接收 `form.state` 和 `form.mutate(operations, expectedRevision)`。Host 校验完整 Config，并通过 ConfigEditor 和 volatile HMR 应用修改。[插件页面 README](../../packages/client/ui-plugin-manager/README.zh.md#configuration-pages) 列出此类页面可注册的 slot，以及 `settings.section` 条目如何同时出现在那里；[ui-settings-shell](../../packages/client/ui-settings-shell/README.zh.md) 是一个现有页面。
 
-## 4. Contribute to another plugin's page
+## 4. 向其他插件的页面贡献内容
 
-A plugin with something to say about a bundle, a row, or an official plugin it does not own registers into `plugins.detail.actions` (a control at the head of the page), `plugins.detail.badge` (a tag beside the title), or `plugins.detail.section` (a section under the page's own content). Every entry is rendered with the page's `subject` — `{ kind: 'bundle', pkg }`, `{ kind: 'row', pkg, row }`, or `{ kind: 'item', id }` — and returns null for a subject it has nothing for:
+对某个不属于自己的组合包、行或官方插件有话要说的插件，注册进 `plugins.detail.actions`（页头的控件）、`plugins.detail.badge`（标题旁的标签）或 `plugins.detail.section`（页面自身内容之下的区块）。每个条目都以页面的 `subject` 渲染——`{ kind: 'bundle', pkg }`、`{ kind: 'row', pkg, row }` 或 `{ kind: 'item', id }`——对无话可说的 subject 返回 null：
 
 ```tsx ignore-check
 ctx.slots.inject('plugins.detail.badge', () => ctx.slots.register({
@@ -53,11 +51,11 @@ ctx.slots.inject('plugins.detail.badge', () => ctx.slots.register({
 }, ({ t, subject }) => subject.kind === 'bundle' && hasUpdate(subject.pkg) ? <Tag tone="info">{t('update')}</Tag> : null))
 ```
 
-## 5. Where the browser half rides
+## 5. 浏览器半侧挂在哪里
 
-The browser half is served to the page by the [client module system](../../packages/client/modules), which scans the enabled Loader entries for packages declaring `dsh.client` and serves each one's built `./client` export — but it attaches a package's half to the Loader row whose specifier is the bare package name. A row mounted from a subpath export never carries a half, so a bundle that splits one package into several rows keeps its half on the root row, and every page it registers goes away when that row is switched off. A sub-plugin whose page must outlive the other rows ships as its own package.
+浏览器半侧由[客户端模块系统](../../packages/client/modules)送到页面：它扫描已启用的 Loader 条目，找出声明了 `dsh.client` 的包，送出每个包构建好的 `./client` 导出——但它只把一个包的半侧挂在说明符恰为裸包名的那一行上。从子路径导出挂载的行永远不带半侧，因此把一个包拆成多行的组合包，其半侧留在根行上，它注册的每个页面都随根行关闭而消失。需要在其他行关闭时仍保留页面的子插件，应作为独立的包发布。
 
-The built `./client` file must be in the client module system's lazy-CJS factory format: one script that registers the package name and a `factory(require)` with the page's module loader, described in the [client module system's README](../../packages/client/modules/README.md). The `clientBundle` tsdown preset that emits it lives in `packages/client/tsdown.client.ts` rather than in a published package, so a package outside this repository reproduces that build itself.
+构建出的 `./client` 文件必须是客户端模块系统的 lazy-CJS factory 格式：一段脚本，向页面的模块加载器登记包名和一个 `factory(require)`，见[客户端模块系统的 README](../../packages/client/modules/README.zh.md)。生成它的 `clientBundle` tsdown 预设位于 `packages/client/tsdown.client.ts`，而不在任何已发布的包里，因此仓库之外的包要自己复刻这一步构建。
 
 ```jsonc
 {
@@ -69,4 +67,4 @@ The built `./client` file must be in the client module system's lazy-CJS factory
 }
 ```
 
-A companion package for a built-in namespace is the same browser half in a client-only package with an empty Host `apply`, listed in the web composition's plugin roster ([`packages/bundle/web-app/cordis.patch.yml`](../../packages/bundle/web-app/cordis.patch.yml)) and registering into `plugins.item` through `ctx.configForms.whileServed`, so the page exists exactly while the Host serves the namespace.
+内置命名空间的伴生包就是同样的浏览器半侧放在一个纯客户端包里，宿主 `apply` 为空，列入 Web 组合的插件花名册（[`packages/bundle/web-app/cordis.patch.yml`](../../packages/bundle/web-app/cordis.patch.yml)），并通过 `ctx.configForms.whileServed` 注册进 `plugins.item`，页面因此恰好在 Host 服务该命名空间期间存在。

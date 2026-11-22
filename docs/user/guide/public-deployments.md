@@ -1,37 +1,35 @@
-# Publish the Web UI behind a reverse proxy
+# 在反向代理之后发布 Web UI
 
-English | [中文](public-deployments.zh.md)
-
-`dsh --profile web` serves the GUI on a loopback port, so a browser on another machine cannot reach it, and the process knows nothing about the address you do use. A reverse proxy in front of it owns that external leg — the public host name, TLS, and the path prefix it strips before forwarding to the listener — and `--public-url` tells DSH which address browsers use:
+`dsh --profile web` 在 loopback 端口上提供 GUI，因此其他机器上的浏览器无法访问它，进程也无从得知你实际使用的地址。它前面的反向代理拥有这条外部链路——公开主机名、TLS，以及转发到监听器之前剥离的路径前缀——`--public-url` 则告诉 DSH 浏览器使用的是哪个地址：
 
 ```sh
 dsh --profile web --public-url https://app.example/ui/ --trusted-host app.example
 ```
 
-## What `--public-url` advertises
+## `--public-url` 公告什么
 
-`--public-url` accepts an `http://` or `https://` root with an optional mount prefix and normalizes it to end in `/`. It supplies the printed and opened startup URL, `DSH_WEB_URL`, and the Web GUI URL in the agent's runtime context. The webserver keeps serving origin-root routes and never learns the mount. The `publicUrl` config field publishes the same advertisement.
+`--public-url` 接受可带挂载前缀的 `http://` 或 `https://` 根，并把它归一化为以 `/` 结尾。它提供打印与打开的启动 URL、`DSH_WEB_URL`，以及 agent 运行时上下文中的 Web GUI URL。webserver 继续提供 origin-root 路由，且从不了解挂载。`publicUrl` 配置字段发布同样的公告。
 
-## What the proxy must do
+## 代理必须做什么
 
-- **Preserve the browser-facing `Host`.** The fence compares the received `Host` against the accepted authorities, so the proxy forwards it unchanged instead of rewriting it to the listener's address.
-- **Strip the mount prefix.** The listener answers origin-root routes, so a request for `/ui/api/...` must arrive as `/api/...`.
-- **Forward upgrades.** Every request and WebSocket upgrade the page opens must reach the listener with its `Upgrade` and `Connection` headers intact; TLS terminates on the proxy's external leg when it serves HTTPS.
-- **Rewrite cookie scope.** A backend serving plain HTTP issues host-only `Path=/` cookies without `Secure`; the proxy then rewrites `Path` to the mount (`/ui/`) and adds `Secure` on its HTTPS leg. A backend listener serving its own TLS already marks the cookie `Secure`, so the proxy only rewrites `Path`.
-- **Redirect the bare mount.** `/ui/` is the only entry: it alone exchanges the launch token for the session cookie, and it or `/ui/index.html` serves the document to a browser that already holds that cookie, because the served document resolves URLs against its own directory. A request to `/ui` must arrive as `/ui/`, and the stripped backend cannot reconstruct that external path.
+- **保留浏览器可见的 `Host`。** 栅栏把收到的 `Host` 与被接受的 authority 比对，因此代理应原样转发，而不要改写成监听器的地址。
+- **剥离挂载前缀。** 监听器应答的是 origin-root 路由，因此对 `/ui/api/...` 的请求必须以 `/api/...` 抵达。
+- **转发升级请求。** 页面发出的每个请求与 WebSocket 升级都必须连同其 `Upgrade` 与 `Connection` 头抵达监听器；代理对外提供 HTTPS 时，TLS 在其外部链路上终止。
+- **改写 cookie 作用域。** 以明文 HTTP 提供服务的后端签发不带 `Secure` 的 host-only `Path=/` cookie；代理再把 `Path` 改写为挂载（`/ui/`），并仅在其 HTTPS 链路上添加 `Secure`。监听器自身提供 TLS 时 cookie 已带 `Secure`，代理只需改写 `Path`。
+- **重定向裸挂载。** `/ui/` 是唯一入口：只有它把启动 token 换成会话 cookie；已持有该 cookie 的浏览器可由它或 `/ui/index.html` 取得文档，因为所提供的文档以自身目录解析 URL。对 `/ui` 的请求必须以 `/ui/` 抵达，而被剥离路径的后端无法重建该外部路径。
 
-## Trust the authority browsers use
+## 信任浏览器使用的 authority
 
-The fence accepts loopback, the listener's own bind address, and every authority `--trusted-host` names. A browser that reaches the deployment under any other authority gets 403 for every API call, however correct the proxy is, so name the browser-visible authority with `--trusted-host`; advertising it with `--public-url` is display only and does not admit it. An entry without a port matches any port, which suits a tunnel that binds a different one each time. The fence only admits the request; the launch token in the printed URL and the signed session cookie authenticate it. TLS, wherever it terminates, changes none of this: the certificate identifies the server to the browser, not the browser to the server.
+栅栏接受 loopback、监听器自身的绑定地址，以及每个由 `--trusted-host` 点名的 authority。浏览器若以其他任何 authority 访问部署，无论代理多么正确，每个 API 调用都会得到 403，因此请用 `--trusted-host` 点名浏览器可见的 authority；用 `--public-url` 公告它只是展示，并不等于接纳。不带端口的条目匹配任意端口，适合每次绑定不同端口的隧道。栅栏只放行请求；打印 URL 中的启动 token 与签名会话 cookie 才完成认证。无论 TLS 在哪里终止都不改变这一切：证书只是向浏览器标识服务器，而不是向服务器标识浏览器。
 
-Neither the advertised URL nor the fence protects the listening port itself, so restrict the port to the trusted proxy or network.
+无论是公告 URL 还是栅栏都不保护监听端口本身，因此请把端口限制在可信代理或网络内。
 
-## Secure the external leg
+## 保护外部链路
 
-Terminate TLS at the proxy, on the listener itself, or on both; `--public-url` remains an advertisement. An `http://` browser-facing root exposes the launch token in plaintext. An `https://` proxy root protects the browser-to-proxy leg; encryption between proxy and listener depends on the listener's TLS configuration.
+可以在代理处、监听器本身或两者上终止 TLS；`--public-url` 仍只是公告。面向浏览器的 `http://` 根会明文暴露启动 token。`https://` 代理根保护浏览器到代理这一段；代理与监听器之间是否加密取决于监听器的 TLS 配置。
 
-To terminate on the listener, pass `--tls-cert` and `--tls-key`, each a path resolved against the process working directory: the certificate file holds the full chain and the key file an unencrypted PEM private key. DSH never obtains, renews, or watches certificates, and the carrier reads the files once, so replace them and reload the listener or restart the process to change them; startup fails on a missing or invalid pair and never falls back to HTTP. The browser applies its own trust store and name checks, so the certificate must cover the hostname or IP you open. The default port stays 3080. Native TLS needs no proxy, but proxy deployments and `--public-url` remain supported independently. A TLS listener marks session cookies `Secure`; keep the public browser-facing leg HTTPS so browsers can return those cookies.
+要在监听器上终止 TLS，请传入 `--tls-cert` 与 `--tls-key`，两者各是相对进程工作目录解析的路径：证书文件包含完整证书链，密钥文件为不带口令的 PEM 私钥。DSH 从不获取、续期或监视证书，且载体只读取一次文件，因此更换文件后需重新加载监听器或重启进程；文件缺失或无效时启动失败，绝不回退到 HTTP。浏览器使用自己的信任库与名称校验，因此证书必须覆盖你所访问的 hostname 或 IP。默认端口仍为 3080。原生 TLS 不需要代理，但代理部署与 `--public-url` 仍分别受支持。TLS 监听器会给会话 cookie 加上 `Secure`；公开部署的浏览器侧链路应保持 HTTPS，才能让浏览器回传这些 cookie。
 
-The printed URL carries a process credential, so share it only with intended users.
+打印的 URL 携带进程凭据，只应与预期用户分享。
 
-The [Web app reference](../../../packages/bundle/web-app/README.md#public-deployments) documents the `--public-url`, `--trusted-host`, and `--tls-cert`/`--tls-key` command-line options. In the Web profile, `publicUrl` configures the `web-runtime` row, `trustedHosts` configures the [Connection row](../../../packages/client/connection/README.md), and `tls` configures the [webserver row](../../../docs/subsystems/web-server.md#config).
+[Web 应用参考](../../../packages/bundle/web-app/README.zh.md#public-deployments)说明 `--public-url`、`--trusted-host` 与 `--tls-cert`/`--tls-key` 命令行选项。在 Web profile 中，`publicUrl` 配置在 `web-runtime` 行，`trustedHosts` 配置在 [Connection 行](../../../packages/client/connection/README.zh.md)，`tls` 配置在 [webserver 行](../../../docs/subsystems/web-server.zh.md#config)。

@@ -1,28 +1,26 @@
-# Create review Sessions from GitHub webhooks
+# 通过 GitHub Webhook 创建评审会话
 
-English | [中文](github-review.zh.md)
+此可选 overlay 会为 `dsh web` 增加一个签名 GitHub 端点。当已配置仓库中的 pull request 从 draft 变为 ready for review 时，规则会在该仓库的 Web Workspace 下创建带标题的根 Session，并启动只读评审提示词。
 
-This opt-in overlay adds a signed GitHub endpoint to `dsh web`. When a pull request in the configured repository changes from draft to ready for review, the rule creates a titled root Session under the repository's Web Workspace and starts a read-only review prompt.
+## 前置条件
 
-## Prerequisites
+- 一个可由 DSH 注册为 Web Workspace 的本地 checkout。
+- 一个可通过 `DSH_GITHUB_WEBHOOK_SECRET` 凭据引用访问的高熵 GitHub webhook 密钥。
+- 一个可以把单个公共 URL 转发到 loopback 监听器的 TLS 反向代理或 tunnel。
+- GitHub webhook 订阅 Pull requests 事件，且 content type 为 `application/json`。
 
-- A local checkout that DSH may register as a Web Workspace.
-- A high-entropy GitHub webhook secret available through the `DSH_GITHUB_WEBHOOK_SECRET` credential reference.
-- A TLS reverse proxy or tunnel that can forward one public URL to the loopback listener.
-- GitHub webhook subscription to the Pull requests event with content type `application/json`.
+overlay 默认使用启动目录作为 Workspace，并监听 `127.0.0.1:3081`。可通过 `DSH_GITHUB_REVIEW_WORKSPACE` 与 `DSH_GITHUB_WEBHOOK_PORT` 覆盖它们。
 
-The overlay defaults the Workspace to the launch directory and the listener to `127.0.0.1:3081`. Override them with `DSH_GITHUB_REVIEW_WORKSPACE` and `DSH_GITHUB_WEBHOOK_PORT`.
+## 启动 DSH
 
-## Start DSH
-
-Generate a secret and retain the same value across restarts:
+生成密钥，并在重启后继续使用同一值：
 
 ```sh
 export DSH_GITHUB_WEBHOOK_SECRET="$(openssl rand -hex 32)"
 printf '%s\n' "$DSH_GITHUB_WEBHOOK_SECRET"
 ```
 
-Install both experimental packages into the Web profile first. Profiles do not install peers automatically; the GitHub adapter needs the webhook runtime explicitly:
+先把两个实验包安装到 Web profile。Profile 不会自动安装 peer；GitHub 适配器需要显式安装 webhook 运行时：
 
 ```sh
 dsh plugin --profile web add @deepseek-ai/dsh-webhook @deepseek-ai/dsh-webhook-github
@@ -30,15 +28,15 @@ export DSH_GITHUB_REVIEW_WORKSPACE=/path/to/deepseek-harness
 dsh web --patch "${DSH_HOME:-$HOME/.dsh}/profiles/web/node_modules/@deepseek-ai/dsh-webhook-github/examples/github-review/cordis.yml"
 ```
 
-The adapter distributes the example, which loads from the profile's installation directory so its rule module can resolve profile-installed peers. Do not run the rule from an arbitrary directory outside the profile. To customize it, copy both example files to `$DSH_HOME/profiles/web/github-review/`, edit the configuration, and point `--patch` at that copy of `cordis.yml`; use `~/.dsh` when `DSH_HOME` is unset.
+示例随 GitHub 适配器发布，并从 profile 的安装目录加载，因此规则模块能解析该 profile 安装的 peer。不要把规则单独放到 profile 之外的任意目录运行。需要定制时，将示例的两个文件复制到 `$DSH_HOME/profiles/web/github-review/`，修改其配置并把 `--patch` 指向复制后的 `cordis.yml`；未设置 `DSH_HOME` 时使用 `~/.dsh`。
 
-The repository example lives under `packages/experimental/webhook-github/examples/github-review/`. The CLI does not install webhook packages or list them as Official plugins; installing the packages and supplying the overlay are separate steps.
+仓库中的示例位于 `packages/experimental/webhook-github/examples/github-review/`。Webhook 包不随 CLI 安装，也不出现在官方插件列表中；安装包与提供 overlay 是两个独立步骤。
 
-## Expose the dedicated endpoint
+## 暴露专用端点
 
-The main Web UI and `/api` remain on port 3080. The overlay mounts a second WebServer in an isolated realm; only `POST /github` is registered there, and every other path returns `404`.
+主 Web UI 与 `/api` 继续位于端口 3080。overlay 会在隔离 realm 中挂载第二个 WebServer；其中只注册 `POST /github`，其他路径均返回 `404`。
 
-A Caddy configuration can expose only that listener:
+Caddy 配置可以只暴露该监听器：
 
 ```caddyfile
 hooks.example.com {
@@ -50,7 +48,7 @@ hooks.example.com {
 }
 ```
 
-Configure GitHub with:
+GitHub 配置如下：
 
 ```text
 Payload URL:  https://hooks.example.com/github
@@ -60,17 +58,17 @@ Events:       Pull requests
 Active:       yes
 ```
 
-## Rule behavior
+## 规则行为
 
-The rule accepts only source `primary-github`, repository `deepseek-ai/deepseek-harness`, event `pull_request`, and action `ready_for_review`. It passes the exact head SHA plus selected PR fields to the review prompt, labeling the JSON as untrusted metadata and forbidding file, branch, PR, or GitHub mutation.
+规则只接受来源 `primary-github`、仓库 `deepseek-ai/deepseek-harness`、事件 `pull_request` 与动作 `ready_for_review`。它会把精确 head SHA 和选定 PR 字段传给评审提示词，把 JSON 标为不受信任的元数据，并禁止修改文件、分支、PR 或 GitHub 状态。
 
-The Session request selects the `standard` agent preset and `read-only` permission preset. `workspacePath` is canonicalized through `WorkspaceRegistry.create()`, so the first matching delivery creates the Web Workspace when absent and later deliveries reuse it.
+Session 请求选择 `standard` agent preset 与 `read-only` permission preset。`workspacePath` 通过 `WorkspaceRegistry.create()` 规范化，因此第一次匹配交付会在 Workspace 不存在时创建它，后续交付会复用它。
 
-The HTTP response is intentionally weaker than the Agent outcome: `202` means the signature and JSON were accepted and rule calls were scheduled in memory. It does not mean this rule matched or that a Session was created.
+HTTP 响应刻意弱于 Agent 结果：`202` 表示签名与 JSON 已被接受，规则调用已在内存中调度。它不表示此规则已经匹配，也不表示已创建 Session。
 
-## Programmatic extensions
+## 程序化扩展
 
-`run()` is ordinary trusted JavaScript. A deployment can query an internal policy service before returning a Session request:
+`run()` 是普通受信任 JavaScript。部署可以在返回 Session 请求前查询内部策略服务：
 
 ```js
 const response = await fetch('https://policy.internal/pr-review', {
@@ -82,7 +80,7 @@ const response = await fetch('https://policy.internal/pr-review', {
 if (!response.ok || (await response.json()).automaticReview !== true) return null
 ```
 
-It can also map repositories to different local paths:
+它还可以把仓库映射到不同本地路径：
 
 ```js
 const workspacePath = {
@@ -92,8 +90,8 @@ const workspacePath = {
 if (workspacePath === undefined) return null
 ```
 
-## Delivery semantics
+## 交付语义
 
-The webhook runtime stores no delivery or execution state. Repeated delivery runs the rule and may create another Session. A crash loses rule calls that have not admitted their prompt. After prompt admission, the ordinary Session log, persistence, Workspace, and Agent lifecycle own the work.
+webhook runtime 不存储交付或执行状态。重复交付会运行规则，并可能创建另一个 Session。崩溃会丢失尚未接纳提示词的规则调用。提示词接纳后，工作由普通 Session 日志、persistence、Workspace 与 Agent 生命周期拥有。
 
-The webhook secret authenticates inbound GitHub data only. It grants neither rule code nor the created Agent outbound GitHub access; configure that authority separately when a rule or Agent needs it.
+webhook 密钥只验证入站 GitHub 数据。它不会向规则代码或所创建 Agent 授予出站 GitHub 访问权；规则或 Agent 需要时应单独配置该权限。

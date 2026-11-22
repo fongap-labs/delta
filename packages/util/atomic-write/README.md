@@ -1,46 +1,44 @@
 ---
-description: "Atomic file replacement and cross-process writer locking for packages that must never leave partial, symlink-hijacked, or wider-permission content on disk."
+description: "原子文件替换与跨进程写锁，供绝不允许在磁盘上留下不完整、被符号链接劫持或权限过宽内容的包使用。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-atomic-write
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+使用 `dsh-atomic-write` 替换文件时，不会暴露部分内容，也不会跟随临时路径上的符号链接。它的写锁会跨进程串行化读-修改-写入循环，因此并发写入方不会用陈旧状态相互覆盖。每次替换都会在全新 inode 上使用调用方选择的权限位，从而安全地收窄现有文件的权限。这个库只为锁失败依赖 `dsh-error`，接受字符串和二进制字节数组；它不提供 `cordis.yml` 插件，也不保证崩溃持久性，因为它不调用 `fsync`。
 
-Use `dsh-atomic-write` to replace a file without exposing partial content or following a symlinked temporary path. Its writer lock serializes read-modify-write cycles across processes so concurrent writers cannot overwrite one another with stale state. Each replacement uses caller-selected permission bits on a fresh inode, which safely narrows an existing file's permissions. This library depends only on `dsh-error` for its lock failure and accepts strings and binary byte arrays; it does not provide a `cordis.yml` plugin or crash durability because it does not call `fsync`.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Use `writeFileAtomic` when a file-backed store must replace complete text or binary content without ever exposing a partial, symlink-hijacked, or wider-permission state, and `withFileLock` when several processes read-modify-write the same file. The smallest path is one call with the final content and the replacement's permission bits.
+当文件型存储必须替换完整文本或二进制内容、且绝不允许暴露部分写入、符号链接劫持或权限过宽状态时，使用 `writeFileAtomic`；当多个进程对同一文件执行读-修改-写入循环时，使用 `withFileLock`。最小路径是一次调用，传入最终内容与替换 inode 的权限位。
 
-### Writing a file atomically
+### 原子写入文件
 
 ```ts
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 
 declare const text: string
-await writeFileAtomic('/home/u/.dsh/cordis.patch.yml', text, { mode: 0o600 })
+await writeFileAtomic('/tmp/delta-example/cordis.patch.yml', text, { mode: 0o600 })
 ```
 
-Parent directories are created as needed, and readers observe either the old or the new complete content. On Windows, transient replacement interference reported as `EACCES`, `EBUSY`, or `EPERM` is retried for a bounded interval; any remaining failure removes the temporary file and leaves the target untouched.
+父目录会按需创建，读取方只会观察到旧内容或完整的新内容。在 Windows 上，报告为 `EACCES`、`EBUSY` 或 `EPERM` 的瞬时替换干扰会在有界时间内重试；任何剩余失败都会移除临时文件，并保持目标文件不变。
 
-### Coordinating writers
+### 协调写入方
 
-For a read-render-commit cycle that a bare atomic commit cannot make safe on its own, hold the writer lock around the operation:
+对于单靠原子提交无法保证安全的读-渲染-提交循环，请在操作期间持有写锁：
 
 ```text
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
@@ -48,90 +46,90 @@ import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 declare const render: (previous: string) => string
 declare const readCurrent: () => Promise<string>
 
-await withFileLock('/home/u/.dsh/cordis.patch.yml', async () => {
+await withFileLock('/tmp/delta-example/cordis.patch.yml', async () => {
   const previous = await readCurrent()
-  await writeFileAtomic('/home/u/.dsh/cordis.patch.yml', render(previous), { mode: 0o600 })
+  await writeFileAtomic('/tmp/delta-example/cordis.patch.yml', render(previous), { mode: 0o600 })
 })
 ```
 
-Only writers contend — readers never take the lock — and a contender backs off exponentially and fails with a timed-out error rather than blocking forever. How long a contender waits is stated per call through `waitMs`: the default is sized for file work alone, so a holder whose cycle includes a network round trip — a credential mutation that refreshes an expired token — states a longer one, because leaving the default would fail every other writer of that file for the duration. The retry cadence stays fixed. A contender removes an existing lock only when the lock names a process that no longer exists; file age alone never removes a lock.
+只有写入方会竞争——读取方从不取锁——竞争者按指数退避，超时后报错，而不是无限阻塞。竞争者等待多久由每次调用经 `waitMs` 声明：默认值只按纯文件工作量级选定，因此持锁方循环若包含一次网络往返——例如刷新过期 token 的凭据变更——就应声明更长的值，否则该文件的其他写入方在这段时间内都会失败。退避节奏保持固定。只有当锁记录的进程已不存在时，竞争者才会移除已有锁；单凭文件存续时间绝不会移除锁。
 
-### Failures to plan for
+### 需要规划的失败
 
-Windows retries one `EPERM` when the lock cannot be observed, because its holder can release between exclusive creation and the existence check. A repeated unconfirmed `EPERM` is rethrown without running the operation.
+Windows 在无法观察到锁时会对 `EPERM` 重试一次，因为持锁方可能在独占创建与存在性检查之间释放锁。再次出现无法确认锁存在的 `EPERM` 时，会重新抛出错误且不运行操作。
 
-The lock's parent directory must already exist, so `withFileLock` rejects an invalid parent hierarchy before running the operation. A process that exits while holding the lock leaves the lock sibling behind, and the next writer takes it over. A lock whose record is empty or incomplete, or names a PID that a live process reused, is not taken over; later writers time out with `FileLockError` `FILE_LOCK_TIMEOUT`, which names the `lockPath`, and an operator removes it only after verifying that no writer still owns it. An optional `signal` cancels acquisition and contention waits; the operation owns cancellation after it starts.
+锁的父目录必须已经存在，因此 `withFileLock` 会在运行操作之前拒绝无效的父目录层级。持锁进程退出时会把锁文件留在原地，下一个写入方会接管它。锁记录为空或不完整，或其 PID 已被存活进程复用时，锁不会被接管；后续写入方以 `FileLockError` `FILE_LOCK_TIMEOUT` 超时失败（它给出 `lockPath`），操作者只有在确认没有写入方仍持有该锁后才会移除它。 `signal` 可取消获取锁和等待竞争；操作开始后由操作自身处理取消。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The package is built on one separation: the atomic commit owns the swap, and the writer lock owns cross-process ordering.
+本包遵循一项职责分离：原子提交负责交换，写锁负责跨进程排序。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `writeFileAtomic`, `withFileLock`, and `FileLockError`, the package's whole surface |
+| [`src/index.ts`](src/index.ts) | `writeFileAtomic`、`withFileLock` 与 `FileLockError`，即本包的全部接口 |
 
-### Write path
+### 写入路径
 
-`writeFileAtomic` writes a random-suffix sibling opened with exclusive create (`wx`), then renames it over the target. The exclusive open refuses to follow a symlink planted at a guessable temp path; the same-directory sibling keeps the rename on one filesystem; and the rename replaces a symlinked target itself instead of writing through to its referent. A Windows retry keeps the same complete sibling and uses bounded exponential backoff, so temporary use of the target by software outside the cooperative writer lock cannot turn a safe replacement into an immediate failure; the archived [retry decision record](../../../.agents/notes/archived/bug-fix/2026-08-29-windows-atomic-replace-retry.md) documents the original rationale and rejected alternatives.
+`writeFileAtomic` 先以独占创建（`wx`）打开一个随机后缀的同级文件并写入内容，然后 rename 到目标上。独占打开拒绝跟随预先埋在可猜测临时路径上的符号链接；同目录兄弟文件保证 rename 落在同一文件系统上；rename 替换的是目标位置的符号链接本身，绝不写穿到该链接指向的文件。Windows 重试会保留同一份完整的兄弟文件，并采用有界指数退避，因此协作式写锁之外的软件瞬时占用目标时，不会让安全替换立即失败；已归档的[重试决策记录](../../../.agents/notes/archived/bug-fix/2026-08-29-windows-atomic-replace-retry.md)记录了最初的理由与被拒绝的替代方案。
 
-`withFileLock` creates a `<filename>.lock` sibling with `wx`. `EEXIST` identifies contention directly; `EPERM` does so only when a fresh `lstat` confirms the lock path exists, covering Windows exclusive-create behavior without hiding an unrelated permission failure. The lock records its creator's PID as `<pid>\n` and is removed by the holder in a `finally`. A contender that reads a record whose PID a signal probe reports as absent (`ESRCH`) creates a `<filename>.lock.takeover-<record hash>` claim with `wx`, re-reads the lock and probes its PID again, removes it only if it still holds the same record and that PID is still absent, removes the claim, and retries at once. A holder that exists under another user (`EPERM`) and a record naming the contender's own process are waited for. Contenders that read the same record contend for one claim, and the second probe rejects a holder that reused the exited PID, so a takeover never removes a lock that another contender acquired after the exited holder's. Takeover proves only that the recorded process exited; an operation that starts other writers leaves its successor a way to find them, as the [Plugin Manager](../../boot/plugin-manager/README.md) does for its pnpm runs. Contention backs off exponentially and fails when the per-call `waitMs` deadline (default two seconds) passes; the [historical takeover decision record](../../../.agents/notes/archived/bug-fix/2026-09-24-exited-holder-lock-takeover.md) records the rationale.
+`withFileLock` 以 `wx` 创建 `<filename>.lock` 同级文件。`EEXIST` 直接表示竞争；只有一次新的 `lstat` 确认锁路径存在时，`EPERM` 才表示竞争，从而兼容 Windows 的独占创建行为，又不掩盖无关的权限故障。锁以 `<pid>\n` 记录创建者的 PID，由持有者在 `finally` 中移除。竞争者读到的记录若经信号探测报告该 PID 不存在（`ESRCH`），就以 `wx` 创建 `<filename>.lock.takeover-<记录哈希>` 认领文件，重新读取锁并再次探测其 PID，仅当锁仍是同一条记录且该 PID 仍不存在时才移除它，随后移除认领文件并立即重试。以其他用户身份存在的持有者（`EPERM`）和指向竞争者自身进程的记录会继续等待。读到同一条记录的竞争者争用同一个认领文件，第二次探测会排除复用了已退出 PID 的持有者，因此接管绝不会移除另一个竞争者在已退出持有者之后获得的锁。接管只能证明记录中的进程已退出；启动了其他写入者的操作要为后继者留下找到它们的途径，[Plugin Manager](../../boot/plugin-manager/README.zh.md) 对其 pnpm 运行就是这样做的。竞争按指数退避，在每次调用声明的 `waitMs` 期限（默认两秒）过后失败；[历史接管决策记录](../../../.agents/notes/archived/bug-fix/2026-09-24-exited-holder-lock-takeover.md)负责说明理由。
 
-### Why the swap stays safe
+### 交换为何安全
 
-- **Fresh inode, caller-stated mode** — the temp carries `mode` through the rename, so narrowing a wider-permission file has no chmod race. `mode` is required so the permission decision stays visible at every call site.
-- **Readers never contend** — the rename commit is atomic, so a reader needs no lock.
-- **A contender deletes only an exited holder's lock** — age cannot distinguish a crashed owner from a paused live writer, but a missing process can.
+- **全新 inode，调用方声明的权限位**——临时文件带着 `mode` 走完 rename，因此收窄权限过宽的文件没有 chmod 竞态。`mode` 为必填，让权限决策始终可见于每个调用点。
+- **读取方从不竞争**——rename 提交是原子的，读取方无需加锁。
+- **竞争者只移除已退出持有者的锁**——文件存续时间无法区分已崩溃的所有者与暂停但仍存活的写入方，但进程已不存在可以区分。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when you need the consuming stores or the family this primitive belongs to.
+当你需要了解使用本原语的存储或它所属的工具家族时，阅读以下页面。
 
-- [Profile configuration editor](../../boot/config-editor/README.md) — the profile patch every edit replaces through this package.
-- [Credentials store](../../credentials/credentials-local/README.md) — the credentials file this package locks and replaces.
-- [util group map](../README.md) — the utility family this package belongs to.
+- [用户设置文件存储](../../boot/config-editor/README.zh.md)——每次写入都通过本包替换的设置文档。
+- [凭据存储](../../credentials/credentials-local/README.zh.md)——本包加锁并替换的凭据文件。
+- [util 组映射](../README.md)——本包所属的工具家族。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as this is a pure filesystem write primitive that registers nothing model-facing.
+无：本包是纯文件系统写入原语，不注册任何面向模型的内容。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Nothing here enters a request prefix, so provider cache reuse is unaffected.
+此处没有任何内容进入请求前缀，因此提供方缓存复用不受影响。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define where the package is not the right tool. They are current package constraints, not a task backlog.
+这些限制说明本包何时不是合适的工具。它们是当前包约束，不是任务积压。
 
-- **Atomic, not durable** — no `fsync` of the file or its directory, so after a crash the rename may be observed unwound. The file-backed stores here re-read and republish on boot, keeping durability the caller's policy.
-- **Callers supply complete content** — strings and `Uint8Array` (including `Buffer`) are accepted; streaming writes are unsupported.
-- **Some orphaned locks require operator recovery** — a lock whose record is empty or incomplete, or names a PID a live process reused, stays in place; later writers time out without deleting it. A contender that ends between creating a claim and removing the lock leaves both `<filename>.lock` and `<filename>.lock.takeover-<record hash>`, and the operator removes both.
-- **One host and one PID namespace** — the probe runs on the contender's host. Writers on several hosts sharing a network filesystem, or containers sharing a volume, can see a live holder as exited, take over its lock, and write at the same time as it.
+- **原子但不保证持久**——不对文件或其所在目录做 `fsync`，因此崩溃后可能观察到 rename 被回退。此处的文件型存储在启动时重新读取并重新发布，把持久性留作调用方的策略。
+- **调用方提供完整内容**——接受字符串或 `Uint8Array`（包括 `Buffer`）；不支持流式写入。
+- **部分遗留锁需要操作者恢复**——锁记录为空或不完整，或其 PID 已被存活进程复用时，锁会留在原地；后续写入方超时也不会删除它。竞争者若在创建认领文件与移除锁之间结束，会同时留下 `<filename>.lock` 和 `<filename>.lock.takeover-<记录哈希>`，由操作者删除两者。
+- **单一主机与单一 PID 命名空间**——探测在竞争者所在主机上进行。多台主机通过网络文件系统共享、或多个容器共享同一卷时，写入方可能把存活持有者视为已退出，接管其锁并与之同时写入。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-A durability-replacement that `fsync`s the file and parent directory and preserves owner-only permissions on Windows remains open (tracked as `settings-atomic-durability` in source).
+一种对文件及其父目录执行 `fsync`、并在 Windows 上保留仅属主权限的持久性替换方案仍未实现（在源码中记录为 `settings-atomic-durability`）。
 
 </details>

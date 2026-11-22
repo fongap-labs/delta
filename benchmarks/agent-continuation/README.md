@@ -1,33 +1,31 @@
-# Backend continuation benchmarks
+# 后端续聊基准
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+在不使用网络服务或所记录的用户数据的情况下，测量长历史请求处理、冷启动的工具密集型续聊和重复发现非活动 fork 子会话。SDK 变体通过已发布 sdk-minimal profile 和显式 editor patch 执行 100 个轮次和 800 次真实文件读取；其他用例隔离后端服务成本。所有用例均不渲染浏览器。
 
-Measure long-history request processing, cold tool-heavy continuation, and repeated discovery of inactive fork children without network services or recorded user data. The SDK variant drives 100 turns and 800 real file reads through the shipped sdk-minimal profile with an explicit editor patch; other cases isolate backend service costs. No case renders a browser.
+## 目录
 
-## Table of Contents
-
-- [Run](#run)
-- [Measurements](#measurements)
-- [Dev Note](#dev-note)
+- [运行](#run)
+- [测量](#measurements)
+- [开发备注](#dev-note)
 
 <a id="run"></a>
 
-## Run
+## 运行
 
-From the repository root, build the libraries and workers with `pnpm run build:bench`, then run `pnpm exec vitest run --config vitest.bench.config.ts benchmarks/agent-continuation/agent-continuation.bench.ts`. Do not overlap timing runs with builds or other benchmarks.
+在仓库根目录使用 `pnpm run build:bench` 构建库和 worker，然后运行 `pnpm exec vitest run --config vitest.bench.config.ts benchmarks/agent-continuation/agent-continuation.bench.ts`。不要让计时运行与构建或其他基准重叠。
 
-The test reports all five fresh-process samples, CPU models, available parallelism, platform/architecture, and Node/V8 versions, and enforces reviewed median budgets. Catalog and tool continuation each use a 900 ms standard hosted CI expectation with 1.25× headroom (1,125 ms); request history uses a separately reviewed 297 ms hosted limit ([archived evidence](../../.agents/notes/archived/simplification/2026-09-06-agent-request-freeze-evidence.md)), and checkpoint-enabled SDK-minimal continuation uses a 5,500 ms hosted expectation with 1.25× headroom rounded up to a whole second (7,000 ms). This hosted expectation does not use the 2× reference-machine scale. A failed worker reports its exit, signal, timeout, and stderr; temporary roots are removed even on failure. The required benchmark lane discovers this file automatically.
+测试报告全部五个新进程样本、CPU 型号、可用并行度、平台／架构和 Node/V8 版本，并约束经审查的中位数预算。目录和工具续聊用例均使用标准托管 CI 的 900 ms 期望值与 1.25× 余量（1,125 ms）；请求历史使用单独审查的 297 ms 托管上限（[已归档的证据](../../.agents/notes/archived/simplification/2026-09-06-agent-request-freeze-evidence.md)），启用 checkpoint 的 SDK-minimal 续聊使用 5,500 ms 托管期望值，乘 1.25× 余量后向上取整到整秒（7,000 ms）。该托管期望值不使用参考机器的 2× 比例。worker 失败时报告退出状态、信号、超时和 stderr；失败时也会删除临时根目录。必需基准通道自动发现此文件。
 
 <a id="measurements"></a>
 
-## Measurements
+## 测量
 
-[workload.ts](workload.ts) owns synthetic dimensions. Its current-generation history reserves an empty system head in the first step before user input, so resumed prompts replace that head without moving historical messages. [The Agent Note](../../.agents/notes/implemented/testing/2026-09-06-backend-continuation-performance.md) owns timing endpoints, calibration evidence, memory interpretation, and exclusions. The model adapter does not perform provider serialization or network calls; integrated cases run synthetic tool bodies through the real tool-execution pipeline, while the SDK profile variant performs real file reads.
+[workload.ts](workload.ts) 负责定义合成维度。其当前代历史在首个步骤的用户输入之前保留空 system 头节点，因此续聊提示词会替换该头节点而不移动历史消息。[Agent Note](../../.agents/notes/implemented/testing/2026-09-06-backend-continuation-performance.zh.md) 负责说明计时终点、校准证据、内存解释和排除项。模型适配器不执行提供方序列化或网络调用；集成用例通过真实工具执行流水线运行合成工具体，SDK profile 变体则执行真实文件读取。
 
 <a id="dev-note"></a>
 
-## Dev Note
+## 开发备注
 
-None.
+无。

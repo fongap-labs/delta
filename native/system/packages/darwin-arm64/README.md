@@ -1,9 +1,7 @@
 ---
-description: "Prebuilt system.node for macOS arm64 POSIX locks."
+description: "为 macOS arm64 POSIX 锁提供预编译 system.node。"
 kind: "package-library"
 ---
 # @deepseek-ai/node-addon-system-darwin-arm64
 
-English | [中文](README.zh.md)
-
-This platform package supplies `bin/system.node`, a stable Node-API v8 addon used by `@deepseek-ai/node-addon-system/flock`. It contains no Landlock executable, JavaScript loader, or installation build script. The native workflow builds it on macOS arm64 and owns its installed-artifact validation.
+此平台包提供 `bin/system.node`，供 `@deepseek-ai/node-addon-system/flock` 使用的稳定 Node-API v8 addon。它不包含 Landlock 可执行文件、JavaScript 加载器或安装构建脚本。Native 工作流在 macOS arm64 上构建它，并负责验证安装后的产物。

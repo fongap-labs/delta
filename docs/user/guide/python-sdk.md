@@ -1,21 +1,19 @@
-# Get started with the Python SDK
+# Python SDK 入门
 
-English | [中文](python-sdk.zh.md)
+本教程安装已发布的 Python SDK，运行随附的独立极简 profile，并说明如何从自己的程序自定义同一个 `dsh` profile。
 
-This tutorial installs the published Python SDK, runs the shipped standalone minimal profile, and shows how to customize the same `dsh` profile from your own program.
+## 前置条件
 
-## Prerequisites
-
-- Python 3.10 or newer
+- Python 3.10 或更高版本
 - Git
-- Linux x64, Linux arm64, macOS 14 or newer on arm64, or Windows x64
-- A DeepSeek-compatible API endpoint and credential
-- An isolated workspace and an isolated Harness home
+- Linux x64、Linux arm64、arm64 上的 macOS 14 或更高版本，或 Windows x64
+- DeepSeek 兼容的 API endpoint 与凭据
+- 隔离的 workspace 与隔离的 Harness home
 
-## Install the SDK
+## 安装 SDK
 
 <div>
-<a id="linux-and-macos"></a>
+<a id="linux-与-macos"></a>
 <a id="windows-powershell"></a>
 </div>
 
@@ -39,14 +37,14 @@ python -m pip install deepseek-harness-sdk
 
 :::
 
-The installation includes a matching native runtime wheel and the `dsh` command. Normal SDK execution needs no system Node.js. Repository contributors who build the artifacts should use the [Python contributor workflow](../../../python/development.md).
+安装内容包含匹配的原生运行时 wheel 与 `dsh` 命令。普通 SDK 运行不需要系统 Node.js。需要构建产物的仓库贡献者应使用 [Python 贡献者工作流](../../../python/development.md)。
 
-## Run the checked-in example
+## 运行检入示例
 
-Export the credential and, when needed, a compatible proxy endpoint:
+导出凭据；使用兼容代理时再设置 endpoint：
 
 <div>
-<a id="linux-and-macos-1"></a>
+<a id="linux-与-macos-1"></a>
 <a id="windows-powershell-1"></a>
 </div>
 
@@ -64,10 +62,10 @@ $env:DEEPSEEK_API_KEY = "sk-your-key-here"
 
 :::
 
-Run one task with explicit workspace and home paths:
+使用显式 workspace 与 home 路径运行一个任务：
 
 <div>
-<a id="linux-and-macos-2"></a>
+<a id="linux-与-macos-2"></a>
 <a id="windows-powershell-2"></a>
 </div>
 
@@ -91,9 +89,9 @@ python python/sdk/examples/minimal.py `
 
 :::
 
-The script prints the final assistant response or the command result supplied by the selected profile. The selected home receives the generated `sdk-minimal` profile, installed plugins, and uncompressed JSONL session logs under `sessions/`. The example and SDK never silently read `~/.dsh`.
+脚本会打印最终 assistant 响应或所选 profile 提供的命令结果。所选 home 会保存生成的 `sdk-minimal` profile、已安装插件，以及 `sessions/` 下的未压缩 JSONL 会话日志。示例与 SDK 绝不会静默读取 `~/.dsh`。
 
-## Use the SDK in your program
+## 在程序中使用 SDK
 
 ```python
 from pathlib import Path
@@ -118,14 +116,14 @@ with DeepSeekHarness(
 print(result.final_response)
 ```
 
-The SDK starts the bundled `dsh --profile sdk-minimal` process lazily and reuses it until context-manager exit. The profile, its persistent patch, the home patch, and any ordered `patches` tuple form the application configuration. There is no separate Python runtime bin or complete-config option.
+SDK 会延迟启动内置的 `dsh --profile sdk-minimal` 进程，并复用到上下文管理器退出。Profile、其持久 patch、home patch 与任何有序 `patches` tuple 共同组成应用配置。不存在独立 Python 运行时 bin 或完整配置选项。
 
-## Install or define plugins
+## 安装或定义插件
 
-Use `dsh plugin` for dependencies and bundle layers that should persist in this home:
+需要在该 home 中持久保存依赖与 bundle 层时，使用 `dsh plugin`：
 
 <div>
-<a id="linux-and-macos-3"></a>
+<a id="linux-与-macos-3"></a>
 <a id="windows-powershell-3"></a>
 </div>
 
@@ -145,14 +143,14 @@ dsh plugin --profile sdk-minimal add file:C:/work/my-plugin-bundle
 
 :::
 
-The first command initializes the shipped standalone profile. The second forwards package management to `pnpm`, then records any installed package that exports a `dsh.bundle` layer. Install `pnpm` only for this management command; launching the installed SDK does not need it. Edit `$DSH_HOME/profiles/sdk-minimal/cordis.patch.yml` for persistent row changes, or pass patch files from Python for per-launch changes.
+第一个命令初始化随附的独立 profile。第二个命令把包管理转发给 `pnpm`，然后记录所有导出 `dsh.bundle` 层的已安装包。只有执行此管理命令时才需要安装 `pnpm`；启动已安装 SDK 不需要它。持久配置项变更应编辑 `$DSH_HOME/profiles/sdk-minimal/cordis.patch.yml`；单次启动变更则从 Python 传入 patch 文件。
 
-Another `profile` is valid when it includes `@deepseek-ai/dsh-sdk-app` or another JSON-RPC server row. Missing server rows, unresolved plugins, and invalid patches fail during startup instead of falling back to another composition.
+另一个 `profile` 只有包含 `@deepseek-ai/dsh-sdk-app` 或另一个 JSON-RPC server 配置项时才有效。缺失 server 配置项、无法解析的插件和非法 patch 会在启动时失败，不会回退到其他组合。
 
 <a id="opt-in-to-str_replace_editor"></a>
-### Opt in to `str_replace_editor`
+### 显式启用 `str_replace_editor`
 
-The bundled runtime includes `str_replace_editor`, but `sdk-minimal` omits it from the default Cordis tree. To use it, save this configuration as `editor.patch.yml`; `insert` adds the editor using the existing filesystem provider:
+随附运行时包含 `str_replace_editor`，但 `sdk-minimal` 的默认 Cordis tree 不挂载它。要使用该工具，请将以下配置保存为 `editor.patch.yml`；`insert` 会添加 editor，并使用已有的文件系统后端：
 
 ```yaml
 - insert:
@@ -160,12 +158,12 @@ The bundled runtime includes `str_replace_editor`, but `sdk-minimal` omits it fr
       name: '@deepseek-ai/dsh-tool-str-replace-editor'
 ```
 
-Pass `patches=("/absolute/path/to/editor.patch.yml",)` when constructing `DeepSeekHarness(profile="sdk-minimal", ...)`, or put the patch in `$DSH_HOME/profiles/sdk-minimal/cordis.patch.yml` for persistent configuration. On the next runtime launch, model requests include `str_replace_editor` beside the default tools. The local filesystem provider uses the runtime working directory for relative paths; like the minimal shell, it does not confine access to that directory. The same patch works with the standard `sdk` profile.
+构造 `DeepSeekHarness(profile="sdk-minimal", ...)` 时传入 `patches=("/absolute/path/to/editor.patch.yml",)`，或将 patch 写入 `$DSH_HOME/profiles/sdk-minimal/cordis.patch.yml` 以持久保存配置。下次运行时启动后，模型请求会在默认工具之外包含 `str_replace_editor`。本地文件系统后端以运行时工作目录解析相对路径；与极简 shell 一样，它不会将访问限制在该目录内。该 patch 也适用于标准 `sdk` profile。
 
 <a id="enable-team-mode"></a>
-### Enable Team mode
+### 启用 Team 模式
 
-Use the standard `sdk` profile for Agent Teams; `sdk-minimal` does not include subagents or Team services. Save the [Team patch](../../../apps/cli/config/examples/team-mode.yml) as `team-mode.yml`:
+使用 Agent Teams 时选择标准 `sdk` profile；`sdk-minimal` 不包含子代理或 Team 服务。将 [Team patch](../../../apps/cli/config/examples/team-mode.yml) 保存为 `team-mode.yml`：
 
 ```yaml
 - id: agent-team
@@ -173,28 +171,28 @@ Use the standard `sdk` profile for Agent Teams; `sdk-minimal` does not include s
     defaultEnabled: true
 ```
 
-Pass its absolute path in the SDK's `patches` option with `profile="sdk"`. Python uses `patches=("/absolute/path/to/team-mode.yml",)`; TypeScript uses `patches: ["/absolute/path/to/team-mode.yml"]`. The patch replaces the `agent-team` row's whole configuration, so include any custom `maxTasks` limit in the same mapping.
+选择 `profile="sdk"`，并在 SDK 的 `patches` 选项中传入其绝对路径。Python 使用 `patches=("/absolute/path/to/team-mode.yml",)`；TypeScript 使用 `patches: ["/absolute/path/to/team-mode.yml"]`。此 patch 替换 `agent-team` 配置项的整个配置，因此自定义 `maxTasks` 限制也应写在同一个映射中。
 
-Create a new root Session and ask it to create and list a shared task. Its first model request includes the Team tools and collaboration guidance. The root saves its mode, and subagents share it. Resuming an existing Session preserves its mode, even if it was explicitly turned off or never enabled; changing or removing this patch does not override saved selections. See the [Team service reference](../../../packages/team/agent-team/README.md#use-this-package) for mode and task semantics.
+创建新根 Session，让它创建并列出共享任务。首次模型请求即包含 Team 工具和协作提示词。根会话保存其模式，子代理共享该模式。恢复已有 Session 时保留其模式，即使它被明确关闭或从未启用；修改或移除此 patch 不会覆盖已保存的选择。模式和任务语义参见 [Team 服务参考](../../../packages/team/agent-team/README.zh.md#use-this-package)。
 
-## Understand the minimal profile
+## 理解极简 profile
 
-| Property | Value |
+| 属性 | 值 |
 |---|---|
-| System prompt | `DSH_SYSTEM_PROMPT`, falling back to `You are a helpful software engineer assistant.` |
-| Model in `minimal.py` | `--model`, then `DSH_MODEL`, then `deepseek-v4-flash` |
-| Model-facing tools | Persistent `bash` on Linux/macOS or `pwsh` on Windows, and `read_image` |
-| Shell timeout | 300 seconds |
-| Optional runtime context | Absent |
-| Context compaction | Automatic; summarizes older history through an additional model request |
-| Session persistence | Uncompressed JSONL under `<dsh_home>/sessions` |
+| 系统提示词 | `DSH_SYSTEM_PROMPT`，未设置时为 `You are a helpful software engineer assistant.` |
+| `minimal.py` 的模型 | `--model`，然后是 `DSH_MODEL`，最后是 `deepseek-v4-flash` |
+| 面向模型的工具 | Linux／macOS 上的持久 `bash` 或 Windows 上的 `pwsh`，以及 `read_image` |
+| Shell 超时 | 300 秒 |
+| 可选运行时上下文 | 不存在 |
+| 上下文压缩 | 自动执行；通过额外模型请求生成较早历史的摘要 |
+| 会话持久化 | `<dsh_home>/sessions` 下的未压缩 JSONL |
 
-The profile's sole bundle inserts the complete tree over an empty root and does not include `dsh-base`; later base-profile tools therefore cannot appear implicitly. It contains the SDK protocol, one environment-configured DeepSeek adapter, local execution, and persistence, while text file tools, settings, managed credentials, OTel telemetry, Web tools, subagents, and local instruction discovery are absent. The [DeepSeek session-log contributor](../../../packages/session/session-log-deepseek/README.md) uploads unaccepted log events with DeepSeek requests by default, at most `maxBytes` (8 MiB) per request; set `session-log-deepseek.enabled: false` in a profile patch to disable it. It pins `danger-full-access`, so the platform-selected persistent shell can modify any path visible to the runtime; use a disposable checkout or container.
+该 profile 的唯一组合包会在空根之上插入完整配置树，且不包含 `dsh-base`，因此基础 profile 以后新增的工具不会隐式出现。它包含 SDK 协议、一个由环境配置的 DeepSeek 适配器、本地执行与持久化；文本文件工具、settings、托管凭据、OTel 遥测、Web 工具、subagent、本地指令发现均不存在。旧版文档提及的 `session-log-deepseek` 自动日志上传模块已不在当前仓库内，其旧配置不再适用于 Delta。它固定使用 `danger-full-access`，因此按平台选择的持久 shell 可以修改运行时可见的任何路径；应使用一次性 checkout 或容器。
 
-Image reading requires an image-capable route. Automatic compaction preserves the complete Session log; see the [bundle reference](../../../packages/bundle/sdk-minimal/README.md) for model and storage effects. In this `sdk-minimal` composition, unsupported slash input remains ordinary prompt text.
+图片读取需要支持图片输入的路由。自动压缩保留完整 Session 日志；模型与存储影响见[组合包参考](../../../packages/bundle/sdk-minimal/README.zh.md)。在这个 `sdk-minimal` 组合中，不支持的斜杠输入保持为普通提示词文本。
 
-The installed wheel still packages the full `web` profile and frontend assets. Run `dsh web` against an explicit `DSH_HOME` when a Python SDK deployment also needs the browser application; `web` is a separate CLI application and cannot serve a Python SDK client.
+已安装 wheel 仍会打包完整 `web` profile 与前端产物。如果 Python SDK 部署还需要浏览器应用，请针对显式 `DSH_HOME` 运行 `dsh web`；`web` 是独立 CLI 应用，不能为 Python SDK client 提供服务。
 
-Use a fresh home when profiles, plugins, credentials, settings, and sessions must be isolated. Use a fresh session id for independent work; reuse a harness, home, and id only to continue the same durable conversation and session-owned resources.
+需要隔离 profile、插件、凭据、设置与会话时，应使用新的 home。独立工作应使用新的 session id；只有继续同一段持久对话和会话资源时，才同时复用 harness、home 与 id。
 
-The [bundle reference](../../../packages/bundle/sdk-minimal/README.md) owns the exact tree, and the [example reference](../../../python/sdk/examples/README.md) owns the runnable program. The [Python SDK reference](../../../python/sdk/README.md) covers lifecycle, results, notifications, and low-level behavior; the [dsh CLI reference](../../../apps/cli/reference/README.md) covers profile layering.
+[组合包参考](../../../packages/bundle/sdk-minimal/README.zh.md)定义确切配置树，[示例参考](../../../python/sdk/examples/README.md)定义可运行程序。[Python SDK 参考](../../../python/sdk/README.md)介绍生命周期、结果、通知与底层行为；[dsh CLI 参考](../../../apps/cli/reference/README.md)介绍 profile 分层。

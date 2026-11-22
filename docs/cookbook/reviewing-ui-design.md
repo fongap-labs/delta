@@ -1,166 +1,164 @@
 ---
-description: "Review a DSH page or modal as a whole, explain findings through design principles, and verify supported changes."
+description: "把 DSH 页面或弹窗作为整体审查，按设计原则说明问题，并验证有依据的修改。"
 ---
 
-# Cookbook: review a UI design
+# Cookbook：审查 UI 设计
 
-English | [中文](reviewing-ui-design.zh.md)
+## 概览
 
-## Summary
+本手册用于明确要求的完整审查，以及由改动影响或回归风险决定需要采用的证据步骤。普通开发按 [UI 改动流程](../../.agents/skills/dsh-client-ui-ux/SKILL.md#required-review-loop)走轻量路径，不逐节执行本手册。[原则与案例参考](../ui-design-review-cases.zh.md)提供判断依据，不是必做清单。既有测试、GUI PR GIF 和设计／产品审批继续按原有规则执行。
 
-Use this cookbook for explicitly requested comprehensive reviews and for evidence steps justified by a change's impact or regression risk. Ordinary development follows the lightweight path in the [UI change workflow](../../.agents/skills/dsh-client-ui-ux/SKILL.md#required-review-loop); it does not execute every section below. The [principles and case reference](../ui-design-review-cases.md) supplies judgment criteria, not a mandatory checklist. Existing tests, GUI PR GIFs and designer/product approval remain governed by their original owners.
+对齐审查先核对图标完整空间（含有意保留的内部留白）、文字列和间距，再检查实际轮廓。热区不等于图标框；不逐个拉齐 glyph 的像素边缘。判断顺序见[对齐原则](../ui-design-review-cases.zh.md#alignment)。
 
-Check the complete icon box, including intentional internal whitespace, text columns and gaps before judging the drawn contour. Hit targets are not icon boxes; do not align each glyph’s painted pixels independently. See the [alignment principle](../ui-design-review-cases.md#alignment).
+按[同前景色规则](../../.agents/skills/dsh-client-ui-ux/references/icons.md#placement-and-use)核对关联图标与文字，包括子菜单值与箭头、搜索占位文字与放大镜；检查明暗主题中的实际颜色和透明度，保留语义例外。
 
-Check associated icons and text against the [same-foreground rule](../../.agents/skills/dsh-client-ui-ux/references/icons.md#placement-and-use), including submenu values with chevrons and search placeholders with magnifiers. Compare rendered color and opacity in both themes; preserve semantic exceptions.
+## 目录
 
-## Table of Contents
-
-- [1. Define the page or modal in scope](#proposition)
-- [2. Inspect the task and its implementation](#inspect)
-- [3. Preserve the starting point](#baseline)
-- [4. Change the smallest responsible component](#implement)
-- [5. Verify behavior and comparable images](#verify)
-- [6. Deliver the complete evidence](#deliver)
-- [Further Exploration](#further-exploration)
-- [Dev Note](#dev-note)
+- [1. 确定受审页面或弹窗](#proposition)
+- [2. 检查任务路径与实现](#inspect)
+- [3. 保留起点](#baseline)
+- [4. 修改最小责任组件](#implement)
+- [5. 验证行为与可比较的截图](#verify)
+- [6. 交付完整证据](#deliver)
+- [延伸阅读](#further-exploration)
+- [开发备注](#dev-note)
 
 <a id="proposition"></a>
-## 1. Define the page or modal in scope
+## 1. 确定受审页面或弹窗
 
-Identify the user task and affected page or modal. Record scope when several regions, consumers or design choices need coordination; a straightforward local change needs no separate plan. For an explicitly requested comprehensive review, enumerate the requested pages/modals and relevant states. Do not present local inspection as a whole-page result.
+确定用户任务和受影响页面或弹窗。涉及多个区域、使用方或设计取舍时记录范围；明确的局部修改不需要单独写计划。用户明确要求完整审查时，列出指定页面／弹窗及相关状态。不能把局部检查表述成整页结论。
 
-Use the [judgment priorities](../ui-design-review-cases.md#judgment) across that scope: alignment and spatial grouping first, then density, hierarchy, states, component choice, icon optics and geometry. Express each finding as an observable relationship, such as content appearing closer to the next group than to its own label. Follow the user’s requested order and authorization; a full review can identify multiple related defects, and permission to implement routine adjustments does not replace the [required designer/product review](../../.agents/skills/dsh-client-ui-ux/SKILL.md#design-review-escalation).
+在这个范围内应用[判断优先级](../ui-design-review-cases.zh.md#judgment)：先检查对齐与空间分组，再审查密度、层级、状态、组件选型、图标光学和几何。每个发现写成可观察的关系，例如内容与隔壁组的距离反而小于与自身标签的距离。遵循用户指定的顺序和授权；完整审查可以发现多个相关问题，常规调整的实施授权不能替代[既有设计／产品审查要求](../../.agents/skills/dsh-client-ui-ux/SKILL.md#design-review-escalation)。
 
-Read the [client UI skill](../../.agents/skills/dsh-client-ui-ux/SKILL.md) and the applicable architecture before editing. Use the [responsive skill](../../.agents/skills/dsh-responsive-ui/SKILL.md) for width and input changes, the [style reference](../web-styling.md) for tokens, and the [radius standard](../ui-radius.md) for corner geometry. This workflow adds review and evidence steps, not another set of visual tokens.
+编辑前阅读[客户端 UI Skill](../../.agents/skills/dsh-client-ui-ux/SKILL.md)和适用架构。宽度与输入方式变更使用[响应式 Skill](../../.agents/skills/dsh-responsive-ui/SKILL.md)，令牌规则查阅[样式参考](../web-styling.zh.md)，圆角几何查阅[圆角标准](../ui-radius.zh.md)。本流程补充审查和证据步骤，不另建一套视觉令牌。
 
 <a id="review-scope"></a>
-### Select scope by visual impact
+### 按视觉影响选择范围
 
-Choose inspection scope from the table below. For broader changes, a few task-note sentences can track affected groups, consumers and risk conditions; use a coverage table only when it helps a multi-region review. Local changes do not need a scene inventory. File count and package boundaries do not determine visual reach.
+按下表选择检查范围。较大改动可用几句任务笔记追踪受影响的组、使用方与风险条件；多区域审查确有需要时再用覆盖表。局部修改无需场景清单。文件数量和包边界不能决定视觉影响范围。
 
-| Change | Minimum inspection scope |
+| 改动 | 最小检查范围 |
 |---|---|
-| Local copy, icon, color or spacing | Read the containing page or modal for context; inspect the owning group, neighboring groups and affected peers sharing its axes or role, including distant peers |
-| Page, form or card layout; new page or modal | Review the containing page or modal as a whole, including relevant scrolling and expanded content |
-| Shared component | Trace all affected consumers; inspect each distinct layout, content and state variant in its assembled context |
-| Global typography, tokens or styling | Map affected component families and page layouts; expand coverage across those families, rather than treating the change as local |
-| Behavior without an intended style change | Inspect the states that can change visible relationships, including loading, errors, disabled controls, expansion and focus |
+| 局部文案、图标、颜色或间距 | 先看所属页面或弹窗的上下文；检查所属组、相邻组及共用轴线或角色的受影响并列元素，包括远处的并列元素 |
+| 页面、表单或卡片布局；新页面或弹窗 | 将所属页面或弹窗作为整体审查，包含相关滚动和展开内容 |
+| 共享组件 | 排查全部受影响使用方；在实际组合上下文中检查每种不同的布局、内容和状态变体 |
+| 全局字体、令牌或样式 | 梳理受影响的组件族与页面布局，按这些类别扩大覆盖，不能当成局部改动 |
+| 没有预期样式变化的行为改动 | 检查可能改变可见关系的状态，包括加载、错误、禁用、展开和焦点 |
 
-A shared consumer can reuse evidence only when the relevant implementation, size, container constraints, content behavior and states are equivalent; record the grouping and its basis. Inspect uncertain cases directly. Source inspection of all consumers is not a claim to have opened every page. Expand scope when a defect recurs beyond the initial region or a fix changes adjacent relationships. Record unrelated discoveries separately instead of silently starting a product-wide redesign.
+只有相关实现、尺寸、容器约束、内容行为和状态等价时，共享组件使用方才能复用证据；记录归类和依据。不确定的场景直接检查。源码排查全部使用方不等于逐页打开过。问题在初始区域外重复出现，或改法影响邻接关系时，扩大范围。无关发现单独记录，不静默开始整个产品重设计。
 
-Apply the [minimum checks](../../.agents/skills/dsh-client-ui-ux/SKILL.md#minimum-checks-for-affected-ui) to each changed property: color requires both themes; layout, spacing, typography and sizing require constrained and long-content checks; interaction requires the affected path and states. These are inspection requirements, including for local edits, not a demand for a screenshot of every condition. Apply the owning responsive and behavior requirements; do not exhaust unrelated combinations or replace coverage reasoning with a fixed screenshot count. Reuse unchanged rules and valid evidence within the task, and recapture after a coherent batch of edits rather than every CSS adjustment. Read only the relevant principle sections and examples; an uncertain design decision is a reason to retrieve more detail.
+对每项变化执行[最低检查要求](../../.agents/skills/dsh-client-ui-ux/SKILL.md#minimum-checks-for-affected-ui)：颜色必须查明暗主题；布局、间距、字体和尺寸必须查窄容器与长内容；交互必须查受影响路径和状态。局部修改也要完成这些检查，但不要求每个条件都保存截图。遵守所属响应式与行为要求，不穷举无关组合，也不用固定截图数替代覆盖判断。同一任务中复用未变规则和有效证据，一组相关修改完成后再截图，不逐条 CSS 调整都重拍。只读取相关原则和案例；设计判断不明确时再补充查阅。
 
 <a id="inspect"></a>
-## 2. Inspect the task and its implementation
+## 2. 检查任务路径与实现
 
-Inspect the affected result at the normal application entry point. Reuse an instance serving the current implementation; do not restart or rebuild solely for each small edit. Follow the relevant task path and use computed styles when needed to distinguish layout defects from content, loading or unfinished animation.
+从正常应用入口检查受影响的结果。复用正在运行且使用当前实现的实例，不为每次微调单独重启或重建。沿相关任务路径检查，必要时使用计算样式区分布局缺陷与内容、加载或未结束动画造成的现象。
 
-For ordinary changes, a finding needs its location, visible problem, correction and verification. Add source ownership, alternatives and conditions that would invalidate the correction when they affect the decision. Prioritize visible or shared defects; differing source numbers alone do not justify standardization.
+普通改动说明问题位置、可见现象、修正和验证即可。源码归属、替代方案及改法不适用的条件影响判断时再补充。优先处理可见或共享缺陷；源码数值不同本身不能成为统一数值的理由。
 
-When diagnosing spacing, record layout boxes, margins, padding, line boxes and visible glyph edges separately. State whether a close control aligns by its button edge or icon box, and check trigger/menu text insets across their different icon sizes. An annotation of visible whitespace is not a measured CSS margin.
+诊断间距时，分别记录布局框、margin、padding、文字行框和字形可见边缘。明确关闭控件按按钮边缘还是图标框对齐，并核对不同图标尺寸下入口与菜单的文本内缩。可见留白的标注不等于测得了 CSS margin。
 
-### Reconcile the baseline across the whole interface
+### 在整个界面内核对适用规范
 
-Use the [applicable-standards map](../ui-design-review-cases.md#review-baseline) to gather the current radius, material, typography, component, feedback, responsive and artwork rules that apply to this task. Record named exceptions and the relevant existing variants. When a personal or external skill differs, use the repository owner; when implementation differs from the owner, preserve the discrepancy as a finding rather than silently choosing one.
+按[适用规范映射](../ui-design-review-cases.zh.md#review-baseline)收集本任务相关的当前圆角、材质、字体、组件、反馈、响应式和图案规则，记录明确例外与相关已有变体。个人或外部 skill 不同时，以仓库所有方为准；实现与所有方不同时，把差异保留为发现，不能默默任选一方。
 
-Apply the [whole-page and modal principles](../ui-design-review-cases.md#whole-interface-review) to the selected scope. Keep the whole composition as context and compare affected regions and repeated relationships before using local fixtures for detail. Explicit full reviews cover every region; local corrections must preserve neighboring alignment, grouping, nested corners, clipping and focus.
+将[整页与整个弹窗的审查原则](../ui-design-review-cases.zh.md#whole-interface-review)应用于选定范围。保留整体构图上下文，先比较受影响区域与重复关系，再用局部 fixture 分析细节。明确的完整审查覆盖全部区域；局部修正需保留邻接的对齐、分组、嵌套圆角、裁切与焦点关系。
 
-### Make the relationships explicit
+### 把关系明确写出来
 
-Identify the relevant groups and alignment references. Draw axes or annotate a full-context screenshot only when the relationship is complex, disputed or needs explanation; this is not a prerequisite to reading CSS. The following prompts are optional aids for documenting a review, not fields to fill for every local change.
+确定相关分组和对齐参照。关系复杂、有争议或需要解释时，才画轴线或标注保留上下文的截图；画图不是阅读 CSS 的前置条件。下表是记录审查时可选的提示，不要求每次局部修改逐项填写。
 
-| Observation | Record | Example |
+| 观察项 | 记录内容 | 示例 |
 |---|---|---|
-| Task and groups | What each group describes or operates on; its children and neighboring groups | Conversation title / three-action cluster; members section / tasks section |
-| Alignment | Objects, axis, and reference container; deliberate exceptions | Baseline-defined peer-row text starts; centered icon-plus-label in the primary button |
-| Spacing | Which gaps are internal, repeated, and between groups | Heading is closer to its cards than to the preceding section |
-| Peer geometry | Comparable roles and visible size, radius, and color relationships | Equal circular bases; one search-prompt foreground role |
-| States | Simultaneous and neighboring combinations | Selected conversation beside another hovered conversation |
-| Evidence scope | What is visible and what remains uninspected | Full Desktop sidebar versus an isolated conversation row |
+| 任务与分组 | 每组描述或操作什么，包含哪些子组，与谁相邻 | 会话标题／三操作组；成员区／任务区 |
+| 对齐 | 对象、轴线、参照容器及有意的例外 | 基线定义的同类行文字起点；主按钮内 icon＋文字整体居中 |
+| 间距 | 哪些是组内、重复单元之间和组间距离 | 标题与所属卡片比与前一个分区更近 |
+| 并列几何 | 可比较角色的可见尺寸、圆角与颜色关系 | 圆形底板等大；搜索提示共用一个前景色角色 |
+| 状态 | 同时叠加及相邻共存的组合 | 当前会话选中，同时另一条会话悬停 |
+| 证据范围 | 能看到什么，哪些尚未检查 | 完整 Desktop 侧栏与隔离会话行的区别 |
 
-Walk the region in three passes: whole composition, relationships between groups, and details within groups. Use source and computed geometry to explain the visible result afterward. For alignment, compare rendered text starts and slot centers; for spacing, compare visible boundaries as well as CSS boxes. Record CSS pixels separately from screenshot pixels and preserve the zoom/device scale. Do not infer a new design constant from a scaled image.
+按整体构图、组与组的关系、组内细节三层观察，再用源码与计算几何解释可见结果。对齐比较实际文字起点和槽位中心；间距同时比较可见边界与 CSS 框。区分 CSS 像素与截图像素，保留缩放和设备像素比，不从缩放后的图片推导新的设计常数。
 
-A useful finding states a violated relationship: “The title-to-action gap is smaller than the gaps inside the action cluster, so the title joins the first action visually; separate the two groups and retest long-title hover.” “Spacing looks off” and “all gaps use tokens” do not explain the judgment. A visible inconsistency can fail the design requirement even when it does not block a task; do not dismiss it as harmless because a click still succeeds.
+有效发现要说明违反了什么关系：“标题到操作组的距离小于操作组内部距离，视觉上把标题粘到首个操作；分开两组，并重测长标题悬停。”只说“间距不对”或“都使用 token”都没有完成判断。明显不一致即使不阻塞任务，也能构成设计不通过，不能因为仍然点得动就忽略。
 
-Before declaring the page or modal reviewed, reconcile its actual regions and relevant states with the inspected evidence. Include content reached by scrolling, expansion or tab changes. A local fixture or example cannot substitute for an uninspected part of that whole. For a limited review, list the remaining scope explicitly.
+宣布页面或弹窗审查完成前，将它实际包含的区域和相关状态与已检查证据逐一核对，包含滚动、展开或切换标签页后才能看到的内容。局部 fixture 或案例不能替代这个整体中尚未检查的部分。局部审查则明确列出未覆盖范围。
 
-Use locally maintained production-component fixtures to reproduce controlled states or compare variants. They supplement actual application inspection. Capture/report tools and their scene adapters can live outside the repository and consume the source checkout; they are not required product dependencies or CI acceptance. Read their local instructions for supported scenes and limits.
+用本地维护的生产组件 fixture 复现受控状态或比较变体，作为真实应用检查的补充。截图、报告工具及其场景适配可放在仓库外并读取源码工作树，不作为产品依赖或 CI 验收；支持场景与限制以工具的本地说明为准。
 
-### Keep a coverage record
+### 为审查建立覆盖记录
 
-Use the following record for an explicitly requested comprehensive review or when several regions need tracking. Ordinary local changes need no coverage table or separate note reproducing every field. Inspect the affected relationships and preserve justified equivalence when grouping shared consumers.
+明确要求完整审查，或确有多个区域需要追踪时使用下表。普通局部修改不需要覆盖表，也不必另写笔记重述所有字段。检查受影响的关系，对共享使用方分组时保留有依据的等价判断。
 
-| Page or dialog and entry | Semantic groups and cross-group relationships | Inspected conditions | Finding and owner | Evidence after correction | Uninspected |
+| 页面／弹窗与入口 | 语义组及跨组关系 | 已查条件 | 发现与归属方 | 修正后证据 | 尚未检查 |
 |---|---|---|---|---|---|
-| Name the actual entry and region | Specify both endpoints and complete boxes or text axes | Content, width, theme, state | Record the rule and responsible component | Comparison and relevant behavior results | State limits rather than an ambiguous covered status |
+| 填实际入口与区域 | 指定比较两端、完整框或文字轴 | 内容、宽度、主题、状态 | 记录规则和责任组件 | 对照图与相关行为结果 | 写明限制，不留含糊的“已覆盖” |
 
-For complex findings, explain the compared objects, intended relationship, supporting evidence and risky neighboring effects. Include a plausible wrong fix or retest condition when it clarifies the decision; ordinary findings use the short form above. Keep unsupported candidates pending and investigate confirmed repeated problems within the chosen scope, without starting unrelated cleanup.
+复杂问题再说明比较对象、预期关系、支持证据和可能受损的邻接关系。错误修法或复查条件有助于判断时再写；普通发现采用前面的简短形式。证据不足的候选保留为待核实，在选定范围内排查已确认的重复问题，不顺带开展无关清理。
 
 <a id="baseline"></a>
-## 3. Preserve the starting point
+## 3. 保留起点
 
-Preserve a recoverable starting version and relevant captures when a comparison is requested or needed to assess a broader change or regression risk. Routine local changes do not require an extra source snapshot or before image. When retaining a baseline, include existing uncommitted work rather than assuming `HEAD` represents the visible application, and record the source identity and capture conditions.
+明确要求对照，或较大改动及回归风险需要对照时，保留可恢复的起始版本与相关截图。普通局部修改不要求额外源码快照或修改前截图。保留基线时需包含已有未提交改动，不能假定 `HEAD` 就是当前可见应用，并记录源码身份与截图条件。
 
-When captures are needed, save images and their conditions in `.ui-review/` at the checkout root or another explicitly selected local directory. The repository ignores `.ui-review/` for generated evidence; review tools can remain installed outside the checkout.
+需要截图时，把图像及其条件保存在工作树根目录的 `.ui-review/`，或另行明确选择的本地目录。仓库忽略 `.ui-review/` 中的生成证据；审查工具仍可安装在工作树之外。
 
-Use a scene map for comprehensive reviews or multi-state comparisons that need it; simple changes can be checked directly at the affected position. Include expanded rows, dialogs and relevant loading/disabled states when they affect the claim. A collapsed parent does not cover hidden controls. Use safe fixture data for destructive or unavailable states instead of changing a user's real task just for a screenshot.
+完整审查或需要追踪多个状态的对照使用场景映射；简单改动可直接检查受影响位置。展开行、弹窗及相关加载／禁用状态影响结论时应纳入，折叠父组件不能覆盖隐藏控件。破坏性或暂不可达状态使用安全 fixture 数据，不为截图而修改用户的真实任务。
 
 <a id="implement"></a>
-## 4. Change the smallest responsible component
+## 4. 修改最小责任组件
 
-Fix the owner responsible for the task: the page for page layout, its primitive for a shared control state, or the library for glyph imbalance repeated across consumers. Reuse components and theme aliases, verify affected relationships and preserve independent workspace changes. A development fix need not first become a formal review finding.
+修改负责该任务的归属方：页面布局由页面负责，共享控件状态由基础组件负责，跨使用方重复的 glyph 失衡由图标库负责。复用组件与主题别名，验证受影响关系并保留工作区已有独立改动。开发修正无需先写成一条正式审查发现。
 
-Check the states that can conflict with the change: for example selected with hover or keyboard focus, expanded with focus, busy with disabled, and validation with long content. Check the narrow container and the width just on each side of a changed breakpoint. Preserve input drafts, keyboard focus, dismissal, and access to the primary action when layout changes. Follow the [testing policy](../testing.md) for checks that exercise behavior; do not add assertions that merely repeat CSS declarations.
+检查可能与本次修改冲突的状态，例如选中与悬停或键盘焦点叠加、展开与焦点叠加、忙碌与禁用叠加，以及校验信息与长内容共存。检查窄容器和变更断点两侧的临界宽度。布局变化时保留输入草稿、键盘焦点、关闭方式及主操作的可达性。按[测试策略](../testing.zh.md)验证行为，不添加只复述 CSS 声明的断言。
 
-Verify the causal structure first, confirm that styles actually apply, then inspect appearance and behavior. Record complete icon boxes, text starts, painted button edges, and hit-target positions separately where useful; target rectangles cannot stand in for every alignment measurement. Shared-component adjustments include consumers with and without optional descriptions, unequal content, and real neighbors rather than only the report fixture.
+先验证造成问题的结构，再确认样式实际生效，最后检查视觉与行为。可记录完整 icon 框、文字起点、按钮可见边缘和热区各自的计算位置；不要拿热区矩形代替全部对齐证据。公共组件的调整至少覆盖有／无可选说明、长短内容与实际相邻控件，不能仅修复报告中的一个 fixture。
 
-When build or hot-reload state is uncertain, create a separate application instance using the intended sources and verify its artifacts to avoid old scripts with new styles. An unchanged DOM snapshot, stale test selector, or failing capture hook cannot establish whether a visual correction passes or fails; identify the failure owner and verify current behavior with relevant tests without capture hooks.
+构建或热更新状态不确定时，重新建立使用目标源码的独立应用实例并核对产物，避免旧脚本配上新样式。仅因 DOM 快照没变、测试选择器过期或截图钩子失败，不能判定视觉修正通过或失败；定位失败归属，再以更新后的真实行为预期和无截图钩子的相关用例验证。
 
 <a id="verify"></a>
-## 5. Verify behavior and comparable images
+## 5. 验证行为与可比较的截图
 
-Inspect the affected result and directly affected neighbors in the actual page. If a required scene is unavailable, report the missing check, reason and next verification; labeled production-component fixtures provide partial evidence, not an actual-page pass. Extra screenshots and comparisons are required when requested or needed to explain broad changes or assess regression risk; routine edits need no separate report. This changes recordkeeping, not the minimum inspection or existing GIF rules. For a comparison, match content, theme, locale, viewport, zoom, device scale, interaction state and content anchor; let fonts, data and transitions settle.
+在实际页面中检查受影响结果及直接相关的邻接元素。必要场景不可用时，说明缺了哪项检查、原因和下一步验证方法；标明来源的生产组件 fixture 可提供部分证据，不能算作实际页面通过。用户要求对照，或解释较大改动、评估回归风险需要时，才额外保存截图和对照；常规修改无需独立报告。这里简化的是留档，不是最低检查或既有 GIF 要求。制作对照时保持内容、主题、语言、视口、缩放、设备像素比、交互状态和内容锚点一致，并等待字体、数据和过渡稳定。
 
-When producing a comparison, save final captures separately and pair them with the corresponding starting scene under matching conditions.
+制作对照时，将最终截图单独保存，并按对应的起始场景和相同条件配对。
 
-For retained comparisons, check dimensions and capture conditions; use scene IDs when there is an inventory. Correct mismatched conditions instead of stretching images, silently changing crops or presenting a reconstructed fixture as an earlier application screenshot. Inspect the delivered images and check that they support the stated scope.
+保留对照时检查尺寸和截图条件；有场景清单时再核对场景 ID。修正不匹配的条件，不拉伸图片、默默改变裁剪，或把重建 fixture 当作更早的应用截图。检查交付图片，确认它们支持所声明的范围。
 
-Two captures with the same rendered-source fingerprint demonstrate the capture and reporting workflow, not a UI improvement. An actual before-and-after comparison captures the starting implementation before editing and the resulting implementation afterward. Keep that distinction visible in the delivered report.
+两次截图的渲染源码指纹相同时，只能演示截图与报告流程，不能证明 UI 改进。真正的前后对照应当在编辑前拍摄起始实现，编辑后拍摄结果实现。交付报告中也要清楚保留这一区别。
 
-Use equal-sized paired crops with the same content origin when a full page hides a small difference; retain enough context to show the relationship being judged. If a content change requires a different crop, disclose it and keep the original full-context captures available. Verify both themes when color, state, or icon balance is involved, and use enlarged views only as a supplement to the intended display size.
+整页截图掩盖细小差异时，可使用尺寸相同、内容起点相同的成对裁剪图，并保留足以判断关系的上下文。内容变化确实需要不同裁剪时，说明差异，并保留完整上下文的原图。涉及颜色、状态或图标平衡时验证明暗两种主题；放大图只能补充实际显示尺寸下的检查。
 
 <a id="deliver"></a>
-## 6. Deliver the complete evidence
+## 6. 交付完整证据
 
-An ordinary handoff states what changed, what was checked and any material gap; a short explanation or screenshot can suffice. For a requested detailed case report, place the scene/problem and design judgment beside its image, caption the source and explain what to inspect. Avoid detached screenshot collections or images that do not show the claimed relationship.
+普通交付说明改了什么、检查结果和重要缺口，简短解释或截图即可。明确要求详细案例报告时，将场景／问题、设计判断与图片放在一起，图注说明来源及关注位置。避免脱离正文的截图集合或无法展示所述关系的图片。
 
-When a before/after comparison is part of the deliverable, label both sides and distinguish application captures from isolated component scenes. If the user requests all changes, reconcile that scope with the final diff, including nested controls, and state missing evidence. Do not require a paired report for every ordinary correction.
+交付需要前后对照时，标明两侧含义并区分真实应用截图与隔离组件场景。用户要求全部修改时，将该范围与最终 diff 核对，包含嵌套控件，并说明缺少的证据。普通修正不要求每项制作成对报告。
 
-For comprehensive reviews, distinguish inspected-without-findings, defects and uninspected regions. For ordinary changes, report the result and material gaps without a per-region status ledger. Add rule ownership, wrong-fix examples, exceptions or retest conditions only when useful to explain a finding. Known defects cannot be canceled by unrelated passing checks.
+完整审查区分已查无发现、有缺陷和尚未检查的区域。普通修改报告结果和重要缺口，无需逐区域状态账目。规则归属、错误修法、例外或复查条件有助于解释发现时再补充。无关检查通过不能抵消已知缺陷。
 
-Report the checks actually run and their outcome, and distinguish automated metadata checks, behavior tests, and human visual inspection. Include material limitations such as an unavailable application state or an untested platform. Do not describe the work as fully verified while required scenes or checks remain outstanding.
+报告实际运行的检查及结果，区分自动元数据校验、行为测试与人工读图。说明重要限制，例如应用状态暂不可达或某个平台尚未测试。必需场景或检查未完成时，不要声称已经完整验证。
 
-Use the [UI change workflow](../../.agents/skills/dsh-client-ui-ux/SKILL.md#required-review-loop) at handoff, review and push to check new cumulative effects or invalidated evidence, not to repeat completed inspection. No extra report is required for an unchanged result. Tests and agent inspection do not replace the existing [designer/product approval requirement](../../.agents/skills/dsh-client-ui-ux/SKILL.md#design-review-escalation).
+交付、评审和推送时按 [UI 改动流程](../../.agents/skills/dsh-client-ui-ux/SKILL.md#required-review-loop)检查新增累计影响或失效证据，不重复已经完成的检查。结果未变时无需额外报告。测试和 agent 检查不能替代既有[设计／产品审批要求](../../.agents/skills/dsh-client-ui-ux/SKILL.md#design-review-escalation)。
 
-### Comparison delivery and cumulative changes
+### 对比交付与累计改动
 
-For a formal comparison report, use before on the left and after on the right. Add non-obscuring annotations only when helpful, on the after image, and retain originals; a removable overlay is useful for interactive reports. Choose a readable narrow-screen presentation rather than requiring a special report interface. Ordinary handoffs may use simple labeled images or concise text; the original GIF requirements remain unchanged.
+正式对照报告采用左前右后。有助于解释时才在修改后图片上添加不遮挡内容的标注，并保留原图；交互报告可使用可关闭的叠加层。窄屏选择可读的呈现方式，不强制制作专门的报告界面。普通交付可用简单标明含义的图片或简短文字；既有 GIF 要求保持不变。
 
-Deduplicate cumulative summaries by location: pair the earliest reliable before image with the final implementation, retaining comparable conditions. Keep intermediate rounds only as historical evidence, not separate final results; reverted proposals are not current results. List another session's retained changes separately without claiming them. Disclose missing baselines or uncertain ownership. Record actual checks without adding repeated runs as extra coverage.
+累计汇总按位置去重：在条件可比的前提下，将最早可靠的修改前截图与最终实现配对。中间轮次只保留为历史证据，不作为独立最终成果；撤销方案不计入现存成果。另一会话的保留改动单列，不归为本次成果。缺少起点或归属不确定时明确说明。记录实际检查，不将重复执行数量当作新增覆盖。
 
-For an all-changes summary, trace each claim to the cumulative diff, current owner and retained evidence. Separate net changes from behavior already in the baseline; resolve later user revisions before naming final values. Label older captures as historical when they no longer show the current result, and distinguish source-confirmed behavior from a scene inspected again. Feed reusable decisions back to their rule owner and contrasting cases, not local pixel values or an unsupported whole-product pass.
+汇总全部修改时，将每项结论追溯到累计 diff、当前实现所有方及保留证据。区分净改动与基线已有行为，先消解用户后续修订，再给出最终数值。旧截图不再代表当前结果时标为历史证据，并区分源码核验与重新打开场景检查。将可复用的判断回写规则所有方及正反案例，不把局部像素值或缺乏依据的全产品通过结论变成规范。
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 延伸阅读
 
-Use these owners for the details needed by a particular review.
+按本次审查需要查阅对应归属文档。
 
-- [UI design principles and review cases](../ui-design-review-cases.md) — whole-page and modal judgment, applicable rules, and explanatory examples.
-- [Rule ownership and maintenance](../../.agents/skills/dsh-client-ui-ux/SKILL.md#maintain-one-owner-per-rule) — where to change a principle and how local tools consume it.
-- [Web UI style reference](../web-styling.md) — component reuse and styling ownership.
+- [UI 设计原则与审查案例](../ui-design-review-cases.zh.md)——整页与整个弹窗的判断原则、适用规则及解释性案例。
+- [规则归属与维护](../../.agents/skills/dsh-client-ui-ux/SKILL.md#maintain-one-owner-per-rule)——原则的修改位置及本地工具的读取方式。
+- [Web UI 样式参考](../web-styling.zh.md)——组件复用与样式归属。
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
-None.
+无。

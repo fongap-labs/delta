@@ -1,33 +1,31 @@
 ---
-description: "Nominal string and number types with stateless constructors for packages that own confusable domain values."
+description: "供拥有易混淆领域值的包使用的名义字符串与数字类型及无状态构造函数。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-brand
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-brand` 让结构相同的字符串或数字在类型层面不可互换：`SessionId` 无法传给期望 `ToolCallId` 的位置，事件序号也无法传给需要日志偏移量的位置。`brandString<T>()` 与 `brandNumber<T>()` 在不持有共享运行时状态的情况下应用名义品牌，让所属包可以定义领域类型，而无需导入不相关的能力。
 
-`dsh-brand` makes structurally identical strings or numbers non-interchangeable at the type level: a `SessionId` cannot be passed where a `ToolCallId` is expected, and an event sequence cannot be passed where a log offset is required. `brandString<T>()` and `brandNumber<T>()` apply nominal brands without shared runtime state, so owning packages can define domain types without importing an unrelated capability.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Brand a domain value when it crosses a package boundary and could plausibly be confused with another value represented by the same primitive; not every string or number needs a brand. A branded value is a contract for TypeScript callers: it enters only functions that expect its domain, and a different brand is rejected at compile time.
+当领域值跨越包边界，并可能与使用同一原语表示的另一个值混淆时，为其添加品牌；并非每个字符串或数字都需要品牌。品牌化值是给 TypeScript 调用方的约定：它只会进入期望该领域的函数，不同品牌会在编译期被拒绝。
 
-### Branding a string
+### 为字符串添加品牌
 
-Declare the branded type in the owning package and apply it at the point where that package admits a string:
+在所属包中声明品牌化类型，并在该包准入字符串的位置应用品牌：
 
 ```ts
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
@@ -37,11 +35,11 @@ export type SessionId = Branded<'SessionId'>
 const sessionId = brandString<SessionId>('session-1')
 ```
 
-`brandString()` changes only the static type and performs no runtime validation. Validate domain grammar before calling it when the owning type has one. Once branded, the id compares, logs, serializes to JSON, and crosses the wire as an ordinary string.
+`brandString()` 只改变静态类型，不执行运行时校验。所属类型若有领域文法，应在调用前完成校验。添加品牌后，该 id 在比较、日志记录、JSON 序列化和协议传输中仍表现为普通字符串。
 
-### Branding a number
+### 为数字添加品牌
 
-Declare a numeric brand in its owning package and apply it only after that package admits the number:
+在所属包中声明数字品牌，并且仅在该包准入数字之后应用品牌：
 
 ```ts
 import { brandNumber, type BrandedNumber } from '@deepseek-ai/dsh-brand'
@@ -51,57 +49,57 @@ export type SessionSeq = BrandedNumber<'SessionSeq'>
 const seq = brandNumber<SessionSeq>(7)
 ```
 
-`brandNumber()` returns the original number and performs no validation. The owning package validates requirements such as non-negative safe-integer range before branding. Comparison, arithmetic, logging, JSON serialization, and wire transport retain ordinary number behavior; arithmetic produces an unbranded number that the owner must admit again before it re-enters the domain.
+`brandNumber()` 原样返回数字，不执行校验。所属包会在添加品牌前校验非负安全整数范围等要求。比较、算术、日志、JSON 序列化与协议传输保留普通数字行为；算术会产生未品牌化数字，所属包必须重新准入该数字，才能让它再次进入领域。
 
-### When to brand
+### 何时添加品牌
 
-Brand values that cross package boundaries and could plausibly be confused — `ToolCallId` in `dsh-llm`, the shared agent/session `SessionId` in `dsh-session`, `JobId` in `dsh-jobs`, and `SessionSeq` versus `SessionLogOffset` in `dsh-session`. Values that stay local or cannot be confused do not need this abstraction.
+为跨包边界且可能被混淆的值添加品牌——`dsh-llm` 中的 `ToolCallId`、`dsh-session` 中由 agent（智能体）和会话共享的 `SessionId`、`dsh-jobs` 中的 `JobId`，以及 `dsh-session` 中的 `SessionSeq` 与 `SessionLogOffset`。保持局部或无法混淆的值不需要这种抽象。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The package defines two intersection types, `string & { readonly [BRAND]: B }` and `number & { readonly [BRAND]: B }`, where `BRAND` is a module-private `unique symbol`.
+该包定义两个交叉类型：`string & { readonly [BRAND]: B }` 与 `number & { readonly [BRAND]: B }`，其中 `BRAND` 是模块私有的 `unique symbol`。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Branded string and number types with stateless constructors |
+| [`src/index.ts`](src/index.ts) | 品牌化字符串与数字类型及其无状态构造函数 |
 
-### How values stay portable
+### 值为何可移植
 
-The private symbol never exists at runtime: TypeScript erases it, so branded values have no tag or prototype. `brandString()` and `brandNumber()` return their inputs unchanged. Separate installed copies therefore produce interchangeable values without sharing a registry or constructor identity.
+私有 symbol 在运行时不存在：TypeScript 会将其擦除，因此品牌化值没有标签或 prototype。`brandString()` 与 `brandNumber()` 都原样返回输入。因此，彼此独立安装的副本无需共享注册表或 constructor identity，也会生成可互换的值。
 
-### Why it stays dependency-free
+### 为何保持无依赖
 
-Keeping these helpers in their own package means `dsh-jobs` can brand `JobId` without importing an unrelated capability package, while each capability still owns the meaning and validation of its concrete ids.
+把这些 helper 放在独立包中，意味着 `dsh-jobs` 可以为 `JobId` 添加品牌，而无需导入不相关的能力包；每个能力仍然拥有其具体 id 的含义与校验。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when you need the values these primitives brand or the type conventions around them.
+当你需要这些原语所品牌化的值或围绕它们的类型约定时，阅读以下页面。
 
-- [Core subsystem](../../../docs/subsystems/core.md) — where the shared `SessionId` brand and the type rules are documented.
-- [LSP subsystem](../../../docs/subsystems/lsp.md) — `LspProviderId`, a branded provider id built on this primitive.
-- [Jobs package](../../jobs/jobs/README.md) — the `JobId` brand owned by the jobs capability.
+- [核心子系统](../../../docs/subsystems/core.zh.md)——共享 `SessionId` 品牌与类型规则的记录位置。
+- [LSP 子系统](../../../docs/subsystems/lsp.zh.md)——构建在本原语之上的品牌化提供方 id `LspProviderId`。
+- [jobs 包](../../jobs/jobs/README.zh.md)——由 jobs 能力拥有的 `JobId` 品牌。
 
 -----
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

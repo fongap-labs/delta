@@ -1,98 +1,96 @@
-# Schedule reminders
+# Schedule 提醒
 
-English | [中文](schedule.zh.md)
+## 概述
 
-## Summary
+在对话中请模型创建、列出、查看、修改、暂停、恢复或删除提醒。每条提醒按其规则重复，并把指令投递到一个现有对话、一个新对话，或在每个发生时点投递到一个新对话。自动化任务页面列出宿主的所有提醒，并可创建、修改、运行、暂停、恢复和删除提醒。已投递的一次性任务会保留到显式删除为止。
 
-Ask the model in a conversation to create, list, view, edit, pause, resume, or delete reminders. Each reminder repeats by its rule and delivers its instruction to an existing conversation, to one new conversation, or to a new conversation at every occurrence. The Automation tasks page lists every reminder of the Host and can create, edit, run, pause, resume, and delete one. Delivered one-shot tasks remain available until you explicitly delete them.
+## 目录
 
-## Table of Contents
-
-- [Create reminders](#create-reminders)
-- [Inspect, run, and delete tasks](#manage-tasks)
-- [Edit a task](#edit-timing)
-- [Timing and delivery reference](#timing-and-delivery)
-- [Further Exploration](#further-exploration)
+- [创建提醒](#create-reminders)
+- [查看、运行和删除任务](#manage-tasks)
+- [修改任务](#edit-timing)
+- [时间与投递参考](#timing-and-delivery)
+- [延伸阅读](#further-exploration)
 
 <a id="create-reminders"></a>
-## Create reminders
+## 创建提醒
 
-The shipped Web profile includes the Host Schedule service and the Automation tasks page. Configure a model provider before asking it to create reminders.
+发布的 Web profile 自带宿主 Schedule 服务与自动化任务页面。在请求模型创建提醒前，先配置模型 provider。
 
-The `standard`, `cordis`, and `ptc` presets declare the four reminder tools and the clock context that gives the model the current time and the browser's zone, so those presets provide `schedule_create`, `schedule_list`, `schedule_view`, and `schedule_edit`; the `minimal` preset declares neither. A delegated subagent sees the four tools, but each tool refuses a call from a delegated subagent, so a subagent cannot read or change reminders.
+`standard`、`cordis` 和 `ptc` preset 声明四个提醒工具与把当前时间和浏览器时区交给模型的时钟上下文，因此这些 preset 提供 `schedule_create`、`schedule_list`、`schedule_view` 和 `schedule_edit`；`minimal` preset 两者都不声明。被委派的 subagent 能看到这四个工具，但每个工具都会拒绝来自被委派 subagent 的调用，因此 subagent 无法读取或修改提醒。
 
-Ask the model to create, list, view, edit, pause, resume, or delete reminders. It uses `schedule_create` to create one, `schedule_list` to list the reminders of every conversation, `schedule_view` to read one, and `schedule_edit` to change, pause, resume, or delete one; an edit keeps the reminder id and saved delivery records. A reminder that the model creates has a name, an instruction, a start time in UTC or in an IANA time zone, and an RFC 5545 repeat rule, such as every weekday at 09:00 or only once. It delivers to this conversation, to one new conversation that its first delivery creates, or to a new conversation at every delivery; a new conversation uses the working directory and preset of this conversation. Each delivery of a reminder comes at least one minute after the scheduled time of the previous delivery, or after the previous Run now; a reminder that opens a new conversation at every delivery waits for the Host's minimum run interval instead, one minute by default. A late delivery, for example after a Host restart, does not delay the next one.
+向模型提出创建、列出、查看、修改、暂停、恢复或删除提醒的请求。模型用 `schedule_create` 创建提醒，用 `schedule_list` 列出所有对话的提醒，用 `schedule_view` 读取一条提醒，用 `schedule_edit` 修改、暂停、恢复或删除一条提醒；修改保留提醒 id 与已保存的投递记录。模型创建的提醒有名称、指令、UTC 或某个 IANA 时区下的开始时间，以及一条 RFC 5545 重复规则，例如每个工作日 09:00 或仅一次。它投递到当前对话、首次投递时创建的一个新对话，或在每次投递时投递到一个新对话；新对话使用当前对话的工作目录与 preset。同一提醒的每次投递都在上一次投递的计划时间或上一次“立即执行”之后至少一分钟；每次投递都打开新对话的提醒改为等待宿主的最小运行间隔，默认为一分钟。延迟的投递（例如宿主重启之后）不会推迟下一次投递。
 
-A conversation that a delivery creates joins the Workspace registered at its working directory and takes the reminder name as its title. For a reminder that opens a new conversation at every delivery, the title also states the launch time in the zone of the reminder's rule, for example `Weekday digest · 2026-10-12 09:00`.
+投递创建的对话加入在其工作目录注册的 Workspace，并以提醒名称作为标题。对于每次投递都打开新对话的提醒，标题还写出该提醒规则所用时区下的启动时间，例如 `Weekday digest · 2026-10-12 09:00`。
 
-For example, ask: “Remind me every day at 23:00 in Asia/Shanghai to check the weather.” Below the reply, a card shows the created reminder's name and frequency; Open shows its details in the right sidebar. Check that the frequency repeats every day at 23:00, not Once. A one-time reminder does not become recurring after delivery. After the reminder is deleted, the card shows Deleted and no longer opens it.
+例如，请求：“每天 Asia/Shanghai 时区 23:00 提醒我查看天气。”回复下方的卡片显示刚创建的提醒的名称和频率；“打开”在右侧栏显示其详情。检查频率是每天 23:00 重复，而非“仅一次”。一次性提醒不会在投递后变成重复任务。提醒删除后，卡片显示“已删除”，且不再打开该提醒。
 
-To create a reminder without the model, open Automation tasks from the sidebar, open Choose a creation method beside New, and choose Create manually; when no task exists, New automation task opens the same editor. This editor also opens existing tasks and asks for an Automation task name, an Automation task instruction, Run in, Linked workspace, and Run time. It starts with Once at one hour from now in the browser's time zone and with Create a conversation and reuse it. Run in offers Create a conversation and reuse it, which creates one conversation at the first run and keeps using it, and New conversation for every run, which creates a separate conversation at each run and shows the Host's minimum run interval. Linked workspace lists each registered Workspace with its directory and selects the Workspace whose directory the new conversation uses; it starts at Default workspace, or at the first Workspace when the default Workspace is not registered. When no Workspace exists, Linked workspace shows Ungrouped and the Host project directory is used. The new conversation uses the default preset. Create creates the task and selects it in the list, and Discard closes the editor without creating one. If the Host refuses the task, the editor keeps your input and states the problem, for example that the date and time must be in the future.
+不经模型创建提醒时，从侧栏打开自动化任务页面，打开“新建”旁的“选择创建方式”，再选择“手动创建”；尚无任务时，“新建自动化任务”打开同一编辑页。已有任务也使用此页面，填写“自动化任务名称”“自动化任务内容”“执行位置”“关联工作区”和“运行时间”。初始运行时间为“仅一次”，时间为浏览器时区下的一小时后，初始执行位置为“新建对话并复用”。“执行位置”提供“新建对话并复用”和“每次新建对话”：前者在首次运行时创建一个对话并在之后沿用，后者在每次运行时创建独立对话，并显示宿主的最小运行间隔。“关联工作区”列出每个已注册的 Workspace 及其目录，并选择新对话使用其目录的 Workspace；初始值为“默认工作区”，未注册默认 Workspace 时为第一个 Workspace。尚无任何 Workspace 时，“关联工作区”显示“未分组”，并使用宿主项目目录。新对话使用默认 preset。“创建”创建该任务并在列表中选中它，“放弃”关闭编辑页而不创建任务。若宿主拒绝该任务，编辑页保留你的输入并说明问题，例如日期和时间必须在未来。
 
-New, and Create in a conversation in the same menu, open a new conversation in the current or most recent Workspace; ask the model there to create the task.
+“新建”以及同一菜单中的“在对话中创建”会在当前或最近使用的 Workspace 中打开一个新对话；在其中请模型创建该任务。
 
 <a id="manage-tasks"></a>
-## Inspect, run, and delete tasks
+## 查看、运行和删除任务
 
-Ask the model to list reminders to see the reminders of every conversation, active ones first, or to show, pause, resume, or delete one reminder by its id.
+请模型列出提醒，可查看所有对话的提醒，活动提醒在前；也可请模型按 id 显示、暂停、恢复或删除一条提醒。
 
-Open Automation tasks from the sidebar to view reminders across Sessions without activating their conversations. Search by the task name, the instruction, or the id of the task's conversation, and filter by Task status: All, Enabled, Paused, or Ended. Rows are ordered by their scheduled time, earliest first. Each row shows the task name and one summary line: the status of a paused or ended task, the frequency, and, for an enabled task, Next scheduled time with its local and relative time.
+从侧栏打开自动化任务页面，可跨 Session 查看提醒，而不激活相应对话。按任务名称、指令或任务所属对话的 id 搜索，并用“任务状态”（“全部”“已开启”“已暂停”或“已结束”）过滤。各行按计划时间排列，最早的在前。每行显示任务名称和一行摘要：已暂停或已结束任务的状态、频率，以及已开启任务的“下次计划时间”与其本地时间和相对时间。
 
-The Session header clock, row mark, and hover list show active tasks with that Session as a fixed delivery target. These tasks deliver to an existing Session or reuse the Session created for their first delivery. An idle, unarchived Session row with at least one such task shows a clock mark. An archived row shows its live status only in the hover card. A long hover on a Session row with such tasks lists up to two of those tasks with their frequency and their next run as a device-zone time with its relative duration. The open Session's header shows an icon-only reminder clock while that Session has such tasks. The clock opens the sole task's details in the right sidebar. For multiple tasks, it opens a list where each row can open the task's details or delete the task.
+Session 的页头时钟、行标识和悬浮列表只显示以该 Session 为固定投递目标的活动任务。此类任务投递到现有 Session，或复用首次投递时创建的 Session。空闲且未归档的 Session 行有此类任务时显示时钟标识。归档行的实时状态只在悬浮卡片中显示。长时间悬停在有此类任务的 Session 行上时，最多列出其中两个任务及其频率，以及设备时区下的下次运行时间与相对时长。已打开的 Session 有此类任务时，页头显示仅图标的提醒时钟。只有一个任务时，时钟在右侧栏打开任务详情。有多个任务时，时钟打开任务列表，每行可打开任务详情或删除任务。
 
-Select a task to open its details. Rules shows the task name, Next run with its local and relative time or the status of a paused or ended task, the instruction, Repeat, and Run in, which shows Current linked conversation for a task that delivers to an existing conversation. The bottom of the details shows Linked session, or Latest run conversation for a task that creates a new conversation for every run. Its button opens that conversation when the Session is available and unarchived, and is disabled otherwise; before the first run creates the conversation, the entry shows Pending creation. For a task that delivers to an existing conversation, Rules states when that conversation is archived, unavailable, or still loading. The task details and deletion remain available even when a conversation cannot open. Browsing tasks does not unarchive Sessions.
+选择任务打开其详情。“规则”显示任务名称、“下次运行”及其本地时间和相对时间（已暂停或已结束的任务显示其状态）、指令、“重复”和“执行位置”；投递到现有对话的任务，“执行位置”显示“当前关联对话”。详情底部显示“关联会话”；对于每次运行都新建对话的任务，显示“最近运行对话”。其按钮在 Session 可用且未归档时打开该对话，否则禁用；首次运行创建对话之前，该条目显示“待创建”。对于投递到现有对话的任务，“规则”会说明该对话已归档、不可用或仍在加载。即使对话无法打开，任务详情与删除操作仍然可用。浏览任务不会取消 Session 归档。
 
-Choose Records to load the newest 20 saved records. Each record shows the occurrence time in the zone of the task's rule (the browser's zone when the rule names none), a button that opens the conversation that received the delivery when that conversation is available, and the saved instruction; Expand shows a long instruction in full. Records without a saved instruction never show the current instruction in its place. Load more adds the next page. Records follow newest-first saved order even if the clock moves backward; they do not describe model execution results. Left/Right arrows and Home/End switch the focused tabs.
+选择“任务运行记录”加载最新的 20 条已保存记录。每条记录显示任务规则所用时区下的发生时间（规则未指定时区时为浏览器时区）、一个在接收该投递的对话可用时打开它的按钮，以及保存过的指令；“展开”完整显示较长的指令。没有保存指令的记录不会用当前指令顶替。“加载更多”增加下一页。记录按保存顺序从新到旧排列，即使时钟回拨也不改变顺序；它们不描述模型执行结果。左右方向键和 Home/End 可切换已聚焦的页签。
 
-An empty record view means a successful query returned no saved records. Loading, request failure, a missing task, and an invalid older-record cursor have separate messages. Use Retry after a failed request or missing-task response; use Refresh after an invalid cursor to reload the newest page. Previously loaded records may remain visible with a warning while a request fails. A new latest delivery refreshes the newest page. Late responses for a task or view you have left do not replace the current view.
+记录空态表示查询成功且没有返回已保存记录。加载中、请求失败、任务不存在和较早记录游标无效分别显示不同提示。请求失败或返回任务不存在时，使用“重试”；游标无效时，使用“刷新”重新加载最新一页。请求失败时，此前加载的记录可能仍会显示，并附有警告。新的最近一次投递会刷新最新一页。离开任务或视图后才到达的响应不会替换当前视图。
 
-When retention removed earlier records, the last page states that earlier delivery records have been cleared, and Retention rules shows how many records and how many days each task keeps. An older task without saved history shows only its latest delivery, without an instruction, until new deliveries add records. Unsaved earlier records and instruction snapshots cannot be recovered.
+保留上限移除了更早的记录时，最后一页提示“更早的运行记录已清理”，“保留规则”说明每个任务保留的记录条数和天数。没有已保存历史的旧任务只显示其最近一次投递，且不含指令，直到新投递增加记录。未保存的更早记录和指令快照无法恢复。
 
-Active tasks participate in scheduling. Paused and ended tasks do not schedule another delivery. A one-time task ends after its reminder is durably written to the conversation inbox, and a repeating task ends after the last occurrence of its rule; choose All or Ended in Task status to find an ended task. The Session header clock, the row mark, and the hover card show only active tasks, so disappearance from those views does not mean that the task was deleted.
+活动任务参与调度；已暂停和已结束的任务不会再次安排投递。一次性任务在提醒持久写入对话收件箱后结束，重复任务在其规则的最后一个发生时点后结束；在“任务状态”中选择“全部”或“已结束”即可找到已结束的任务。Session 顶部的提醒时钟、Session 行的时钟标识和悬浮卡片只显示活动任务，因此从这些视图消失并不表示任务已被删除。
 
-Pause in the details stops the future deliveries of an active task, and Resume restarts a paused task. Run now, in the Automation task actions menu, asks the Host to deliver the instruction once now and keeps the next scheduled run, also for a paused or ended task. While a delivery of a task that delivers to an existing conversation or to one new conversation is queued or running, the fields, Save changes, Pause, Resume, Run now, and Delete task are disabled, and the details state that the task is queued or running and that you manage it in its conversation, which the button at the bottom of the details opens. A task that creates a new conversation for every run is not disabled this way; its runs continue beside one another. After a delivery, Run now stays disabled until the task's minimum delivery interval ends; while only the interval holds it, hold the pointer on Run now or move the keyboard to it to see when it becomes available. If the Host refuses a run for one of these reasons, the details state that the task is queued, running, or was just delivered. Run now is also disabled while the conversation that the task delivers to is archived. If you stop the conversation while the task's instruction waits there, the instruction stays queued until your next message, the task's next scheduled run, or Run now starts it.
+详情中的“暂停任务”停止活动任务之后的投递，“恢复任务”重新启动已暂停的任务。“自动化任务操作”菜单中的“立即执行”请宿主现在投递一次指令，并保留下次计划运行；已暂停或已结束的任务也可以这样运行。投递到现有对话或一个新对话的任务的一次投递已排队或正在运行时，字段、“保存修改”“暂停任务”“恢复任务”“立即执行”和“删除任务”均禁用，详情说明此任务已排队或执行中，请在会话中管理任务；详情底部的按钮打开该会话。每次运行都创建新对话的任务不会这样禁用；它的各次运行并行继续。一次投递之后，“立即执行”保持禁用，直到该任务的最小投递间隔结束；仅因间隔禁用时，将指针停在“立即执行”上或用键盘移到该项，即可查看它恢复可用的时间。若宿主因上述原因之一拒绝运行，详情会说明该任务已排队、执行中或刚执行过。任务投递到的对话已归档时，“立即执行”同样禁用。若在任务指令仍在对话中等待时停止该对话，指令会保持排队，直到你的下一条消息、该任务的下一次计划运行或“立即执行”使其开始。
 
-Choose Delete task from the Automation task actions menu and confirm to stop future delivery and remove the task from the list, including for a paused or ended task. Deletion removes the task together with its saved delivery records, so the task's saved history is gone. Confirming the deletion reports the outcome in one app-wide notice — deleted, which also closes the details, or a failure that leaves the task in place to retry; it does not remove the conversations or retract a message already queued there. The row stays visible until a successful query confirms the remaining tasks. If a query fails, Retry reloads the catalog; the error is not an empty successful result.
+从“自动化任务操作”菜单选择“删除任务”并确认，可停止未来投递并将该任务从列表中移除，包括已暂停或已结束的任务。删除会移除该任务及其已保存的发送记录，因此该任务的已保存历史随之消失。确认删除会在同一个应用级提示里报告结果——已删除（同时关闭详情），或失败（失败时任务保留、可重试）；删除不会删除相关对话，也不会撤回已进入其队列的消息。该行会保留到成功查询确认剩余任务为止。查询失败时，“重试”重新加载目录；错误不会被视为查询成功的空结果。
 
 <a id="edit-timing"></a>
-## Edit a task
+## 修改任务
 
-Ask the model to change a reminder's name, instruction, repeat rule, or delivery target, or to pause or resume it; the change keeps the reminder id and saved delivery records.
+请模型修改提醒的名称、指令、重复规则或投递目标，或暂停、恢复提醒；修改保留提醒 id 与已保存的投递记录。
 
-In Automation tasks, select a task to change its Automation task name, Automation task instruction, Run in, Linked workspace, and Run time, including for a paused or ended task. Edits stay in a local draft until you choose Save changes. Editing keeps the task id, latest delivery receipt, and all saved delivery records. A changed rule makes an ended task active again and keeps a paused task paused. For a task that delivers to an existing conversation, Run in shows Current linked conversation; choosing another option makes later runs create their conversations and sets Linked workspace to its starting value, as in Create manually. A task keeps its stored preset while its Workspace stays the same; a changed Workspace uses the default preset.
+在自动化任务页面选择任务，即可直接修改其“自动化任务名称”“自动化任务内容”“执行位置”“关联工作区”和“运行时间”，包括已暂停或已结束的任务。修改先保存在本地草稿中，直到选择“保存修改”。编辑保留任务 id、最近一次投递回执以及全部已保存的发送记录。规则改变后，已结束的任务重新变为活动，已暂停的任务保持暂停。对于投递到现有对话的任务，“执行位置”显示“当前关联对话”；选择其他选项后，之后的运行会创建各自的对话，“关联工作区”也设为其初始值，与“手动创建”相同。Workspace 保持不变时，任务保留已存储的 preset；改换 Workspace 后使用默认 preset。
 
-- Once: Date opens a month calendar, Time opens Hour, Minute, and Second columns, and Time zone interprets them. The task runs once and then ends.
-- Every N minutes and Every N hours: Interval sets the number of minutes or hours, at least 1. The interval counts from the minute at which you save the task.
-- Every day: Interval sets the number of days, and Time opens Hour and Minute columns.
-- Weekly and Monday to Friday: Interval sets the number of weeks, Weekday selects the days, and Time opens Hour, Minute, and Second columns. Monday to Friday selects those five days at once.
-- Monthly: Interval sets the number of months, Day of the month selects a date from 1 through 31, and Time opens Hour, Minute, and Second columns. A month without the selected date runs on its last day.
-- Custom: Custom rule holds the rule text. A rule that the other choices cannot reproduce opens in Custom. An existing task without editable rule text shows its original frequency and keeps that timing until you save a replacement.
+- “仅一次”：“日期”打开月历，“时间”打开“时”“分”“秒”三列，“时区”决定如何解释它们。任务运行一次后结束。
+- “每 N 分钟”和“每 N 小时”：“重复间隔”设置分钟数或小时数，至少为 1。间隔从你保存任务时所在的分钟起算。
+- “每天”：“重复间隔”设置天数，“时间”打开“时”“分”两列。
+- “每周”和“周一至周五”：“重复间隔”设置周数，“星期”选择日子，“时间”打开“时”“分”“秒”三列。“周一至周五”一次选中这五天。
+- “每月”：“重复间隔”设置月数，“每月日期”选择 1 到 31 日中的一天，“时间”打开“时”“分”“秒”三列。某月没有所选日期时，任务在该月最后一天运行。
+- “自定义”：“自定义规则”包含规则文本。其他选项无法重现的规则以“自定义”打开。没有可编辑规则文本的已有任务显示其原频率，并保留该时间规则，直到你保存替代规则。
 
-Time zone lists recently selected zones first, marks the system zone, and searches by UTC offset, IANA ID, or city. It appears for guided choices and Custom expressions that use a separate zone; otherwise the Custom rule text supplies its zone.
+“时区”先列出最近选择的时区，标出系统时区，并可按 UTC 偏移、IANA 标识或城市搜索。引导式选项和使用独立时区的“自定义”表达式显示此字段；其他“自定义”规则由文本指定时区。
 
-The fields change only a local draft. If the task targets an existing conversation, Current linked session remains available so you can undo a destination change without discarding other edits. While you edit, the bottom of the details shows Unsaved changes with Discard and Save changes; Save changes sends only the changed fields in one update, and Discard restores the stored values. A save sends a new rule only when the timing changed. Save changes stays disabled until a meaningful change has valid fields and timing. Invalid Custom text keeps the draft and shows a correction message; the Host also validates the rule on save. Pause, resume, Run now, and deletion wait until you save or discard unsaved changes. The fields are disabled while a save is in flight. Leaving the details does not roll back a Host write already begun.
+各字段只修改本地草稿。若任务指向已有会话，执行位置仍提供“当前关联会话”，可撤销目标变更而保留其他修改。编辑期间，详情底部显示“有未保存的修改”以及“放弃”和“保存修改”；“保存修改”以一次更新只提交已修改的字段，“放弃”恢复已存储的值。只有时间规则改变时，保存才会提交新规则。只有实际修改且字段和时间规则有效时，才能“保存修改”。无效的自定义文本保留在草稿中，并显示纠正提示；宿主也会在保存时校验规则。有未保存修改时，先保存或放弃更改，才能暂停、恢复、立即执行或删除。保存进行期间，各字段禁用。离开详情不会回滚宿主已开始的写入。
 
-Switching tasks or leaving the page keeps unsaved drafts. A catalog refresh updates a pristine form; an edited form keeps all fields and its original version. If delivery or another edit changes the task, the details state that the task changed elsewhere and disable Save changes when the newer version arrives. The Host also checks the version on save. Review with my edits keeps the title, prompt, timing, and target groups you changed and loads the latest values for the other groups. Review the whole form before saving; this action alone does not save. If the same group changed elsewhere, your edits take precedence in the form. Discard replaces the whole draft with the latest stored values. If another save fails, the draft stays and the details ask you to try again; check the task before retrying an update whose outcome is unknown. An accepted update refreshes the catalog. Late responses after closing details or switching tasks do not replace the current view.
+切换任务或离开页面时保留未保存的草稿。刷新目录会更新未修改的表单；已修改的表单保留全部字段和原版本。若投递或其他编辑改变了任务，详情会在收到新版本后说明任务已在其他位置更新，并禁用“保存修改”。宿主也会在保存时检查版本。“保留修改并复核”保留你改过的名称、内容、时间和目标字段组，其余字段组载入最新值。保存前请复核整份表单；此操作本身不保存。若同一字段组在其他位置也有更改，表单优先保留你的修改。“放弃”用最新存储值替换整份草稿。保存因其他原因失败时，草稿保留，详情提示你重试；对于结果未知的更新，请在重试前检查任务。更新被接受后刷新目录。关闭详情或切换任务后才到达的响应不会替换当前视图。
 
 <a id="timing-and-delivery"></a>
-## Timing and delivery reference
+## 时间与投递参考
 
-Reminders remain stored when their Session is not open. While the Host runs, it restores or creates the target Session when a reminder becomes due and queues a follow-up without interrupting current work. Restarting checks stored tasks and sends an overdue one-shot or only the latest missed occurrence of each recurring task. Closing the Host stops scheduling until it starts again. Due recurring tasks for the same Session can share one message.
+Session 未打开时，提醒仍然保存。宿主运行期间，在提醒到期时恢复或创建目标 Session 并排入 follow-up，不中断当前工作。重启后检查存储的任务，投递逾期的一次性提醒，或每条重复任务最近错过的一次。关闭宿主后，调度停止，直到宿主再次启动。同一 Session 的到期重复任务可以共用一条消息。
 
-A repeat rule in an IANA zone follows local wall time: it skips a local time that does not exist and uses the earlier instant of a repeated local time. Existing tasks keep their timing until you save a new rule: a fixed-rate reminder stays aligned to its creation time, and a daily, weekly, or cron reminder follows its saved local times in its IANA zone. The browser supplies its zone for interpreting natural-language requests; naming a zone explicitly avoids ambiguity. The Automation tasks page shows every next run as a browser-zone clock, and the frequency text names a rule's zone when it differs from the browser's zone; a rule that names no zone uses the browser's zone.
+IANA 时区下的重复规则遵循本地钟表时间：跳过不存在的本地时间，重复出现的本地时间取较早的时刻。已有任务在你保存新规则之前保留其时间规则：固定速率提醒保持与创建时间对齐，每日、每周或 cron 提醒遵循其 IANA 时区下保存的本地时间。浏览器提供其时区来解释自然语言请求；显式指定时区可以避免歧义。自动化任务页面把每个下次运行时间显示为浏览器时区的钟点；规则的时区与浏览器时区不同时，频率文本会标出该时区；未指定时区的规则使用浏览器时区。
 
-Saved delivery records confirm messages persisted in the conversation inbox, not that the model completed the requested work. Failed inbox persistence or task writes add no saved record. A crash or task-write failure after inbox persistence can leave a delivered message unrecorded and repeat a delivery; exactly-once delivery is not guaranteed. Closing the Host discards each message that still waits in a conversation inbox: its saved record remains, the model never receives that message, and the Host does not send it again. This is not an execution history or an external notification channel.
+已保存的发送记录确认消息已持久化到对话收件箱，不表示模型完成了所请求的工作。收件箱持久化或任务写入失败时，不增加已保存记录。收件箱持久化后崩溃或任务写入失败，可能留下未记入发送记录的已投递消息，并重复投递；不保证恰好投递一次。关闭宿主会丢弃仍在对话收件箱中等待的每条消息：其已保存记录仍然保留，模型不会收到该消息，宿主也不会再次发送。这不是执行历史，也不是外部通知渠道。
 
-Saved records are pruned when an acknowledgment is appended: the Host keeps the records whose acknowledgment time falls inside the configured `deliveryHistoryDays` window, measured back from the appended receipt's `deliveredAt`, and at most the newest `deliveryHistoryRecords` records. The latest receipt always survives, and a pruned window marks earlier records unavailable. The Host keeps the retained history in memory and rewrites the full task row for each acknowledgment. Pagination limits returned record count, not the retained history or instruction bytes.
+已保存的记录在追加确认时裁剪：宿主保留确认时间落在配置的 `deliveryHistoryDays` 窗口内的记录（窗口以本次追加回执的 `deliveredAt` 向前计算），且最多保留最新的 `deliveryHistoryRecords` 条。最近一次回执始终保留，发生裁剪时标记更早记录不可用。宿主将保留的历史保存在内存中，每次确认均重写完整任务行。分页限制返回的记录数，不限制保留的历史或指令字节数。
 
-Name, instruction, timing, and target editing, pausing, and resuming are available to the model through `schedule_edit` and to the Automation tasks page for every reminder; neither is a cross-Session relay workflow. A change adds a notice to the next model request of each involved conversation whose Agent is loaded, except the conversation that made the change. Reminders recorded only in an older Session log are not scheduled automatically; recreate the ones you still need. Previously deleted task records are not reconstructed.
+模型可通过 `schedule_edit` 修改每条提醒的名称、指令、时间规则和目标，或暂停、恢复提醒；自动化任务页面也可对每条提醒这样做。两者都不是跨会话转交工作流。每次修改都会在每个 Agent 已加载的关联对话的下一次模型请求中加入一条通知，发起修改的对话除外。仅记录在旧 Session 日志中的提醒不会自动调度；请重新创建仍需要的提醒。此前已删除的任务记录不会被重建。
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 延伸阅读
 
-- [Schedule reference](../../../packages/schedule/schedule/README.md) documents task fields, delivery targets, recurrence rules, persistence, and delivery limits.
-- [Automation tasks page reference](../../../packages/client/ui-schedule/README.md) describes the global page and conversation-header catalog.
+- [Schedule 参考](../../../packages/schedule/schedule/README.zh.md) 说明任务字段、投递目标、重复规则、持久化与投递限制。
+- [自动化任务页面参考](../../../packages/client/ui-schedule/README.zh.md) 说明全局页面与对话顶部目录。
 
-## Dev Note
+## 开发备注
 
-None.
+无。

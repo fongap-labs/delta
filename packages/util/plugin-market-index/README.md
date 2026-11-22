@@ -1,38 +1,36 @@
 ---
-description: "Plugin market index format 1 validation and install arguments for DSH readers and index generators."
+description: "供 DSH 读取器和索引生成器使用的插件市场索引格式 1 校验与安装参数。"
 kind: "package-library"
 ---
 
 # dsh-plugin-market-index
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+插件市场索引格式 1 的校验器，没有运行时依赖。插件市场索引是一份 JSON 文件，列出可安装的 DSH 组合包（bundle）及其展示元数据。[格式 Agent Note](../../../.agents/notes/implemented/feature/2026-10-02-plugin-market-index-format.zh.md) 定义该文档；本包是其可执行的规则集。DSH 的 [`dsh-plugin-market`](../../boot/plugin-market/README.zh.md) 用它读取索引，索引生成器在发布前用它校验输出。
 
-Validator without runtime dependencies for format 1 of the plugin market index, the single JSON file that lists installable DSH bundles with their display metadata. [The format Agent Note](../../../.agents/notes/implemented/feature/2026-10-02-plugin-market-index-format.md) defines the document; this package is its executable rule set. DSH's [`dsh-plugin-market`](../../boot/plugin-market/README.md) reads indexes with it, and index generators validate their output with it before publishing.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
+- [使用本包](#use-this-package)
 - [API](#api)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-It is a library, not a service or plugin: no `ctx`, no registrations, no state, no I/O.
+本包是库，不是服务或插件：没有 `ctx`、没有注册、没有状态，也没有 I/O。
 
-Parse the fetched document as JSON, then pass the value and the URL it was read from to `parseMarketIndex`. The first violated rule throws `MarketIndexError` with the JSON path of the offending value. A successful result drops members the format does not define, fills absent `metadata` groups, `keywords`, `labels`, `sortKeys`, and `engines` with empty values, and orders each plugin's `versions` by descending SemVer precedence.
+先把获取到的文档解析为 JSON，再把该值和读取它的 URL 传给 `parseMarketIndex`。遇到第一条被违反的规则时，它抛出 `MarketIndexError`，并附带违规值的 JSON 路径。成功的结果会丢弃格式未定义的成员，用空值填充缺失的 `metadata` 分组、`keywords`、`labels`、`sortKeys` 和 `engines`，并按 SemVer 优先级降序排列每个插件的 `versions`。
 
-For HTTP or HTTPS indexes, the parser resolves relative `icon` references against the index URL. For `git+https` and `git+ssh` indexes, an icon must be an absolute HTTPS URL or a base64 data URL.
+对于 HTTP 或 HTTPS 索引，解析器以索引 URL 为基准解析相对 `icon` 引用。对于 `git+https` 和 `git+ssh` 索引，图标必须使用 HTTPS 绝对 URL 或 base64 数据 URL。
 
-Within plugin metadata, `null` means unavailable: the metadata object and its fields normalize like absent input, and null sort values are omitted. Numeric zero is retained. Generators omit unavailable metadata and values. Unknown object fields are ignored, while declared map entries, known fields, and source discriminators remain validated.
+在插件元数据中，`null` 表示不可用：元数据对象及其字段按缺省输入归一化，值为 null 的排序值会被省略。数值零会被保留。生成器省略不可用的元数据和值。未知的对象字段会被忽略，但已声明的映射条目、已知字段和来源判别字段仍会校验。
 
-Install one version with `marketInstallTarget(name, version)`: it returns the exact pnpm spec, `name@version` for npm and a commit-pinned `git+https` URL with an optional `path:` parameter for Git, and the registry to ask first when the version names one.
+使用 `marketInstallTarget(name, version)` 安装一个版本：它返回精确的 pnpm spec（npm 为 `name@version`，Git 为固定到提交、可带 `path:` 参数的 `git+https` URL），该版本指定了 registry 时还返回首先询问的 registry。
 
 -----
 
@@ -44,39 +42,39 @@ import { MarketIndexError, marketInstallTarget, parseMarketIndex } from '@deepse
 import { gitMarketIndexSource, isGitMarketIndexSourceAddress, parseGitMarketIndexSource } from '@deepseek-ai/dsh-plugin-market-index/source'
 ```
 
-| Export | Role |
+| 导出 | 作用 |
 |---|---|
-| `parseMarketIndex(value, indexUrl)` | Validated `MarketIndex`; throws `MarketIndexError` for the first violated rule. |
-| `marketInstallTarget(name, version)` | `{ spec, registry? }` that installs that exact version. |
-| `MarketIndexError` | Validation failure carrying `path` and `reason`. |
-| `MAX_INLINE_ICON_BYTES` | Largest decoded payload of an inline `data:` icon, 32 KiB. |
-| `parseGitMarketIndexSource(input)` | Canonical Git index address, Git remote, and file location. |
-| `gitMarketIndexSource(input, path?, ref?)` | Canonical Git index address from a pasted repository link and optional file location. |
-| `isGitMarketIndexSourceAddress(input)` | Whether an address identifies a Git repository. |
-| `MarketIndex`, `MarketPlugin`, `MarketVersion`, `MarketEngines`, `MarketSource`, `MarketRepository`, `MarketIndexMetadata`, `MarketPluginMetadata`, `MarketDeclaration`, `MarketSortKeyDeclaration`, `MarketInstallTarget` | Validated record types. |
+| `parseMarketIndex(value, indexUrl)` | 经过校验的 `MarketIndex`；遇到第一条被违反的规则时抛出 `MarketIndexError`。 |
+| `marketInstallTarget(name, version)` | 安装该精确版本的 `{ spec, registry? }`。 |
+| `MarketIndexError` | 携带 `path` 和 `reason` 的校验失败。 |
+| `MAX_INLINE_ICON_BYTES` | 内联 `data:` 图标解码后载荷的最大字节数，即 32 KiB。 |
+| `parseGitMarketIndexSource(input)` | 规范的 Git 索引地址、Git 远端和文件位置。 |
+| `gitMarketIndexSource(input, path?, ref?)` | 从粘贴的仓库链接和可选的文件位置生成规范的 Git 索引地址。 |
+| `isGitMarketIndexSourceAddress(input)` | 地址是否指向 Git 仓库。 |
+| `MarketIndex`, `MarketPlugin`, `MarketVersion`, `MarketEngines`, `MarketSource`, `MarketRepository`, `MarketIndexMetadata`, `MarketPluginMetadata`, `MarketDeclaration`, `MarketSortKeyDeclaration`, `MarketInstallTarget` | 经过校验的记录类型。 |
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-Indirectly, through `dsh-plugin-market`, whose `plugin_market` tool returns validated plugins to the model.
+间接存在：通过 `dsh-plugin-market`，其 `plugin_market` 工具把经过校验的插件返回给模型。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None of its own. The tool result that carries plugins owns its request's cache behavior.
+本包自身没有。携带插件的工具结果决定其请求的缓存行为。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Generator obligations are unchecked** — the validator cannot verify that `name`, `version`, `publishTimestamp`, `engines.dsh`, or display fields match the package they describe, or that the package declares a bundle.
-- **No size bound** — the caller bounds the document before parsing it.
+- **不检查生成器义务**——校验器无法验证 `name`、`version`、`publishTimestamp`、`engines.dsh` 或展示字段是否与其描述的包一致，也无法验证该包是否声明了组合包。
+- **没有大小上限**——调用方在解析前限制文档大小。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

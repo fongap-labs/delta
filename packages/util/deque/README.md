@@ -1,37 +1,35 @@
 ---
-description: "Circular deque for Host and browser packages that need amortized constant-time queue operations, immediate release of removed entries, and bounded vacant storage."
+description: "供 Host 和浏览器包使用的环形双端队列，提供摊销常数时间的队列操作、已移除条目的即时释放和有界空闲存储。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-deque
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-deque` 让 Host 和浏览器包可以排空长期存在的进程内队列，而无需在每次移除后移动所有剩余条目。调用方可以追加或前插条目，并以摊销常数时间从前端移除。双端队列负责条目顺序和后备存储释放；唤醒、失败、取消、容量和过载行为仍由各消费方负责。
 
-`dsh-deque` lets Host and browser packages drain long-lived in-process queues without moving every remaining entry after each removal. Callers append or prepend entries and remove them from the front with amortized constant-time operations. The deque owns entry order and backing-storage release; each consumer still owns wake-up, failure, cancellation, capacity, and overload behavior.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-### When to use it
+### 何时使用
 
-Use `Deque<T>` when entries can accumulate across asynchronous work and the consumer needs FIFO removal, optional front insertion, or explicit queue clearing. Finite local worklists can stay as arrays when their maximum size makes head removal cost irrelevant.
+当条目可能在异步工作期间持续积累，且消费方需要 FIFO 移除、可选前插或显式清空队列时，使用 `Deque<T>`。如果有限本地工作列表的最大规模使头部移除成本无关紧要，它可以继续使用数组。
 
-### Entry point
+### 入口
 
-Import the deque, append entries at the tail, and check `size` before removing an entry whose type may include `undefined`:
+导入双端队列，在尾部追加条目；当条目类型可能包含 `undefined` 时，在移除前检查 `size`：
 
 ```ts
 import { Deque } from '@deepseek-ai/dsh-deque'
@@ -45,59 +43,59 @@ while (frames.size > 0) {
 }
 ```
 
-The methods do not impose a queue limit or translate consumer failures. See [`src/index.ts`](src/index.ts) for the exact TypeScript contract.
+这些方法不施加队列限制，也不转换消费方失败。准确的 TypeScript 约定见 [`src/index.ts`](src/index.ts)。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The deque stores entries in a circular array. Removing an entry clears that slot immediately, while geometric growth and quarter-full shrinking keep copying work amortized constant time and prevent a head cursor from retaining indefinitely growing vacant storage.
+双端队列把条目存入环形数组。移除条目会立即清空对应槽位；按几何级数扩容并在四分之一满时缩容，使复制工作保持摊销常数时间，并防止头游标保留持续增长的空闲存储。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Circular deque operations and backing-storage lifecycle |
-| [`tests/deque.spec.ts`](tests/deque.spec.ts) | FIFO, front insertion, wrapping, growth, compaction, clearing, and reuse coverage |
-| [`benchmarks/drain.ts`](benchmarks/drain.ts) | Reproducible backlog-drain timing across increasing queue sizes |
+| [`src/index.ts`](src/index.ts) | 环形双端队列操作与后备存储生命周期 |
+| [`tests/deque.spec.ts`](tests/deque.spec.ts) | FIFO、前插、环绕、扩容、压缩（compaction）、清空和复用覆盖 |
+| [`benchmarks/drain.ts`](benchmarks/drain.ts) | 随队列规模增长的可复现 backlog 排空计时 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-- [Utility package map](../README.md) — the other zero-dependency primitives shared across package groups.
-- [Linear stream queue decision](../../../.agents/notes/archived/bug-fix/2026-08-28-linear-stream-queue-drain.md) — why production streams use this deque instead of array head removal.
+- [工具包映射](../README.md)——跨包组共享的其他零依赖原语。
+- [线性流队列决策](../../../.agents/notes/archived/bug-fix/2026-08-28-linear-stream-queue-drain.md)——生产流为何使用本双端队列而非数组头部移除。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as this in-process collection registers nothing model-facing.
+无，因为这个进程内集合不注册任何面向模型的内容。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Nothing here enters a model request, so provider cache reuse is unaffected.
+这里的内容不会进入模型请求，因此不影响提供方缓存复用。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **No capacity policy** — the deque does not bound, coalesce, or reject entries; each consumer must define overload behavior appropriate to its stream.
+- **没有容量策略**——双端队列不会限制、合并或拒绝条目；每个消费方必须定义适合其流的过载行为。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

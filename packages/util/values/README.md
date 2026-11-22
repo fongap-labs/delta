@@ -1,32 +1,30 @@
 ---
-description: "Lossless JSON validation, detached snapshots, deep freezing, structural equality, and exhaustive-union helpers for runtime packages."
+description: "供运行时包使用的无损 JSON 校验、分离式快照、深度冻结、结构相等与穷尽联合类型辅助函数。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-util-values
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+调用方可以校验无损 JSON、读取流式参数、创建分离的 JSON 快照、冻结待发布值、比较 JSON 兼容数据，或终止不可达分支，而无需导入某个能力包。每次流式调用使用独立的 `PartialArguments` 读器；`PartialArguments.EMPTY` 是不含字段的共用封存视图。
 
-Callers can validate lossless JSON, read streamed arguments, detach a JSON snapshot, freeze a published value, compare JSON-compatible data, or terminate an unreachable branch without importing a capability package. Each streamed call uses its own `PartialArguments` reader; `PartialArguments.EMPTY` is a shared sealed view with no fields.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-### Validate or snapshot JSON data
+### 校验 JSON 数据或创建快照
 
-Use `isJsonValue()` for a predicate and `snapshotJsonValue()` when the caller also needs a detached copy. Both accept only lossless JSON roots: `null`, booleans, finite numbers other than negative zero, strings, dense intrinsic arrays, and plain or null-prototype records with enumerable string keys. Cycles, sparse arrays, symbol or non-enumerable own properties, functions, and class instances are rejected.
+需要 predicate 时使用 `isJsonValue()`，还需要分离副本时使用 `snapshotJsonValue()`。两者只接受无损 JSON 根值：`null`、布尔值、除负零外的有限数字、字符串、稠密的内建数组，以及只含可枚举字符串键的普通或 null-prototype 记录。循环、稀疏数组、自有 symbol 属性或自有不可枚举属性、函数和 class 实例都会被拒绝。
 
 ```ts
 import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -37,66 +35,66 @@ if (!isJsonValue(input)) throw new TypeError('expected lossless JSON')
 const snapshot = snapshotJsonValue(input) as JsonValue
 ```
 
-### Read streamed arguments
+### 读取流式参数
 
-`PartialArguments` reads a JSON object's top-level fields lazily. `append()` retains separate fragments without scanning or concatenating them. Readers index new key/value ranges, skipping unrequested contents; only requested strings are decoded or counted, and only requested complete non-string values are parsed. `complete()` reports a closing delimiter, not validated contents; `invalid` reports errors already discovered by indexing or content reads. It is not a substitute for tool-input validation.
+`PartialArguments` 懒读取 JSON 对象的顶层字段。`append()` 分别保留分片，不扫描也不拼接。读器为新的键值范围建立索引，跳过未请求的内容；仅在请求时解码或计数字符串，仅在请求时解析已完整的非字符串值。`complete()` 表示结束分隔符已到达，不代表内容已校验；`invalid` 报告索引或内容读取已经发现的错误。它不能替代工具入参校验。
 
-`refresh()` reports changes to previously observed answers at publication time; intervening reads do not acknowledge pending changes. It evaluates content before comparing completion, so decoding errors cannot suppress a completion update. String readers provide decoded text, bounded prefixes, and exact UTF-16 length, with optional step and offset for change detection. `settle(finalText)` compares fragments directly against the complete text: equal input seals the same view and retains its caches; missing or conflicting deltas produce a new sealed view. `fromText()` and `fromObject()` also create sealed views that reject appends. `isSealed` reads that append restriction without scanning or observing content; `closed()` also covers a closed outer object or failed indexing. See [the readers](src/partial-json.ts) for return distinctions.
+`refresh()` 在发布点报告已观察答案的变化；期间的读取不会确认待发布的变化。它先读取内容再比较完成状态，避免解码错误吞掉完成状态更新。字符串读器提供解码文本、有界前缀和精确 UTF-16 长度，并可为变化判定指定步长和偏移量。`settle(finalText)` 直接将分片与完整文本比较：输入相同时封存原视图并保留缓存，分片缺失或冲突时创建新的封存视图。`fromText()` 和 `fromObject()` 也创建拒绝追加的封存视图。`isSealed` 读取这一追加限制，不扫描或观察内容；`closed()` 还包含外层对象闭合或索引失败的情况。返回值区别见[读器定义](src/partial-json.ts)。
 
-### Publish, compare, or retain keyed values
+### 发布、比较或保留键控值
 
-`deepFreeze(value)` freezes an object graph in place and returns the same value. It walks enumerable string-keyed children and deliberately leaves live `AbortSignal` objects mutable. `deepEqualJson(a, b)` compares JSON-compatible arrays and records structurally; callers must validate hostile or unconstrained values before comparison.
+`deepFreeze(value)` 原地冻结对象图并返回同一个值。它遍历可枚举字符串键的子项，并刻意让活跃 `AbortSignal` 对象保持可变。`deepEqualJson(a, b)` 按结构比较 JSON 兼容数组与记录；调用方必须先校验恶意或不受约束的值，再进行比较。
 
-`WeakMapWithValues<Key, Value>` combines weak object-key lookup with a strongly retained, insertion-ordered `values` set. Each value belongs to one key. The owner must call `delete(key)` or `clear()` at the corresponding lifecycle boundary; the collection does not perform automatic cleanup.
+`WeakMapWithValues<Key, Value>` 组合弱对象键查找与强引用且保持插入顺序的 `values` set。每个 value 只属于一个 key。owner 必须在对应生命周期边界调用 `delete(key)` 或 `clear()`；该集合不执行自动清理。
 
-### Close a discriminated union
+### 封闭可辨识联合类型
 
-Use `assertNever(value, context?)` in the default branch of a closed discriminated union. A newly added variant then fails TypeScript compilation at every exhaustive switch, while a runtime value that escaped its declared type throws with the optional context label.
+在封闭可辨识联合类型的 default 分支中使用 `assertNever(value, context?)`。新增变体会让每个穷尽 switch 在 TypeScript 编译时失败；如果某个运行时值逃过了声明类型，该函数会抛出带可选上下文标签的错误。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The JSON validator keeps one cursor per active container, reads one child at a time, and tracks only the active ancestor chain, so deeply nested values do not consume the JavaScript call stack and repeated non-cyclic references remain valid. Intrinsic arrays and plain objects are recognized across JavaScript realms using native constructor representations from the running engine. Snapshot writes use own data properties, including for names such as `__proto__`. Value operations derive their result only from their arguments; `WeakMapWithValues` stores only instance-owned associations.
+JSON 校验器为每个正在遍历的容器保留一个位置，每次读取一个子项，并只跟踪当前祖先链，因此深层嵌套值不会消耗 JavaScript 调用栈，重复但无循环的引用仍然有效。内建数组与普通对象通过当前引擎的原生构造器文本表示进行跨 JavaScript realm 识别。快照写入使用自有数据属性，包括 `__proto__` 等名称。值操作的结果只取决于传入参数；`WeakMapWithValues` 仅保存实例自有的关联。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | JSON value type, validation and snapshot traversal, structural equality, deep freezing, weak-key/strong-value associations, and exhaustive-union failure |
-| [`src/partial-json.ts`](src/partial-json.ts) | Lazy top-level argument scanning and observed-answer change detection |
+| [`src/index.ts`](src/index.ts) | JSON 值类型、校验与快照遍历、结构相等、深度冻结、弱键/强值关联和穷尽联合类型失败 |
+| [`src/partial-json.ts`](src/partial-json.ts) | 懒扫描顶层参数，并检测已读取答案的变化 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-- [Utility package map](../README.md) — adjacent stateless helpers.
-- [Session subsystem](../../../docs/subsystems/session.md) — durable events that require lossless JSON.
-- [Tools subsystem](../../../docs/subsystems/tools.md) — schema validation and canonical tool results built on `JsonValue`.
+- [工具包映射](../README.md)——相邻的无状态 helper。
+- [会话子系统](../../../docs/subsystems/session.zh.md)——要求无损 JSON 的持久事件。
+- [工具子系统](../../../docs/subsystems/tools.zh.md)——构建于 `JsonValue` 之上的 schema 校验与规范工具结果。
 
 -----
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **`deepEqualJson` assumes JSON-compatible inputs** — it is not a general object comparator and does not define semantics for prototypes, symbols, accessors, cycles, maps, or sets.
-- **`deepFreeze` follows enumerable string-keyed children** — it does not turn arbitrary host objects into immutable data, and it intentionally skips live `AbortSignal` instances.
-- **`WeakMapWithValues` requires explicit cleanup and unique values** — values remain strongly held until their owning key is deleted or the collection is cleared, and one value must not be shared by several keys.
+- **`deepEqualJson` 假定输入兼容 JSON**——它不是通用对象比较器，不为 prototype、symbol、accessor、循环、map 或 set 定义语义。
+- **`deepFreeze` 沿可枚举字符串键遍历子项**——它不会把任意宿主对象变成不可变数据，并会刻意跳过活跃 `AbortSignal` 实例。
+- **`WeakMapWithValues` 要求显式清理且 value 唯一**——value 会保持强引用，直到 owner 删除其 key 或清空集合；同一 value 不得由多个 key 共享。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

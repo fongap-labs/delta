@@ -1,23 +1,18 @@
-# Contributing
+# 参与贡献
 
-English | [中文](CONTRIBUTING.zh.md)
+Delta 是基于 DeepSeek Harness 构建的桌面应用发行版，接受问题反馈与符合仓库治理要求的改进建议。
 
-Thank you for your interest in contributing to DeepSeek Harness!
+## 问题反馈
 
-We deeply believe in the power of open source communities, and that belief has shaped this project from the very beginning.
+- 在 GitHub Issues 中报告能够复现的缺陷，并附上受影响版本、复现步骤和预期行为。
+- 提交日志、截图或配置示例前，请删除密钥、令牌、邮箱、私人路径及其他敏感信息。
+- 功能建议应描述使用场景和预期结果，避免在未核实的情况下要求重构上游架构。
 
-DeepSeek Harness is still at an early stage and under active development. We are sorry that we cannot accept external pull requests at the moment. However, contributing code to this repository is far from the only way to help. There are many other ways to get involved:
+## 代码贡献
 
-- Identify and report issues or bugs in GitHub Discussions:
-  - Upvote discussions that you would like to bring to the team's attention. We are a very small team and may not be able to reply to every post, but we monitor them and consider them when allocating resources.
-- Contribute to the ecosystem:
-  - Create a plugin that excites you and share it with others:
-    - Associate your GitHub project with the `dsh-plugin` topic to help others discover your plugin.
-  - Write blog posts and how-to guides about DeepSeek Harness.
-  - Answer questions and help other members of the community.
+- 以当前 `main` 为基础创建短期分支，不直接修改受保护主线或冻结的上游基线。
+- 遵守 [仓库治理要求](governance/GOVERNANCE.md) 及 [架构说明](governance/REPOSITORY.md)，应用与插件变更均须经过 Action Worker 中央 CI 和合并门禁。
+- 变更应包含必要的回归验证；不得降低现有权限、安全、隐私或制品检查要求。
+- 是否接受外部 PR，以仓库当时的权限和治理规则为准。
 
-DeepSeek Harness is designed to be deeply customizable. We do not believe that packages in the official repository are inherently more important than packages created by the community. You may consider this repository an idea, an official showcase, and a source of inspiration, but not a mandate from us.
-
-We have already seen exciting projects emerge from the community, and we hope to see the ecosystem continue to grow in its own directions.
-
-Into the unknown.
+说明文档使用简体中文；应用界面与运行所需的中英文资源保持不变。
