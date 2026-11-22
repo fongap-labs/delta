@@ -31,7 +31,7 @@ import UserQuestions from '@deepseek-ai/dsh-user-questions'
 import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
 import { Client, InMemoryTransport, type CallToolResult } from '@modelcontextprotocol/client'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { createNativeFixture } from '../../cua/tests/fixtures/native-channel.mjs'
+import { createNativeFixture } from '../../cua/tests/permission-fixture.ts'
 import type { ConsentMode } from '../src/consent.ts'
 import { createCuaMcpServer, type CuaMcpServer } from '../src/server.ts'
 
