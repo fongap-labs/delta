@@ -55,7 +55,7 @@ dsh --profile web --patch ./extra.yml --dump-config
 <a id="config-schema-dump"></a>
 ### 配置 schema dump
 
-`--dump-config-schema` 使用与 `--dump-config` 相同的组合包、profile、home 和 argv patch 层，支持可重复的 `--patch` 与 `--from-default-profile`。三种 dump flag 互斥，并拒绝应用参数和保留的 `desktop` profile。组合成功后，stdout 输出一份缩进排版的 JSON Schema 2020-12 文档。根 schema 描述 `--dump-config` 输出经解析后的 entry list；`$defs.patchList` 单独描述 profile/home/CLI overlay。验证该片段时应保留文档的 `$defs`。准备、patch 解析/组合或解析器设置失败时，以非零退出码结束，不输出 schema。收集或投影失败时保留部分输出并退出 1；诊断也会输出到 stderr。即使 stdout 中的 schema 有效且可用，`partial` 投影或省略非 JSON 注释也适用此退出码。schema dump 的未匹配目标警告不包含层标签；需要来源标签时，使用相同配置层运行 `--dump-config`。
+`--dump-config-schema` 使用与 `--dump-config` 相同的组合包、profile、home 和 argv patch 层，支持可重复的 `--patch` 与 `--from-default-profile`。三种 dump flag 互斥，并拒绝应用参数和保留的 `desktop` profile。组合成功后，stdout 输出一份缩进排版的 JSON Schema 2020-12 文档。根 schema 描述 `--dump-config` 输出经解析后的 entry list；`$defs.patchList` 单独描述 profile、home 与 CLI 配置叠加层。验证该片段时应保留文档的 `$defs`。准备、patch 解析/组合或解析器设置失败时，以非零退出码结束，不输出 schema。收集或投影失败时保留部分输出并退出 1；诊断也会输出到 stderr。即使 stdout 中的 schema 有效且可用，`partial` 投影或省略非 JSON 注释也适用此退出码。schema dump 的未匹配目标警告不包含层标签；需要来源标签时，使用相同配置层运行 `--dump-config`。
 
 插件 Config 的字段、默认值、描述及支持的约束从原生 Schemastery 声明投影。普通字段内联，共享 Config 和递归使用 `$ref`。JSON Schema 的默认值是注释，不执行填值。必填字段会考虑 Schemastery 的 nullable fallback 能否通过验证。联合类型使用 `anyOf`，而原生执行仍选择首个成功分支。`secret`、`credential-ref`、`ms` 等 role 元信息及 `volatile` 实时更新元信息保留在 `x-cordis` 注释中。非法 volatile 嵌套属于 schema 定义错误；字段输入类型不会变成引用对象类型。回调验证、不支持的正则语义及其他未投影约束会标记为 partial，而不是静默丢弃。非有限数边界和非 JSON 默认值/展示注释会被省略并附上限制说明，结构字段仍可用。对象常量保留普通 nullable 成员约束，但继承属性的比较会标记为 partial。无法表示的默认值、不支持的交集及无法求解的递归默认值依赖保留未知的省略行为，仍需原生验证。
 
