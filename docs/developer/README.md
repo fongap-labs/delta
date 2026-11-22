@@ -22,3 +22,10 @@
 Delta 只维护产品源码、工作区锁文件、必要的编译配置及经批准的不可外置测试。新增可外置测试、共享构建器与 CI 执行逻辑应交由 [Action Worker 的 Delta 测试包](https://github.com/fongap-labs/action-worker/tree/main/tests/packs/delta) 和受信任执行器管理。
 
 本目录是文档导航，不创建新的本地测试框架或 CI 工作流。具体职责见 [Delta 治理入口](../../governance/GOVERNANCE.md)。
+
+## 模块与代理指令
+
+- [包级开发约束](../../packages/AGENTS.md)：现有模块接口、编译与中央测试归属。
+- [网站维护规范](../../website/AGENTS.md)：文档投射、站点交互与生成输出。
+- [存量性能基准规范](../../benchmarks/AGENTS.md)：既有测试维护与中央迁移边界。
+- [Agent 决策记录规范](../../.agents/notes/AGENTS.md)：设计决策、归档和历史边界。
