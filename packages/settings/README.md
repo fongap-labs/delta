@@ -1,44 +1,42 @@
 ---
-description: "Schema-derived forms for live plugin configuration."
+description: "用于插件即时配置的 schema 派生表单。"
 kind: "package-group"
 ---
 
-# settings/ — plugin configuration forms
+# settings/——插件配置表单
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+通过各插件 Config schema 派生的表单编辑即时配置。当前 profile patch 保存编辑，Loader 应用更改。插件读取自己的 volatile 引用。
 
-Edit live plugin configuration through forms derived from each plugin’s Config schema. The active profile patch stores edits, and Loader applies them. Plugins read their own volatile references.
+## 目录
 
-## Table of Contents
-
-- [Packages](#packages)
-- [Related documentation](#related-documentation)
-- [Dev Note](#dev-note)
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
 
 <a id="packages"></a>
-## Packages
+## 包
 
-The package README owns the form behavior; the settings reference documents its types.
+包 README 负责表单行为；设置参考负责其类型。
 
-| Package | Purpose | ctx key |
+| 包 | 用途 | ctx 键 |
 |---|---|---|
-| [`settings`](settings/README.md) | Config projection and revisioned form edits | `settings` |
+| [`settings`](settings/README.md) | Config 投影及带修订号的表单编辑 | `settings` |
 
 <a id="related-documentation"></a>
-## Related documentation
+## 相关文档
 
-- [Settings reference](../../docs/subsystems/settings.md) — descriptors and edits.
-- [Configuration editor](../boot/config-editor/README.md) — profile persistence.
-- [Volatile configuration](../../vendor/loader/README.md) — updates without remounting.
+- [设置参考](../../docs/subsystems/settings.zh.md)——描述符与编辑。
+- [配置编辑器](../boot/config-editor/README.zh.md)——profile 持久化。
+- [Volatile 配置](../../vendor/loader/README.md)——无需重新挂载的更新。
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

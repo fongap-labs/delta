@@ -30,7 +30,7 @@ kind: "package-reference"
   name: '@deepseek-ai/dsh-config-editor'
 ```
 
-使用 [settings](../../settings/settings/README.zh.md) 提供只编辑即时字段的表单。编辑完整配置的调用方可使用 `ctx.configEditor.edit()`；普通字段保留 Loader 的正常生命周期。
+使用 [settings](../../settings/settings/README.md) 提供只编辑即时字段的表单。编辑完整配置的调用方可使用 `ctx.configEditor.edit()`；普通字段保留 Loader 的正常生命周期。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现
@@ -49,7 +49,7 @@ kind: "package-reference"
 
 - [Profile 加载](../app-boot/README.zh.md)——patch 组合。
 - [HMR](../hmr/README.zh.md)——重载协调。
-- [设置](../../settings/settings/README.zh.md)——schema 派生表单。
+- [设置](../../settings/settings/README.md)——schema 派生表单。
 
 <a id="model-experience"></a>
 ## 模型体验
