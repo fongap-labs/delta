@@ -36,5 +36,13 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fongap-labs/delta.git",
+    "directory": "packages/experimental/browser-use-bundle"
   }
 }
