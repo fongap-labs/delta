@@ -94,6 +94,7 @@
     "native/system/packages/entry/README.md",
     "native/system/packages/linux-arm64/README.md",
     "native/system/packages/linux-x64/README.md",
+    "packages/attachment/README.md",
     "packages/compaction/README.md",
     "packages/compaction/command-compact/README.md",
     "packages/compaction/compaction-basic/README.md",
