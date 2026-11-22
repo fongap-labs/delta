@@ -1,0 +1,44 @@
+name: Prune audit temporary
+on:
+  push:
+    branches: [chore/prune-benchmarks-snapshots-experimental]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory experimental package references and benchmark assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cp = require('node:child_process');
+          const manifestPaths = cp.execFileSync('git',['ls-files','packages/experimental/*/package.json'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+          const pkgs = manifestPaths.map(path=>({path,name:JSON.parse(fs.readFileSync(path,'utf8')).name,dir:path.split('/')[2],manifest:JSON.parse(fs.readFileSync(path,'utf8'))}));
+          const mainPaths = ['apps/cli','apps/desktop','apps/desktop-host','apps/web','packages/bundle'];
+          const tracked = cp.execFileSync('git',['ls-files',...mainPaths],{encoding:'utf8',maxBuffer:40*1024*1024}).trim().split('\n').filter(Boolean);
+          const textFiles = tracked.filter(x=>/\.(json|[cm]?[jt]sx?|ya?ml|md|mjs|cjs|toml)$/.test(x)).map(path=>{
+            try {return [path,fs.readFileSync(path,'utf8')]}catch{return [path,'']}
+          });
+          const dependencyNames = new Map(pkgs.map(p=>[p.name,p]));
+          const direct=new Map();
+          for (const p of pkgs) {
+            const aliases=[p.name, 'packages/experimental/'+p.dir, '/experimental/'+p.dir+'/'];
+            const refs=textFiles.filter(([path,s])=>aliases.some(a=>s.includes(a))).map(([path])=>path);
+            if(refs.length) direct.set(p.name,refs);
+          }
+          const keep=new Set(direct.keys());
+          for(let changes=true;changes;){changes=false;for(const p of pkgs){if(!keep.has(p.name))continue;for(const [name] of Object.entries({...p.manifest.dependencies,...p.manifest.devDependencies,...p.manifest.optionalDependencies,...p.manifest.peerDependencies})){if(dependencyNames.has(name)&&!keep.has(name)){keep.add(name);changes=true}}}}
+          console.log('AUDIT_EXPERIMENTAL_TOTAL='+pkgs.length);
+          console.log('AUDIT_EXPERIMENTAL_DIRECT='+JSON.stringify([...direct].map(([n,paths])=>({name:n,paths:paths.slice(0,16)}))));
+          console.log('AUDIT_EXPERIMENTAL_RETAIN='+JSON.stringify(pkgs.filter(p=>keep.has(p.name)).map(p=>({name:p.name,dir:p.dir}))));
+          console.log('AUDIT_EXPERIMENTAL_REMOVE='+JSON.stringify(pkgs.filter(p=>!keep.has(p.name)).map(p=>({name:p.name,dir:p.dir}))));
+          NODE
+          echo AUDIT_ASSET_REFERENCES_BEGIN
+          git grep -nI -E 'benchmarks/|snapshots/|vitest\.(bench|snapshot|web-stress|web-perf)\.config|run-(ci-bench|bench-suite|memory-pressure-bench|web-snapshots)|snapshot-[a-z]|session-snapshot-corpus-policy' -- ':!benchmarks/**' ':!snapshots/**' ':!scripts/snapshots/**' ':!packages/experimental/**' ':!.agents/**' ':!docs/**' ':!pnpm-lock.yaml' | head -150 || true
+          echo AUDIT_ASSET_REFERENCES_END
