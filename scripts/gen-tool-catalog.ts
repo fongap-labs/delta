@@ -72,8 +72,6 @@ import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolSessionList from '@deepseek-ai/dsh-tool-session-list'
 import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
 import * as ToolJobs from '@deepseek-ai/dsh-tool-jobs'
-import BrowserUseRegistry from '@deepseek-ai/dsh-browser-use'
-import * as StagehandBrowserTools from '@deepseek-ai/dsh-experimental-browser-use-stagehand-native'
 import TeamService from '@deepseek-ai/dsh-agent-team'
 import * as ToolTeam from '@deepseek-ai/dsh-tool-agent-team'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
@@ -84,7 +82,6 @@ import * as PluginMarketTools from '@deepseek-ai/dsh-plugin-market/tools'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
 import McpResources from '@deepseek-ai/dsh-mcp-resources'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
-import * as ToolSubagentOar from '@deepseek-ai/dsh-experimental-tool-subagent-oar'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import WorkflowEngine from '@deepseek-ai/dsh-workflow'
 import type { WorkflowRun, WorkflowStartRequest } from '@deepseek-ai/dsh-workflow'
@@ -250,20 +247,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(McpResources)
       ctx.mcpResources.register('catalog', {
         request: () => Promise.reject(new Error('gen-tool-catalog: MCP requests are unreachable during schema harvest')),
-      })
-    },
-  },
-  {
-    pkg: '@deepseek-ai/dsh-experimental-browser-use-stagehand-native',
-    dir: 'browser-use-stagehand-native',
-    source: 'packages/experimental/browser-use-stagehand-native/src/index.ts',
-    requires: ['ctx.browserUse', 'ctx.agents', 'ctx.tools', 'ctx.systemPrompt'],
-    writes: ['tool/call', 'tool/result'],
-    async mount(ctx) {
-      await ctx.plugin(BrowserUseRegistry)
-      await ctx.plugin(AgentRegistry)
-      await ctx.plugin(StagehandBrowserTools, {
-        mode: 'launch', model: { modelName: 'openai/gpt-5.4-mini', apiKey: 'catalog-placeholder' },
       })
     },
   },
@@ -593,20 +576,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'The five read-only tools hide provider cursors and authorize every result from the immutable calling agent session. The package is opt-in; compositions that need enforced deadlines or bounded inline output also mount the generic timeout or spill policies.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-experimental-tool-subagent-oar',
-    dir: 'tool-subagent-oar',
-    source: 'packages/experimental/tool-subagent-oar/src/index.ts',
-    requires: ['ctx.tools', 'ctx.subagents'],
-    writes: ['tool/call', 'tool/result', 'parent subagent catalog and completion notices'],
-    async mount(ctx) {
-      await ctx.plugin(SubagentRuntime)
-      await ctx.plugin(ToolSubagentOar, {
-        providers: { codex: 'oar-codex', claude: 'oar-claude' },
-      })
-    },
-    note: 'The subagent_oar tool selects among configured aliases for external providers. This catalog shows Codex and Claude Code aliases; each deployment chooses its providers. Native model and permission settings belong to the selected provider configuration.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-subagent',

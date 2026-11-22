@@ -44,7 +44,6 @@ const DEV_ONLY_AREAS = [
 /** Third-party implementations embedded by named Host packages' shipping build configurations. */
 const HOST_BUNDLED_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
   // subagent-oar/tsdown.config.ts embeds the patched adapter instead of installing a second copy.
-  '@deepseek-ai/dsh-experimental-subagent-oar': ['@botiverse/oar'],
 }
 
 /** First-party public native packages: reachable at runtime but not third-party. */
