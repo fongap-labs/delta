@@ -32,7 +32,7 @@ jobs:
           fi
       - name: pnpm install
         run: pnpm install
+      - name: Delta full CI verification and build preparation
+        run: node scripts/delta-verify.mjs --ci
       - name: pnpm run build:check
         run: pnpm run build:check
-      - name: Delta full CI verification
-        run: node scripts/delta-verify.mjs --ci
