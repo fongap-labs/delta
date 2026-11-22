@@ -1,39 +1,37 @@
 ---
-description: "Per-step clock context with the current time, browser zone, and elapsed time, for users and maintainers tuning the plugin."
+description: "按步骤提供时钟上下文，包含当前时间、浏览器时区与经过时长，供调优本插件的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-time-context
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-time-context` 给模型一只时钟：在符合条件的步骤上，它追加一条持久、带来源的读数，包含当前时间、附加到当前开放请求的浏览器时区，以及自前一条模型可见消息以来的经过时长。它帮助模型按用户的浏览器时区解释未明确限定时区的日期与时间；时区来源混杂或缺失时，它告诉模型去询问。随发行版交付的 Web 组合不含该行；`standard`、`cordis` 与 `ptc` 声明它。读数默认采用 10 分钟的最小间隔；`refreshIntervalMs: 0` 会在每个符合条件的步骤注入。
 
-`dsh-time-context` gives the model a clock: on eligible steps it appends a durable, source-attributed reading with the current time, the browser zone attached to the open request, and the elapsed time since the preceding model-visible message. It helps the model interpret otherwise-unqualified dates and times in the user's browser zone, and tells it to ask when current-turn browser zones are mixed or missing. The shipped Web composition carries no row for it; `standard`, `cordis`, and `ptc` declare it. Readings default to a 10-minute minimum interval; `refreshIntervalMs: 0` injects at every eligible step.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount this plugin when the model should interpret unqualified dates and times in the user's zone, and when a request-local browser zone is available or a configured fallback is acceptable. Each injection is one additional user-role message in the durable history; schedule it with `refreshIntervalMs` when per-step readings are more than the conversation needs. The shipped Web composition carries no Host `time-context` row, and the `standard`, `cordis`, and `ptc` presets declare it beside the reminder tools that consume it, while `minimal` declares neither.
+当模型需要按用户所在时区解释未限定的日期与时间，且请求本地浏览器时区可用或已配置的回退值可接受时，挂载此插件。每次注入都是持久历史中额外的一条 user 角色消息；当按步骤读数超出对话需要时，用 `refreshIntervalMs` 调度。随发行版交付的 Web 组合不含宿主 `time-context` 行，由 `standard`、`cordis` 与 `ptc` preset 把它声明在消费它的提醒工具旁，而 `minimal` 两者都不声明。
 
-### What the model gets
+### 模型能得到什么
 
-Each injected reading has three lines: an ISO-shaped timestamp with numeric offset and IANA zone, the browser-zone policy for the request, and the elapsed duration in compact whole-second units. Step 1 measures from the latest preceding model-visible message; later steps measure from the preceding time-context event in the same turn. A missing baseline reports `unavailable`, and backward wall-clock movement clamps elapsed time to zero.
+每条注入读数包含三行：带数字偏移与 IANA 时区、形如 ISO 的时间戳，该请求的浏览器时区策略，以及以紧凑整秒单位表示的经过时长。第 1 步从最新一条先前模型可见消息起测量；后续步骤从同一轮次中前一个 time-context 事件起测量。缺少基线时报告 `unavailable`，挂钟时间倒退时把经过时长钳制为零。
 
-### Configuration
+### 配置
 
-The minimal mount needs no configuration. A positive `refreshIntervalMs` suppresses injections that fall within that many milliseconds of the latest one; omission uses 600000 ms (10 minutes), while `0` injects at every eligible entering pre-step whose signal is not already aborted.
+最小挂载无需任何配置。正的 `refreshIntervalMs` 会抑制距最近一次注入不足该毫秒数的注入；省略时采用 600000 毫秒（10 分钟），设为 `0` 时，每个信号尚未中止且将进入步骤的合格 pre-step 都会注入。
 
 ```yaml
 - name: '@deepseek-ai/dsh-time-context'
@@ -41,70 +39,70 @@ The minimal mount needs no configuration. A positive `refreshIntervalMs` suppres
     timeZone: Asia/Shanghai
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `timeZone` | process zone | Fallback display zone when the open turn has no unique browser zone |
-| `refreshIntervalMs` | `600000` (10 minutes) | Minimum milliseconds between durable injections in one session |
+| `timeZone` | 进程时区 | 当前开放轮次没有唯一浏览器时区时的显示回退时区 |
+| `refreshIntervalMs` | `600000`（10 分钟） | 同一会话中两次持久注入之间的最小毫秒数 |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-time-context) is the exhaustive source for every accepted field and its JSDoc.
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-time-context)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
-### Choosing the zone
+### 选择时区
 
-When the open turn contains exactly one Host-validated browser zone, the timestamp is formatted in that request-local zone. With missing or mixed browser-zone records, the configured `timeZone` formats the display; omitting it resolves the Node process zone once at plugin load, and every explicit fallback is validated through `Intl.DateTimeFormat`. The resolved instruction tells the model to interpret unqualified dates and times in the chosen zone, and to ask the user to clarify when those records are mixed or unavailable.
+当当前开放轮次只包含一个经 Host 校验的浏览器时区时，时间戳按该请求本地时区格式化。浏览器来源信息缺失或混杂时，配置的 `timeZone` 格式化显示；省略它则在插件加载时解析一次 Node 进程时区，每个显式回退值都经 `Intl.DateTimeFormat` 校验。解析后的指令告诉模型按所选时区解释未限定的日期与时间；来源信息混杂或不可用时，则要求用户澄清。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design of the plugin; the observable behavior is covered in [Use this package](#use-this-package).
+本节解释插件的设计；可观察行为见[使用本包](#use-this-package)。
 
-### Design concept
+### 设计理念
 
-The plugin prepends an `agent/pre-step` listener that delegates first and appends one sourced `UserMessage` when an injection is due and the downstream decision enters the step. Each reading uses the exact snapshot source `{ kind: 'time-context', form: 'snapshot', sections: [{ name: 'time-context', text }] }`.
+插件前置注册一个 `agent/pre-step` 监听器，先委托下游，需要注入且下游决策进入步骤时追加一条带来源的 `UserMessage`。每个读数都使用确切的快照来源 `{ kind: 'time-context', form: 'snapshot', sections: [{ name: 'time-context', text }] }`。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: pre-step listener, due scheduling, reading composition |
-| [`src/request-zone.ts`](src/request-zone.ts) | Browser-zone policy derivation from open-turn `user-rpc` sources |
-| [`src/timestamp.ts`](src/timestamp.ts) | `Intl.DateTimeFormat` creation and timestamp formatting |
+| [`src/index.ts`](src/index.ts) | 插件入口：pre-step 监听器、到期调度、读数组合 |
+| [`src/request-zone.ts`](src/request-zone.ts) | 从开放轮次 `user-rpc` 来源派生浏览器时区策略 |
+| [`src/timestamp.ts`](src/timestamp.ts) | `Intl.DateTimeFormat` 创建与时间戳格式化 |
 
-### Main flow
+### 主要流程
 
-The pre-step listener is installed before awaiting projection registration. Steps arriving during activation wait for the reader; registration failure or owner disposal stops the request, and cancellation while waiting produces no reading.
+pre-step 监听器在等待投影注册前安装。激活期间到达的步骤会等待读取句柄；注册失败或所属插件释放会终止请求，等待期间取消不会产生读数。
 
-When an injection is due, the plugin samples the wall clock, derives the browser-zone policy, resolves the display zone (request-local or fallback), and renders the three-line reading. The private `timeContext` Projection stores message and injection times, the latest entered turn, and its distinct reported browser zones in encounter order. It retains zone facts from messages shadowed by compaction. Zone validation stays after rejection and refresh checks; replay does not invoke formatters or hooks. JSON checkpoints plus suffix replay match a full replay. Older-version cache rows rebuild from the full journal. A reading records an entered step, not a completed or transmitted request; a later preparation failure can leave it in history.
+需要注入时，插件采样挂钟时间，确定浏览器时区策略，解析显示时区（请求本地或回退），并渲染三行读数。私有 `timeContext` Projection 保存消息及注入时间、最近进入的轮次，以及按出现顺序去重的浏览器时区值，也保留被压缩遮蔽消息的时区事实。时区校验仍在拒绝和刷新间隔检查之后执行；重放不调用格式化器或 hook。JSON 检查点加后缀重放与完整重放一致；旧版本缓存行通过完整日志重建。读数记录的是已进入的步骤，不是已完成或已传输的请求；后续准备失败时，该读数可能留在历史中。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the design decision to the composition that mounts the plugin and the exhaustive configuration.
+包级约定不够用时阅读以下页面。它们从设计决策进入挂载本插件的组合与穷尽式配置。
 
-- [Schedule user guide](../../../docs/user/guide/schedule.md) — the official configuration path for mounting this plugin.
-- [Context group map](../README.md) — sibling request-context packages.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-time-context) — every accepted config field and its source declaration.
+- [Schedule 用户指南](../../../docs/user/guide/schedule.md)——挂载本插件的官方配置路径。
+- [context 组地图](../README.md)——相邻的请求上下文包。
+- [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-time-context)——每个受支持配置字段及其源声明。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Preparation-time temporal context
+### 准备期时间上下文
 
-#### What the model sees
+#### 模型看到的内容
 
-Each injected message contains three lines. `<timestamp>` is an ISO-shaped timestamp with numeric offset and IANA zone; durations use compact whole-second units.
+每条注入消息包含三行。`<timestamp>` 是带数字偏移和 IANA 时区、形如 ISO 的时间戳；持续时间使用紧凑的整秒单位。
 
-##### First step
+##### 第一步
 
 ```markdown
 Time sampled while preparing turn <turn>, step 1: <timestamp>
@@ -112,7 +110,7 @@ Browser time zone for this request: <iana-zone-or-mixed-or-unavailable-policy>.
 Elapsed since the preceding model-visible message: <duration-or-unavailable>.
 ```
 
-##### Later steps
+##### 后续步骤
 
 ```markdown
 Time sampled while preparing turn <turn>, step <step>: <timestamp>
@@ -120,34 +118,34 @@ Browser time zone for this request: <iana-zone-or-mixed-or-unavailable-policy>.
 Elapsed since the preceding step context: <duration-or-unavailable>.
 ```
 
-#### Token effect
+#### Token 影响
 
-Each reading accumulates until compaction shadows it. A positive interval reduces additions; `0` adds one at every eligible preparation attempt.
+每个读数都会累积，直到压缩将其遮蔽。正数间隔会减少新增读数；设为 `0` 时，每次合格的准备尝试都会添加一条。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV Cache entries.
+仅追加；新可见内容位于可复用请求前缀之后，不会使现有 KV Cache 条目失效。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when clock context is a poor fit. They are current package constraints.
+这些限制说明时钟上下文何时不合适。它们是当前包约束。
 
-- **State and replay cost** — timestamps and the current turn number have fixed size. Zone state grows with distinct reported strings in the latest entered turn, not all messages; each new distinct zone copies that list. Formatters remain discardable process caches. The standard AgentLoop requests its latest entered turn. If a typed pre-step caller requests another turn, the original full-prefix synchronous scan includes later entered messages. Retiring this fallback requires limiting pre-step requests to the latest entered turn and updating callers together.
-- **Prompt guidance only** — browser-zone context guides natural-language interpretation but does not silently supply another tool's required zone field.
-- **Mixed turns ask** — if one open turn contains prompts from different browser zones, the model is told to clarify rather than guess which one owns an unqualified time.
-- **Fallback is not user authority** — the configured or process zone formats the clock when current-turn browser zones are missing or mixed, but the model-facing policy still says to clarify.
-- **Whole-second display** — timestamps and durations omit sub-second precision even though durable event times retain milliseconds.
-- **History cost between compactions** — `0` retains one reading for every eligible attempt; a positive interval reduces but does not eliminate this cost and may leave a later request without fresh browser-zone guidance.
+- **状态与重放成本**：时间戳和当前轮次编号占固定空间。时区状态随最近进入轮次中不同的时区字符串数量增长，不随所有消息增长；每次增加新时区时复制该列表。格式化器仍是可丢弃的进程缓存。标准 AgentLoop 请求最近进入的轮次。若类型化 pre-step 调用方请求其他轮次，原同步完整前缀扫描会包含目标轮次之后已进入的消息。只有将 pre-step 请求明确限定为最近进入的轮次并同步更新调用方后，才可移除此回退。
+- **仅限提示词来源信息**：浏览器时区上下文用于指导自然语言解释，但不会悄然填入另一工具所要求的时区字段。
+- **混合轮次会询问**：如果同一个开放轮次包含来自不同浏览器时区的提示词，模型会收到要求澄清的指令，而不会猜测哪个时区拥有未限定的时间。
+- **回退值不代表用户权威**：浏览器来源信息缺失或混杂时，配置或进程时区用于格式化时钟，但面向模型的策略仍要求澄清。
+- **整秒显示**：时间戳与持续时间省略亚秒精度，尽管持久事件时间保留毫秒。
+- **压缩之间的历史成本**：设为 `0` 时，每次合格尝试都会保留一条读数；正数间隔可以降低但无法消除该成本，也可能使后续请求缺少新鲜的浏览器时区指导。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

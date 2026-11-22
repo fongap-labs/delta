@@ -1,45 +1,43 @@
 ---
-description: "Workspace-instruction context for users and maintainers enabling, sizing, or debugging AGENTS.md/CLAUDE.md loading and refresh."
+description: "面向用户与维护者的工作区指令上下文说明，用于启用、设置预算或排查 AGENTS.md/CLAUDE.md 的加载与刷新。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-agent-instructions
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-agent-instructions` 向 agent（智能体）提供来自用户全局文件和项目级文件的工作区指引；这些文件均与 `AGENTS.md` 兼容。它为第一次请求加载适用的指令链。它不会持续监视外部编辑：成功的文件系统操作会发现新适用的嵌套文件，并让后续变更或移除可见；恢复会话也会对账基线。`dsh-base` 默认启用此行为，profile 可以禁用。字节预算分别限制用户全局指令链与项目指令链：每条链内较宽泛的文件先被省略，最具体的文件最后被截断，空指令链不添加任何内容。
 
-`dsh-agent-instructions` gives agents workspace guidance from user-global and project-level `AGENTS.md`-compatible files. It loads the applicable chain for the first request. It does not watch external edits continuously: successful filesystem operations discover newly relevant nested files and make later changes or removals visible, while session resume reconciles the baseline. `dsh-base` enables this behavior by default, while profiles can disable it. A byte budget bounds the user-global chain and the project chain separately: within each chain, broader files are omitted before the most specific file is truncated, and an empty chain adds nothing.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Changing the Session's working directory reloads the applicable project instruction chain before the next request.
+切换 Session 工作目录后，下一次请求前会重新加载适用的项目指令链。
 
-Mount this plugin when agents should work from the workspace's own instruction files. `dsh-base` already includes it with a 65,536-byte budget for each instruction chain, so base-backed profiles only need to replace the row when they want another `maxBytes`; providerless trees load nothing until a filesystem provider is present.
+当 agent 需要依据工作区自身的指令文件工作时，挂载此插件。`dsh-base` 已包含它，并为每条指令链给予 65,536 字节预算，因此基于 base 的 profile 仅在需要其他 `maxBytes` 时替换该配置行；没有文件系统提供方的树加载不到任何内容，直到提供方出现。
 
-### What the agent gets
+### agent 获得的内容
 
-The first request includes one durable baseline message with the user-global chain — `$DSH_HOME/AGENTS.md`, then `<agentsHome>/AGENTS.md` — followed by the project chain: every existing candidate file from the project root down to the session working directory, in broad-to-specific order. Within one candidate group, files whose content matches after trimming render once: a `CLAUDE.md` that duplicates its `AGENTS.md` is not repeated, and a shared-root `AGENTS.md` that duplicates the harness-home file collapses behind it. After a successful `read`, `write`, or `edit` call reaches a deeper directory, the next request includes the newly applicable instruction file; a changed file replaces its content, and a file that disappears or duplicates an earlier candidate produces a removal notice.
+第一次请求包含一条持久基线消息：先是用户全局指令链——`$DSH_HOME/AGENTS.md`，然后是 `<agentsHome>/AGENTS.md`——再按从宽泛到具体的顺序包含项目指令链：从项目根目录到会话工作目录的每个目录中所有现有候选文件。同一候选组内去除首尾空白后内容一致的文件只渲染一次：复制了 `AGENTS.md` 的 `CLAUDE.md` 不会被重复加载，与 harness home 文件重复的共享根 `AGENTS.md` 也会折叠在其后。当成功的 `read`、`write` 或 `edit` 调用到达更深的目录后，下一次请求会包含新适用的指令文件；已改变的文件会替换其内容，消失或成为较早候选文件重复项的文件会产生移除通知。
 
-### Configuration
+### 配置
 
-The defaults suit a typical checkout: `.git` marks the project root, `AGENTS.md` and `CLAUDE.md` are the base candidates, and `AGENTS.local.md` and `CLAUDE.local.md` are additive local overlays. Only `maxBytes` is required — it caps the user-global chain and the project chain separately within each rendered message, so each deployment chooses its prompt budget explicitly; a message that holds both chains is at most twice `maxBytes`.
+默认设置适合典型检出：`.git` 标记项目根目录，`AGENTS.md` 与 `CLAUDE.md` 是基础候选，`AGENTS.local.md` 与 `CLAUDE.local.md` 是叠加的本地 overlay。只有 `maxBytes` 必填——它在每条渲染消息内分别限制用户全局指令链与项目指令链，让每个部署显式选择自己的提示词预算；同时包含两条链的消息最多为 `maxBytes` 的两倍。
 
-The harness home holding the user-global `AGENTS.md` is process policy rather than row configuration: the plugin resolves `$DSH_HOME`, or `~/.dsh`, through `@deepseek-ai/dsh-home-paths`, so instruction loading always reads the process home. The shared agents root resolves the same way, from `$DSH_AGENTS_HOME` or `~/.agents`. Stray `dshHome` and `agentsHome` row keys are ignored.
+存放用户全局 `AGENTS.md` 的 harness home 属于进程策略，而不是配置行：该插件通过 `@deepseek-ai/dsh-home-paths` 解析 `$DSH_HOME` 或 `~/.dsh`，因此指令加载始终读取进程 home。共享 agents 根目录同样如此解析：`$DSH_AGENTS_HOME` 或 `~/.agents`。残留的 `dshHome` 与 `agentsHome` 配置行字段会被忽略。
 
-Root discovery climbs only when a marker probe confirms that the marker is absent. A permission or I/O failure stops discovery and surfaces the host or filesystem-provider error instead of selecting an ancestor project. The [historical root-marker metadata decision](../../../.agents/notes/archived/bug-fix/2026-09-03-root-marker-metadata-failures.md) records why discovery fails instead of substituting another root.
+只有确认项目根标记不存在时，项目根发现才会继续上溯。权限或 I/O 失败会停止发现，并抛出宿主或文件系统提供方的原始错误，而不会选择祖先项目。[历史根标记元数据决策](../../../.agents/notes/archived/bug-fix/2026-09-03-root-marker-metadata-failures.md)说明发现为何必须失败，而不能替换为其他根目录。
 
 ```yaml
 - name: '@deepseek-ai/dsh-agent-instructions'
@@ -47,7 +45,7 @@ Root discovery climbs only when a marker probe confirms that the marker is absen
     maxBytes: 65536
 ```
 
-The accepted fields, at a glance:
+受支持的字段一览：
 
 ```ts
 export interface Config {
@@ -59,81 +57,81 @@ export interface Config {
 }
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `maxBytes` | required | Cap on each instruction chain (user-global, project) in one rendered message, in bytes; a message holding both chains is at most twice this size |
-| `maxSourceBytes` | `1048576` | Cap on one source instruction file before rendering |
-| `projectRootMarkers` | `['.git']` | Directory names that mark the project root |
-| `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | Base file names loaded in each project directory |
-| `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | Local overlay file names loaded after the base files |
+| `maxBytes` | 必填 | 一条渲染消息中每条指令链（用户全局、项目）的上限，单位为字节；同时包含两条链的消息最多为该值的两倍 |
+| `maxSourceBytes` | `1048576` | 渲染前单个源指令文件的上限 |
+| `projectRootMarkers` | `['.git']` | 标记项目根目录的目录名 |
+| `instructionFileCandidates` | `['AGENTS.md', 'CLAUDE.md']` | 每个项目目录中加载的基础文件名 |
+| `localInstructionFileCandidates` | `['AGENTS.local.md', 'CLAUDE.local.md']` | 在基础文件之后加载的本地 overlay 文件名 |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-instructions) is the exhaustive source for every accepted field and its JSDoc.
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-instructions)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
-### Observing the budget
+### 观察预算
 
-Rendering budgets the user-global chain and the project chain separately, each under `maxBytes`. Within a chain it keeps the most specific files first: it drops whole broader files, truncates the last remaining file, and then falls back to a compact intro, to the budget notice with that file's empty heading, and finally to the notice alone. User-global files are therefore omitted or truncated only when they exceed their own budget, with the harness-home file omitted before the shared-root file, except in the fallback below. A visible `Workspace instruction budget ...` notice names the omitted and truncated paths of both chains. An over-budget broad file is ignored; during refresh it is treated as temporarily unavailable rather than removed.
+渲染分别为用户全局指令链与项目指令链做预算，每条链各受 `maxBytes` 限制。在一条链内，渲染优先保留最具体的文件：先丢弃完整的较宽泛文件，再截断剩下的最后一个文件，然后依次退回到精简引言、带该文件空标题的预算通知，最后是仅含预算通知的文本。因此用户全局文件只有超出自身预算时才会被省略或截断，且 harness home 文件先于共享根目录文件被省略；下文的回退情形除外。可见的 `Workspace instruction budget ...` 通知会指名两条链中被省略与被截断的路径。超出预算的宽泛文件会被忽略；刷新期间它被视为暂时不可用，而非被移除。
 
-When all files fit within `maxBytes` together, the message holds them with no budget notice; when only one chain has files, that chain renders alone under `maxBytes`. Otherwise one `<system-reminder>` frame holds the merged budget notice when a file was omitted or truncated, one intro when a chain kept its frame, and the rendered sections of both chains in their loaded order, which puts user-global files first in a baseline; this message can exceed `maxBytes` and is at most twice that size. When a chain renders without a frame and the merged frame would exceed twice `maxBytes`, all files render as one chain under one `maxBytes` instead, which can omit a user-global file that fit its own budget; this needs a budget of a few hundred bytes or a budget notice that nearly fills or exceeds `maxBytes`. The [per-chain budget decision](../../../.agents/notes/implemented/architecture/2026-10-16-separate-instruction-chain-budgets.md) records why the two chains are budgeted separately.
+所有文件合起来能放进 `maxBytes` 时，消息包含全部文件且没有预算通知；只有一条链有文件时，该链单独在 `maxBytes` 内渲染。其他情况下，一个 `<system-reminder>` 框架包含合并后的预算通知（仅当有文件被省略或截断时）、一段引言（仅当某条链保留了框架时），以及按加载顺序排列的两条链渲染段落，因此基线中用户全局文件在前；这条消息可以超过 `maxBytes`，但至多为其两倍。若某条链在没有框架的情况下渲染，且合并后的框架会超过 `maxBytes` 的两倍，则所有文件改为作为一条链在一个 `maxBytes` 内渲染，这可能省略一个本可放进自身预算的用户全局文件；这只会在预算只有几百字节，或预算通知接近或超过 `maxBytes` 时发生。[按指令链分别预算的决策](../../../.agents/notes/implemented/architecture/2026-10-16-separate-instruction-chain-budgets.zh.md)记录了两条链分别预算的原因。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design decisions behind the plugin; the observable behavior is covered in [Use this package](#use-this-package).
+本节解释插件背后的设计决策；可观察行为见[使用本包](#use-this-package)。
 
-### Design concept
+### 设计理念
 
-The plugin is built on one principle: workspace instructions are durable conversation content, owned per agent and per session. Baseline and refresh messages are ordinary sourced `user/message` events, so they replay, compact, and resume exactly like other history, and model-visible state is always reconstructable from the session log. The plugin owns the complete `<system-reminder>` framing and every injected message reaches the model verbatim.
+该插件建立在一个原则上：工作区指令是持久的对话内容，按 agent 与会话分别归属。基线消息与刷新消息都是普通的带来源 `user/message` 事件，因此与其他历史一样可回放、可压缩（compaction）、可恢复，模型可见状态总能从会话日志重建。插件拥有完整的 `<system-reminder>` 框架，每条注入消息都原样到达模型。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: pre-step listener, `tools/result` touch tracking, inbox composition |
-| [`src/config.ts`](src/config.ts) | `Config` schema, budget resolution, baseline identity |
-| [`src/files.ts`](src/files.ts) | Candidate discovery, project-root search, bounded streaming reads |
-| [`src/render.ts`](src/render.ts) | Instruction rendering, per-chain budget truncation, change records |
-| [`src/state.ts`](src/state.ts) | Durable message sources, version/digest cache, reconciliation |
-| [`src/digest.ts`](src/digest.ts) | SHA-1 content identity and per-candidate-group duplicate keys |
+| [`src/index.ts`](src/index.ts) | 插件入口：pre-step 监听器、`tools/result` touch 跟踪、inbox 组合 |
+| [`src/config.ts`](src/config.ts) | `Config` schema、预算解析、基线标识 |
+| [`src/files.ts`](src/files.ts) | 候选发现、项目根搜索、有界流式读取 |
+| [`src/render.ts`](src/render.ts) | 指令渲染、按指令链的预算截断、变更记录 |
+| [`src/state.ts`](src/state.ts) | 持久消息来源、版本／digest 缓存、对账 |
+| [`src/digest.ts`](src/digest.ts) | SHA-1 内容标识与每候选组重复键 |
 
-### Main flow
+### 主要流程
 
-At the first eligible `agent/pre-step` of a session, the plugin composes the baseline and folds it into the entering batch right after the claimed messages. Successful first-party `read`, `write`, and `edit` calls contribute touches that bubble up through parent execution tokens; once the enclosing step is durable, a projection reconciles the visible session state against the inbox and queues additions, replacements, or removals. An unchanged path with an unchanged digest is never injected again. Discovery follows structured filesystem activity rather than shell navigation, because each local shell call starts a fresh process and parsing arbitrary shell syntax is not a reliable filesystem seam.
+在会话第一次符合条件的 `agent/pre-step`，插件组合基线并把它折入进入步骤的批次、紧随已领取的消息之后。成功的第一方 `read`、`write`、`edit` 调用贡献的 touch 会沿父级执行 token 逐层上浮；当外层步骤进入持久历史后，一次投影会把可见会话状态与 inbox 对账，并排入新增、替换或移除。路径与 digest 都未变的内容绝不重复注入。发现跟随结构化文件系统活动，而非 shell 导航，因为每次本地 shell 调用都启动新进程，解析任意 shell 语法不是可靠的文件系统 seam。
 
-### Invariants
+### 不变式
 
-Every injected message carries a typed source with its change list; a complete baseline also carries an identity derived from normalized discovery, precedence, project-root, and budget configuration, and a matching durable message confirms a queued baseline. Model-visible text contains no hidden state markers, and literal `</system-reminder>` text anywhere in instruction content or model-visible metadata is escaped so repository-controlled text cannot close the plugin-owned frame.
+每条注入消息都携带带类型的来源及其变更列表；完整基线还携带从规范化发现、优先级、项目根与预算配置派生的标识，匹配的持久消息会确认已排队的基线。模型可见文本不含隐藏状态标记，指令内容或模型可见元数据中的字面 `</system-reminder>` 文本都会被转义，因此仓库控制的文本无法关闭插件控制的框架。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the instruction-file format to the design decision and the exhaustive configuration.
+包级约定不够用时阅读以下页面。它们从指令文件格式逐步进入设计决策与穷尽式配置。
 
-- [Documentation standard](../../../docs/AGENTS.md) — what `AGENTS.md` instruction files contain and how they are maintained.
-- [Workspace-context decision record](../../../.agents/notes/archived/feature/2026-06-24-workspace-context.md) — per-agent/session isolation and lifecycle rationale.
-- [Context group map](../README.md) — sibling request-context packages.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-instructions) — every accepted config field and its source declaration.
+- [文档标准](../../../docs/AGENTS.md)——`AGENTS.md` 指令文件包含什么、如何维护。
+- [工作区上下文决策记录](../../../.agents/notes/archived/feature/2026-06-24-workspace-context.md)——按 agent／会话隔离与生命周期理由。
+- [上下文组地图](../README.md)——相邻的请求上下文包。
+- [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-instructions)——每个受支持配置字段及其源声明。
 
 -----
 
 <a id="model-experience"></a> <a id="prompt-shape"></a>
-## Model Experience
+## 模型体验
 
-### Baseline context
+### 基线上下文
 
-#### What the model sees
+#### 模型看到的内容
 
-At the first request, derived history contains one durable user-role message with the bounded user-global and project instruction chain in broad-to-specific order. Resume reuses that message when its visible baseline is compatible.
+第一次请求的派生历史中包含一条持久 user 角色消息，其中按从宽泛到具体的顺序包含有界用户全局指令与项目指令链。可见基线兼容时，恢复会复用该消息。
 
-##### Baseline instruction template
+##### 基线指令模板
 
 ```markdown
 <system-reminder>
@@ -153,21 +151,21 @@ Instructions from: AGENTS.md
 </system-reminder>
 ```
 
-#### Token effect
+#### Token 影响
 
-The rendered baseline is appended once and remains in derived history until compaction. `maxBytes` bounds the user-global chain and the project chain separately, so a baseline that holds both is at most twice `maxBytes`; within each chain, broader files are omitted before the most-specific file is truncated, and an empty chain contributes zero tokens.
+渲染后基线只追加一次，并保留在派生历史中直到压缩。`maxBytes` 分别限制用户全局指令链与项目指令链，因此同时包含两条链的基线最多为 `maxBytes` 的两倍；每条链内较宽泛文件在最具体文件截断之前被省略，空指令链不产生 token。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only after the existing reusable prefix. Resume preserves reuse when the visible baseline identity is compatible; an incompatible identity appends a complete replacement, so discovery, precedence, project-root, or budget changes affect reuse only from that history position.
+仅追加，位于现有可复用前缀之后。可见基线标识兼容时，恢复会保持复用；不兼容的标识会追加一条完整替代基线，因此发现、优先级、项目根或预算变更只会从该历史位置起影响复用。
 
-### Newly discovered scope context
+### 新发现的 scope 上下文
 
-#### What the model sees
+#### 模型看到的内容
 
-After a successful first-party filesystem call reaches a deeper directory, the next request includes one retained sourced `user/message` with the newly applicable instruction file. A user-global file discovered after the baseline renders the same section with `These user-global instructions apply to all work.` in place of the scope sentence below, because a user-global scope directory is an internal reconciliation key rather than a project directory.
+成功的第一方文件系统调用到达更深目录后，下一次请求会包含一条保留的带来源 `user/message`，其中包含新适用的指令文件。基线之后才发现的用户全局文件渲染同一段落，但用 `These user-global instructions apply to all work.` 取代下面的 scope 句子，因为用户全局 scope 目录是对账用的内部 key，而不是项目目录。
 
-##### Additional instruction template
+##### 附加指令模板
 
 ```markdown
 <system-reminder>
@@ -179,21 +177,21 @@ These instructions apply to work under `packages/app`. Use them as guidance when
 </system-reminder>
 ```
 
-#### Token effect
+#### Token 影响
 
-Each discovered scope adds bounded history tokens until compaction. Unchanged content is suppressed by visible session state plus version/digest comparison, and PTC mode defers the same message until after the outer `run_code` result and its enclosing durable step.
+每个已发现 scope 都会添加有界历史 token，直到压缩。可见会话状态与版本／digest 比较会抑制未更改内容，PTC mode 将同一消息延迟至外层 `run_code` 结果及其所属持久步骤之后。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV Cache entries.
+仅追加；新可见内容位于可复用请求前缀之后，不会使现有 KV Cache 条目失效。
 
-### Changed or removed instruction context
+### 已改变或移除的指令上下文
 
-#### What the model sees
+#### 模型看到的内容
 
-A changed file produces `Updated instructions from: <path>` plus its replacement content. A candidate that disappears or becomes a per-directory duplicate of an earlier candidate produces the removal notice below.
+已改变的文件会产生 `Updated instructions from: <path>` 加替换内容。消失或成为同一目录中较早候选文件重复项的候选文件会产生下方移除通知。
 
-##### Removal notice
+##### 移除通知
 
 ```markdown
 <system-reminder>
@@ -203,37 +201,37 @@ The previously loaded instructions from this file no longer apply.
 </system-reminder>
 ```
 
-#### Token effect
+#### Token 影响
 
-Each batch of confirmed changes or removals is one retained history message. `maxBytes` bounds each instruction chain in it, so a batch with user-global and project changes is at most twice `maxBytes`. Provider failures add no message, and an update omitted by the budget remains eligible for a later filesystem touch.
+每批已确认的变更或移除是一条保留历史消息。`maxBytes` 限制其中每条指令链，因此同时包含用户全局与项目变更的批次最多为 `maxBytes` 的两倍。提供方失败不添加消息，预算省略的更新仍可在后续文件系统 touch 中处理。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV Cache entries.
+仅追加；新可见内容位于可复用请求前缀之后，不会使现有 KV Cache 条目失效。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when instruction loading is a poor fit or needs operational awareness. They are current package constraints, not a task backlog.
+这些限制说明指令加载何时不合适或需要运维注意。它们是当前包约束，不是任务积压。
 
-- **Discovery follows structured fs tools, not shell navigation** — a `bash` command that changes directories does not trigger nested instruction discovery because shell syntax and per-call shell state are not a reliable filesystem seam.
-- **Refresh is touch-driven** — there is no watcher; external edits become visible on the next successful first-party `read`, `write`, or `edit`, when resume reconciles a visible baseline, or when an entering pre-step restores a shadowed baseline.
-- **Candidate semantics stay intentionally small** — lowercase names, `.claude/rules/`, and `@path` imports are not interpreted; project scopes load `AGENTS.local.md`/`CLAUDE.local.md` overlays by default, but neither user-global root has a local overlay and other custom names require explicit candidate configuration. A project directory named like a user-global scope directory renders as `./<name>/...`, so it keeps its own scope instead of resolving to the global root.
-- **Deduplication is content-based within one candidate group** — candidates collapse only when byte-identical after trimming leading and trailing whitespace. The two user-global roots share one group, so the shared-root file collapses behind a matching harness-home file; sibling project candidates collapse the same way, while a distinct real copy that has drifted from `AGENTS.md` loads in full alongside it. A duplicate of budget-retained content stays reconciled: when the retained candidate changes or disappears, the duplicate becomes visible again. Unchanged hidden duplicates, including files removed from visible state as duplicates, use cached metadata instead of content reads.
-- **One candidate group shares failure fate** — when metadata or content cannot be read for any candidate, including a hidden duplicate, the group keeps its last-good state for that pass. An unreadable shared agents root therefore also postpones a harness-home change notice until a later pass observes both roots.
-- **A byte-budget omission does not re-enter reconciliation** — a candidate that its chain's budget dropped from the baseline, including any content duplicate of that candidate, is not probed again while that visible baseline holds; it becomes visible only after the baseline is rebuilt.
-- **Symlinked instruction files are followed across the trust boundary** — a candidate whose final component is a symlink is resolved and its target loaded, so a cloned repository can surface off-tree file content as lower-authority workspace guidance (it never overrides system, developer, or direct user instructions). Confine `ctx.fs` with the filesystem policy gate or an OS sandbox when loading untrusted repositories.
-- **Instruction content is bounded, not summarized** — within each chain, over-budget broad files are omitted and the chain's most-specific file may be truncated; the plugin never asks a model to compress instruction prose.
-- **Budget is not shared across chains** — bytes one chain leaves unused do not extend the other, so a 70 KiB user-global file is truncated to fit `maxBytes` even when the project chain uses 1 KiB.
+- **发现跟随结构化 fs 工具，而非 shell 导航**：更改目录的 `bash` 命令不会触发嵌套指令发现，因为 shell 语法与每次调用的 shell 状态不是可靠的文件系统 seam。
+- **刷新由 touch 驱动**：没有 watcher；外部编辑会在下一次成功的第一方 `read`、`write` 或 `edit` 时、恢复对账可见基线时，或进入步骤的 pre-step 恢复被遮蔽基线时可见。
+- **候选语义有意保持简单**：不解释小写名称、`.claude/rules/` 与 `@path` import；项目 scope 默认加载 `AGENTS.local.md`／`CLAUDE.local.md` overlay，但两个用户全局根目录都没有本地 overlay，其他自定义名称需要显式候选配置。与用户全局 scope 目录同名的项目目录会渲染为 `./<name>/...`，从而保留自己的 scope，而不会解析到全局根目录。
+- **去重在同一候选组内基于内容**：候选只有在去除首尾空白后字节完全一致时才折叠。两个用户全局根目录共享同一个组，因此共享根文件会折叠在内容一致的 harness home 文件之后；同级项目候选同样折叠，而从 `AGENTS.md` 漂移的独立副本则会与它一起完整加载。预算保留内容的重复候选仍参与对账：保留的候选一旦改变或消失，它就会重新可见。未改变的隐藏重复项（包括因重复而从可见状态移除的文件）使用缓存元数据，不重新读取内容。
+- **同一候选组共享失败命运**：组内任一候选（包括隐藏的重复项）的元数据或内容无法读取时，整个组在该轮保留最后一次成功状态。因此共享 agents 根目录不可读时，harness home 的变更通知也会推迟到之后某一轮同时观测到两个根目录时。
+- **字节预算省略的候选不重新进入对账**：所在指令链的预算从基线中丢弃的候选及其内容重复项在可见基线存续期间不再被探测，只有基线重建后才会重新可见。
+- **Symlink 指令文件会跨越信任边界跟随**：最终组件是 symlink 的候选文件会被解析并加载其目标，因此克隆仓库可以将树外文件内容呈现为较低优先级的工作区指引（它绝不覆盖 system、developer 或用户直接下达的指令）。加载不受信任仓库时，请用文件系统策略门禁或 OS 沙箱限制 `ctx.fs`。
+- **指令内容受限但不会被摘要**：每条指令链内超出预算的宽泛文件会被省略，该链最具体的文件可能被截断；该插件绝不请求模型压缩指令文本。
+- **预算不在指令链之间共享**：一条链未用完的字节不会让给另一条链，因此即使项目指令链只用了 1 KiB，70 KiB 的用户全局文件也会被截断到 `maxBytes` 以内。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

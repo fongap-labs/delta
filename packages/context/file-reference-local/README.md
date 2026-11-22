@@ -1,37 +1,35 @@
 ---
-description: "Local-workspace @file completion provider for users and maintainers enabling, sizing, or debugging ctx.fileReferences discovery."
+description: "面向用户与维护者的本地工作区 @file 补全提供方，用于启用、调整规模或排查 ctx.fileReferences 的发现能力。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-file-reference-local
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+agent（智能体）及宿主 UI 可以用各 agent 本地工作区中经过排序的路径补全 `@file` mention；有界发现让大型仓库也能保持响应迅速。结果会在工具活动后刷新且不会阻塞补全，并且始终不会跟随目录符号链接。当 `read` 可用时，模型还会收到关于如何理解引用路径的稳定指引。当 `read` 使用 Harness 宿主文件系统时选择本包；远程或虚拟命名空间需要与之匹配的发现能力。
 
-Agents and host UIs can complete `@file` mentions with ranked paths from each agent's local workspace, with bounded discovery that stays responsive in large repositories. Results refresh after tool activity without blocking completion, and directory symlinks are never followed. When `read` is available, the model also receives stable guidance for interpreting referenced paths. Choose this package when `read` uses the Harness host filesystem; remote or virtual namespaces need matching discovery.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Changing the Session's working directory discards the previous directory's search index; the next completion searches the new directory.
+切换 Session 工作目录后，旧目录的搜索索引会被丢弃；下一次补全会搜索新目录。
 
-Mount this provider when `@file` completion should discover the Harness host's own filesystem — the namespace the shipped `read` tool operates on. Each agent's workspace is indexed from its Session's current working directory.
+当 `@file` 补全应发现 Harness 宿主自身的文件系统——即随附 `read` 工具所操作的命名空间——时，挂载此提供方。每个 agent 的工作区从其 Session 当前工作目录开始建立索引。
 
-### Enabling the provider
+### 启用提供方
 
-The defaults suit a typical workspace, so the minimal mount needs no configuration:
+默认设置适合典型工作区，因此最小挂载无需任何配置：
 
 ```yaml
 - name: '@deepseek-ai/dsh-file-reference-local'
@@ -39,102 +37,102 @@ The defaults suit a typical workspace, so the minimal mount needs no configurati
     maxResults: 20
 ```
 
-### What you get
+### 你能得到什么
 
-Typing `@` in a host UI returns up to `maxResults` ranked path candidates for the addressed agent. A query containing `/` lists the matching directory's entries directly; a bare query fuzzy-ranks the bounded recursive index. Directory candidates keep the mention open with a trailing slash. After any tool result the agent's index is marked stale: the next query still answers from it and its replacement builds in the background, so a rebuild never sits in front of the caret.
+在宿主 UI 中输入 `@` 会为指定 agent 返回至多 `maxResults` 个排序路径候选。包含 `/` 的查询直接列出匹配目录的条目；裸查询对有界递归索引做模糊排序。目录候选以尾斜杠保持 mention 开放。任何工具结果之后，该 agent 的索引会被标记为陈旧：下一次查询仍由它作答，其替代品在后台构建，因此重建不会挡在光标前面。
 
-### Configuration
+### 配置
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `maxResults` | `20` | Maximum ranked candidates returned for one query |
-| `maxEntries` | `50000` | Maximum files and directories indexed per agent workspace |
-| `excludedDirectories` | `['.git', 'node_modules', 'dist', 'build', 'out', 'coverage', 'target', '.next', '.nuxt', '.turbo', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.gradle']` | Directory basenames omitted from traversal and candidates |
+| `maxResults` | `20` | 单次查询返回的排序候选最大数量 |
+| `maxEntries` | `50000` | 每个 agent 工作区建立索引的文件与目录最大数量 |
+| `excludedDirectories` | `['.git', 'node_modules', 'dist', 'build', 'out', 'coverage', 'target', '.next', '.nuxt', '.turbo', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.gradle']` | 遍历与候选中排除的目录基名 |
 
-Every numeric value must be a positive safe integer, and every excluded name must be a non-empty basename without `/` or `\`.
+所有数值都必须是正的安全整数，所有排除名都必须是不含 `/` 或 `\` 的非空基名。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design of the provider; the observable behavior is covered in [Use this package](#use-this-package).
+本节解释提供方的设计；可观察行为见[使用本包](#use-this-package)。
 
-### Design concept
+### 设计理念
 
-The provider maintains one reusable `WorkspaceFileSearch` per agent, rooted at that session's `cwd`. Directory-scoped queries (`a/b/...`) list live directory state, while bare fuzzy queries share one bounded recursive traversal. Only a workspace's first bare query waits for that traversal; a `tool/result` event marks the settled entries stale, and the next bare query serves them while the replacement builds. The model guidance is a per-agent prompt section contributed only while the addressed agent has a `read` tool; creation awaits prompt installation and rolls back on failure; agent disposal releases both the index and the prompt fiber.
+提供方为每个 agent 维护一个可复用的 `WorkspaceFileSearch`，以该会话的 `cwd` 为根。目录范围查询（`a/b/...`）列出实时目录状态，裸模糊查询共享一次有界递归遍历。每个工作区仅首次裸查询会等待该遍历；`tool/result` 事件把已完成的条目标记为陈旧，下一次裸查询在替代品构建期间继续由它作答。模型指引是按 agent 的提示词段，仅在指定 agent 拥有 `read` 工具时贡献；创建会等待提示词安装，安装失败会回滚 agent；agent dispose（资源释放）时会同时释放索引与提示词 fiber。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `LocalFileReferenceService`: config validation, per-agent searches, prompt install |
-| [`src/search.ts`](src/search.ts) | `WorkspaceFileSearch`: traversal, ranking, exclusion, staleness and background rebuild |
+| [`src/index.ts`](src/index.ts) | `LocalFileReferenceService`：配置校验、按 agent 搜索、提示词安装 |
+| [`src/search.ts`](src/search.ts) | `WorkspaceFileSearch`：遍历、排序、排除、陈旧标记与后台重建 |
 
-### Main flow
+### 主要流程
 
-A `list(agent, query, signal)` call either lists one directory's entries or reads the shared bounded index, ranks the candidates (exact, prefix, substring, then subsequence scores with directory bonuses), and returns at most `maxResults` in deterministic order. `tool/result` events mark the addressed agent's index stale so a later bare query observes a fresh tree. An unreadable or excluded subtree contributes no candidates, while an unreadable root fails its traversal instead: a transient failure must not replace still-good entries with an empty index.
+`list(agent, query, signal)` 要么列出某个目录的条目，要么读取共享的有界索引，对候选排序（精确、前缀、子串，再到子序列得分，目录有加成），并按确定性顺序返回至多 `maxResults` 个。`tool/result` 事件把指定 agent 的索引标记为陈旧；下一次裸查询仍从旧索引返回结果，同时在后台构建替代索引。不可读或已排除的子目录不贡献候选，而不可读的根目录则让该次遍历失败：一次瞬时故障不得用空索引覆盖仍然有效的条目。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the seam this provider implements to the tools its candidates point at.
+包级约定不够用时阅读以下页面。它们从本提供方所实现的 seam 进入其候选所指向的工具。
 
-- [File-reference seam](../file-reference/README.md) — the service contract and `@file` grammar this provider implements.
-- [Session-reference subsystem](../../../docs/subsystems/session-reference.md) — the shared file-reference contract behind host UIs.
-- [Filesystem tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-fs) — the `read` tool whose namespace discovery must match.
-- [Context group map](../README.md) — sibling request-context packages.
+- [文件引用 seam](../file-reference/README.md)——本提供方所实现的服务约定与 `@file` 语法。
+- [会话引用子系统](../../../docs/subsystems/session-reference.zh.md)——宿主 UI 背后的共享文件引用约定。
+- [文件系统工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-fs)——发现能力必须匹配其命名空间的 `read` 工具。
+- [上下文组地图](../README.md)——相邻的请求上下文包。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### File-reference guidance when read is available
+### `read` 可用时的文件引用指引
 
-#### What the model sees
+#### 模型看到的内容
 
-When the addressed agent has an effective `read` tool, the provider contributes this stable system-prompt section:
+当指定 agent 有实际生效的 `read` 工具时，提供方会贡献以下稳定的系统提示词段：
 
-##### File-reference instruction
+##### 文件引用指令
 
 ```markdown
 Tokens prefixed with @ are paths the user explicitly referenced. Relative paths resolve from the workspace root; absolute paths identify files or directories on the host. A trailing slash marks a directory: list it when its contents matter. Anything else is a file: use the read tool when its contents are needed, and do not claim to have inspected it before reading. @"..." quotes a path containing spaces.
 ```
 
-#### Token effect
+#### Token 影响
 
-Conditional and fixed: the one sentence is present while `read` is visible to the addressed agent; candidate lookup itself adds no tokens, and a selected path contributes only its ordinary user-message characters.
+该影响有条件且固定：只要 `read` 对指定 agent 可见，这一句就会存在；候选查询本身不增加 token，所选路径只会贡献普通用户消息中的对应字符。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The stable sentence joins the system-prompt prefix. Mounting or removing this provider, or changing whether `read` is visible, changes that prefix; queries, candidates, and index staleness do not.
+该稳定句子会加入系统提示词前缀。挂载或移除此提供方，或者改变 `read` 是否可见，都会改变该前缀；查询、候选项和索引陈旧标记不会改变前缀。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the provider is a poor fit. They are current package constraints.
+这些限制说明该提供方何时不合适。它们是当前包约束。
 
-- **Host-local namespace** — the provider scans the Harness host filesystem, so remote or virtual `read` implementations require a provider whose namespace matches the tool.
-- **Bounded advisory index** — very large workspaces may omit paths after `maxEntries`, and excluded or unreadable directories do not appear. The default exclusions name only build outputs no ecosystem also uses for sources; `lib` is deliberately absent, so a workspace that builds into it adds that name through `excludedDirectories`.
-- **One invalidation of staleness** — a bare query answered right after a tool result reflects the tree as of the previous traversal; the following query sees the rebuild.
-- **No ignore-file semantics** — `.gitignore` and other project ignore files do not influence discovery; only configured directory basenames are excluded.
+- **宿主本地命名空间**：提供方扫描 Harness 宿主的文件系统，因此远程或虚拟 `read` 实现需要使用命名空间与该工具一致的提供方。
+- **有界的提示性索引**：超大型工作区可能省略 `maxEntries` 之后的路径；被排除或无法读取的目录不会出现。默认排除项只列没有任何生态用作源码目录的构建产物；`lib` 被刻意排除在外，因此构建进 `lib` 的工作区需通过 `excludedDirectories` 自行加上。
+- **一次失效的陈旧窗口**：紧接工具结果之后的裸查询反映的是上一次遍历时的目录树；下一次查询才看到重建结果。
+- **没有忽略文件语义**：`.gitignore` 和其他项目忽略文件不会影响发现；系统只排除已配置的目录基名。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
