@@ -50,8 +50,17 @@ export class LocalDiagnosticJournal {
   private async write(item: StoredFailure): Promise<void> {
     await mkdir(this.directory, { recursive: true, mode: 0o700 })
     const line = JSON.stringify(item) + '\n'
+    const now = Date.now()
+    // Rotated journals must expire independently of the active file.
+    for (const suffix of ['.1', '.2']) {
+      const archivedPath = this.path + suffix
+      const archived = await stat(archivedPath).catch(() => undefined)
+      if (archived !== undefined && now - archived.mtimeMs > RETENTION_MS) {
+        await rm(archivedPath, { force: true })
+      }
+    }
     const existing = await stat(this.path).catch(() => undefined)
-    if (existing !== undefined && Date.now() - existing.mtimeMs > RETENTION_MS) {
+    if (existing !== undefined && now - existing.mtimeMs > RETENTION_MS) {
       await rm(this.path, { force: true })
     } else if (existing !== undefined && existing.size + Buffer.byteLength(line) > MAX_BYTES) {
       await rm(this.path + '.2', { force: true })
