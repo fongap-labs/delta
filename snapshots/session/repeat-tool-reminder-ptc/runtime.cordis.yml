@@ -1,3 +1,0 @@
-- insert:
-    - id: repeat-request-fixture
-      name: './request-fixture.mjs'

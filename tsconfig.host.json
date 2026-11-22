@@ -8,7 +8,6 @@
     "rewriteRelativeImportExtensions": false
   },
   "include": [
-    "snapshots/session/headless.snapshot.ts",
     "apps/web/tests/home-whale.e2e.ts",
     "apps/web/tests/sidebar-drawer.e2e.ts",
     "apps/web/tests/session-panel-layout.e2e.ts",
@@ -271,7 +270,6 @@
     "apps/desktop-publisher/tests/**/*.ts",
     "apps/desktop/tests/**/*.ts",
     "apps/desktop-host/tests/**/*.ts",
-    "benchmarks/**/*.ts",
     "packages/*/*/tests/**/*.ts",
     "packages/experimental/cua-macos/native/generate-protocol.ts",
     "packages/experimental/cua-windows/native/generate-protocol.ts",
@@ -289,8 +287,6 @@
   "exclude": [
     "apps/desktop/tests/keyboard.spec.ts",
     "packages/client/*/src/**",
-    "benchmarks/**/*.client.ts",
-    "benchmarks/**/*.client.tsx",
     "packages/*/*/tests/**/*.client.ts",
     "packages/*/*/tests/**/*.client.tsx",
     "packages/*/*/tests/**/*.client.spec.ts",

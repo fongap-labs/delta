@@ -249,8 +249,6 @@ describe('gate graph validation', () => {
     'ci-lint-contracts-ready',
     'ci-coverage',
     'ci-unit',
-    'ci-bench',
-    'ci-snapshot',
     'ci-artifacts',
     'ci-consumers',
     'ci-windows-blocking',
@@ -266,27 +264,6 @@ describe('gate graph validation', () => {
     const execute = vi.fn(async (item: Gate) => resultFor(item))
 
     await expect(runGates(subject, subject.length, execute)).resolves.toHaveLength(subject.length)
-  })
-
-  it('uses the internal CI benchmark runner without changing the public benchmark scripts', () => {
-    const subject = withPnpmEntrypoint(() => gatesForMode('ci-bench'))
-    const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
-      scripts: Record<string, string>
-    }
-
-    expect(scripts['check:ci:bench']).toBe('tsx scripts/run-gates.ts ci-bench')
-    expect(subject).toHaveLength(1)
-    expect(subject[0]).toMatchObject({
-      id: 'bench',
-      displayCommand: 'pnpm exec tsx scripts/run-ci-bench.ts',
-      args: ['/private/pnpm.cjs', 'exec', 'tsx', 'scripts/run-ci-bench.ts'],
-    })
-    expect(scripts['test:bench']).toBe('npm run build:bench && npm run build:web && npm run test:bench:built')
-    expect(scripts['build:bench']).toBe(
-      'npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts',
-    )
-    expect(scripts['build:native-system']).toBe('tsx native/system/scripts/build.ts --host-addon-only')
-    expect(scripts['test:bench:built']).toBe('tsx scripts/run-bench-suite.ts')
   })
 
   it('checks all maintained repository references locally and in CI', () => {
@@ -994,9 +971,7 @@ describe('Node 24 lane ownership', () => {
       'build',
       'node-compat',
       'publint',
-      'snapshot',
       'expected-output',
-      'web-snapshot',
       'doc-typecheck',
       'node-next-types',
       'built-bin-smoke',
@@ -1012,16 +987,13 @@ describe('Node 24 lane ownership', () => {
       DSH_BUILD_CLIENT_PROFILE: 'official',
     })
     for (const id of [
-      'snapshot',
       'expected-output',
-      'web-snapshot',
       'doc-typecheck',
       'node-next-types',
       'built-bin-smoke',
     ]) {
       expect(subject.find(item => item.id === id)?.needs).toEqual(['build'])
     }
-    expect(subject.find(item => item.id === 'snapshot')?.env).toEqual({ DSH_EXAMPLE_MODE: 'lib' })
     expect(subject.find(item => item.id === 'expected-output')?.env).toEqual({ DSH_EXAMPLE_MODE: 'lib' })
     expect(subject.find(item => item.id === 'built-bin-smoke')?.env).toEqual({ DSH_EXAMPLE_MODE: 'lib' })
     expect(subject.find(item => item.id === 'doc-typecheck')?.env).toEqual({
@@ -1036,34 +1008,8 @@ describe('Node 24 lane ownership', () => {
         'packages/subagent/subagent-codex/tests/loader-composition.e2e.ts',
         'packages/subagent/subagent-claude-code/tests/loader-composition.e2e.ts',
         'packages/team/agent-team/tests/built-lib.e2e.ts',
-        'packages/experimental/browser-use-stagehand-native/tests/built-attachment.e2e.ts',
       ]),
     )
-    expect(subject.find(item => item.id === 'web-snapshot')).toMatchObject({
-      displayCommand: 'DSH_SNAPSHOT=replay pnpm run test:web:built',
-      env: { DSH_SNAPSHOT: 'replay' },
-      after: [
-        'publint',
-        'snapshot',
-        'expected-output',
-        'doc-typecheck',
-        'node-next-types',
-        'built-bin-smoke',
-      ],
-    })
-  })
-})
-
-describe('Linux primary graph', () => {
-  it('adds the same compare-only web gate after built client artifacts', () => {
-    const subject = withPnpmEntrypoint(() => gatesForMode('ci-linux-primary'))
-    const web = subject.find(item => item.id === 'web-snapshot')
-
-    expect(web).toMatchObject({
-      displayCommand: 'DSH_SNAPSHOT=replay pnpm run test:web:built',
-      env: { DSH_SNAPSHOT: 'replay' },
-      needs: ['build'],
-    })
   })
 })
 
