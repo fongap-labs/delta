@@ -1,7 +1,7 @@
-# AGENTS.md — Agent Notes
+# Agent 决策记录维护指令
 
-Agent Notes are effectively RFCs written by agents: durable proposals and decision records that preserve rationale, alternatives, consequences, and required verification. Follow the [documentation standard](../../docs/AGENTS.md) and the [Agent Note rules](README.md).
+Agent Notes 是长期保留的方案与决策记录，记录动机、备选方案、取舍、后果和需要的验证；不是执行日志或第二套产品规范。维护时遵循[文档规范](../../docs/AGENTS.md)和[决策记录说明](README.md)。
 
-**Every new Agent Note triggers a supersession check.** Search the active tree for older notes covering the same decision or mechanism, classify any full or partial supersession with [`dsh-archive-agent-notes`](../skills/dsh-archive-agent-notes/SKILL.md), and archive every qualifying implemented triplet in the same PR. Keep partial supersessions active and cross-linked.
+每次新增决策记录都要检查是否取代已有记录：检索当前活跃目录中相同机制或决策，按照[归档流程](../skills/dsh-archive-agent-notes/SKILL.md)确认完全或部分替代关系。完全被取代的已实施记录按现行流程在同一 PR 归档完整文件组合；部分替代的记录仍保持活跃，并建立交叉引用。
 
-Files under [`archived/`](archived/AGENTS.md) are frozen historical snapshots: never edit them or treat them as current authority.
+[archived/](archived/AGENTS.md) 是已冻结的历史资料，不得为了中文化或结构精简而改写，也不得将其作为现行架构或治理权威。
