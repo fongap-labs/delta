@@ -1,20 +1,18 @@
-# Conversation and Session rules
+# 会话与 Session 规则
 
-English | [中文](conversation-and-session.zh.md)
+关于读取 Session、持有 Session、计算会话节点与渲染它们的规则。数据模型与各类型语义见 [session-projection.zh.md](../subsystems/session-projection.zh.md) 与 [conversation.zh.md](../subsystems/conversation.zh.md)。
 
-Rules for reading a Session, holding one, computing conversation nodes, and rendering them. The data model and per-type semantics live in [session-projection.md](../subsystems/session-projection.md) and [conversation.md](../subsystems/conversation.md).
+## Projection 是唯一的读取与计算路径
 
-## Projection is the only read and compute path
+Session 数据一律经 Projection 读取与计算。客户端读投影值，而不是拉 Session 日志；属于该会话的计算以注册单元的形式运行并**推送**结果，而不是按需重算。同一个问题若有两个答案——一个拉取、一个推送——两者就会分叉，渲染可能显示出 Session 日志已不再支持的值。
 
-Session data is read and computed through Projection. A client reads a projection value instead of pulling the Session log, and a computation that belongs to the Session runs as a registered projection unit that publishes its result instead of being recomputed on demand. Two answers to the same question — one pulled, one pushed — drift apart, so a render can show a value the Session log no longer supports.
+- 判定条件：客户端渲染的每个 Session 派生值都在渲染位置经投影读取取得，每个新增的会话内计算都注册为单元、其结果以已发布值的形式到达客户端。组件自己拉取 Session 数据、或读者按需触发一次计算，都属违规。
+- State 与 View：单元折叠 host 侧 State，并在其上声明客户端可见的 View，二者分工写在注册里。`ProjectionDefinition` 的字段与驱动它们的注册表归 [session-projection.zh.md](../subsystems/session-projection.zh.md#ctxsessionprojections--sessionprojectionregistry)。
+- 版本：`stateVersion` 从 1 起。遵循[检查点版本规则](../../packages/session/session-projection/README.zh.md)：状态字段或折叠变化需要递增版本，但经过测试、保留历史含义且旧检查点加后缀恢复与全量回放一致的可选字段扩展除外。同一 key 以不同版本注册两次会抛错，而不是合并。
+- 计算策略：单元默认全量计算。收窄某个单元的计算范围需要对应领域专家确认，绝不能由实现者自行决定。
+- 边界：非完全 projection 渲染可用于某些 key 的界面可用性展示，例如在连接中的 Session 应答之前先画缓存块。它绝不参与对外可见结果的判定，那些结果等标准 projection 值。
 
-- Judged condition: every Session-derived value a client renders arrives through a projection read at the render position, and every new in-Session computation is registered as a unit whose result reaches clients as a published value. A component that fetches Session data itself, or a computation a reader triggers on demand, is the violation.
-- State and View: a unit folds host-side State and declares the client-visible View over it, and the registration states that division. The `ProjectionDefinition` fields and the registry that drives them belong to [session-projection.md](../subsystems/session-projection.md#ctxsessionprojections--sessionprojectionregistry).
-- Version: `stateVersion` starts at 1. Follow the [checkpoint version rules](../../packages/session/session-projection/README.md): state fields or fold changes require a bump, except for tested optional additions that preserve historical meaning and old-checkpoint suffix equivalence with full replay. Registering one key twice with different versions throws instead of merging.
-- Compute strategy: units compute in full by default. Narrowing what a unit computes needs the owning domain expert's confirmation, never the implementer's own decision.
-- Boundary: a partial projection view may serve interface availability for individual keys, such as a cached block drawn before the connected Session answers. It never decides an externally visible result, which waits for the standard projection value.
-
-A component that reads at its render position, and a computation that registers instead of being pulled, both comply:
+在渲染位置读取、并以注册代替拉取，两者都合规：
 
 ```tsx
 // The client reads the published value; it never fetches Session data itself.
@@ -33,7 +31,7 @@ const planDefinition: ProjectionDefinition<'plan', typeof emptyPlan> = {
 }
 ```
 
-A component that pulls the same value over its own request breaks the single read path:
+自行发请求拉取同一个值，就破坏了唯一读面：
 
 ```tsx
 function PlanChip() {
@@ -45,17 +43,17 @@ function PlanChip() {
 }
 ```
 
-The pulled copy and the pushed value disagree, and no version check can tell which one the Session currently holds.
+拉取到的副本与推送值互相矛盾，版本检查也无法说明 Session 当前持有的是哪一个。
 
-## Cold reads are the last resort
+## 冷读是最后手段
 
-Read an available cache before the original log, and reach for a cold read only when no projection covers the data. The "small Session may be read in full" exception is removed and is not reconsidered. When cached and official data are not equivalent, a missing or stale row produces an explicit outcome instead of silently switching onto the slow path.
+可用的缓存要先于原始日志被读取；只有没有任何投影覆盖该数据时才走冷读。「小会话可以全读」这一例外已移除、不再考虑。当缓存与正式数据不完全对等时，缺失或过期要产出显式结果，而不是静默改走重路径。
 
-- Judged condition: a Session read consults the projection cache first, and an absent row leaves an explicit state for the caller; a cache test whose `else` branch opens the complete log is the violation.
-- Fallback semantics: the caller decides what a miss means and states it in the returned value. There is no cache-size or Session-size exception, and no approver for one.
-- Boundary: this restriction is the client's. An absolute "never fork a cold read" on the host is not required, because the host may need to open a log the client cannot.
+- 判定条件：Session 读取先查 projection 缓存，行缺失时为调用方留下显式状态；缓存判断的 `else` 分支直接打开完整日志，即属违规。
+- 回退语义：缺失意味着什么由调用方决定，并写进返回值。不存在按缓存大小或 Session 大小开出的例外，也没有对应的批准人。
+- 边界：这条限制是前端的。host 侧「禁止 fork 冷读」的绝对化表述不成立，因为 host 可能需要打开前端打不开的日志。
 
-The stored projection rows are read first, and a miss stays a state the caller renders:
+先读已存储的投影行，缺失仍是一个由调用方渲染的状态：
 
 ```ts ignore-check
 // The listing reads stored projection rows; a miss remains an explicit state.
@@ -70,7 +68,7 @@ function readListing(header: SessionHeader, keys: readonly ProjectionKey[]): Lis
 // Opening the complete log is a separate operation the caller names, never this fallback.
 ```
 
-A cache test that falls through to the complete log turns the slow path into the ordinary one:
+缓存判断落回完整日志，就等于把慢路径变成常规路径：
 
 ```ts ignore-check
 function readListing(header: SessionHeader, session: Session): ListingView {
@@ -80,17 +78,17 @@ function readListing(header: SessionHeader, session: Session): ListingView {
 }
 ```
 
-Every miss now reads the whole log in the foreground, so a slow Session is slow on every listing rather than only on the path that asks for it.
+现在每次缺失都在前台读完整日志，于是慢会话在每次列表读取时都慢，而不只是在那条主动请求它的路径上慢。
 
-## Retention follows one lifecycle rule
+## 持有与回收遵循同一条生命周期判据
 
-A client holds a Session through an explicit reference (`SessionReference`), and the reference count reaching zero releases it. Idle reclamation follows the one lifecycle rule — no references and nothing in flight — and never enumerates which Sessions may be reclaimed from business state, because that list has to be maintained by every feature that adds one. An implicit holder is invisible, so reclamation cannot tell who still uses the Session.
+客户端经显式引用（`SessionReference`）持有 Session，引用计数归零即释放。闲置回收只看那一条生命周期判据——零引用且无在途——绝不按业务状态枚举「哪些 Session 可以回收」，因为那份清单要靠每个新增状态的业务功能自己去维护。隐式持有者不可见，回收便判断不了谁还在使用该 Session。
 
-- Judged condition: the predicate is `refCount == 0 && inflight == 0`. Does the code hold the Session across its acquire → use window through a reference that retain and release can be audited against? A module-level Session object or a global current id is the violation.
-- Boundary: the enforced parts are the unified predicate and the absence of business-state enumeration; the release trigger itself is checked by hand, so hand-checking alone is not a rejection reason.
-- Ownership: `retain`, `release`, `ready`, and teardown ordering belong to [the Session Controller's client references](../../packages/api/session-controller/README.md#client-references). A source-session mention carried in a message is a different type, owned by [session-reference.md](../subsystems/session-reference.md).
+- 判定条件：判据 = `refCount == 0 && inflight == 0`。代码是否在「获取 → 使用」的时间窗口内通过一份可审计 retain / release 的引用来持有 Session？模块级 Session 对象或全局 current id 都属违规。
+- 边界：强制的是统一判据与不做业务状态枚举这两点；释放触发本身靠人工核对，因此仅凭人工核对不构成打回理由。
+- 归口：`retain`、`release`、`ready` 与 teardown 顺序归 [Session Controller 的 client references](../../packages/api/session-controller/README.zh.md#client-references)。消息里携带的 source session mention 是另一种类型，归 [session-reference.zh.md](../subsystems/session-reference.zh.md)。
 
-A view that retains through an explicit reference and releases it on teardown complies:
+经显式引用持有并在 teardown 释放的视图合规：
 
 ```ts ignore-check
 class SidebarSessionView implements Disposable {
@@ -107,7 +105,7 @@ class SidebarSessionView implements Disposable {
 }
 ```
 
-Module state that keeps the Session object hides every holder from the reclaimer:
+模块状态缓存 Session 对象，会把所有持有者对回收器隐藏：
 
 ```ts ignore-check
 let currentSessionId: SessionId | undefined
@@ -123,38 +121,38 @@ export function reclaimIdle(): void {
 }
 ```
 
-Nobody can count who still uses the Session, and the next state added to the Session escapes the enumeration and is never reclaimed.
+没有人能数清谁仍在使用该 Session，下一个新增的 Session 状态也会漏出枚举、永远不被回收。
 
-## Retained excerpts do not keep their source string alive
+## 保留的摘录不会让来源字符串常驻内存
 
-Session events, tool result `meta`, and other values kept for a Session's lifetime copy any excerpt taken from a large transient string, such as decoded file text or command output. In V8, a `slice`, `substring`, `split` piece, or regular-expression capture of 13 or more characters can reference its whole parent string, a concatenation references its parts, and `Session.append` copies objects but not string storage. A 200-character line kept in `meta` can therefore keep a 16 MB file in memory until the Session closes.
+Session 事件、工具结果的 `meta`，以及其他在 Session 生命周期内保留的值，若取自大型临时字符串（例如解码后的文件文本或命令输出）的摘录，都要先复制该摘录。在 V8 中，长度不少于 13 个字符的 `slice`、`substring`、`split` 片段或正则表达式捕获可能引用整个父字符串，拼接结果会引用其各个组成部分，而 `Session.append` 复制对象，不复制字符串存储。因此，`meta` 中保留的一行 200 个字符的文本可能让一个 16 MB 的文件一直留在内存中，直到 Session 关闭。
 
-- Judged condition: can a retained string be an excerpt of a larger string that would otherwise be garbage? The excerpt is copied with `Buffer.from(text, 'utf16le').toString('utf16le')` before it is retained, and a test drops a heap-allocated source, forces garbage collection, and checks that heap usage does not grow with the source size.
-- Boundary: the rule applies to excerpts that outlive the operation. It does not apply when the source itself is retained or when the value comes from `JSON.parse`, `TextDecoder`, or `Buffer#toString`. `String()`, `slice(0)`, `trim()`, `'' + text`, and `join` can return the input string itself and are not copies.
-- Ownership: the code that takes the excerpt copies it; the Session does not copy strings on append.
+- 判定条件：被保留的字符串是否可能是某个更大字符串的摘录，而该更大字符串本应被垃圾回收？摘录在保留之前用 `Buffer.from(text, 'utf16le').toString('utf16le')` 复制；测试丢弃一个分配在堆上的来源字符串、强制垃圾回收，并检查堆内存用量不随来源大小增长。
+- 边界：该规则适用于存活时间超过本次操作的摘录。来源本身被保留，或值来自 `JSON.parse`、`TextDecoder` 或 `Buffer#toString` 时，该规则不适用。`String()`、`slice(0)`、`trim()`、`'' + text` 和 `join` 可能返回输入字符串本身，不算复制。
+- 归口：截取摘录的代码负责复制；Session 在 append 时不复制字符串。
 
-The `read` tool copies a returned line once when it was built from a slice:
+返回行由 slice 拼成时，`read` 工具把它复制一次：
 
 ```ts ignore-check
 const line = lineHasSlice ? Buffer.from(lineBuffer, 'utf16le').toString('utf16le') : lineBuffer
 ```
 
-Keeping the slice keeps the decoded file:
+保留 slice 会把解码后的文件一并保留：
 
 ```ts ignore-check
 const line = lineBuffer // may be a slice of the whole decoded file
 ```
 
-## Node computation is incremental and streaming publication is batched
+## 节点计算是增量的，流式发布是合批的
 
-A new node computation states its complexity, and high-frequency streaming chunks never publish immediately and never recompute in full. A per-chunk full rebuild published at once puts the whole node collection on the frame budget, and the transcript stalls behind the stream. The append-path cost — with `D` registered Definitions, `D` matches and one constant-time Context-key lookup — and the publication vocabulary (`none`, `animation-frame`, `immediate`) are owned by [conversation.md](../subsystems/conversation.md#definition-and-typed-chat-payload).
+新增节点计算要说明其复杂度；高频流式 chunk 绝不立即发布、也不做全量计算。每个 chunk 全量重算并立即发布，等于把整个节点集合压进帧预算，转写区便会堵在流后面。追加速路径的开销——在 `D` 个已注册 Definition 下执行 `D` 次匹配与一次常量级 Context key 查找——以及发布节拍取值（`none`、`animation-frame`、`immediate`）归 [conversation.zh.md](../subsystems/conversation.zh.md#definition-and-typed-chat-payload)。
 
-- Judged condition: how much one chunk computes — the increment on the affected subtree, not the event window — and when its result is published — a batching policy, not one publication per chunk.
-- Boundary: this rule binds the implementation; cadence alone is not a rejection reason, so a change is judged on the cadence it states and the published path it uses.
-- Forbidden on the high-frequency path: `immediate` publication, and a full recomputation per chunk.
-- Boundary: a structural or terminal change may publish `immediate`, because the cadence is chosen per publication. Only the high-frequency delta path is bound to batching.
+- 判定条件：单个 chunk 计算了多少——受影响子树的增量，而不是事件窗口——以及结果何时发布——合批策略，而不是每个 chunk 发布一次。
+- 边界：本条约束实现；节拍本身不构成打回理由，改动按它声明的节拍与所用的已发布路径评判。
+- 高频路径上禁止：`immediate` 发布，以及每个 chunk 做一次全量重算。
+- 边界：结构性或终态变化可以 `immediate` 发布，因为节拍是按单次发布选择的。只有高频 delta 路径受合批约束。
 
-A chunk that updates one Context and asks for a coalesced publication complies:
+只更新一个 Context 并请求合批发布的 chunk 合规：
 
 ```ts ignore-check
 const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
@@ -168,7 +166,7 @@ const assistantDefinition: ConversationNodeDefinition<AssistantState> = {
 }
 ```
 
-Rebuilding the whole node collection for every chunk and publishing it immediately:
+每个 chunk 重建整个节点集合并立即发布：
 
 ```ts ignore-check
 function onChunk(chunk: AssistantLiveChunk): void {
@@ -177,18 +175,18 @@ function onChunk(chunk: AssistantLiveChunk): void {
 }
 ```
 
-Each chunk costs a full-window rebuild inside the frame budget, so grouping and rendering stall behind the stream.
+每个 chunk 都要在帧预算内做一次全窗口重建，于是分组与渲染都堵在流后面。
 
-## The node build and grouping engine carries no business rule
+## 节点构建与分组引擎不承载业务规则
 
-Business rules never enter the grouping engine, and a business requirement never reshapes the built payload. `ProcessState`, the group product hierarchy, and the set of group semantics in `conversation-nodes/process-groups.ts` are infrastructure: the engine understands enum placement values such as grouped, standalone, and reply, and the caller computes which one applies. A special case inside the engine changes the produced structure for every consumer and puts a business condition on the group computation path.
+业务规则绝不进入分组引擎，业务诉求也绝不改变构建产物的形态。`ProcessState`、分组产物层级，以及 `conversation-nodes/process-groups.ts` 里的分组语义集合都属基础设施：引擎只认枚举化的落位语义（如成组 / 独立 / 回复），由调用方算出该用哪一个。引擎内的业务特判会改变所有使用方共享的产物结构，并把业务条件带上分组计算路径。
 
-- Judged condition: does the engine contain a business condition? A diff that adds a `ProcessState` field, adds or removes a group level, or changes group semantics for one business fails; the placement decision belongs to the caller that computes the enum value.
-- Boundary: the layering, its cost, and existing business expectations are the reason a business does not rework the grouping design.
-- Boundary: a new enum value carrying a new placement meaning is the supported extension, wherever the caller computes it.
-- Exception and approver: none by default. A change to this infrastructure needs the corresponding domain expert's confirmation. [conversation.md](../subsystems/conversation.md#group-definitions) owns the group Definition types.
+- 判定条件：引擎内部是否存在业务条件？新增 `ProcessState` 字段、增删分组产物层级、为某个业务改变分组语义，都属违规；落位判定归算出枚举值的调用方。
+- 边界：架构分层、其开销与既有业务预期，就是业务不得重做分组设计的原因。
+- 边界：携带新落位含义的新枚举值才是受支持的扩展，无论调用方在哪里算出它。
+- 例外与批准人：无默认例外。改动该基础设施须经对应领域专家确认。分组 Definition 类型归 [conversation.zh.md](../subsystems/conversation.zh.md#group-definitions)。
 
-The caller decides the business meaning and passes the placement enum the engine places by:
+调用方决定业务含义，并把引擎据以落位的枚举值传进去：
 
 ```ts ignore-check
 // Business judgment stays in the caller.
@@ -202,7 +200,7 @@ function groupEntries(commands: readonly CommandView[]): readonly NodePlacement[
 }
 ```
 
-A business condition inside the engine's own computation:
+业务条件写进引擎自己的计算过程：
 
 ```ts ignore-check
 // The grouping engine asks what a node means, not where it goes.
@@ -212,18 +210,18 @@ function placeProcessNode(node: ChatConversationViewNode): GroupPlacement {
 }
 ```
 
-The produced structure now carries one business's meaning, so every consumer and the group computation follow that feature.
+产物从此承载某一个业务的含义，所有使用方与分组计算都要跟着该功能走。
 
-## The node list and seat components carry no business branch
+## 节点列表与席位组件不承载业务分支
 
-`ChatNodeList`, `ChatNodeSeat`, and `ChatGroupSeat` are infrastructure. They carry no business condition and no business-specific field, and a single business never changes the list traversal or the seat selection. A new node shape contributes its kind to `ChatNodeDataMap` and its renderer through the kind registration surface, so the list keeps dispatching on kind while business semantics stay in the business module. A branch added for one feature makes every node's rendering depend on that feature.
+`ChatNodeList`、`ChatNodeSeat` 与 `ChatGroupSeat` 属基础设施。它们不承载业务判断，也不承载业务专用字段；单一业务绝不改变列表遍历或席位选择。新的节点形态把自己的 kind 贡献给 `ChatNodeDataMap`，并经 kind 注册面注册 renderer，于是列表继续按 kind 分发，业务语义留在业务模块内。为某个功能加的分支，会让每个节点的渲染都依赖该功能。
 
-- Judged condition: a business branch in a list or seat component, a business-only field on its props, or a traversal or seat-selection change that serves one business.
-- Correct outlet: the business package merges its own key into `ChatNodeDataMap` and registers a renderer for the node kind; the seat renders the registered component for the node's kind. The registration discipline is owned by [slots.md](../subsystems/slots.md#extension-rules).
-- Boundary: a rendering change that applies to every business — ordering, virtualization, accessibility — is not a business modification.
-- Exception and approver: none by default; the corresponding domain expert confirms any exception.
+- 判定条件：在列表或席位组件里加业务分支、给其 props 加业务专用字段，或为单一业务改变列表遍历与席位选择。
+- 正确出路：业务包把自己的 key merge 进 `ChatNodeDataMap`，并为该节点 kind 注册 renderer；席位渲染该 kind 已注册的组件。注册纪律归 [slots.zh.md](../subsystems/slots.zh.md#extension-rules)。
+- 边界：对所有业务生效的渲染增强——排序、虚拟化、可访问性——不属于为业务诉求修改。
+- 例外与批准人：无默认例外；任何例外须经对应领域专家确认。
 
-A business package that declares its kind and registers its renderer leaves the shared list untouched:
+声明自己的 kind 并注册 renderer 的业务包，不改动共享列表：
 
 ```tsx
 // The business declares its kind and registers its renderer; the shared list is untouched.
@@ -239,7 +237,7 @@ ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
   { name: 'conversation.chat.node', key: 'handoff', locale: NS }, HandoffNodeView))
 ```
 
-A business branch and a business field inside the shared seat:
+把业务分支与业务字段写进共享席位：
 
 ```tsx
 export const ChatNodeSeat = memo(function ChatNodeSeat({ node, handoffFlag }: ChatNodeSeatProps) {
@@ -248,21 +246,21 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({ node, handoffFlag }: Ch
 })
 ```
 
-One feature's condition now decides how every node renders, and the shared seat must change again for the next feature.
+某个功能的条件从此决定每个节点怎么渲染，下一个功能还得再改一次共享席位。
 
-## The Markdown pipeline carries no business branch
+## Markdown 管线不承载业务分支
 
-`AssistantMarkdown` and its rendering pipeline are infrastructure: no business condition enters the Markdown render path, and no business rewrites the node mapping or the style injection rules. A presentation need registers a renderer on the existing chain or expresses itself in the data, and the official default content participates in that same registration surface rather than existing as an optional renderer with a host-side inline fallback. A pipeline that hosts business special cases can no longer be reviewed or optimized on its own.
+`AssistantMarkdown` 及其渲染管线属基础设施：Markdown 渲染路径里不得出现业务条件，也不得按业务改写节点映射或样式注入规则。展示需求要么在既有链上注册 renderer，要么在数据里表达；官方默认内容也参与同一个注册面，而不是做成「可选 renderer + 宿主内联 fallback」。承载业务特判的管线，再也无法单独评审或单独优化。
 
-- Judged condition: a business branch inside `AssistantMarkdown` or its block mapping — for example `if (isXxxBusiness) renderXxx()` — or a style injection rule keyed on one business.
-- Correct outlet: a renderer registered on the existing chain, or a semantic field in the data that the generic renderer reads. The Component Factory registration is owned by the [ui-renderer README](../../packages/client/ui-renderer/README.md).
-- Wrapping: a wrapper that needs the standard rendering calls the official entry and keeps its fallback; it never re-renders the slot and never imports the private React component across packages.
-- Responsibility: the host owns position and invocation; the plugin owns its own state, cleanup, and controls, and the official host carries no business action for a contribution.
-- `labels`: an optional complete `MarkdownLabels` object is used whole, with no field-level merge against the default; omitting it uses the official default. `variant="compact"` is fixed by the Factory.
-- Boundary: generic Markdown capability — syntax support, performance — is not a business modification.
-- Exception and approver: none by default; the corresponding domain expert confirms any exception.
+- 判定条件：`AssistantMarkdown` 或其 block 映射里出现业务分支——例如 `if (isXxxBusiness) renderXxx()`——或按某个业务注入样式规则。
+- 正确出路：在既有链上注册 renderer，或在数据里带上语义字段、由通用 renderer 读取。Component Factory 的注册归 [ui-renderer README](../../packages/client/ui-renderer/README.zh.md)。
+- 包装展示：需要标准渲染的包装组件调用官方入口并保留其 fallback；绝不重复渲染 Slot，也绝不跨包导入官方私有 React 组件。
+- 权责边界：宿主只负责位置与调用；插件的状态、清理、控件归插件自己，官方宿主不为某个 contribution 承载业务动作。
+- `labels`：可选传入完整 `MarkdownLabels`，**传入即整体使用**、不与默认值做字段级合并；省略则用官方默认。`variant="compact"` 由 Factory 固定。
+- 边界：通用 Markdown 能力——语法支持、性能优化——不属于为业务诉求修改。
+- 例外与批准人：无默认例外；任何例外须经对应领域专家确认。
 
-A contribution that registers into the existing single seat, and reuses the published Factory instead of re-rendering the standard content:
+注册进既有单席位、并复用已发布 Factory（而不是自己重渲标准内容）的 contribution：
 
 ```tsx
 // The business contributes its own body into the seat the host already renders.
@@ -282,7 +280,7 @@ function TranslatedReasoningBody({ text, running, renderFactorySlot, t }: Reason
 }
 ```
 
-A business branch inside the shared Markdown pipeline:
+业务分支写进共享 Markdown 管线：
 
 ```tsx
 export const AssistantMarkdown = memo(function AssistantMarkdown({ blocks, ...props }: AssistantMarkdownProps) {
@@ -294,18 +292,18 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({ blocks, ...pr
 })
 ```
 
-Every business special case lands in one shared pipeline, and Markdown rendering can no longer change or be measured without the businesses it now carries.
+每个业务特判都落进同一条共享管线，Markdown 渲染再也无法脱离它如今承载的这些业务去改动或度量。
 
-## The user message model and rendering carry no business field
+## 用户消息模型与渲染不承载业务字段
 
-`UserMessage` and the UI's `user` kind rendering are infrastructure: no business-only field on the message model, and no business branch in the user message renderer. A business difference travels in the message payload — its own merge-extensible source kind or a content field — or through a registered renderer. A field added for one business is handled by every consumer of the model, and the next business adds another branch to the same shared renderer.
+`UserMessage` 与 UI 侧 `user` kind 渲染属基础设施：消息模型上不得有业务专用字段，用户消息渲染里不得有业务分支。业务差异经消息 payload 传递——自己可 merge 扩展的 source kind 或某个 content 字段——或经注册的 renderer 表达。为某个业务加的字段，所有消息模型使用方都要处理；下一个业务还会往同一个共享 renderer 里再加一条分支。
 
-- Judged condition: a business-named field on `UserMessage`, or a business condition in the rendering of the `user` kind.
-- Correct outlet: expression in the payload. `MessageSourceMap` is declaration-merge extensible, so a producer declares its own source kind instead of widening `UserMessage`; the message model is documented in [session.md](../subsystems/session.md).
-- Boundary: a generic message capability — attachments, quotes, edit state — is not a business modification.
-- Exception and approver: none by default; the corresponding domain expert confirms any exception.
+- 判定条件：`UserMessage` 上出现业务命名字段，或 `user` kind 的渲染里出现业务条件。
+- 正确出路：在 payload 里表达。`MessageSourceMap` 可经 declaration merging 扩展，因此生产者声明自己的 source kind，而不是加宽 `UserMessage`；消息模型见 [session.zh.md](../subsystems/session.zh.md)。
+- 边界：通用消息能力——附件、引用、编辑态——不属于为业务诉求修改。
+- 例外与批准人：无默认例外；任何例外须经对应领域专家确认。
 
-A producer that declares its own source kind keeps the business difference in the payload:
+声明自己的 source kind 的生产者，把业务差异留在 payload 里：
 
 ```ts ignore-check
 declare module '@deepseek-ai/dsh-llm' {
@@ -321,7 +319,7 @@ const message = createUserMessage({
 })
 ```
 
-A business field on the shared model, and the branch it forces into the shared renderer:
+共享模型上的业务字段，以及它逼进共享 renderer 的分支：
 
 ```ts ignore-check
 interface UserMessage extends MessageBase {
@@ -333,4 +331,4 @@ interface UserMessage extends MessageBase {
 if (message.handoffKind === 'handoff') return <HandoffBubble message={message} />
 ```
 
-Every consumer of the message model handles one business's field, and the shared renderer grows a branch for each business that follows.
+消息模型的每个使用方都要处理某一个业务的字段，共享 renderer 则随每个后续业务再长一条分支。

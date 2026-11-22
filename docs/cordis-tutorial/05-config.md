@@ -1,12 +1,10 @@
-# 5. Configuration
+# 5. 配置
 
-English | [中文](05-config.zh.md)
+`cordis.yml` 中的每个 Cordis 配置项都可以携带 `config` 块，插件则声明一个 schema，在运行 `apply` 前验证该块。错误配置会导致加载失败，并给出准确的错误：插件绝不会在配置不完整时启动。
 
-Each `cordis.yml` entry can carry a `config` block, and the plugin declares a schema that validates it before `apply` runs. Bad config fails the load with a precise error — the plugin never starts half-configured.
+## 可配置插件
 
-## A configurable plugin
-
-Create `config-demo.ts` in `tmp/cordis-tutorial`:
+创建 `config-demo.ts`，并将其放在 `tmp/cordis-tutorial` 中：
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
@@ -31,9 +29,9 @@ export function apply(ctx: Context, config: Config) {
 }
 ```
 
-The exported `Config` is both a TypeScript interface and a runtime schema with the same name — consumers get the type, Cordis gets the validator. This repo uses [Schemastery](https://github.com/shigma/schemastery) for schemas; Cordis itself accepts any [Standard Schema](https://standardschema.dev/) validator, so a plain object exported as `Config` will not work.
+导出的 `Config` 既是 TypeScript 接口，也是同名的运行时 schema：消费方获得类型，Cordis 获得验证器。本仓库使用 [Schemastery](https://github.com/shigma/schemastery) 定义 schema；Cordis 本身接受任意 [Standard Schema](https://standardschema.dev/) 验证器，因此将普通对象导出为 `Config` 无法工作。
 
-Configure it:
+对其进行配置：
 
 ```yaml
 - name: './config-demo.ts'
@@ -41,18 +39,18 @@ Configure it:
     targets: ['alpha', 'beta']
 ```
 
-Run:
+运行：
 
 ```
 Hello, alpha!
 Hello, beta!
 ```
 
-`greeting` was omitted, so the schema default filled it in — `apply` always receives complete, validated config.
+未提供 `greeting`，因此 schema 默认值会将其补齐：`apply` 始终会收到完整且经过验证的配置。
 
-## Fail loud
+## 明确报错
 
-Now feed it something invalid:
+现在向它传入无效内容：
 
 ```yaml
 - name: './config-demo.ts'
@@ -65,12 +63,12 @@ ValidationError: invalid config:
   - $.targets expected array but got not-an-array (at targets)
 ```
 
-The plugin's fiber goes to FAILED, and this tutorial's launcher exits with status 1 after printing the error. A plugin should also reject schema-valid config that names an unavailable resource or provider as soon as it can resolve that reference.
+插件的 fiber 进入 FAILED 状态，本教程的启动器打印错误后以状态码 1 退出。如果某个插件的配置通过了 schema 验证，但其中指定的资源或提供方不可用，该插件也应当在能解析该引用时立即拒绝。
 
 <a id="volatile-fields"></a>
-## Volatile fields
+## Volatile 字段
 
-Use `.volatile()` for a field that the plugin reads during each operation. A change to that field updates its stable reference without remounting the plugin. Read it with `.get()`:
+对于插件在每次操作中读取的字段，可以使用 `.volatile()`。字段变化会更新稳定引用，无需重新挂载插件。通过 `.get()` 读取：
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
@@ -88,15 +86,15 @@ export function apply(ctx: Context, config: ReturnType<typeof Config>) {
 }
 ```
 
-A direct `Config(raw)` call also returns references. An optional field without a default still has a reference; `.get()` returns `undefined` when it is absent. Keep the reference, or capture its value for one operation, including across `await`. Do not retain that value for later operations. Object and array values are detached, recursively frozen snapshots of plain data; functions, class instances, and cycles are rejected.
+直接调用 `Config(raw)` 也会返回引用。没有默认值的可选字段仍然具有引用；字段缺省时，`.get()` 返回 `undefined`。可以保存引用，也可以在单次操作中保存读取值，包括跨越 `await`，但不能将该值用于后续操作。对象和数组值是脱离输入、递归冻结的普通数据快照；函数、类实例和循环引用会被拒绝。
 
-Loader compares raw config while ignoring schema-declared volatile fields. A volatile-only change is parsed through the plugin’s `internal/config` hook and validated; when every ordinary effective value still matches, Loader commits the new values into the running references and emits one instance-local `loader/volatile-update` with the changed paths as arrays of keys, bypassing the target plugin’s `internal/update`. Equal values do not notify. An invalid candidate is logged and leaves the running references unchanged until the next activation. A changed ordinary effective value, including a changed expression result, and simultaneous ordinary-field changes retain the existing update flow, leaving old references unchanged and unnotified. Group/Include still dispatch child updates. Direct `fiber.update()`, code replacement, and dependency replacement retain their lifecycle; `noSave` still controls direct-update persistence. Notifications use ordinary `emit` without awaiting resource reconfiguration.
+Loader 比较原始配置时忽略 schema 声明的 volatile 字段。仅 volatile 变化会经目标插件的 `internal/config` 钩子解析并校验；当所有普通字段的有效值仍然一致时，Loader 把新值提交到运行中的引用，并向所属实例发出一次 `loader/volatile-update`，参数是以键数组表示的变化路径，不进入目标插件的 `internal/update`。等值更新不通知。无效候选会记录日志，运行中的引用保持不变，直到下次激活。普通字段有效值变化（包括表达式求值结果变化）以及普通字段同时变化时沿用原更新流程，旧引用不更新也不接收通知。Group/Include 仍分发子条目更新。直接 `fiber.update()`、代码替换和依赖替换保留原有生命周期；`noSave` 仍控制直接更新的持久化。通知使用普通 `emit`，不等待资源重新配置完成。
 
-Declare volatile fields at fixed object paths, or mark an entire object or array volatile. Independent references inside arrays, dictionaries, union or intersect branches, lazy schemas, transforms, or another volatile value are rejected. Configuration files store ordinary values; `simplify()` unwraps references. Serialized schemas preserve their field types, defaults, roles, and volatile marker for schema-driven forms. Existing settings consumers continue to use their own settings interfaces.
+在固定对象路径上声明 volatile 字段，或将整个对象、数组标记为 volatile。数组、字典、union 或 intersect 分支、lazy、transform 或另一个 volatile 值内部的独立引用会被拒绝。配置文件保存普通值；`simplify()` 会解包引用。序列化 schema 保留字段类型、默认值、角色和 volatile 标记，供基于 schema 的表单使用。现有 settings 消费者继续使用原有 settings 接口。
 
-## Computed config values
+## 计算得到的配置值
 
-The loader used in this repo supports a `!!js` tag for config values that must be computed at load time:
+本仓库使用的 loader 支持 `!!js` 标签，用于必须在加载时计算的配置值：
 
 ```yaml
 - name: './config-demo.ts'
@@ -104,8 +102,8 @@ The loader used in this repo supports a `!!js` tag for config values that must b
     greeting: !!js process.env.DEMO_GREETING ?? 'Hello'
 ```
 
-`!!js` works only inside `config` and in an entry's `disabled` field. `disabled: !!js ...` evaluates against the loader context at every mount decision (this repo's extension), so a row can gate itself on platform or environment; the other metadata (`name`, `id`, `inject`, ...) stays static, where an expression is ordinary truthy data. See [loader configuration](../cordis-primer.md#loader-configuration).
+`!!js` 仅在 `config` 与条目 `disabled` 字段内有效。`disabled: !!js ...` 在每次挂载决策时基于 loader 上下文求值（本仓库的扩展），可以按平台或环境门控一行；其余元数据（`name`、`id`、`inject` 等）保持静态，其中的表达式是普通真值数据。详见 [loader 配置](../cordis-primer.zh.md#loader-configuration)。
 
-Next: [Composition and HMR](06-composition-and-hmr.md) — treating `cordis.yml` as the application.
+下一章：[组合与 HMR（热模块替换）](06-composition-and-hmr.md)：将 `cordis.yml` 视为应用。
 
 [![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
