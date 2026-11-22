@@ -1,154 +1,152 @@
 ---
-description: "Local storage for your attached images below DSH_HOME, for users and maintainers choosing or debugging where image attachments are kept."
+description: "DSH_HOME 下附加图片的本地存储，供用户与维护者选择或排查图片附件的存放位置。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-attachment-local
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+在运行 DSH 的机器上，把图片与通用文件附件持久存储到 `DSH_HOME` 下。图片经过校验、针对模型请求完成规范化并按路由缓存；通用文件不设准入限制，按字节原样保存。即使上传时使用不同显示名称，相同字节也只存储一次；读取会校验文件长度与内容，之后收紧限制也不会让已接纳的图片不可读。随附的 `dsh` 组合无需配置即可使用本包。对象仅限本机，并且永远不会自动删除。
 
-Store images and generic file attachments durably below `DSH_HOME` on the machine running DSH. Images are validated, normalized for model requests, and cached per route; generic files are preserved byte-for-byte without admission limits. Identical bytes are stored once even when uploads use different display names, reads verify file length and content, and admitted images remain readable if limits later tighten. The shipped `dsh` composition uses this package without configuration. Objects remain local to one machine and are never deleted automatically.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-In the default composition, images and generic files attached to prompts or commands are stored on this machine automatically. If you compose your own setup, mounting this plugin provides durable attachments.
+在默认组合中，把图片或通用文件附加到提示词或命令，它们会自动保存到本机。自行组合时，挂载这个插件即可获得持久附件。
 
-### Minimal configuration
+### 最小配置
 
-Mount the plugin with no required configuration. The defaults below define what you can attach; the generated configuration catalog is the exhaustive source for every field.
+挂载插件，无需任何必填配置。下列默认值规定了可以附加的内容；生成的配置目录完整列出了所有字段。
 
 ```yaml
 - name: '@deepseek-ai/dsh-attachment-local'
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `dshHome` | resolved | Explicit harness home; omitted follows `$DSH_HOME`, then `~/.dsh` |
-| `maxImageBytes` | `50 MiB` | Maximum encoded source bytes accepted for one image |
-| `maxImagesPerMessage` | `20` | Maximum image count accepted in one submitted message |
-| `maxMessageImageBytes` | `200 MiB` | Maximum aggregate encoded source bytes in one submitted message |
-| `maxImagePixels` | `64,000,000` | Maximum source width multiplied by height |
-| `maxImageDimension` | `65,535` | Maximum source width or height; the default leaves admission to `maxImagePixels`, and normalization downscales long sides |
-| `normalizedImageMaxPixels` | `2048 × 2048` | Total-pixel budget of the stored normalized image |
-| `normalizedImageMaxDimension` | `8192` | Maximum long edge after applying the total-pixel budget |
-| `normalizedImageMaxBytes` | `4 MiB` | Encoded-byte target; the smallest quality-ladder output is kept when none fits |
-| `imageCompressionConcurrency` | `2` | FIFO limit for concurrent normalization and request transforms |
+| `dshHome` | 自动解析 | 显式 harness home；省略时依次跟随 `$DSH_HOME` 与 `~/.dsh` |
+| `maxImageBytes` | `50 MiB` | 单张图片接受的最大编码源字节数 |
+| `maxImagesPerMessage` | `20` | 单条提交消息接受的最大图片数量 |
+| `maxMessageImageBytes` | `200 MiB` | 单条提交消息接受的最大编码源图字节总数 |
+| `maxImagePixels` | `64,000,000` | 源图宽度与高度乘积的最大值 |
+| `maxImageDimension` | `65,535` | 源图接受的最大宽度或高度；默认值让 `maxImagePixels` 单独把关，长边由规范化缩小 |
+| `normalizedImageMaxPixels` | `2048 × 2048` | 已存规范化图片的总像素预算 |
+| `normalizedImageMaxDimension` | `8192` | 应用总像素预算后的最大长边 |
+| `normalizedImageMaxBytes` | `4 MiB` | 编码字节目标；没有候选满足时保留质量阶梯中的最小输出 |
+| `imageCompressionConcurrency` | `2` | 并发规范化与请求变换的 FIFO 上限 |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-attachment-local) is the exhaustive source for every accepted field and its JSDoc.
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-attachment-local)完整列出了所有受支持的字段及其 JSDoc。
 
-### Where your images are stored and how long they last
+### 图片存储在哪里、会保留多久
 
-Attached images are kept below `<DSH_HOME>/attachments/v1` on this machine. Stored images are never deleted automatically, identical images are stored only once, and a later tightening of the limits never makes already-saved images unreadable. If your images must be readable from another machine, this package is not the right fit.
+附加的图片保存在本机的 `<DSH_HOME>/attachments/v1` 下。已存储的图片永远不会被自动删除，相同图片只会存储一份，之后收紧限制也绝不会让已保存的图片不可读。如果你的图片需要能从另一台机器读取，本包并不合适。
 
-### What happens when you attach an image
+### 附加图片时会发生什么
 
-Attach an image and its source limits, media, dimensions, and pixels are checked before it is normalized and saved. EXIF orientation is applied, metadata and color profiles are removed, transparency is preserved, and the raster is reduced under a total-pixel budget plus a long-edge cap. Alpha images use WebP and opaque images use JPEG on the shared 85/75/60 quality ladder; the smallest output is retained when every candidate exceeds the byte target. An accepted image reappears in history and later turns, including after restart; the selected model route receives a cached request version and, when its filesystem maps the host object, a read-only execution-world path.
+附加图片后，会先检查源图限制、媒体类型、尺寸与像素，再完成规范化并保存。系统应用 EXIF 方向、移除元数据与色彩配置、保留透明度，并按总像素预算与长边上限缩小光栅。带 alpha 的图片使用 WebP，不透明图片使用 JPEG，共享 85/75/60 质量阶梯；全部候选都超过字节目标时保留最小输出。被接受的图片会重新出现在历史和后续轮次中，重启后也不例外；所选模型路由会收到缓存的请求版本，并在其文件系统可映射宿主对象时收到只读执行世界路径。
 
-### What can go wrong
+### 可能出什么问题
 
-An image can be refused when you attach it: unsupported format, over the byte, pixel, or per-side dimension limits, or bytes that do not match their declared type. On a later read, an image that was deleted or corrupted on disk fails with a clear error. Each failure carries a stable code so the client and protocol adapters can explain it in their own words.
+附加图片时可能被拒绝：格式不受支持、超出字节、像素或单边尺寸限制，或者字节与声明类型不符。之后读取时，磁盘上被删除或损坏的图片会以明确错误失败。每个失败都带有稳定错误码，客户端与协议适配器可以用自己的措辞解释。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the durability and verification design behind the storage, and the write and read paths that realize it; observable behavior is fully covered in [Use this package](#use-this-package).
+本节解释存储背后的持久性与校验设计，以及实现它的写入与读取路径；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
-### Design decisions
+### 设计决策
 
-- **Durability by fsync chain, not existence.** A synced file alone does not survive a crash when its directory entry never reached storage, so the write path syncs every ancestor entry to a process-proven boundary before a reference can reach a session checkpoint.
-- **Normalize once, project per route.** Admission persists one provider-independent normalized attachment; request projection derives deterministic variants without rewriting durable history.
-- **Lazy alpha-routed encoding.** Alpha images use WebP and opaque images use JPEG; quality candidates run in 85/75/60 order, and the smallest output is retained when none meets the encoded-byte target.
-- **Limits are write-time policy.** Byte, total-pixel, and per-side dimension limits bind admission only, so tightening them later never makes admitted history unreadable.
+- **持久性靠 fsync 链，而非存在性。** 当目录项从未到达存储时，仅同步文件无法在崩溃后存活，因此写入路径会在引用可能到达会话检查点前，把每个祖先条目同步到进程已验证的边界。
+- **一次规范化，按路由投影。** 准入持久保存一份提供方无关的规范化附件；请求投影派生确定性变体而不改写持久历史。
+- **惰性 alpha 路由编码。** 带 alpha 的图片使用 WebP，不透明图片使用 JPEG；质量候选按 85/75/60 顺序运行，没有候选满足编码字节目标时保留最小输出。
+- **限制是写入时策略。** 字节、总像素与单边尺寸限制只约束准入，因此之后收紧它们绝不会让已接纳的历史不可读。
 
-### Write and read paths
+### 写入与读取路径
 
-Objects land at `<DSH_HOME>/attachments/v1/objects/<sha256-prefix>/<sha256>`; equal bytes deduplicate to one object and one `sha256:` id. Before the first write, the process syncs every ancestor directory of the home down to the filesystem root once, so a directory another process created but has not yet synced is never mistaken for a safe boundary. Writes then stage bytes in `v1/tmp`, sync the temporary file, publish with an atomic exclusive hard link, and sync the publication directories — on Windows, filesystem metadata journaling owns entry durability. Once the save resolves, the reported reference is durable.
+对象存放在 `<DSH_HOME>/attachments/v1/objects/<sha256-prefix>/<sha256>`；相同字节会去重为同一个对象和同一个 `sha256:` 标识符。首次写入前，进程会把 home 的每个祖先目录逐级同步到文件系统根目录，因此绝不会把另一个进程已创建但尚未同步的目录误认为安全边界。随后，写入过程把字节暂存到 `v1/tmp`、同步临时文件、以原子且排他的硬链接发布，并同步发布目录——在 Windows 上，文件系统元数据日志负责目录项持久性。保存操作完成后，返回的引用已具备持久性。
 
-Image reads receive a complete reference with a canonical `sha256:` ID, derive the object path within this storage tree, verify the complete digest, and probe the image header. The actual format, byte length, width, and height must match the supplied reference. The returned reference preserves optional `name` and `originalDimensions` as caller-supplied display information; these fields are not verified against the object. Reads neither consult Session history nor reapply admission limits; a missing object or failed verification rejects the read.
+图片读取接收包含规范 `sha256:` ID 的完整引用，在该存储目录内推导对象路径，校验完整摘要，并探测图片文件头。实际格式、字节数、宽度和高度必须与传入引用一致。返回的引用把可选的 `name` 和 `originalDimensions` 作为调用方提交的显示信息原样保留，不根据对象校验这两个字段。读取不查询 Session 历史，也不重新应用准入限制；对象缺失或校验失败都会拒绝读取。
 
-Admission accepts up to 20 images and 200 MiB of source bytes per message; one source may use up to 50 MiB, 64 million pixels, and 65,535 pixels per side. It applies orientation, removes metadata and color profiles, and normalizes under a 2048×2048 total-pixel budget, an 8192-pixel long edge, and a 4 MiB encoded-byte target. Extreme aspect ratios therefore retain their short-edge resolution. Clean single-frame 8-bit sRGB/sRGBA PNG, JPEG, or WebP input already within those limits passes through byte-identically; GIF, animation, metadata, orientation, 16-bit PNG, and incompatible color spaces force conversion.
+准入允许每条消息最多 20 张图片与 200 MiB 源字节；单个源图最多 50 MiB、6400 万像素与单边 65,535 像素。系统应用方向、移除元数据与色彩配置，并把规范化结果限制在 2048×2048 总像素预算、8192 像素长边和 4 MiB 编码字节目标内，因此，即使宽高比极端，图片也会保留短边分辨率。已经满足限制的干净、单帧、8-bit sRGB/sRGBA PNG、JPEG 或 WebP 会逐字节直通；GIF、动画、元数据、方向、16-bit PNG 与不兼容色彩空间会触发转换。
 
-Request versions live below `<DSH_HOME>/cache/attachments/request-images/`, resolved by `dshCachePath`; an explicit `dshHome` setting applies to both cache and durable storage. Clearing this cache between requests preserves durable attachments, and later reads regenerate the variants. `readImageRequest` scales without enlargement to the route-chosen target, resizing by the long edge only so the encoder derives the short edge as the route predicts, then applies a separate encoded-byte target through the same alpha routing and quality ladder. Its cache identity includes the attachment id, transform version, target dimensions, byte target, and fixed encoder settings; cached bytes are header-probed for format, 8-bit sRGB/sRGBA, dimensions, and alpha facts, and a mismatch regenerates the entry. Concurrent callers share one transform and cache write, while cancellation stops shared work only when no waiter remains. `imageHostPath` derives the normalized object's host path, and the mounted filesystem may map that path into its execution world without writing it to durable history.
+请求版本位于由 `dshCachePath` 解析的 `<DSH_HOME>/cache/attachments/request-images/`；显式 `dshHome` 设置同时适用于缓存与持久存储。在两次请求之间清空此缓存会保留持久附件，后续读取会重新生成请求版本。`readImageRequest` 在不放大的前提下缩放到路由选定的目标尺寸，缩放只按长边给定，短边由编码器按路由预测的方式推出，随后通过相同的 alpha 路由与质量阶梯应用独立编码字节目标。缓存身份包含附件 id、变换版本、目标尺寸、字节目标与固定编码参数；缓存字节会先通过文件头探测格式、8-bit sRGB/sRGBA、尺寸与 alpha 信息，不匹配时重新生成。并发调用方共享一次变换与缓存写入，且只在没有等待方时由取消停止共享工作。`imageHostPath` 派生规范化对象的宿主路径，挂载的文件系统可以把该路径映射进执行世界，而不会写入持久历史。
 
-Generic-file bytes have one canonical object at `<DSH_HOME>/attachments/v1/file-objects/<digest-prefix>/<digest>`. Each reference path at `<DSH_HOME>/attachments/v1/files/<digest-prefix>/<digest>/<name>` is a read-only hard link, so different names for equal bytes do not duplicate disk content. `readFileStream` reads the reference path in bounded chunks and verifies the complete digest and recorded byte count before a consumer can finish successfully. A missing, changed, or truncated object fails its consumer instead of producing a complete export with different bytes.
+通用文件字节的唯一规范对象位于 `<DSH_HOME>/attachments/v1/file-objects/<digest-prefix>/<digest>`。每条引用路径 `<DSH_HOME>/attachments/v1/files/<digest-prefix>/<digest>/<name>` 都是只读硬链接，所以名称不同但字节相同的文件不会重复占用磁盘。`readFileStream` 以有界分块读取引用路径，并在消费方成功结束前校验完整摘要与记录的字节数。对象缺失、被改写或截断时，消费方会失败，不会得到字节已经变化的完整导出。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `LocalAttachmentStore`, `Config` schema, defaults |
-| [`src/store.ts`](src/store.ts) | Content-addressed write and verified read: staging, hard-link publish, fsync chain, digest verification |
-| [`src/file-store.ts`](src/file-store.ts) | Verbatim streamed file writes, verified streamed reads, and safe stored filenames |
-| [`src/normalization.ts`](src/normalization.ts) + [`src/encoding.ts`](src/encoding.ts) | Provider-independent normalization and bounded format/quality candidates |
-| [`src/request-image.ts`](src/request-image.ts) | Route-specific request transforms, cache identity, and singleflight |
-| [`src/image.ts`](src/image.ts) | Full raster decode and metadata verification |
+| [`src/index.ts`](src/index.ts) | 插件入口：`LocalAttachmentStore`、`Config` schema、默认值 |
+| [`src/store.ts`](src/store.ts) | 内容寻址写入与校验读取：暂存、硬链接发布、fsync 链、摘要校验 |
+| [`src/file-store.ts`](src/file-store.ts) | 原样文件的流式写入、校验式流式读取与安全存储文件名 |
+| [`src/normalization.ts`](src/normalization.ts) + [`src/encoding.ts`](src/encoding.ts) | 提供方无关的规范化与有界格式／质量候选 |
+| [`src/request-image.ts`](src/request-image.ts) | 路由专用请求变换、缓存身份与 singleflight |
+| [`src/image.ts`](src/image.ts) | 完整光栅解码与元数据校验 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-For the full service contract and payload types, read the subsystem reference; for the capability this storage backs, read the seam package.
+完整的服务约定与载荷类型请看子系统参考；这份存储所支撑的能力请看 seam 包。
 
-- [Attachment subsystem reference](../../../docs/subsystems/attachment.md) — service contract, payload types, and the `ctx.attachments` Cordis surface.
-- [Attachment seam package](../attachment/README.md) — the image attachment capability this storage backs.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-attachment-local) — every accepted config field and its source declaration.
-- [Home paths resolution](../../util/home-paths/README.md) — how `DSH_HOME` resolves from explicit config, environment, and the user home.
+- [附件子系统参考](../../../docs/subsystems/attachment.zh.md)——服务约定、载荷类型与 `ctx.attachments` 的 Cordis 接口面。
+- [附件 seam 包](../attachment/README.md)——本存储支撑的图片附件能力。
+- [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-attachment-local)——每个受支持配置字段及其源声明。
+- [Home 路径解析](../../util/home-paths/README.md)——`DSH_HOME` 如何从显式配置、环境变量与用户主目录解析。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-Indirectly, through request descriptors. A mapped execution filesystem lets the model see each image's identity, dimensions, media type, read-only process path, writable-copy extension, and normalization warning alongside the request bytes. Generic files project as text handles naming their identity and read-only process path; when no mapping exists, the handle states that the execution environment cannot read the file.
+本包通过请求描述符间接影响模型。执行文件系统可以映射宿主对象时，模型会随请求字节看到每张图片的身份、尺寸、媒体类型、只读进程路径、可写副本扩展名与规范化警告。通用文件会投影为指出文件身份与只读进程路径的文本句柄；无法映射时，句柄会说明当前执行环境不能读取该文件。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Normalization and request projection are deterministic. An unchanged attachment and route policy reuse identical cached request bytes on later turns; execution-world path mapping can change descriptor text without changing those bytes or their `variantId`.
+规范化和请求投影都是确定性的。附件和路由策略不变时，之后各轮会复用相同的缓存请求字节；执行世界路径映射可以改变描述符文本，而不会改变这些字节或其 `variantId`。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits describe what this storage can and cannot do; they are current package constraints.
+这些限制描述了这份存储能做什么、不能做什么；它们是当前包约束。
 
-- **Images are kept forever** — stored images are never deleted automatically, and nothing collects unreferenced objects.
-- **Local to this machine** — images live on the machine that runs the harness; other hosts cannot read them.
-- **Animated GIF becomes static** — normalization retains only the first frame; animation is outside the version-one image contract.
-- **Encoder output is versioned** — the installed Sharp/libvips build pins normalization and request bytes; an encoder or transform-version upgrade re-addresses future variants while existing objects remain valid.
+- **图片会永久保留**——已存储的图片永远不会被自动删除，也没有任何机制回收未被引用的对象。
+- **仅限本机**——图片存放在运行 harness 的机器上；其他主机无法读取。
+- **动态 GIF 变为静态**——规范化只保留第一帧；动画不属于第一版图片约定。
+- **编码器输出带版本**——已安装的 Sharp/libvips 构建会固定规范化结果与请求字节；编码器或变换版本升级会让未来变体产生新地址，已有对象继续有效。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers: undecided directions and open questions. It is explicitly non-authoritative — shipped behavior and limits live in the sections above and the package code.
+本开发备注是维护者的工作上下文：尚未决定的探索方向与开放问题。它明确不具权威性——已交付的行为与限制以上文和包代码为准。
 
-#### Future: retention and remote storage
+#### 未来：保留与远程存储
 
-Retention and garbage collection are deferred because resumed and forked sessions may share immutable objects, and a backend serving remote runtimes or shared storage would need its own durability proof. Both directions are undecided; the local storage currently retains every object under `DSH_HOME`.
+保留与垃圾回收被推迟，因为恢复和 fork 后的会话可能共享不可变对象；服务于远程运行时或共享存储的后端则需要自己的持久性证明。两个方向都尚未决定；本地存储当前在 `DSH_HOME` 下保留所有对象。
 
 </details>
