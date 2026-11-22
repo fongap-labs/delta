@@ -121,7 +121,7 @@ export function createNativeFixture(selectorPid?: number) {
           }
         }
         callback()
-      } catch (error) { callback(error) }
+      } catch (error) { callback(error instanceof Error ? error : new Error(String(error))) }
     } })
     const done = Promise.all([finished(stdin, { cleanup: true }), finished(stdout, { cleanup: true })])
       .then(() => { state.closedChannels++ })

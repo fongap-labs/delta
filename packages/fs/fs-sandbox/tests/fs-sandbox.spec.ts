@@ -22,7 +22,7 @@ import { Session, type SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { SandboxedFileSystem } from '@deepseek-ai/dsh-fs-sandbox'
-import { assertWorkspaceOutsideTemp, outsideTempWorkspaceParent } from '../../../../scripts/test-workspace-parent.ts'
+import { assertWorkspaceOutsideTemp, outsideTempWorkspaceParent } from '../../../../scripts/test-fixture-cleanup.ts'
 
 let base: string
 let workspace: string
