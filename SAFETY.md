@@ -1,27 +1,23 @@
-# Safety
+# 安全说明
 
-English | [中文](SAFETY.zh.md)
+## 软件状态与风险
 
-## Experimental status
+Delta 基于 DeepSeek Harness 构建。当前版本不应被视为已经完成全面安全审计、适用于所有生产环境的软件。
 
-DeepSeek Harness is experimental developer-preview software. It has not undergone a security audit and must not be treated as secure or production-ready.
+Delta 可以在用户授权范围内执行模型生成的代码与命令、装载插件，并访问开放给它的文件、进程、网络和凭据。模型输出错误、软件缺陷、配置不当、恶意输入或不可信插件可能造成文件修改或丢失、数据与凭据泄露，以及其他非预期影响。
 
-The project can execute model-generated code and commands, load third-party plugins, and access the network, processes, credentials, and files made available to it. Incorrect model output, defects, misconfiguration, malicious input, or untrusted plugins may damage the host computer, modify or delete files, disclose data or credentials, or cause other unintended effects.
+## 沙箱与权限限制
 
-## Sandbox limitations
+沙箱、权限控制和操作确认能够降低风险，但不能保证完全隔离，也无法保护已经明确授予软件访问权限的资源。不要把 Delta 作为运行不可信代码的唯一安全防线。
 
-Sandboxing, approval prompts, and permission controls can reduce risk, but they do not guarantee isolation or prevent damage. Even correctly enforced restrictions cannot protect resources that the project is allowed to access.
+## 使用建议
 
-Do not rely on DeepSeek Harness as the sole security control for untrusted workloads.
+- 只授予完成任务必需的最小权限。
+- 对不可信代码或插件，优先使用隔离的虚拟机、容器或专用环境。
+- 备份应用能够访问的重要文件。
+- 避免向模型服务或第三方插件提供不必要的敏感信息与凭据。
+- 执行命令和安装插件前，检查其来源、访问范围及潜在影响。
 
-## Responsible use
+## 许可与免责声明
 
-- Run the project with the least privileges and access required.
-- Prefer a disposable virtual machine, container, or dedicated environment.
-- Keep backups of files that the project can access.
-- Do not expose sensitive credentials or data unless you accept the risk.
-- Review plugins, configuration, and proposed commands before allowing them to run.
-
-## No warranty or liability
-
-Use DeepSeek Harness at your own risk. The software is provided without warranty under the [MIT License](LICENSE). To the maximum extent permitted by applicable law, the authors and copyright holders are not responsible for damage to computers, loss or disclosure of data, loss of files, or other harm arising from use of the project.
+使用 Delta 前应了解并自行评估上述风险。Delta 自有代码遵循 [Apache-2.0 许可证](LICENSE)，所包含的 DeepSeek Harness 上游部分遵循 [MIT 许可证](UPSTREAM_LICENSE)，其他第三方组件按 [第三方声明](THIRD_PARTY_NOTICES.md) 执行。软件按照适用许可证中的免责声明提供；相关保证与责任限制以各许可证条款及适用法律为准。
