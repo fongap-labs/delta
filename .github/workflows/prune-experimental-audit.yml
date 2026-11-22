@@ -42,3 +42,6 @@ jobs:
           echo AUDIT_ASSET_REFERENCES_BEGIN
           git grep -nI -E 'benchmarks/|snapshots/|vitest\.(bench|snapshot|web-stress|web-perf)\.config|run-(ci-bench|bench-suite|memory-pressure-bench|web-snapshots)|snapshot-[a-z]|session-snapshot-corpus-policy' -- ':!benchmarks/**' ':!snapshots/**' ':!scripts/snapshots/**' ':!packages/experimental/**' ':!.agents/**' ':!docs/**' ':!pnpm-lock.yaml' | head -150 || true
           echo AUDIT_ASSET_REFERENCES_END
+          echo AUDIT_EXPERIMENTAL_CANDIDATE_REFERENCES_BEGIN
+          git grep -nI -E 'experimental/(browser-use-(chrome-devtools-mcp|playwright-mcp|runtime|stagehand-native)|client-ui-claude-code-mods|computer-use-cua-driver-(mcp|native)|subagent-oar|tool-subagent-oar)|dsh-experimental-(browser-use-(chrome-devtools-mcp|playwright-mcp|runtime|stagehand-native)|client-ui-claude-code-mods|computer-use-cua-driver-(mcp|native)|subagent-oar|tool-subagent-oar)' -- apps packages scripts tsconfig.host.json tsconfig.client.json tsconfig.base.json vitest.config.ts package.json | grep -v '^packages/experimental/' | head -130 || true
+          echo AUDIT_EXPERIMENTAL_CANDIDATE_REFERENCES_END
