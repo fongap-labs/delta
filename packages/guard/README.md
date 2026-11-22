@@ -1,51 +1,50 @@
 ---
-description: "Package map for the loop-hygiene guard family: the advisory repeat-tool reminder and the per-tool-call timeout policy, for users and maintainers choosing or composing the guards."
+description: "循环卫生 guard 家族的包映射：建议性重复工具提醒与单次工具调用超时策略，供选择或组合 guard 的用户与维护者阅读。"
 kind: "package-group"
 ---
 
-# guard/ — loop-hygiene guard family
+# guard/：循环卫生 guard 家族
 
-English | [中文](README.zh.md)
 
-## Summary
+## 概述
 
-The `guard/` group keeps the agent loop productive by watching for two common failure patterns. `repeat-tool-reminder` notices when the model repeats the exact same tool call and reminds it to change approach or finish, so a stuck loop stops burning time and tokens. `timeout-policy` puts a time limit on tool calls that declare one, so a hung call returns a clear timed-out error to the model instead of stalling the session. Both ship enabled in the `dsh` base bundle; a composition can tune or remove them.
+`guard/` 组通过监视两种常见失败模式来保持 agent loop（智能体循环）高效。`repeat-tool-reminder` 会在模型重复完全相同的工具调用时提醒它改变方法或结束任务，让卡住的循环不再浪费时间和 token。`timeout-policy` 为声明了限时的工具调用设置时间上限，让挂起的调用向模型返回清晰的超时错误，而不是拖住整个会话。两者都在 `dsh` 基础组合包中默认启用；组合可以调优或移除它们。
 
-## Table of Contents
+## 目录
 
-- [Packages](#packages)
-- [Related documentation](#related-documentation)
-- [Dev Note](#dev-note)
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="packages"></a>
-## Packages
+## 包
 
-Two small plugins cover the two patterns; each README below explains when to keep, tune, or remove it.
+两个小插件分别覆盖两种模式；下文每个 README 都说明何时保留、调优或移除它。
 
-| Package | What it provides |
+| 包 | 提供什么 |
 |---|---|
-| [`repeat-tool-reminder/`](repeat-tool-reminder/README.md) | Reminds the model when it repeats the same tool call, so it changes approach or finishes |
-| [`timeout-policy/`](timeout-policy/README.md) | Times out tool calls that declare a limit, so the model gets a clear error instead of waiting forever |
+| [`repeat-tool-reminder/`](repeat-tool-reminder/README.md) | 在模型重复完全相同的工具调用时提醒它，使其改变方法或结束任务 |
+| [`timeout-policy/`](timeout-policy/README.md) | 为声明了限时的工具调用设置超时，让模型得到清晰错误而不是无限等待 |
 
 -----
 
 <a id="related-documentation"></a>
-## Related documentation
+## 相关文档
 
-Start with the tools subsystem reference for the tool-call pipeline, then the reminder's configuration and the timeout-library decision behind the policy.
+先从工具子系统参考了解工具调用流水线，再看重复提醒的配置与策略背后的超时库决策。
 
-- [Tools subsystem reference](../../docs/subsystems/tools.md) — the tool-call pipeline and decisions both guards build on.
-- [Generated configuration catalog](../../docs/config-catalog.md#deepseek-aidsh-repeat-tool-reminder) — every accepted field of the repeat-call reminder.
-- [Timeout deadline library Agent Note](../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.md) — the timing/termination split `timeout-policy` enforces.
+- [工具子系统参考](../../docs/subsystems/tools.zh.md)——两个 guard 都依赖的工具调用流水线与决策。
+- [生成配置目录](../../docs/config-catalog.zh.md#deepseek-aidsh-repeat-tool-reminder)——重复调用提醒的每个受支持字段。
+- [超时截止时间库 Agent Note](../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.zh.md)——`timeout-policy` 所执行的时序／终止拆分。
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

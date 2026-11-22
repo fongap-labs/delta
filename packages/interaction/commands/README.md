@@ -1,37 +1,36 @@
 ---
-description: "Human slash-command registry for interactive UIs: plugin-owned commands that run directly against an agent without creating a model message, for users and maintainers composing or extending command surfaces."
+description: "交互式 UI 的面向用户斜杠命令注册表：插件拥有的命令直接针对 agent（智能体）执行，不产生模型消息；供组合或扩展命令面的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-commands
 
-English | [中文](README.zh.md)
 
-## Summary
+## 概述
 
-`dsh-commands` lets users run `/command [input]` actions in interactive Harness UIs without turning the command or its result into a model message. Commands can advertise input hints, accept attachments, and target one agent while preserving a global command with the same name for other agents. Every admitted run is recorded in the receiving agent's session log, while the UI renders the settled result outside model history. Use it for direct human controls in the `dsh` CLI or Web client; UI-less demos and ACP automation do not provide this command surface.
+`dsh-commands` 让用户能在交互式 Harness UI 中运行 `/command [input]` 操作，且不会把命令或结果变成模型消息。命令可以展示输入提示、接受附件，并只针对一个 agent 生效，同时为其他 agent 保留同名的全局命令。每次通过准入的执行都会记录到接收 agent 的会话日志中，UI 则在模型历史之外渲染结算结果。它适合为 `dsh` CLI（命令行界面）或 Web 客户端提供直接面向用户的控制；无 UI 的演示与 ACP（Agent Client Protocol）自动化不提供此命令面。
 
-## Table of Contents
+## 目录
 
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Compose this service when an interactive UI should let users drive agent-side behavior with slash commands instead of model prompts. UI-less demo spines and ACP automation provide no command adapter and do not need it.
+当交互式 UI 希望用户用斜杠命令而非模型提示词驱动 agent 侧行为时，组合此服务。无 UI 的演示主干和 ACP 自动化不提供命令适配器，也不需要它。
 
-### Registering a command
+### 注册命令
 
-Import `CommandDefinitionId` and `CommandId` as types from `@deepseek-ai/dsh-commands/types`. Use `brandString<T>()` from `@deepseek-ai/dsh-brand` to brand an admitted string; it neither validates nor generates ids.
+从 `@deepseek-ai/dsh-commands/types` 以类型方式导入 `CommandDefinitionId` 和 `CommandId`。使用 `@deepseek-ai/dsh-brand` 的 `brandString<T>()` 为已准入的字符串添加品牌；它不验证或生成 id。
 
-A plugin registers a command with `ctx.commands.register()`: a lowercase name, a discovery description, an optional `input` hint, and a handler. An optional branded `definitionId` gives the definition a stable, plugin-namespaced identity for adapters; it is independent of display copy and execution `commandId`. The effective descriptor carries only the selected definition's identity, so a scoped override never inherits the shadowed registration's identity.
+插件通过 `ctx.commands.register()` 注册命令，提供小写名称、发现界面中的说明、可选的 `input` 提示和处理器。可选的品牌类型字段 `definitionId` 为适配器提供带插件命名空间的稳定定义标识，它独立于显示文案和每次执行的 `commandId`。有效描述符只携带被选中定义的标识，作用域覆盖不会继承被遮蔽注册项的标识。
 
 ```text
 ctx.commands.register({
@@ -45,110 +44,110 @@ ctx.commands.register({
 })
 ```
 
-The handler returns `success` or `error` plus optional UI text that the adapter renders. `recordInput` defaults to true; a command whose own authoritative domain event already carries the payload sets it to false so the session log does not duplicate the input. Registering the same name twice in one scope throws.
+处理器返回 `success` 或 `error`，并可附带由适配器渲染的 UI 文本。`recordInput` 默认为 true；若载荷由命令自己的权威领域事件持有，命令会将 `recordInput` 设为 false，避免会话日志重复记录该输入。同一作用域内重复注册同名命令会抛出异常。
 
-### Command syntax
+### 命令语法
 
-A command line starts with a slash at byte zero, a lowercase name containing letters, digits, `_` or `-`, and then either end-of-input or whitespace. Everything after the name — including separator whitespace — is the command's `rawInput`, and the command owns its own grammar for it. Lines that are not syntactically a command, or that name an unknown command, are rejected by the adapter instead of becoming a model prompt.
+命令行的第 0 字节必须是斜杠，随后是小写名称（可含字母、数字、`_` 或 `-`），再之后是输入末尾或空白。名称之后的每个字节——包括分隔空白——都是该命令的 `rawInput`，命令自己拥有其专属语法。不符合命令语法、或名称未知的行会被适配器拒绝，而不是变成模型提示词。
 
-### Agent-scoped commands
+### 限定到 agent 的命令
 
-A plain registration is global. A command-producing plugin mounted beneath an agent's own context declares its `commands` injection and registers an exact agent-scoped command, which shadows the global definition of the same name for that agent only.
+普通注册全局生效。挂载在 agent 自身上下文之下的命令生产插件会声明 `commands` 注入，并注册精确限定到该 agent 的命令；该定义只对这个 agent 遮蔽同名的全局定义。
 
-### Attachments
+### 附件
 
-A command may declare `input.attachments` to accept composer images and generic files. The executor enforces the declaration: attachments sent to a non-declaring command, an absent attachment store, an unknown Session-scoped file-upload receipt, or an over-limit image batch each settle as an error before the handler runs. Images cross the command wire as base64 input; generic files cite receipts from their completed background uploads, so command submission never reads their bytes again. Admitted `ImageBlock`s and `FileBlock`s reach the handler as one frozen `invocation.attachments` array in the user's selection order, and the handler owns their model-visible use.
+命令可以声明 `input.attachments` 以接受 composer 图片与通用文件。执行器负责强制执行声明：把附件发给未声明的命令、附件存储缺失、会话范围内的文件上传凭证未知或图片批量超出限制，都会在处理器运行前以错误结果结算。图片以 base64 输入通过命令 wire，通用文件则引用后台上传完成后得到的凭证，因此命令提交不会再次读取文件字节。通过准入的 `ImageBlock` 与 `FileBlock` 按用户选择顺序组成冻结的 `invocation.attachments` 数组，其模型可见用途由处理器负责。
 
-### Dispatching from an adapter
+### 从适配器分派
 
-An interactive adapter calls `execute(agent, line, attachments, signal)` with the exact receiving agent, the full command line, and the submission's ordered attachments. It returns the settled `CommandExecution` — the normalized result plus its lifecycle `commandId` — or `undefined` for invalid syntax or an unknown name. `list(agent)` and `find(agent, name)` serve discovery after agent-scoped shadowing.
+交互式适配器调用 `execute(agent, line, attachments, signal)`，传入确切的接收 agent、完整命令行与本次提交的有序附件。它返回已结算的 `CommandExecution`——规范化结果加生命周期配对 `commandId`——语法无效或名称未知时返回 `undefined`。`list(agent)` 与 `find(agent, name)` 在应用 agent 作用域遮蔽后用于命令发现。
 
-The stateless `@deepseek-ai/dsh-commands/builtin` entry shares first-party identity, English/Chinese input tokens, and descriptor resolution across Host and Client adapters. `builtinCommandName()` identifies the definition independently of its registered name; `resolveCommand()` preserves exact-name priority and follows aliases by definition ID. Adapters choose their supported subset; the registry itself continues to accept arbitrary definitions.
+无状态入口 `@deepseek-ai/dsh-commands/builtin` 为 Host 和 Client 适配器共享第一方身份、中英文输入 token 及描述符解析。`builtinCommandName()` 根据定义识别能力，不依赖注册名；`resolveCommand()` 保留精确名称优先级，并按定义 ID 解析别名。支持范围由适配器决定，注册器本身仍接受任意定义。
 
-### Cancellation
+### 取消
 
-The caller's abort signal stops the registry from awaiting a handler; a handler that ignores the signal may continue its own external side effects after the caller stops waiting. A cancelled or thrown handler settles as a `command/done` error in the log.
+调用方的中止信号会让注册表停止等待处理器；无视信号的处理器可能在调用方停止等待后继续产生自身的外部副作用。被取消或抛异常的处理器在日志中以 `command/done` 错误结算。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The observable behavior is covered in [Use this package](#use-this-package); this section explains how the registry is built and where its contracts live.
+可观察行为已在[使用本包](#use-this-package)中说明；本节解释注册表的构建方式与其约定的归属。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `CommandRuntime` service: registration, scoping, dispatch, lifecycle events |
-| [`src/types.ts`](src/types.ts) | Public type entry: identity re-exports, descriptors, execution, and results |
-| [`src/brand.ts`](src/brand.ts) | Command identity definitions and compatibility constructors |
-| [`src/builtin.ts`](src/builtin.ts) | First-party identity and token resolution for Host and Client adapters |
+| [`src/index.ts`](src/index.ts) | `CommandRuntime` 服务：注册、作用域、分派、生命周期事件 |
+| [`src/types.ts`](src/types.ts) | 公开类型入口：标识类型再导出、描述符、执行与结果 |
+| [`src/brand.ts`](src/brand.ts) | 命令标识定义与兼容构造函数 |
+| [`src/builtin.ts`](src/builtin.ts) | Host 和 Client 适配器共享的第一方身份及输入 token 解析 |
 
-### Lifecycle events
+### 生命周期事件
 
-`execute()` mints a `commandId`, appends `command/run` before the handler runs, and appends `command/done` at settlement with the outcome kind and verbatim text; the exact payload fields live in [`src/index.ts`](src/index.ts). A successful result may name an earlier non-command authoritative domain event through `sourceEventSeq`; a thrown or aborted handler settles as `kind: 'error'`. Both events are direct standalone log-only appends: no turn wraps them, and persistence drains them at ordinary checkpoints and teardown. Admission misses (invalid syntax or unknown name) log nothing.
+`execute()` 会生成一个 `commandId`，在处理器运行前追加 `command/run`，并在结算时追加携带结果类型与原样文本的 `command/done`；确切载荷字段见 [`src/index.ts`](src/index.ts)。成功结果可以通过 `sourceEventSeq` 指向更早的一条非命令权威领域事件；处理器抛出或被中止时以 `kind: 'error'` 结算。两个事件都作为仅用于日志的事件直接独立追加：没有轮次包裹它们，持久化机制会在常规检查点和销毁期间排空这些事件。未通过准入的输入（语法无效或名称未知）不记录任何事件。
 
-### Scoping
+### 作用域
 
-Registrations live in global and agent-scoped layers merged per agent via `ScopedLayers`. The child-injection shape — a command-producing plugin mounted beneath `agent.ctx` declares its own `commands` injection — preserves agent scope without making the core agent loop depend on a UI service. Duplicate names within one layer fail during registration, and registration or removal notifies every `commands/change` observer so live adapters can refresh discovery; observer failures are logged and cannot veto the mutation or starve later observers.
+注册表通过 `ScopedLayers` 维护全局层与按 agent 的作用域层，并按 agent 合并视图。子级注入形态——挂载在 `agent.ctx` 之下的命令生产插件声明自身的 `commands` 注入——保留了 agent 作用域，同时不会让核心 agent loop（智能体循环）依赖 UI 服务。同一层内的名称重复会在注册时失败；注册或移除命令时，系统会通知每个 `commands/change` 观察者，使运行中的适配器能够刷新发现结果。观察者失败会写入日志，既不能否决注册表变更，也不能阻止后续观察者运行。
 
-### Attachment admission
+### 附件准入
 
-Attachment enforcement happens in the executor: images are committed through `admitEncodedImages`, files are resolved through the single Session-aware receipt provider, and the executor restores their original mixed order before calling the handler. Validation rejection starts no attachment writes. An image-storage failure can leave unreachable content-addressed objects for deferred collection, but publishes no model-visible message. Cancellation is honored before the handler runs. Command errors leave the dispatching composer's draft and attachment cards intact.
+附件强制执行发生在执行器中：图片经 `admitEncodedImages` 提交，文件通过唯一的会话感知凭证提供方解析，执行器在调用处理器前恢复原始混合顺序。验证拒绝不会开始写入附件。图片存储失败可能留下等待清理且无法引用的内容寻址对象，但不会发布模型可见消息。取消会在处理器运行前生效。命令返回错误时，分发方 composer 的草稿与附件卡保持原位。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the shared command vocabulary to the design evidence and adjacent surfaces.
+当包级约定不够用时阅读以下页面。它们从共享命令词汇逐步进入设计证据与相邻表面。
 
-- [Commands subsystem reference](../../../docs/subsystems/commands.md) — registry semantics, input metadata, and the `ctx.commands` Cordis surface.
-- [historical Command registration Agent Note](../../../.agents/notes/archived/feature/2026-07-19-plugin-command-registration.md) — the boundary and dispatch contract behind this service.
-- [Interaction group map](../README.md) — adjacent approval, permission, and question packages.
-- [Plan mode package](../../plan/plan-mode/README.md) — a shipped command producer that drives model-visible work.
+- [命令子系统参考](../../../docs/subsystems/commands.zh.md)——注册表语义、输入元数据与 `ctx.commands` 的 Cordis 接口面。
+- [历史命令注册 Agent Note](../../../.agents/notes/archived/feature/2026-07-19-plugin-command-registration.md)——此服务背后的边界与分发约定。
+- [交互组映射](../README.md)——相邻的审批、权限与问答包。
+- [Plan mode 包](../../plan/plan-mode/README.md)——一个驱动模型可见工作的已交付命令生产方。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Direct human commands
+### 直接面向用户的命令
 
-#### What the model sees
+#### 模型看到的内容
 
-The registry itself submits nothing. Known slash commands execute in the UI command plane, and their `CommandResult` text is not submitted as a user message. Unknown slash-command input is rejected by shipped adapters instead of becoming a model prompt. A command producer may explicitly use the receiving `Agent`; for example, [`dsh-plan-mode`](../../plan/plan-mode/README.md#model-and-human-interactions) submits the optional message and ordered attachments in `/plan [message]` after selecting plan mode. The executor only admits attachments into durable objects; the declaring producer decides whether and how they become model-visible message content.
+注册表自身不会提交任何内容。已知斜杠命令在 UI 命令平面执行，其 `CommandResult` 文本不会作为用户消息提交。已交付的适配器会拒绝未知斜杠命令输入，而不是将其变成模型提示词。命令生产方可以显式使用接收命令的 `Agent`；例如，[`dsh-plan-mode`](../../plan/plan-mode/README.md#model-and-human-interactions)在选择 plan mode 后，会提交 `/plan [message]` 中的可选消息与有序附件。执行器只负责把附件准入为持久化对象，是否以及如何成为模型可见消息由声明接受的生产方决定。
 
-#### Token effect
+#### Token 影响
 
-Command discovery, execution, and UI output add no model tokens. Explicit agent work scheduled by a command producer has the same token effect as the corresponding agent input.
+命令发现、执行和 UI 输出不会增加模型 token。命令生产方显式安排的 agent 工作与相应 agent 输入具有相同的 token 影响。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Registry metadata, command input, and direct output never enter a model request and do not affect its cache. A mutated domain owns any later cache effect.
+注册表元数据、命令输入和直接输出绝不会进入模型请求，也不会影响其缓存。发生变更的领域负责之后产生的所有缓存影响。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define what the registry does not offer. They are current package constraints, not a UI backlog.
+这些限制说明注册表不提供什么。它们是当前包约束，不是 UI 积压事项。
 
-- **Only unstructured text input** — forms, completion schemas, and typed arguments remain command-owned parsing concerns.
-- **Cooperative side-effect cancellation** — dispatch stops awaiting on abort; handlers must honor the signal to stop work that has already escaped into external systems.
+- **仅支持非结构化文本输入**：表单、补全 schema 和类型化参数仍由各命令自行解析。
+- **副作用采用协作式取消**：中止后，分发会停止等待；处理器必须遵循信号，才能停止已经进入外部系统的工作。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

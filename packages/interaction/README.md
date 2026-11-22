@@ -1,56 +1,55 @@
 ---
-description: "Package map for the human-collaboration capability family: slash commands, one-shot approvals, permission presets, and the question/answer seam that lets a running agent pause for a human decision."
+description: "人机协作能力族的包映射：斜杠命令、一次性审批、权限预设，以及让运行中的 agent（智能体）暂停等待人类决定的问答 seam。"
 kind: "package-group"
 ---
 
-# interaction/ — the human-collaboration plane
+# interaction/：人机协作平面
 
-English | [中文](README.zh.md)
 
-## Summary
+## 概述
 
-The `interaction/` group covers the ways a person can guide a running agent. Use slash commands for immediate actions that do not require a model round trip, one-shot approvals for sensitive operations, permission presets to choose sandbox and approval behavior together, and questions when the agent needs information or a decision. Interactive applications expose these capabilities to people; automation handles its own approvals through ACP. The package map below distinguishes each capability and links to its full behavior and configuration.
+`interaction/` 组覆盖用户引导运行中 agent 的各种方式。斜杠命令适合无需模型往返的即时操作；一次性审批用于敏感操作；权限预设可以同时选择沙箱与审批行为；当 agent 需要信息或决定时，它还可以向用户提问。交互式应用向用户提供这些能力；自动化则通过 ACP（Agent Client Protocol）处理自己的审批。下方包映射说明了每项能力的区别，并链接其完整行为与配置。
 
-## Table of Contents
+## 目录
 
-- [Packages](#packages)
-- [Related documentation](#related-documentation)
-- [Dev Note](#dev-note)
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="packages"></a>
-## Packages
+## 包
 
-Each package README and its subsystem reference own the exhaustive contracts.
+每个包的完整约定以其 README 和对应的子系统参考为准。
 
-| Package | Role | ctx key |
+| 包 | 角色 | ctx 键 |
 |---|---|---|
-| [`commands/`](commands/README.md) | Lets users type slash commands that run directly against an agent without a model round trip | `ctx.commands` |
-| [`user-approval/`](user-approval/README.md) | Asks composed answerers for one-shot allow/reject decisions and fails closed without one | `ctx.approval` |
-| [`permission-presets/`](permission-presets/README.md) | Bundles sandbox mode with an approval policy into one user-facing Permissions selector | `ctx.permissionPresets` |
-| [`user-questions/`](user-questions/README.md) | Defines the validated question schema and scoped answerer waterfall an agent pauses on | `ctx.userQuestions` |
-| [`tool-ask-user/`](tool-ask-user/README.md) | Exposes the `ask_user_question` tool so the model can ask the human for a decision | registers on `ctx.tools` |
+| [`commands/`](commands/README.md) | 让用户输入斜杠命令，直接针对 agent 执行，无需模型往返 | `ctx.commands` |
+| [`user-approval/`](user-approval/README.md) | 向组合后的应答者征求一次性允许／拒绝决定；若未获得决定，则默认拒绝 | `ctx.approval` |
+| [`permission-presets/`](permission-presets/README.md) | 把沙箱模式与审批策略捆绑为一个面向用户的权限选择器 | `ctx.permissionPresets` |
+| [`user-questions/`](user-questions/README.md) | 定义经过校验的问题 schema 与作用域 answerer waterfall，agent 可暂停等待 | `ctx.userQuestions` |
+| [`tool-ask-user/`](tool-ask-user/README.md) | 暴露 `ask_user_question` 工具，让模型可以向用户提问并请求其作出决定 | 注册到 `ctx.tools` |
 
 -----
 
 <a id="related-documentation"></a>
-## Related documentation
+## 相关文档
 
-Start with the subsystem references for the shared vocabularies, then the neighboring automation and composition surfaces.
+先从子系统参考了解共享词汇，再看相邻的自动化与组合面。
 
-- [Commands subsystem](../../docs/subsystems/commands.md) — command registry semantics and the `ctx.commands` Cordis surface.
-- [Approval subsystem](../../docs/subsystems/approval.md) — request/outcome vocabulary, the answerer waterfall, and per-session policy.
-- [Permission presets subsystem](../../docs/subsystems/permission-presets.md) — the preset table and the knob write-through.
-- [User interaction subsystem](../../docs/subsystems/user-questions.md) — question vocabulary, answerer waterfall, and pending-question lifecycle.
-- [ACP group](../acp/README.md) — the automation-only transport that answers approval requests for its own agents.
+- [命令子系统](../../docs/subsystems/commands.zh.md)——命令注册表语义与 `ctx.commands` 的 Cordis 接口面。
+- [审批子系统](../../docs/subsystems/approval.zh.md)——请求／结果词汇、应答者瀑布与按会话策略。
+- [权限预设子系统](../../docs/subsystems/permission-presets.zh.md)——预设表与旋钮写穿。
+- [用户交互子系统](../../docs/subsystems/user-questions.zh.md)——问题词汇、answerer waterfall 与待处理问题生命周期。
+- [ACP 组](../acp/README.zh.md)——仅自动化的传输，为其自有 agent 回答审批请求。
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
