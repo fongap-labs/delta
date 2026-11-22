@@ -75,7 +75,7 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   util/                 zero-dependency utilities
 python/      Python SDK/runtime (python/README.md)
 native/      @deepseek-ai/node-addon-system source (native/README.md)
-benchmarks/  performance gates
+tests/performance/  performance gates
 .agents/     Agent workflows/notes
 docs/        Documentation (docs/AGENTS.md)
 scripts/     gates and generators

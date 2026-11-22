@@ -8,16 +8,16 @@ import { runPnpmCommand } from './compile-referenced-projects.ts'
  * children and budget their startup. Corpus cases tolerate a sibling.
  */
 export const SERIAL_BENCH_FILES = [
-  'benchmarks/long-session-browser/long-session.bench.ts',
-  'benchmarks/user-text/user-text.bench.client.ts',
-  'benchmarks/conversation-fold/conversation-fold.bench.client.ts',
-  'benchmarks/active-stream-reconnect/reconnect.bench.client.ts',
+  'tests/performance/long-session-browser/long-session-bench.ts',
+  'tests/performance/user-text/user-bench-client.ts',
+  'tests/performance/conversation-fold/conversation-bench-client.ts',
+  'tests/performance/active-stream-reconnect/reconnect-bench-client.ts',
   // Fresh-child reopen case: its endpoints budget 63 ms and 120 ms, and a
   // sibling process pushed them to 76 ms and 131 ms.
-  'benchmarks/session-open/session-open.bench.ts',
+  'tests/performance/session-open/session-open-bench.ts',
   // Request-history budgets 297 ms against a 212 ms healthy median; a sibling
   // pushed it to 342 ms.
-  'benchmarks/agent-continuation/agent-continuation.bench.ts',
+  'tests/performance/agent-continuation/agent-continuation-bench.ts',
 ] as const
 
 const CONFIG = ['--config', 'vitest.bench.config.ts'] as const
@@ -30,7 +30,7 @@ const CONFIG = ['--config', 'vitest.bench.config.ts'] as const
  * @throws If the phase fails.
  */
 export function runBenchPhase(root: string, phase: 'first' | 'last'): void {
-  process.env.DSH_BENCH_REPORT_PHASE = phase
+  process.env.DELTA_BENCH_REPORT_PHASE = phase
   try {
     if (phase === 'first') {
       runPnpmCommand(root, [
@@ -45,7 +45,7 @@ export function runBenchPhase(root: string, phase: 'first' | 'last'): void {
       ...SERIAL_BENCH_FILES,
     ])
   } finally {
-    delete process.env.DSH_BENCH_REPORT_PHASE
+    delete process.env.DELTA_BENCH_REPORT_PHASE
   }
 }
 

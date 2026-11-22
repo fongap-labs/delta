@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 将性能基准测试由 `benchmarks/` 迁移至 `tests/performance/`，统一规范三段式测试源文件名并更新引用、Vitest 与 tsdown 入口，保留原有基准用例与编译后 worker 输出。
+
 - 维护: 将 feedback、guard、interaction 三组共十二份反馈、循环保护和人机交互指南统一为中文 README，清理对应二十四份双语配对文件，同步修复子系统链接和配对记录；不修改权限运行逻辑及应用多语言资源。
 
 - 维护: 将上下文（context）与会话压缩（compaction）两个包组的十四份 README 统一为中文，清理二十八份翻译及配对副本，修正内部文档引用，保留实际双语运行资源与包接口。
