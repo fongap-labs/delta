@@ -56,25 +56,12 @@ async function bench() {
 }
 
 describe('session-log-download browser plugin', () => {
-  it('follows feedback plugin availability without adding Header actions to Session context menus', async () => {
+  it('exposes local Markdown and ZIP actions without a feedback control', async () => {
     const b = await bench()
     const menu = b.menu()
     expect(menu.source.getSnapshot().map(row => row.label)).toEqual(['Copy Session as Markdown', 'Download session log'])
-    const openSession = vi.fn()
-    const feedback = b.ctx.plugin((ctx) => { ctx.provide('feedbackUi', { openSession }) })
-    await feedback.await()
-    await vi.waitFor(() => { expect(menu.source.getSnapshot().map(row => row.label)).toEqual(['Copy Session as Markdown', 'Download session log', 'Feedback']) })
-    b.menu().select('session-log-download.feedback/feedback')
-    expect(openSession).toHaveBeenCalledWith(SID)
-    await feedback.dispose()
-    await vi.waitFor(() => { expect(menu.source.getSnapshot()).toHaveLength(2) })
     const session = b.registry.resolve({ kind: 'session', value: { sessionId: SID, displayTitle: 'Captured' } })
     expect(session.source.getSnapshot()).toEqual([])
-    const reloaded = b.ctx.plugin((ctx) => { ctx.provide('feedbackUi', { openSession }) })
-    await reloaded.await()
-    await vi.waitFor(() => { expect(menu.source.getSnapshot()).toHaveLength(3) })
-    b.menu().select('session-log-download.feedback/feedback')
-    expect(openSession).toHaveBeenCalledTimes(2)
     await b.fiber.dispose()
     expect(menu.source.getSnapshot()).toEqual([])
   })
@@ -113,22 +100,20 @@ describe('session-log-download browser plugin', () => {
     expect(b.slots.entries('shell.overlay')).toHaveLength(0)
   })
 
-  it('updates only occupied export rows and keeps feedback available during downloads and copy', async () => {
+  it('updates only occupied export rows during downloads and copy', async () => {
     const download = Promise.withResolvers<Response>(), copy = Promise.withResolvers<Response>()
     const fetcher = vi.fn((input: string | URL) => String(input).includes('session.markdown') ? copy.promise : download.promise)
     vi.stubGlobal('fetch', fetcher)
     const b = await bench()
-    const feedback = b.ctx.plugin((ctx) => { ctx.provide('feedbackUi', { openSession: vi.fn() }) })
-    await feedback.await()
     const menu = b.menu()
     b.menu().select('session-log-download.export/download')
     expect(menu.source.getSnapshot().map(row => [row.label, row.disabled === true])).toEqual([
-      ['Copy Session as Markdown', false], ['Download session log', true], ['Feedback', false],
+      ['Copy Session as Markdown', false], ['Download session log', true],
     ])
     b.menu().select('session-log-download.export/download')
     expect(fetcher).toHaveBeenCalledOnce()
     b.menu().select('session-log-download.export/copy')
-    expect(menu.source.getSnapshot().map(row => row.disabled === true)).toEqual([true, true, false])
+    expect(menu.source.getSnapshot().map(row => row.disabled === true)).toEqual([true, true])
     b.menu().select('session-log-download.export/copy')
     expect(fetcher).toHaveBeenCalledTimes(2)
     download.resolve(new Response('', { status: 500 }))
