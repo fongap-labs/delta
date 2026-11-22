@@ -1,19 +1,17 @@
-# Package surface rules
+# 包面规则
 
-English | [中文](package-surface.zh.md)
+关于包导出什么、怎么构建、如何声明依赖的规则。布局本身见 [development.zh.md](../development.zh.md#typescript-project-layout)；常设条款见 [packages/AGENTS.md](../../packages/AGENTS.md)。
 
-Rules for what a package exports, how it is built, and how it declares dependencies. [development.md](../development.md#typescript-project-layout) describes the layout itself; [packages/AGENTS.md](../../packages/AGENTS.md) carries the standing orders.
+## 插件包导出 Loader 所需的东西
 
-## A plugin package exports what the Loader loads
+插件包的入口取两种形态之一，两者不得混用。**函数插件**具名导出 `name`、`inject`、`Config`、`apply`：`name`、`inject`、`apply` 全小写，`Config` 首字母大写，且同时以 `interface` 与 Schemastery schema 值两种形态出现。**服务插件**默认导出它的服务类，Loader 就是这么加载它的；在四件套旁边再加一个默认导出，会让 Loader 丢弃函数插件的命名空间。除这两者之外，Host 入口可以导出供其他包 `extends` 或 `throw` 的 Service Definition 类与错误类型——能力接缝消费的正是这些——但绝不导出测试便利值。UI 插件包的 `/client` 入口更严，[packages/client/AGENTS.md](../../packages/client/AGENTS.md) 是那条纪律的正家：同包测试用相对 `../src/...` 路径或 `./src/*` 子路径触达内部，测试专用的需要因此永远不会变成常驻导出。
 
-A plugin package's entry point takes one of two forms, and they are not mixed. A **function plugin** named-exports `name`, `inject`, `Config`, and `apply`: `name`, `inject`, and `apply` are lower-case, while `Config` is upper-case and appears both as an `interface` and as its Schemastery schema value. A **service plugin** default-exports its service class, which is how the Loader loads it; a default export beside the four makes the Loader discard the function plugin's namespace. Beyond those, a Host entry may export the Service Definition classes and error types that other packages extend or throw — the capability seam consumes exactly those — and never a test-convenience value. The `/client` entry of a UI plugin package is stricter, and [packages/client/AGENTS.md](../../packages/client/AGENTS.md) owns that discipline: a same-package test reaches internals through a relative `../src/...` path or the `./src/*` subpath, so a test-only need never becomes a permanent export. The rule stops a test convenience from freezing into published API.
+- Loader 四件套及其准确形态见 [cordis-primer.zh.md](../cordis-primer.zh.md#loader-configuration)。
+- 判定条件：函数插件的入口（`src/index.ts`）导出了四件套以外的实体；在四件套旁边加了默认导出，或两种形态被混用；`/client` 入口导出了实现值、或让另一个功能插件导入了实现值；fixture 用相对路径引用其他包。
+- 边界：只约束 Loader 插件入口。内部模块、工具函数与 hooks 照常导出值；Host 入口的 Service Definition 类与错误类型是应有的导出；测试 fixture 也留在本包内——用相对路径伸进别的包的 `src` 会绕过 `exports` 映射与包边界检查。
+- 例外：无默认例外；确需破例须经对应领域专家确认。
 
-- The Loader four and its exact form are defined in [cordis-primer.md](../cordis-primer.md#loader-configuration).
-- Judged condition: a function plugin's entry (`src/index.ts`) exports an entity beyond the four; a default export is added beside the four, or the two forms are mixed; a `/client` entry exports an implementation value or lets another feature plugin import one; a fixture reaches another package by relative path.
-- Boundary: only Loader plugin entry points are constrained. Internal modules, helper functions, and hooks keep exporting values; a Host entry's Service Definition classes and error types are expected exports; and a test fixture stays inside its own package — a relative path into another package's `src` bypasses the `exports` map and the package-boundary checks.
-- Exception: none by default; an exception that is genuinely needed requires the domain owner's confirmation.
-
-The compliant entry — the four exports, with the same-package test path recorded as a comment rather than as a fifth export.
+合规的入口——四件套，同包测试路径以注释记录，而不是加出第五个导出。
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
@@ -29,7 +27,7 @@ export function apply(ctx: Context, config: Config): void { /* … */ }
 // A same-package test imports '../src/internal/header.ts' instead of this entry
 ```
 
-Three ways the entry gains an export it must not have; all three are visible in the diff.
+三种写法都会让入口多出不该有的导出；三种都能在 diff 里看到。
 
 ```ts ignore-check
 // The entry widened so a test could reach one helper
@@ -42,17 +40,17 @@ export default class WebApp {}
 import { isSurfaceEligibleType } from '../../core/session/src/surface.ts'
 ```
 
-## Two package shapes, and both are dynamic plugin packages
+## 包只有两类，且两类都是动态插件包
 
-A new package is either a Host package or a Host + Client package, and both are dynamic plugin packages; no third form is available and there is no exception. The static client libraries the shell seeds through `PLATFORM_MODULES` in [packages/client/web/src/platform.ts](../../packages/client/web/src/platform.ts) — `client-store`, `ui-slots`, `ui-primitives`, `ui-dockkit` — and the zero-dependency libraries under [packages/util/](../../packages/util/) predate this rule and are closed: they keep working as they are, and a new package never joins them. Only a genuine both-face package splits its compiler faces, build output goes to `lib`, and the `include`, `external`, and roster lists are derived by scanning the workspace rather than hand-written. A hand-written list or an invented compiler face makes build output and the manifest disagree, and every later package would have to maintain its own list.
+新增包要么是 Host 包，要么是 Host + Client 包，两类都是动态插件包；没有第三种形态可选，也没有例外。shell 经 [packages/client/web/src/platform.ts](../../packages/client/web/src/platform.ts) 的 `PLATFORM_MODULES` 播种的静态客户端库——`client-store`、`ui-slots`、`ui-primitives`、`ui-dockkit`——以及 [packages/util/](../../packages/util/) 下的零依赖库先于本条规则存在，且**已关闭**：它们照原样继续工作，新增包永不加入其中。只有真正的双面包才拆编译面，生成物进 `lib`，`include`、`external` 与 roster 清单由扫描 workspace 得出，不手写。手写清单或新造编译面会让构建产物与清单不再一致，此后每个新增包都得各自维护清单。
 
-- Judged condition: a new package built as anything but a dynamic plugin package (static-link bundling, a hand-written all-external list); a third `tsconfig` variant; a hand-written `include`, `external`, or roster list.
-- Recompute the shapes instead of trusting a number here: list the `tsconfig.json` files under `packages/*/*`, then the packages that also carry `tsconfig.client.json` and `tsconfig.host.json`, then those declaring `dsh.client`.
-- Boundary: a both-face package may appear in `include` or `exclude`.
-- Exception: none; there is no approval path. A change to a package's shape or compiler faces starts with the owning documents and needs the domain owner's confirmation.
-- Owners: [development.md](../development.md#typescript-project-layout) for the compiler faces, [packages/README.md](../../packages/README.md) for the package groups, and [adding-a-package.md](../cookbook/adding-a-package.md) for the steps.
+- 判定条件：新增包未按动态插件包形态构建（static link 打包、手写的全 external 清单）；出现第三种 `tsconfig` 变体；手写 `include`、`external` 或 roster 清单。
+- 形态不要照抄数字，就地复算：先列 `packages/*/*` 下的 `tsconfig.json`，再列同时带 `tsconfig.client.json` 与 `tsconfig.host.json` 的包，最后列声明 `dsh.client` 的包。
+- 边界：双面包允许被 `include` 或 `exclude`。
+- 例外：无；没有审批通道。包的形态或编译面变更须先改正家文档，并须经对应领域专家确认。
+- 正家：[development.zh.md](../development.zh.md#typescript-project-layout) 管编译面，[packages/README.zh.md](../../packages/README.zh.md) 管包分组，[adding-a-package.zh.md](../cookbook/adding-a-package.zh.md) 管步骤。
 
-A package in one of the two shapes, with the standard manifest fields and no hand-written external list.
+属于两类之一的包：使用标准清单字段，没有手写 external 清单。
 
 ```json
 {
@@ -66,29 +64,29 @@ A package in one of the two shapes, with the standard manifest fields and no han
 }
 ```
 
-A hand-written `external` list — and a `tsconfig.foo.json` invented beside it for one package — leaves the scans nothing to derive, so build output and manifest stop agreeing.
+手写的 `external` 清单——以及在它旁边为单个包新造的 `tsconfig.foo.json`——让扫描无从推导，构建产物与清单随之不再一致。
 
 ```json
 { "name": "@deepseek-ai/dsh-example", "external": ["@deepseek-ai/*"] }
 ```
 
-## `package.json` `exports` uses the standard key set
+## `package.json` `exports` 使用标准键集合
 
-A `package.json` `exports` map uses only the standard key set, in which every key already has one meaning across the repository, and a package never opens a key for its own local purpose. A key that only a handful of packages use without a documenting owner is not a precedent: formalizing a key, including one of the undocumented keys below, means changing the owning document and the check in the same change. The small shared key set is what lets a consumer infer a key's purpose from its name and lets a scan judge the export map at all.
+`package.json` 的 `exports` 只使用标准键集合，集合中每个键在全仓已经只有一个含义，包不得为自己的局部用途开键。只有少数几个包在用、又没有文档正家的键不构成先例：把某个键正式化（包括下面那些未记录在案的键）意味着在同一次改动里改正家文档与检查。键集合小且共享，消费者才能从键名推断用途，扫描也才有可能判定导出映射。
 
-- Standard keys, each with one meaning repo-wide, across `packages/*/*/package.json` and `apps/*/package.json`: `.` (the package entry), `./package.json` (toolchain access, not a semantic export), `./src/*` (source passthrough for tests and tools, whose documented status is still open), `./client` (the browser entry, paired with the `dsh.client` declaration), `./types` (the type entry), `./typert` (the typert type runtime), `./remote` (the `@Remote` call surface), `./locale/*.json` (locale resources), `./cordis.patch.yml` (the bundle patch layer declared by `dsh.bundle`). Counts are not listed here because they rot on the next package; the recompute command below prints them.
-- Keys outside that set (`./brand` in 5 packages, `./worker` in 4, `./startup`, `./runner`, and `./protocol` in 2 each, plus many one-off keys) have no documented meaning; they are pending review, not a pattern to copy.
-- `dsh-tools` additionally exposes `./pipeline` for reusable invocation stages and batch scheduling. Its main and pipeline bundles share runtime chunks to preserve error-class identity; workspace constraints check the export targets and publication files.
-- `dsh-tool-executor-ptc` exposes `./run-code` for the shared program-tool factory, explicit runtime and call limits, and private callable tool definitions. Workspace constraints check its export targets and publication files.
-- Judged condition: does a change add an export key outside the standard set?
-- Exception: none by default; a new key changes the owning document and the check first, with the domain owner's confirmation.
-- Recompute the distribution:
+- 标准键，每个键在全仓只有一个含义，统计口径是 `packages/*/*/package.json` 与 `apps/*/package.json`：`.`（包主入口）、`./package.json`（工具链访问，不是语义导出）、`./src/*`（测试与工具的源码透传，文档状态仍待定）、`./client`（浏览器入口，与 `dsh.client` 声明配对）、`./types`（类型入口）、`./typert`（typert 类型运行时）、`./remote`（`@Remote` 调用面）、`./locale/*.json`（本地化资源）、`./cordis.patch.yml`（`dsh.bundle` 声明的 bundle 补丁层）。这里不列各键的包数，因为下一个包就会让它过期；下面的复算命令会打印当前数字。
+- 集合之外的键（`./brand` 5 个包、`./worker` 4 个、`./startup`、`./runner`、`./protocol` 各 2 个，另有大量一次性键）没有文档含义，属待核项，不是可照抄的先例。
+- `dsh-tools` 另行提供 `./pipeline`，用于复用调用阶段与批量调度。主入口与 pipeline bundle 共享运行时 chunk，以保持错误类的身份一致；工作区检查验证导出目标与发布文件。
+- `dsh-tool-executor-ptc` 提供 `./run-code`，用于共享程序工具工厂、显式指定运行时及调用上限，并传入私有可调用工具定义。工作区检查验证其导出目标与发布文件。
+- 判定条件：改动是否新增了标准集合以外的 export 键？
+- 例外：无默认例外；新增键须先改正家文档与检查，并取得对应领域专家确认。
+- 复算分布：
 
 ```sh
 python3 -c "import json,glob,collections; c=collections.Counter(); [c.update(json.load(open(p)).get('exports',{}).keys()) for p in glob.glob('packages/*/*/package.json')+glob.glob('apps/*/package.json') if isinstance(json.load(open(p)).get('exports'),dict)]; print(c.most_common())"
 ```
 
-The compliant map — three standard keys used with their repo-wide meanings, in a package that also declares its client entry.
+合规的映射——三个标准键各按全仓含义使用，该包同时声明了 client 入口。
 
 ```json
 {
@@ -102,7 +100,7 @@ The compliant map — three standard keys used with their repo-wide meanings, in
 }
 ```
 
-Keys opened for one package's local purposes — here `./brand` and `./worker`, whose documented status is pending — turn the export map into a per-package convention that neither a consumer nor a scan can read.
+为单个包的局部用途开的键——这里是文档地位待核的 `./brand` 与 `./worker`——让导出映射退化为各包自便的约定，消费者与扫描都读不懂。
 
 ```json
 {
@@ -114,17 +112,17 @@ Keys opened for one package's local purposes — here `./brand` and `./worker`, 
 }
 ```
 
-## Dependency declarations and version consistency are enforced by the dependency scan
+## 依赖声明与版本一致性由依赖扫描门禁保证
 
-Dependency declarations and version consistency are guaranteed mechanically by the dependency scan; this page repeats neither the `devDependencies` and `peerDependencies` field rules nor a package admission list of its own. When the scan fails, reproduce it locally and fix the manifest it names, because the scan and its policy file own the rules. Editing the scan or relaxing its policy so that a change can land is not a normal edit and needs the domain owner's confirmation.
+依赖声明与版本一致性由依赖扫描机械保证；本页既不复述 `devDependencies` 与 `peerDependencies` 的字段规则，也不另立包准入清单。扫描失败时，在本地复现并修正它指名的清单，因为规则的正家是扫描与其策略文件。为了让改动落地而修改扫描或放宽策略不属于常规改动，须经对应领域专家确认。
 
-- Entry point: [verify-package-dependencies.ts](../../scripts/verify-package-dependencies.ts), run as `pnpm run verify-package-dependencies`, by `scripts/run-gates.ts` as the `package-dependencies` gate, and directly by `.github/workflows/release.yml`.
-- Policy owner: [package-dependency-policy.ts](../../scripts/package-dependency-policy.ts) exports `PACKAGE_DEPENDENCY_POLICY`; the declaration sections, version forms, and exemptions are defined there, with package-level context in [packages/README.md](../../packages/README.md).
-- Boundary: this page lists no packages, field rules, or thresholds; it points at the owning file instead.
-- Find the wiring: `grep -rn "verify-package-dependencies" package.json .github/workflows scripts/run-gates.ts`.
-- Exception: a change to the scan or to the policy requires the domain owner's confirmation and the reason recorded on the change.
+- 入口：[verify-package-dependencies.ts](../../scripts/verify-package-dependencies.ts)，以 `pnpm run verify-package-dependencies` 运行，被 `scripts/run-gates.ts` 作为 `package-dependencies` 门禁调用，`.github/workflows/release.yml` 也直接运行它。
+- 策略正家：[package-dependency-policy.ts](../../scripts/package-dependency-policy.ts) 导出 `PACKAGE_DEPENDENCY_POLICY`；声明面、版本形态与豁免都在该文件定义，包级背景见 [packages/README.zh.md](../../packages/README.zh.md)。
+- 边界：本页不列包清单、字段规则或阈值，只指向正家文件。
+- 查接线：`grep -rn "verify-package-dependencies" package.json .github/workflows scripts/run-gates.ts`。
+- 例外：修改扫描或策略须经对应领域专家确认，并在改动上记录理由。
 
-The repeatable procedure: reproduce, read the diagnostic, and fix the manifest it names.
+可重复的流程：复现、读诊断、修正它指名的清单。
 
 ```sh
 # 1. Reproduce what CI reports
@@ -140,28 +138,28 @@ pnpm run verify-package-dependencies
 pnpm run verify-package-dependencies
 ```
 
-Two ways to lose the mechanical guarantee: change the check instead of the manifest, or restate the rule here so that it drifts from its owner.
+失去机械保证的两种做法：改检查而不改清单，或者把规则复述到本页、从此与正家漂移。
 
 ```text
 Relaxing PACKAGE_DEPENDENCY_POLICY, or dropping the scanned section that fails, to go green
 Restating a required-devDependency package list or the field rules on this page instead of linking the policy file
 ```
 
-## Internal dependency syntax follows the package family
+## 内部依赖写法按包族保证
 
-Internal dependency syntax follows the package family: `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` use `workspace:*`, every other internal package uses `workspace:~`, and `workspace:^` has retired. The same dependency name is written the same way in every workspace, and a mismatch is a hard scan failure rather than a warning a reviewer can waive. The uniform syntax keeps one resolution path and prevents duplicate instances of a dependency and the resolution differences that follow them.
+内部依赖写法按包族决定：`@deepseek-ai/dsh` 与 `@deepseek-ai/dsh-*` 用 `workspace:*`，其余内部包用 `workspace:~`，`workspace:^` 已退出。同一个依赖名在所有 workspace 内写法一致，不一致是扫描硬失败，不是评审可以放行的警告。写法统一才能保持一条解析路径，避免同一个依赖出现重复实例以及随之而来的解析差异。
 
-- Judged by `workspaceRange()` in [verify-package-dependencies.ts](../../scripts/verify-package-dependencies.ts): the `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` families get `workspace:*`, every other internal package gets `workspace:~`; the scan walks the managed manifests and compares every declaration of the same dependency name.
-- Boundary: a same-namespace package that is not a workspace member declares an ordinary third-party range and is outside the family rule — `@deepseek-ai/libreoffice-kit` is declared `0.2.3` in `packages/bundle/web-app/package.json` (devDependencies) and `packages/document/office-kit/package.json` (dependencies).
-- Distribution is not restated here; the recompute command below prints the current counts of `workspace:*`, `workspace:~`, `workspace:^`, and any exact-range declaration outside the family rule.
-- Exception: the scan decides mechanically; a genuine exception means changing the scan and the policy file with the domain owner's confirmation and the reason on the change.
-- Recompute:
+- 判定在 [verify-package-dependencies.ts](../../scripts/verify-package-dependencies.ts) 的 `workspaceRange()`：`@deepseek-ai/dsh` 与 `@deepseek-ai/dsh-*` 包族取 `workspace:*`，其余内部包取 `workspace:~`；扫描遍历受管清单，比对同一依赖名的每一处声明。
+- 边界：同命名空间但不是 workspace 成员的包按普通第三方版本范围声明，不受包族规则约束——`@deepseek-ai/libreoffice-kit` 在 `packages/bundle/web-app/package.json`（devDependencies）和 `packages/document/office-kit/package.json`（dependencies）中声明为 `0.2.3`。
+- 分布不在此复述；下面的复算命令会打印 `workspace:*`、`workspace:~`、`workspace:^` 的当前数量，以及族规则之外的精确版本声明。
+- 例外：门禁机械判定；确需例外意味着修改扫描与策略文件，并须经对应领域专家确认、在改动上说明理由。
+- 复算：
 
 ```sh
 python3 -c "import json,glob,collections; c=collections.Counter(); [c.update([r]) for p in glob.glob('apps/*/package.json')+glob.glob('packages/*/*/package.json')+glob.glob('vendor/*/package.json') for s in ('dependencies','devDependencies','optionalDependencies','peerDependencies') for n,r in (json.load(open(p)).get(s) or {}).items() if n.startswith('@deepseek-ai/')]; print(c.most_common())"
 ```
 
-Each family in its form, with the non-member exception left as an ordinary version range.
+每个包族各用其写法，非成员的例外保持普通版本范围。
 
 ```json
 {
@@ -176,7 +174,7 @@ Each family in its form, with the non-member exception left as an ordinary versi
 }
 ```
 
-A `dsh-*` package on `workspace:~` and a workspace member pinned to an external range — each is a hard scan failure, and the retired rule of pinning exact versions is not available as an alternative.
+`dsh-*` 包写成 `workspace:~`，以及把 workspace 成员钉到外部版本范围——两者都是扫描硬失败，已退出的「一律钉精确版本」旧口径不能作为替代写法。
 
 ```json
 {
@@ -187,16 +185,16 @@ A `dsh-*` package on `workspace:~` and a workspace member pinned to an external 
 }
 ```
 
-## A new resolve hook is refused outright
+## 新增 resolve 钩子直接禁止
 
-A new `resolve` hook is refused by default — a definite prohibition, not a preference to avoid one. A genuine need has two preconditions together: re-auditing the resolve strategy as a whole rather than patching the specifier that motivated the change, and the domain owner's confirmation before anything lands. An author's own judgment that this case is special is not a confirmation.
+新增 `resolve` 钩子默认被拒——这是确定性禁止，不是「尽量不」。确有需要时，两个前置条件必须同时成立：整体重审 resolve 策略，而不是给触发本次改动的那个 specifier 打补丁；以及在任何内容落地之前取得对应领域专家的确认。开发者自行判断「这次特殊」不构成确认。
 
-- Judged condition: does the change add a `resolve` hook, including a wrapper around an existing hook that rewrites the same specifiers?
-- Boundary: this rule decides whether a hook may be added at all; the separation of resolution, hot reload, and plugin management responsibilities is governed separately and does not permit a new hook.
-- The one resolution path is the tsx ESM hook registered by the `dsh` source launch, whose rationale is in the [source-launch Agent Note](../../.agents/notes/implemented/architecture/2026-07-29-dsh-source-launch-tsx-esm.md).
-- Exception: only the two preconditions above, both recorded on the change.
+- 判定条件：改动是否新增 `resolve` 钩子，包括包装既有钩子、改写同一批 specifier 的等价写法？
+- 边界：本条只管能否新增钩子；解析、热更新与插件管理三者的职责划分另行治理，并不因此允许新增钩子。
+- 唯一的解析路径是 `dsh` 源码启动注册的 tsx ESM 钩子，其理由见[源码启动 Agent Note](../../.agents/notes/implemented/architecture/2026-07-29-dsh-source-launch-tsx-esm.zh.md)。
+- 例外：只有上述两个前置条件，且都要记录在改动上。
 
-The compliant path when new resolution behavior is genuinely needed, in order.
+确有新的解析需求时的合规路径，按顺序。
 
 ```text
 A new resolve hook is allowed only after both preconditions hold:
@@ -210,7 +208,7 @@ Until both hold, the answer is no; "this case is special" is the author's judgme
 not a confirmation.
 ```
 
-A hook added so that one specifier lands where this package expects it, or the equivalent wrapper around the existing hook — the resolution path gains a branch, and what the resolver returns no longer matches `node_modules`.
+为了让某个 specifier 落到本包期望的位置而加的钩子，或包装既有钩子达到同样效果的等价写法——解析路径多出一个分支，resolver 的返回与 `node_modules` 实况不再对应。
 
 ```ts ignore-check
 // Added so one specifier resolves to the local source copy
@@ -225,9 +223,9 @@ hooks.resolve = (specifier, context, next) =>
   pinned.has(specifier) ? pinned.get(specifier) : previous(specifier, context, next)
 ```
 
-## Package modules do not await at module scope
+## 包模块不在模块顶层 await
 
-A package source module starts its asynchronous work inside a function it calls, such as an explicit `main()` that handles its own rejection, and never uses `await`, `for await`, or `await using` at module scope: a module-scope wait makes every importer's evaluation wait, turns a rejection into a module-evaluation failure, and cannot be lowered to the synchronous CommonJS wrapper of the browser-worker image.
+包源码模块的异步工作在它调用的函数里启动（例如自己处理 rejection 的显式 `main()`），模块顶层不使用 `await`、`for await` 或 `await using`：模块顶层的等待会让每个导入方的求值跟着等待，把 rejection 变成模块求值失败，而且无法降级成浏览器 Worker 镜像使用的同步 CommonJS 包装。
 
-- Judged by [verify-no-top-level-await.ts](../../scripts/verify-no-top-level-await.ts), run as `pnpm run verify-no-top-level-await` and by `scripts/run-gates.ts` as the `no-top-level-await` gate; it parses every `packages/*/*/src/**/*.{ts,tsx}` file and excludes executables by declaration only: a source that starts with `#!`, or the source of a `lib/` output that the package's `bin` field names.
-- Exception: none.
+- 判定依据：[verify-no-top-level-await.ts](../../scripts/verify-no-top-level-await.ts)，以 `pnpm run verify-no-top-level-await` 运行，也由 `scripts/run-gates.ts` 作为 `no-top-level-await` 门禁运行；它解析每个 `packages/*/*/src/**/*.{ts,tsx}` 文件，只按声明排除可执行入口：以 `#!` 开头的源码，或包的 `bin` 字段指向的 `lib/` 产物所对应的源码。
+- 例外：无。
