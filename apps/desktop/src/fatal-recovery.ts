@@ -1,4 +1,4 @@
-/** Delta's native recovery dialog. No diagnostic persistence, exporting or telemetry. */
+/** Delta's native recovery dialog. No upload, external reporting or raw error persistence. */
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import type { DesktopMessages } from './locale.ts'
 import { desktopErrorState } from './startup-error.ts'
