@@ -1,90 +1,88 @@
 ---
-description: "Model context for users and maintainers of the Web GUI that names the DeepSeek Harness checkout and GUI URL without letting either change the system prompt."
+description: "面向 Web GUI 用户与维护者的模型上下文：给出 DeepSeek Harness checkout 与 GUI URL，且两者都不会改变系统提示词。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-harness-dev-context
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-harness-dev-context` 告诉运行在 DeepSeek Harness Web GUI 背后的 agent：harness 实现 checkout 在哪里、GUI 与「this page」是什么关系，以及哪个 URL 提供该 GUI。系统提示词只包含不含值的说明；当前 checkout 路径与 GUI URL 以运行时上下文送达，因此从别的 checkout、端口或安装位置启动进程，绝不会改写会话已记录的系统提示词。提示词仍嵌有早期版本这些值的会话会原样保留那段文本。
 
-`dsh-harness-dev-context` tells an agent running behind the DeepSeek Harness Web GUI where the harness implementation checkout lives, how the GUI relates to "this page", and which URL serves it. The system prompt carries only value-free guidance; the current checkout path and GUI URL arrive as runtime context, so starting the process from another checkout, port, or installation never rewrites a Session's logged system prompt. Sessions whose prompt still embeds those values from earlier releases keep that text verbatim.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-The shipped Web bundle mounts this plugin as its `harness-dev-context` row. Disable that row in a profile patch when the agent should not learn the harness checkout or GUI URL. The plugin takes no configuration and activates only where every injected service exists: `systemPrompt`, `sessionProjections`, and the `webApp` service of the Web runtime, so `--help` and non-Web compositions never mount it.
+随附的 Web bundle 以 `harness-dev-context` 行挂载此插件。不希望 agent 得知 harness checkout 或 GUI URL 时，在 profile patch 中禁用该行。插件不接受配置，只在每个注入服务都存在时激活：`systemPrompt`、`sessionProjections`，以及 Web 运行时的 `webApp` 服务，因此 `--help` 与非 Web 组合永远不会挂载它。
 
-### What the model gets
+### 模型得到什么
 
-Two system-prompt sections explain that the checkout differs from the working directory and that "this page" means this GUI, together with the GUI update contract. Two runtime-context lines state the current values: the installation root four directories above this package, and the Web GUI's advertised URL from `webApp.getAdvertisedUrl()`, the same value as `DSH_WEB_URL` and the startup URL. Runtime context follows the shared snapshot rules: an unchanged value adds nothing, and a changed one appends a snapshot before the step's input instead of rewriting earlier messages.
+两个系统提示词段落说明 checkout 与工作目录不同、「this page」指此 GUI，并给出 GUI 的更新约定。两行运行时上下文给出当前值：本包上方四层目录处的安装根，以及 `webApp.getAdvertisedUrl()` 给出的 Web GUI 公告 URL，与 `DSH_WEB_URL` 和启动 URL 相同。运行时上下文遵循共享的快照规则：值不变不追加内容，值变化时在本步输入之前追加一份快照，而不是改写更早的消息。
 
-### Sessions from earlier releases
+### 早期版本的会话
 
-Earlier releases embedded both values in the system prompt. When a Session's latest nonempty system prompt still contains those exact paragraphs, the sections repeat them verbatim, old values included, so upgrading and later port or checkout changes leave that Session's prompt byte-identical; the runtime-context lines still give the current values. Text that only resembles an earlier paragraph receives the current guidance.
+早期版本把两个值都嵌在系统提示词里。会话最新的非空系统提示词仍含那两段原文时，两个段落会原样重复它们（包括旧值），因此升级以及之后更换端口或 checkout 都不会改变该会话提示词的任何字节；运行时上下文行仍给出当前值。只是看起来像早期段落的文本会得到当前说明。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design of the plugin; the observable behavior is covered in [Use this package](#use-this-package).
+本节解释插件的设计；可观察行为见[使用本包](#use-this-package)。
 
-### Design concept
+### 设计思路
 
-A host-only session projection, `harnessDevLegacyPrompt`, folds every committed nonempty `system/message` into the earlier-format paragraphs it contains, matched by their fixed text around the value on one line. The section text providers read that state through `AssembleContext.agent`; assemblies without an agent use the current guidance. The projection is restored with every other unit when a Session resumes, so no historical event is read synchronously.
+仅限宿主的会话投影 `harnessDevLegacyPrompt` 把每个已提交的非空 `system/message` 折叠为其中包含的早期格式段落，按值两侧的固定文本在同一行内匹配。段落文本提供函数通过 `AssembleContext.agent` 读取该状态；没有 agent 的组装使用当前说明。会话恢复时该投影与其他单元一起恢复，因此不同步读取任何历史事件。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: sections, runtime contexts, earlier-format projection |
+| [`src/index.ts`](src/index.ts) | 插件入口：段落、运行时上下文、早期格式投影 |
 
-### Main flow
+### 主流程
 
-Activation awaits the projection handle before registering both sections and both contexts. At each assembly the sections read the handle to choose the admitted earlier paragraph or the current guidance; at each request admission the contexts read the advertised URL. Disposing the plugin fiber removes every registration.
+激活时等待取得投影 handle，再注册两个段落与两个上下文。每次组装时，段落读取 handle，在已提交的早期段落与当前说明之间选择；每次请求准入时，上下文读取公告 URL。销毁插件 fiber 会移除全部注册。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the decision record to the services this plugin reads.
+包级约定不够用时阅读这些页面。它们从决策记录走到本插件读取的服务。
 
-- [Process-specific values as runtime context](../../../.agents/notes/implemented/bug-fix/2026-10-11-process-specific-prompt-values-in-runtime-context.md) — why the values left the system prompt and how earlier Sessions stay stable.
-- [Session projections subsystem](../../../docs/subsystems/session-projection.md) — the projection contract the earlier-format state uses.
-- [Web app bundle](../../bundle/web-app/README.md) — the `webApp` service and the row that mounts this plugin.
-- [Context group map](../README.md) — sibling request-context packages.
+- [进程相关值改走运行时上下文](../../../.agents/notes/implemented/bug-fix/2026-10-11-process-specific-prompt-values-in-runtime-context.zh.md)——这些值为什么离开系统提示词，以及早期会话如何保持稳定。
+- [会话投影子系统](../../../docs/subsystems/session-projection.zh.md)——早期格式状态使用的投影约定。
+- [Web app bundle](../../bundle/web-app/README.zh.md)——`webApp` 服务与挂载本插件的行。
+- [Context 组地图](../README.md)——同组的请求上下文包。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Harness checkout and Web GUI
+### Harness checkout 与 Web GUI
 
-#### What the model sees
+#### 模型看到什么
 
-Two system-prompt paragraphs at first-party orders 10000 and 10100, after reusable instructions, and two runtime-context lines at context orders 200 and 210. A Session admitted under an earlier release sees its own earlier paragraphs instead of the two below.
+两个系统提示词段落，位于可复用指令之后的第一方顺序 10000 与 10100；两行运行时上下文，位于上下文顺序 200 与 210。在早期版本下提交过提示词的会话看到的是自己的早期段落，而不是下面两段。
 
-##### System-prompt paragraphs
+##### 系统提示词段落
 
 ```markdown
 The runtime context names the DeepSeek Harness implementation checkout. The checkout location and current working directory are separate values and may differ; never infer the working directory from the checkout path. Use pwd to determine the current working directory. Use this checkout only to inspect or extend DSH itself.
@@ -92,7 +90,7 @@ The runtime context names the DeepSeek Harness implementation checkout. The chec
 You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names. When the user refers to "this page", "this GUI", or "this app" without naming another target, they mean this GUI. The browser provides no implicit DOM, route, or screenshot context. The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while `pnpm run dev:web` is also running from this same checkout to rebuild their bundles; verify that watcher before promising automatic updates. Every other change — the apps/web shell and plain packages — requires rebuilding the affected Web artifacts and verifying this existing URL after a page refresh. Starting another server does not update this GUI. The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.
 ```
 
-##### Runtime-context lines
+##### 运行时上下文行
 
 ```markdown
 Current DeepSeek Harness implementation checkout: "<installation root>".
@@ -100,33 +98,33 @@ Current DeepSeek Harness implementation checkout: "<installation root>".
 Current DeepSeek Harness Web GUI URL: "<advertised URL>".
 ```
 
-#### Token effect
+#### Token 影响
 
-Two prompt paragraphs per Session and two lines in each runtime-context snapshot. A changed checkout or URL adds one snapshot.
+每个会话两段提示词，每份运行时上下文快照两行。checkout 或 URL 变化时追加一份快照。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-The system prompt is identical across checkouts, ports, and installations, so a process started elsewhere leaves the cached prefix intact; a changed value appends one runtime-context snapshot after it.
+系统提示词在不同 checkout、端口与安装位置下完全相同，因此在别处启动的进程不会破坏已缓存的前缀；值变化时在其后追加一份运行时上下文快照。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-These limits describe what the stability guarantee covers. They are current package constraints.
+这些限制说明稳定性保证覆盖哪些内容。它们是当前包约束。
 
-- **Two paragraphs only** — other system-prompt text that changes between releases still rewrites the first system message on routes without in-history prompt updates.
-- **Earlier values stay** — an earlier-format Session keeps its old checkout path and URL in the system prompt for its whole lifetime; only the later runtime-context lines are current.
-- **Mixed releases** — a release without this package rewrites the first system message of a Session started with it, so every checkout that serves a shared `DSH_HOME` needs this package before they alternate.
-- **Optional values** — the two runtime-context lines are optional, so a custom persona that sets `includeRuntimeContext: false` without `complete: true` keeps the sections that point at values its requests never carry. The shipped `minimal` persona sets both.
-- **Sessions without the sections** — a Session created while `surfaceContext: false` hid both paragraphs has neither in its log, so the first resumed request adds the new sections and rewrites the first system message on routes without in-history prompt updates.
-- **One earlier wording** — the projection recognizes the paragraphs as the release immediately before this package rendered them; a Session holding an older wording gets the current guidance.
+- **只覆盖两段**——版本之间变化的其他系统提示词文本，在不支持 in-history 提示词更新的路由上仍会改写第一条 system 消息。
+- **早期值保留**——早期格式会话在整个生命周期内都在系统提示词里保留旧 checkout 路径与 URL；只有之后的运行时上下文行是当前值。
+- **混用版本**——不含本包的版本会改写以本包启动的会话的第一条 system 消息，因此共用同一 `DSH_HOME` 的每个 checkout 都需要先包含本包，才能交替运行。
+- **可选值**——两行运行时上下文是可选的，因此设置 `includeRuntimeContext: false` 但未设置 `complete: true` 的自定义 persona 会保留指向其请求从不携带之值的段落。随附的 `minimal` persona 两者都设置。
+- **没有段落的会话**——在 `surfaceContext: false` 隐藏两段时创建的会话，日志中两段都没有，因此恢复后的第一个请求会加入新段落，并在不支持 in-history 提示词更新的路由上改写第一条 system 消息。
+- **只认一版早期措辞**——投影按本包之前紧邻的版本渲染的段落识别；保存更早措辞的会话会得到当前说明。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

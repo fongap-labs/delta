@@ -1,57 +1,55 @@
 ---
-description: "The on-demand /compact command for interactive compositions: what it does, what you see, and how to mount it."
+description: "面向交互式组合的按需 /compact 命令：它做什么、你会看到什么，以及如何挂载。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-command-compact
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-command-compact` 为聊天 UI 添加 `/compact` 命令：输入它，对话就会按需压缩（compaction）——即使尚未触发自动压力，较早历史也会被替换为一条摘要。该命令适用于任何压缩后端，且不消耗模型轮次；完成后你会看到压缩了多少历史项以及估算节省的 token 数。当 agent（智能体）正在执行轮次或压缩已在运行时，它会告诉你压缩暂不可用。运行期间你发送的提示词会保持排队，并在压缩结束后才开始。
 
-`dsh-command-compact` adds a `/compact` command to chat UIs: type it and the conversation condenses on demand — the older history is replaced by one summary even before automatic pressure triggers. The command works with any condensation backend and does not consume a model turn; after it finishes you see how many history items were condensed and the estimated tokens saved. While the agent is mid-turn or condensation is already running, it tells you condensation is unavailable. Prompts you send while it runs stay queued and start after it finishes.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Type `/compact` in a chat UI when the conversation has grown long and you want to condense it immediately. The shipped `dsh` base mounts the command next to the default backend, so it is usually already available.
+当对话已经很长、想立即压缩时，在聊天 UI 中输入 `/compact`。随附 `dsh` 基础配置把该命令挂载在默认后端旁，因此它通常已经可用。
 
-### Using the command
+### 使用命令
 
-| Input | Result |
+| 输入 | 结果 |
 |---|---|
-| `/compact` | Condense one useful balanced older span even below automatic pressure, then report the replaced history-item count and estimated tokens. |
-| `/compact` with no compactable history | `No compactable history yet.` — nothing changes. |
-| `/compact <anything>` | `Usage: /compact (no arguments)` — the command takes no arguments. |
+| `/compact` | 即使未达到自动压力，也压缩一段有效、平衡的较早范围，然后报告被替换的历史项数量与估算 token 数。 |
+| `/compact`，但没有可压缩历史 | `No compactable history yet.`——不会有任何改变。 |
+| `/compact <anything>` | `Usage: /compact (no arguments)`——该命令不接受参数。 |
 
-### What you see
+### 你会看到什么
 
-The command turns each expected failure into a stable message you can show directly; the situation on the left is what produced the message on the right.
+命令会把每个预期失败转换为可直接展示的稳定消息；左列的情形产生右列的消息。
 
-| Situation | Message you see |
+| 情形 | 你看到的消息 |
 |---|---|
-| Compaction already running, or the agent is mid-turn | `Compaction is unavailable because this process has an active compaction, or the agent is not idle.` |
-| The history changed while condensing | `The history selected for compaction changed before it could be replaced. The attempt is recorded in the session log.` |
-| No useful summary could be produced | `Compaction could not produce a useful summary. The attempt is recorded in the session log.` |
-| Condensation did not finish cleanly | `Compaction did not finish cleanly; some session history may have changed. Inspect the current session state before retrying.` |
-| The conversation could not be saved | `Compaction finished, but the session could not be saved.` |
+| 压缩已在运行，或 agent 正在轮次中 | `Compaction is unavailable because this process has an active compaction, or the agent is not idle.` |
+| 压缩过程中历史发生了变化 | `The history selected for compaction changed before it could be replaced. The attempt is recorded in the session log.` |
+| 无法产生有用的摘要 | `Compaction could not produce a useful summary. The attempt is recorded in the session log.` |
+| 压缩未干净地完成 | `Compaction did not finish cleanly; some session history may have changed. Inspect the current session state before retrying.` |
+| 会话无法保存 | `Compaction finished, but the session could not be saved.` |
 
-Cancelling the command stops the wait: the backend finishes its required cleanup, and the command settles as `Compaction cancelled.` while the UI stops waiting. Failures other than these expected cases surface as errors rather than being silently converted.
+取消命令会停止等待：后端完成必需的清理，命令以 `Compaction cancelled.` 结算，UI 停止等待。除这些预期情形外的失败会以错误形式呈现，而不会被静默转换。
 
-### Composing the command
+### 组合命令
 
-Mount the command registry, one condensation backend, and this plugin:
+挂载命令注册表、一个压缩后端与本插件：
 
 ```yaml
 - id: commands
@@ -62,94 +60,94 @@ Mount the command registry, one condensation backend, and this plugin:
   name: '@deepseek-ai/dsh-command-compact'
 ```
 
-The shipped `dsh` base mounts it beside the default backend, and the Web client provides the command adapter. Automation surfaces that compose no command adapter keep automatic condensation only.
+随附 `dsh` 基础配置把它挂载在默认后端旁，Web 客户端提供命令适配器。未组合命令适配器的自动化接口只保留自动压缩。
 
-### What happens to the conversation
+### 对话会发生什么
 
-When the command succeeds, the selected older span is replaced by one summary and the recent history is untouched; the command reports the number of condensed items and estimated tokens. Prompts you submit while condensation runs are accepted and start only after it finishes — they are not lost or reordered. The command lifecycle is recorded in the session log but never enters model history.
+命令成功时，所选较早范围会被替换为一条摘要，近期历史不受影响；命令会报告压缩的项目数与估算 token 数。压缩运行期间你提交的提示词会被接受，并只在压缩结束后才开始——不会被丢失或重排。命令生命周期记录在会话日志中，但绝不进入模型历史。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design decisions behind the command; the observable behavior is fully covered in [Use this package](#use-this-package).
+本节解释命令背后的设计决策；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
-### Design philosophy
+### 设计理念
 
-The command is built on three commitments:
+该命令建立在三项承诺之上：
 
-- **Backend-independent control.** The handler depends only on `compactNow(agent, signal)`, so it works with any `CompactionEngine` implementation. The invoking agent is the exact target, and the dispatching UI's cancellation signal is forwarded through the seam.
-- **The command lifecycle stays out of model history.** `command/run` and `command/done` are log-only events; `sourceEventSeq` correlates the successful result with the `compaction/summary` event without relying on text or row adjacency.
-- **Quiescent teardown.** The lifecycle effect unregisters `/compact` before draining already-started handlers, so an aborted command's close and flush work settles before root disposal completes.
+- **与后端无关的控制。** 处理器只依赖 `compactNow(agent, signal)`，因此可与任何 `CompactionEngine` 实现协作。调用该命令的 agent 就是操作的确切目标，发起分发的 UI 会通过 seam 转发取消信号。
+- **命令生命周期不进入模型历史。** `command/run` 与 `command/done` 都是仅日志事件；`sourceEventSeq` 将成功结果与 `compaction/summary` 事件关联，不依赖文本或行相邻关系。
+- **资源销毁必须完全停稳。** 生命周期 effect 会先注销 `/compact`，再等待已开始处理器结算，因此已中止命令的闭合与 flush 工作会在根级资源释放完成前结算完毕。
 
-### Lifecycle and correlation
+### 生命周期与关联
 
-Every resolved invocation records the executor-owned log-only pair `command/run` / `command/done`; neither event joins model history. On success, `command/done.sourceEventSeq` names the transaction's `compaction/summary` event so a presentation can fold the command lifecycle into its checkpoint without parsing result text or assuming adjacent rows. The busy outcome is intentionally process-scoped: a live unmatched marker blocks, while a marker older than the newest `session/end-seed` is stale and does not. The plugin tracks each real handler promise and unregisters `/compact` before draining handlers that already started, so root teardown cannot pass an aborted command's close or flush boundary. Prompts submitted while compaction runs remain accepted in the agent's ordinary FIFO and start only after the compaction's explicit durability checkpoint and admission release; idle injected context may sit between `compaction/start` and `compaction/end` and stays visible after the checkpoint.
+每次完成的调用都会记录执行器所属的仅日志事件对 `command/run` / `command/done`；两者都不进入模型历史。成功时，`command/done.sourceEventSeq` 会指明该事务的 `compaction/summary` 事件，让呈现层无须解析结果文本或假定两行相邻，即可将命令生命周期归并到对应检查点中。busy 结果有意限定在进程范围内：活动的未匹配标记会阻塞，而早于最新 `session/end-seed` 的标记已陈旧，不会阻塞。插件会跟踪每个真实处理器 promise，并在排空已开始处理器之前注销 `/compact`，因此根级 teardown 不会越过已中止命令的闭合或 flush 边界。压缩运行期间提交的提示词仍会按 agent 的普通 FIFO 获得接纳，并且只在压缩的显式持久性检查点和接纳预留释放后启动；空闲注入的上下文可以位于 `compaction/start` 与 `compaction/end` 之间，并在检查点之后保持可见。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `/compact` registration, argument rejection, error-code mapping, lifecycle drain |
+| [`src/index.ts`](src/index.ts) | 插件入口：`/compact` 注册、参数拒绝、错误码映射、生命周期排空 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough; they move from the command to the seam, the shipped backend, and the design decisions.
+当包级约定不够用时阅读以下页面；它们从命令逐步进入 seam、随附后端与设计决策。
 
-- [Compaction seam](../compaction/README.md) — the condensation contract this command triggers.
-- [Compaction basic backend](../compaction-basic/README.md) — the shipped backend that condenses automatically and on demand.
-- [Commands package](../../interaction/commands/README.md) — the registry and dispatch contract behind chat commands.
-- [Compaction subsystem reference](../../../docs/subsystems/compaction.md) — the condensation vocabulary, results, and service behavior.
-- [Queued manual compaction reference](../compaction/README.md) — how on-demand condensation serializes against running turns.
+- [压缩 seam](../compaction/README.md)——本命令触发的压缩约定。
+- [压缩基础后端](../compaction-basic/README.md)——自动与按需压缩的随附后端。
+- [命令包](../../interaction/commands/README.zh.md)——聊天命令背后的注册表与分发约定。
+- [压缩子系统参考](../../../docs/subsystems/compaction.zh.md)——压缩词汇、结果与服务行为。
+- [排队手动压缩 参考](../compaction/README.md)——按需压缩如何与运行中的轮次串行化。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Human `/compact` control
+### 用户 `/compact` 控制
 
-#### What the model sees
+#### 模型看到的内容
 
-The slash input and direct result never enter a model request. An accepted compaction separately replaces an older span with the backend's user-role checkpoint inside a standalone `compaction/* { turn: null }` bracket.
+斜杠输入与直接结果绝不会进入模型请求。已获接纳的压缩会另外在独立的 `compaction/* { turn: null }` 标记对内，用后端的 user 角色检查点替换一段较早范围。
 
-#### Token effect
+#### Token 影响
 
-The command lifecycle adds no model tokens. A successful compaction reduces later requests by replacing the selected span with one framed summary; summarization itself is one auxiliary request.
+命令生命周期不会增加模型 token。成功压缩会用一份带框架的摘要替换所选范围，从而减少后续请求；摘要生成本身需要一次辅助请求。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Discovery and command bookkeeping do not affect the cache. The accepted surface replacement invalidates reuse from the first shadowed history token.
+命令发现与簿记不会影响缓存。已获接纳的 surface 替换会从第一个被遮蔽的历史 token 起使复用失效。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the command is a poor fit; they are the current package constraints.
+这些限制说明该命令何时不合适；它们是当前包约束。
 
-- **Idle-only** — `/compact` reports that condensation is unavailable when a turn or already accepted waking prompt has right of way; the command itself is not queued.
-- **No range or policy arguments** — the argument-free form keeps behavior stable across command adapters. Explicit ranges remain the programmatic `compactRegion()` path.
-- **Command adapters only** — surfaces without `ctx.commands` cannot invoke it and rely on automatic pressure compaction.
+- **仅限空闲状态**——当轮次或已获接纳的唤醒提示词拥有优先权时，`/compact` 会报告压缩暂不可用；命令本身不会排队。
+- **不接受范围或策略参数**——无参数形式使各命令适配器的行为保持稳定。显式范围仍由编程接口 `compactRegion()` 处理。
+- **仅限命令适配器**——没有 `ctx.commands` 的接口无法调用该命令，只能依赖自动压力压缩。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers and is explicitly non-authoritative; shipped behavior lives in the sections above, the package code, and the linked Agent Notes.
+本开发备注是维护者的工作上下文，明确不具权威性；已交付行为以上文、包代码与所链接的 Agent Note 为准。
 
-- **Queued commands, undecided** — a `/compact` submitted while a turn has right of way reports `busy`; queuing the request instead of rejecting it remains an open direction.
-- **Range and policy arguments, undecided** — argument-free stability is deliberate; adding arguments would need a shared grammar across every command adapter.
+- **命令排队，尚未决定**——轮次拥有优先权时提交的 `/compact` 会报告 `busy`；将请求排队而非拒绝仍是开放方向。
+- **范围与策略参数，尚未决定**——无参数形式的稳定性是有意的；增加参数需要在每个命令适配器间共享语法。
 
 </details>

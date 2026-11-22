@@ -1,39 +1,37 @@
 ---
-description: "Opt-in per-turn tmux location context for users and maintainers enabling or tuning the agent's session, window, and pane awareness."
+description: "可选的按轮次 tmux 位置上下文，供启用或调优 agent（智能体）的会话、window 与 pane 感知的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-tmux-context
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-tmux-context` 让模型识别其 agent 进程所在的 tmux 会话、window、pane 和 pane 树布局。它仅在位置发生变化时，于每轮的第一个步骤追加一条持久、带来源的读数。若终端只继承了 tmux 环境变量，却并未在所指名的 pane 中运行，则不添加任何内容；查询失败同样不添加内容，也不会使该轮失败。本包需主动启用，且不包含在随附的 Web 或无头 profile 中。
 
-`dsh-tmux-context` lets the model identify the tmux session, window, pane, and pane-tree layout containing its agent process. It adds a durable, source-attributed reading on the first step of a turn only when that location changed. Terminals that merely inherit tmux environment variables without running in the named pane add nothing; failed queries also add nothing and do not fail the turn. This package is opt-in and is not included in the shipped Web or headless profiles.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount this plugin when the agent process runs inside tmux and the model benefits from knowing its window and pane location. Each reading is one additional user-role message in durable history; an unchanged location adds nothing, so long-running sessions accumulate little.
+当 agent 进程运行在 tmux 内、且模型需要知道其 window 与 pane 位置时，挂载此插件。每条读数都是持久历史中额外的一条 user 角色消息；位置未变化时不添加任何内容，因此长时会话累积很少。
 
-### What the model gets
+### 模型能得到什么
 
-On each turn whose tmux state changed, the model receives one source-tagged context message with the session name, window index and name, pane index and id, active flags, and the compact pane-tree layout. Readings happen on the first step of a turn only; a pane moved or resized mid-turn is reflected on the next turn. Pixel sizes are intentionally excluded, and the visible contents of sibling panes are never captured.
+在 tmux 状态发生变化的每一轮，模型会收到一条带来源标记的上下文消息，包含会话名称、window 索引与名称、pane 索引与 id、活动标志，以及紧凑的 pane 树布局。读数只发生在每轮的第一个步骤；轮次中途移动或缩放的 pane 会在下一轮反映。像素尺寸有意省略，相邻 pane 的可见内容从不采集。
 
-### Configuration
+### 配置
 
-The minimal mount needs no configuration. A positive `refreshIntervalMs` additionally suppresses injections that fall within that many milliseconds of the latest one; omission or `0` injects whenever the tmux state changed since the last injection.
+最小挂载无需任何配置。`refreshIntervalMs` 为正值时，会额外抑制距最近一次注入不足该毫秒数的注入；省略或设为 `0` 时，只要 tmux 状态自上次注入以来发生变化就注入。
 
 ```yaml
 - name: '@deepseek-ai/dsh-tmux-context'
@@ -41,68 +39,68 @@ The minimal mount needs no configuration. A positive `refreshIntervalMs` additio
     refreshIntervalMs: 60000
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `refreshIntervalMs` | `0` (every changed turn) | Minimum milliseconds between durable injections in one session |
+| `refreshIntervalMs` | `0`（每个变化轮次） | 同一会话中两次持久注入之间的最小毫秒数 |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tmux-context) is the exhaustive source for every accepted field and its JSDoc.
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tmux-context)是所有受支持字段及其 JSDoc 的完整真源。
 
-### When the location is known
+### 何时知道位置
 
-The process counts as in tmux only when its controlling terminal matches the pane's `#{pane_tty}`; a terminal launched from a tmux shell (a VS Code integrated terminal, a desktop launcher) inherits the variables but not the pane, so it reads as not in tmux. A missing `ctx.shell`, an absent environment, or a malformed reading is a no-op, and an executor rejection is contained and logged as a warning rather than failing the turn.
+只有当进程的控制终端与 pane 的 `#{pane_tty}` 一致时，才视为位于 tmux 中；从 tmux shell 启动的终端（VS Code 集成终端、桌面启动器）会继承变量但不在 pane 内，因此被视为不在 tmux 中。`ctx.shell` 缺失、环境变量不存在或读数格式非法时是空操作；执行器拒绝会被兜住并记录为警告，而不会使该轮失败。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design of the plugin; the observable behavior is covered in [Use this package](#use-this-package).
+本节解释插件的设计；可观察行为见[使用本包](#use-this-package)。
 
-### Design concept
+### 设计理念
 
-The plugin prepends an `agent/pre-step` listener that runs only on the first step of each turn. When due, it runs one read-only command through the `ctx.shell` executor service — the deployment's sandbox and policy apply, and the plugin owns no subprocess code. The command compares `$TMUX_PANE`'s `#{pane_tty}` with this process's own controlling terminal before emitting tab-separated fields, so an inherited environment reads as not in tmux. The plugin re-injects only when the rendered state differs from its last injection.
+插件前置注册一个 `agent/pre-step` 监听器，仅在每轮的第一个步骤运行。需要注入时，它通过 `ctx.shell` 执行器服务运行一条只读命令——部署方的沙箱与策略都会应用，插件不拥有任何子进程代码。命令在输出制表符分隔字段前，会比较 `$TMUX_PANE` 的 `#{pane_tty}` 与本进程自身的控制终端，因此继承的环境会被视为不在 tmux 中。插件只在渲染出的状态与上次注入不同时重新注入。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: first-step listener, shell query, change suppression, scheduling |
+| [`src/index.ts`](src/index.ts) | 插件入口：第一步监听器、shell 查询、变化抑制、调度 |
 
-### Main flow
+### 主要流程
 
-The pre-step listener is installed before awaiting projection registration. Steps arriving during activation wait for the reader; registration failure or owner disposal stops the request, and cancellation while waiting performs no shell query or context injection.
+pre-step 监听器在等待投影注册前安装。激活期间到达的步骤会等待读取句柄；注册失败或所属插件释放会终止请求，等待期间取消不会执行 shell 查询或注入上下文。
 
-At the first step of a turn, the listener checks whether an injection is due, queries the location through `ctx.shell`, and compares the rendered state with the latest durable injection of this source. Change suppression and interval scheduling scan the raw durable session events, so the schedule survives compaction and resumed processes without process-local cache state; sessions schedule independently. A downstream pre-step listener that rejects or fails prevents the reading from being recorded.
+在每轮的第一个步骤，监听器检查注入是否到期，通过 `ctx.shell` 查询位置，并把渲染状态与该来源最近一次持久注入比较。变化抑制与间隔调度会扫描原始持久会话事件，因此调度可跨压缩（compaction）与恢复的进程存续，无需进程内缓存状态；各会话独立调度。下游在步骤前运行的监听器拒绝或失败时，该读数不会被记录。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the design decision to the executor the query runs through and the exhaustive configuration.
+包级约定不够用时阅读以下页面。这些页面从设计决策讲到查询所经由的执行器以及完整配置。
 
-- [tmux location context decision record](../../../.agents/notes/archived/feature/2026-07-27-tmux-location-context.md) — design rationale for the tty-based detection and reading shape.
-- [Shell subsystem](../../../docs/subsystems/shell.md) — the executor service the read-only query runs through.
-- [Context group map](../README.md) — sibling request-context packages.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tmux-context) — every accepted config field and its source declaration.
+- [tmux 位置上下文决策记录](../../../.agents/notes/archived/feature/2026-07-27-tmux-location-context.md)——基于 tty 的检测与读数形状的设计理由。
+- [shell 子系统](../../../docs/subsystems/shell.zh.md)——只读查询所经由的执行器服务。
+- [上下文组地图](../README.md)——相邻的请求上下文包。
+- [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tmux-context)——每个受支持配置字段及其源声明。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Preparation-time tmux location
+### 准备期 tmux 位置
 
-#### What the model sees
+#### 模型看到的内容
 
-On each turn whose tmux state changed, one source-tagged context message with the three lines below. `<window-layout>` is tmux's compact pane-tree description; pane and window pixel sizes are intentionally excluded, and the contents of sibling panes are never captured.
+在 tmux 状态发生变化的每一轮，注入一条带来源标记、含以下三行的上下文消息。`<window-layout>` 是 tmux 紧凑的 pane 树描述；pane 与 window 的像素尺寸有意省略，相邻 pane 的内容从不采集。
 
-##### Changed-turn reading
+##### 变化轮次读数
 
 ```markdown
 tmux location (turn <turn>):
@@ -110,33 +108,33 @@ session <session>, window <index> "<name>", pane <index> <pane-id>
 window active=<0|1>, pane active=<0|1>, layout <window-layout>
 ```
 
-#### Token effect
+#### Token 影响
 
-Each three-line reading accumulates until compaction shadows it. Unchanged locations and interval suppression add nothing.
+每条三行读数会累积，直到压缩将其遮蔽。位置未变化以及间隔抑制不会新增内容。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV Cache entries.
+仅追加；新增可见内容位于可复用的请求前缀之后，不会使已有 KV Cache 条目失效。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when tmux location context is a poor fit. They are current package constraints.
+这些限制说明 tmux 位置上下文何时不合适。它们是当前包约束。
 
-- **First step only** — a pane moved or resized mid-turn is reflected on the next turn, not between steps.
-- **Own location only** — the plugin never captures the visible text of sibling panes.
-- **Layout, not size** — pane/window pixel dimensions are omitted; only the layout tree and active flags are reported.
-- **Tab-delimited fields** — a tmux window name containing the literal two-character sequence `\t` would mis-split the reading and be skipped as malformed; ordinary names are unaffected.
-- **tty-based pane detection** — the process is considered "in tmux" only when its controlling terminal matches `$TMUX_PANE`'s `#{pane_tty}`. This deliberately excludes terminals that inherited `$TMUX`/`$TMUX_PANE` from a tmux ancestor (e.g. a VS Code integrated terminal). `ps -o tty=` is POSIX; the check is a no-op wherever it or `#{pane_tty}` is unavailable.
+- **仅第一个步骤**——轮次中途移动或缩放的 pane 会在下一轮反映，而非在步骤之间。
+- **仅自身位置**——插件从不采集相邻 pane 的可见文本。
+- **只有布局，没有尺寸**——省略 pane/window 像素尺寸；仅报告布局树与活动标志。
+- **制表符分隔字段**——若 tmux window 名称包含字面两字符序列 `\t`，会使读数分割错误并作为非法读数跳过；常规名称不受影响。
+- **基于 tty 的 pane 判定**——只有当进程的控制终端与 `$TMUX_PANE` 的 `#{pane_tty}` 一致时，才视为「位于 tmux 中」。这会有意排除从 tmux 祖先进程继承 `$TMUX`／`$TMUX_PANE` 的终端（如 VS Code 集成终端）。`ps -o tty=` 属于 POSIX；在其或 `#{pane_tty}` 不可用的环境中，该检查即为空操作。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

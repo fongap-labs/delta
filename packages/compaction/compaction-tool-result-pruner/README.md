@@ -1,35 +1,33 @@
 ---
-description: "Tool-output trimming for deployments composing compaction: choosing size limits or debugging why oversized tool results get shortened."
+description: "面向组合压缩（compaction）部署场景的工具输出修剪：选择大小限制或排查超大工具结果为何被缩短。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-compaction-tool-result-pruner
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-compaction-tool-result-pruner` 防止超大工具输出填满上下文窗口。压缩触发条件满足后，它会把超出预算的文本替换为长度受限的头部、简短的「middle pruned」标记与长度受限的尾部；未达到压力阈值的对话保持不变。完整原始结果仍保留在会话日志中，可供精确回放与检查。修剪不发起模型调用，并可能充分缓解 token 压力，使压缩跳过摘要。字符预算只能近似 token 用量；token meter 负责判定压力是否得到缓解。
 
-`dsh-compaction-tool-result-pruner` keeps oversized tool output from filling the context window. Once a compaction trigger qualifies, it replaces over-budget text with a bounded head, a short "middle pruned" marker, and a bounded tail; below-pressure conversations remain unchanged. The complete original result remains in the session log for exact replay and inspection. Trimming makes no model call and may relieve enough token pressure to skip summarization. Character budgets only approximate token use; the token meter determines whether pressure was relieved.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount this package next to `dsh-compaction-basic` when tool output regularly dominates the conversation window. Trimming changes what the model sees — shorter results — and gives compaction less history to condense.
+当工具输出经常主导对话窗口时，在 `dsh-compaction-basic` 旁挂载本包。修剪会改变模型看到的内容——更短的结果——并让压缩有更少的历史需要压缩。
 
-### Smallest working composition
+### 最小可用组合
 
-Mount token measurement, this package, and the backend in this order:
+按此顺序挂载 token 测量、本包与后端：
 
 ```yaml
 - name: '@deepseek-ai/dsh-token-meter'
@@ -37,112 +35,112 @@ Mount token measurement, this package, and the backend in this order:
 - name: '@deepseek-ai/dsh-compaction-basic'
 ```
 
-With these rows, oversized tool results are trimmed automatically as part of condensation. You can verify success by checking that future requests show the trimmed results; the full originals remain in the session log.
+有了这些配置行，超大工具结果会在压缩过程中自动被修剪。你可以通过检查后续请求是否显示修剪后的结果来确认成功；完整原始内容仍保留在会话日志中。
 
-### What gets trimmed
+### 什么会被修剪
 
-Every tool result whose text exceeds the threshold is replaced by a trimmed version: the configured head, a short "middle pruned" marker, and the configured tail. Rich content such as images and structured blocks keeps its order and all logged image-offload selections. The replacement keeps the tool call, step, errors, and metadata — only the text content changes. If a replacement cannot be recorded, the run fails and the trims already applied stay in place.
+每个文本超过阈值的工具结果都会被替换为修剪版本：配置的头部、简短的「middle pruned」标记与配置的尾部。图片与结构化块等富内容保持原有顺序，并保留日志中的所有图片省略选择。替换保留工具调用、步骤、错误与元数据——只有文本内容发生变化。如果替换无法被记录，运行会失败，已应用的修剪仍会保留。
 
-### Setting the size limits
+### 设置大小限制
 
-All settings are optional; the defaults trim any result with more than 8,192 text characters to its first 4,096 plus its last 1,024, joined by the marker. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-compaction-tool-result-pruner) is the exhaustive source.
+所有设置都可选；默认会把文本超过 8,192 个字符的结果修剪为其前 4,096 加后 1,024 个字符，并用标记连接。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-compaction-tool-result-pruner)是涵盖所有配置字段的真源。
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `thresholdChars` | `8192` | Trim when combined text exceeds this many Unicode code points. |
-| `headChars` | `4096` | Leading Unicode code points retained. |
-| `tailChars` | `1024` | Trailing Unicode code points retained. |
+| `thresholdChars` | `8192` | 合并文本超过此 Unicode 码点数时修剪。 |
+| `headChars` | `4096` | 保留的开头 Unicode 码点数。 |
+| `tailChars` | `1024` | 保留的末尾 Unicode 码点数。 |
 
-Character counts are Unicode code points, so slicing never splits an emoji pair, though a multi-character grapheme can still be cut. The head plus the marker plus the tail must fit within the threshold, so a valid configuration trims every over-budget result without growth or repeated rewriting. An unknown setting rejects the plugin at construction.
+字符数以 Unicode 码点计，因此切片绝不会拆分 emoji 对，但多字符字素仍可能被切断。头部加标记加尾部之和必须不超过阈值，因此有效配置可以修剪每个超出预算的结果，不会增长或重复改写。未知设置会导致插件在构造时被拒绝。
 
-### When trimming runs
+### 修剪何时运行
 
-Trimming only runs when a compaction trigger qualifies: `dsh-compaction-basic` invokes it after pressure or overflow is confirmed, before it selects what to condense. Below pressure nothing is trimmed, and trimming itself makes no model call.
+修剪只在压缩触发条件满足后运行：`dsh-compaction-basic` 在压力或溢出确认后、选择要压缩的内容之前调用它。低于压力时不会修剪任何内容，修剪本身也不发起模型调用。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains the design decisions behind the pruner; the observable behavior is fully covered in [Use this package](#use-this-package).
+本节解释修剪器背后的设计决策；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
-### Design philosophy
+### 设计理念
 
-The pruner is built on three commitments:
+该修剪器建立在三项承诺之上：
 
-- **Deterministic one-pass convergence.** Slicing is by Unicode code point with fixed budgets, so every emitted result has exactly the configured head, marker, and tail in text code points, is no larger than `thresholdChars`, and is strictly smaller than the triggering input.
-- **Replay-safe replacement.** The original event remains in the append-only log; the replacement cites it through `sourceEventSeqs`, so replay recovers the exact input that produced the pruned result.
-- **The shadow-price protocol.** `compaction/prune` immediately precedes its replacement, pricing the exact replaced range through the injected token meter so pure consumers subtract it without per-node state — the shared protocol documented on the `compaction/prune` event.
+- **确定性的单次收敛。** 按 Unicode 码点以固定预算切片，因此每个发出的结果在文本码点上都精确包含已配置的头部、标记与尾部，不大于 `thresholdChars`，且严格小于触发输入。
+- **可安全回放的替换。** 原始事件保留在仅追加日志中；替换通过 `sourceEventSeqs` 引用它，因此回放可以恢复产生已剪枝结果的精确输入。
+- **影子价格协议。** `compaction/prune` 会紧邻替换事件并位于其前，通过注入的 token meter 为被替换的精确范围定价，使纯消费方无需每节点状态即可减去它——即 `compaction/prune` 事件上记录的共享协议。
 
-### Pruning mechanics
+### 剪枝机制
 
-Pruning measures `text` blocks by Unicode code point (non-text blocks cost zero), produces a bounded replacement — or none when content is already within budget — and swaps each over-budget tool result for one newly appended `tool/result` that replaces the original event and cites it through `sourceEventSeqs`, immediately preceded by a `compaction/prune` shadow-price event. A session that rejects a replacement fails the run synchronously; replacements committed earlier in the pass stay durable. Non-text blocks keep their original relative positions, and slicing never splits a UTF-16 surrogate pair. Exact signatures are in [`src/index.ts`](src/index.ts).
+剪枝按 Unicode 码点测量 `text` 块（非文本块计为零），生成长度受限的替换——内容已在预算内时则不替换——并把每个超出预算的工具结果换为一条新追加的 `tool/result`，该事件替换原始事件并通过 `sourceEventSeqs` 引用它，前面紧跟一条 `compaction/prune` 影子价格事件。会话拒绝替换时，运行会同步失败；本次扫描中先前已提交的替换仍会保留。非文本块保持原始相对位置，切片绝不会拆分 UTF-16 代理项对。精确签名见 [`src/index.ts`](src/index.ts)。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `ToolResultPruner` service, `pruneSession` / `pruneContent` / `measureContent` |
-| [`src/config.ts`](src/config.ts) | `PRUNE_MARKER`, defaults, code-point counting, budget validation |
-| [`src/types.ts`](src/types.ts) | `ToolResultPruneConfig`, `ResolvedConfig`, `PrunedEntry`, `PruneResult` |
+| [`src/index.ts`](src/index.ts) | 插件入口：`ToolResultPruner` 服务、`pruneSession` / `pruneContent` / `measureContent` |
+| [`src/config.ts`](src/config.ts) | `PRUNE_MARKER`、默认值、码点计数、预算验证 |
+| [`src/types.ts`](src/types.ts) | `ToolResultPruneConfig`、`ResolvedConfig`、`PrunedEntry`、`PruneResult` |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough; they move from the consuming backend to the shared seam and the pricing service.
+当包级约定不够用时阅读以下页面；它们从消费后端逐步进入共享 seam 与定价服务。
 
-- [Compaction basic backend](../compaction-basic/README.md) — the backend that trims oversized tool outputs before condensing.
-- [Compaction seam](../compaction/README.md) — the condensation contract this package plugs into.
-- [Compaction subsystem reference](../../../docs/subsystems/compaction.md) — the condensation vocabulary, results, and service behavior.
-- [Token meter](../../llm/token-meter/README.md) — the measurement service that decides whether trimming relieved pressure.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-compaction-tool-result-pruner) — every accepted config field and its source declaration.
+- [压缩基础后端](../compaction-basic/README.md)——在压缩前修剪超大工具输出的后端。
+- [压缩 seam](../compaction/README.md)——本包接入的压缩约定。
+- [压缩子系统参考](../../../docs/subsystems/compaction.zh.md)——压缩词汇、结果与服务行为。
+- [Token meter](../../llm/token-meter/README.zh.md)——判定修剪是否缓解压力的测量服务。
+- [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-compaction-tool-result-pruner)——每个受支持配置字段及其源声明。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Pruned tool result
+### 已剪枝的工具结果
 
-#### What the model sees
+#### 模型看到的内容
 
-Once a compaction trigger qualifies, future requests see the retained head, `\n\n[... tool result middle pruned ...]\n\n`, and retained tail in place of the removed text. Rich blocks keep their order. The model does not see a second copy of the original.
+一旦满足压缩触发条件，后续请求看到的将是保留的头部、`\n\n[... tool result middle pruned ...]\n\n` 和保留的尾部，而非被移除的文本。富内容块保持原有顺序。模型不会看到原文的第二份副本。
 
-#### Token effect
+#### Token 影响
 
-Each rewritten tool result has at most `thresholdChars` text code points. Pruning itself makes no model call; compaction-basic skips summarization when the remeasured request falls below pressure, otherwise the summarizer reads the pruned surface.
+每个已改写工具结果最多包含 `thresholdChars` 个文本码点。剪枝本身不会发起模型调用；重新测量的请求低于压力阈值时，compaction-basic 会跳过摘要，否则摘要器会读取已剪枝的表层。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Replacing an earlier result invalidates reuse from the first changed token. The pruned prefix is eligible for reuse while its route, envelope, and preceding history remain identical.
+替换较早的结果会使从第一个改变的 token 起的复用失效。当其路由、envelope 与之前的历史保持一致时，已剪枝前缀可以复用。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when trimming is a poor fit or needs special care; they are the current package constraints.
+这些限制说明修剪何时不合适，或何时需要特别注意；它们是当前包约束。
 
-- **Character budgets are not token budgets** — provider token density varies, so `ctx.tokenMeter` remains the authority for deciding whether trimming relieved request pressure.
-- **Pruning is syntactic** — it retains the beginning and end without interpreting which middle lines are semantically important.
-- **Grapheme clusters can split** — code-point slicing protects surrogate pairs but does not perform locale-aware grapheme segmentation.
+- **字符预算不是 token 预算**——不同提供方的 token 密度各异，因此 `ctx.tokenMeter` 仍负责判定修剪是否缓解了请求压力。
+- **剪枝只基于语法**——它保留开头与结尾，不解释中间哪些行在语义上重要。
+- **字素簇可能被拆分**——按码点切片可保护代理项对，但不会执行考虑区域设置的字素簇分割。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers and is explicitly non-authoritative; shipped behavior lives in the sections above, the package code, and the linked Agent Notes.
+本开发备注是维护者的工作上下文，明确不具权威性；已交付行为以上文、包代码与所链接的 Agent Note 为准。
 
-- **Semantic middle selection, undecided** — pruning keeps the head and tail blindly; interpreting which middle lines matter would need a model or structured heuristics, neither of which ships.
-- **Token-based budgets, deferred** — budgets are Unicode code points; switching to token-based budgets would require an estimator contract the token meter does not expose.
+- **语义化中间选择，尚未决定**——剪枝盲目保留头部与尾部；判断中间哪些行重要需要模型或结构化启发式，两者都未随附。
+- **基于 token 的预算，暂缓**——预算以 Unicode 码点计；改为基于 token 的预算需要 token meter 未暴露的估算器约定。
 
 </details>

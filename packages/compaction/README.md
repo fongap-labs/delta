@@ -1,55 +1,53 @@
 ---
-description: "Package map for the conversation-condensing feature family: automatic compaction, the on-demand /compact command, and tool-output trimming."
+description: "会话压缩（compaction）功能家族的包映射：自动压缩、按需 /compact 命令与工具输出修剪。"
 kind: "package-group"
 ---
 
-# compaction/ — compaction capability family
+# compaction/ — 压缩能力家族
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`compaction/` 组让长时 agent（智能体）会话在接近模型上下文上限时仍能正常工作：token 压力上升时自动把较早历史压缩为摘要，可用 `/compact` 按需压缩，超大工具输出也可以先被修剪，从而减少需要压缩的内容，支持图片的路由发不出的图片则被替换为占位文本。随附 `dsh` 基础配置默认启用该功能。显式挂载各包即可调整压缩发生的时机与方式。决定何时压缩的 token 测量属于独立的 LLM（大语言模型）家族服务。
 
-The `compaction/` group keeps long agent conversations working near the model's context limit: older history is condensed into a summary automatically as token pressure builds, on demand with `/compact`, oversized tool outputs can be trimmed first so there is less to condense, and images an image-capable route can no longer send are replaced with placeholders. The shipped `dsh` base enables the feature by default — mount the packages explicitly to tune when and how condensation happens. The token measurement that decides when to condense lives in a separate LLM-family service.
+## 目录
 
-## Table of Contents
-
-- [Packages](#packages)
-- [Related documentation](#related-documentation)
-- [Dev Note](#dev-note)
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="packages"></a>
-## Packages
+## 包
 
-Each package below provides one piece of the feature; open a package page for how to use it.
+以下每个包提供该功能的一个环节；打开对应包页面了解如何使用。
 
-| Package | Role | ctx key |
+| 包 | 职责 | ctx key |
 |---|---|---|
-| [`compaction/`](compaction/README.md) | The shared condensation contract: the operations and summary format every backend and trigger use | `ctx.compaction` |
-| [`compaction-basic/`](compaction-basic/README.md) | Automatic condensation of older history into a summary as token pressure builds | registers `ctx.compaction` |
-| [`compaction-tool-result-pruner/`](compaction-tool-result-pruner/README.md) | Trims oversized tool outputs so less history needs condensing | `ctx.toolResultPruner` |
-| [`compaction-image-offload/`](compaction-image-offload/README.md) | Replaces over-budget request images with placeholders when an image-capable route rejects a request | listens to `agent/request-error` |
-| [`command-compact/`](command-compact/README.md) | The `/compact` command to condense history on demand | registers on `ctx.commands` |
+| [`compaction/`](compaction/README.md) | 共享的压缩约定：所有后端与触发器使用的操作与摘要格式 | `ctx.compaction` |
+| [`compaction-basic/`](compaction-basic/README.md) | 随 token 压力上升自动把较早历史压缩为摘要 | 注册 `ctx.compaction` |
+| [`compaction-tool-result-pruner/`](compaction-tool-result-pruner/README.md) | 修剪超大工具输出，减少需要压缩的历史 | `ctx.toolResultPruner` |
+| [`compaction-image-offload/`](compaction-image-offload/README.md) | 支持图片的路由拒绝请求时，把超出预算的请求图片替换为占位文本 | 监听 `agent/request-error` |
+| [`command-compact/`](command-compact/README.md) | 按需压缩历史的 `/compact` 命令 | 注册到 `ctx.commands` |
 
 -----
 
 <a id="related-documentation"></a>
-## Related documentation
+## 相关文档
 
-Start with the subsystem reference for the shared vocabulary, then read the two Agent Notes for the design rationale.
+先从子系统参考了解共享词汇，再阅读两份 Agent Note 了解设计依据。
 
-- [Compaction subsystem reference](../../docs/subsystems/compaction.md) — the condensation vocabulary, results, and service behavior.
-- [historical Compaction capability-seam Agent Note](../../.agents/notes/archived/feature/2026-06-18-compaction-capability-seam.md) — how the family is split and why it depends on session and LLM vocabulary.
-- [Queued manual compaction reference](compaction/README.md) — how on-demand `/compact` serializes against running turns.
-- [Capability seams](../../.agents/notes/implemented/architecture/2026-06-13-capability-seams.md) — the Service Definition / Service Provider / Consumer split this family follows.
+- [压缩子系统参考](../../docs/subsystems/compaction.zh.md)——压缩词汇、结果与服务行为。
+- [历史压缩能力 seam Agent Note](../../.agents/notes/archived/feature/2026-06-18-compaction-capability-seam.md)——家族如何拆分，以及为何依赖会话与 LLM 词汇。
+- [排队手动压缩 参考](compaction/README.md)——按需 `/compact` 如何与运行中的轮次串行化。
+- [能力 seam](../../.agents/notes/implemented/architecture/2026-06-13-capability-seams.zh.md)——本家族遵循的 Service Definition / Service Provider / Consumer 拆分。
 
 <a id="dev-note"></a>
-## Dev Note
+## 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
