@@ -1,101 +1,100 @@
 ---
-description: "Canonical Session-log ratings, categories, and notes for finalized assistant messages."
+description: "在权威 Session 日志中保存已完成 assistant 消息的评分、分类与备注。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-message-feedback
 
-English | [中文](README.zh.md)
 
-## Summary
+## 概述
 
-This service records positive or negative ratings, an optional category from the fixed feedback taxonomy, and optional verbatim notes for finalized assistant messages. The canonical Session log owns every creation, edit, and deletion; `list`, `put`, and `delete` expose current feedback without constructing or waking an Agent. Feedback is log-only and does not enter model history.
+本服务为已完成的 assistant 消息记录好评、差评、固定反馈分类表中的可选分类，以及可选的原样备注。每次创建、编辑和删除都由权威 Session 日志保存；`list`、`put` 和 `delete` 提供当前反馈，不会构造或唤醒 agent（智能体）。反馈仅写入日志，不进入模型历史。
 
-## Table of Contents
+## 目录
 
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount `dsh-message-feedback` alongside `sessions` and `sessionPersistence`. It needs no storage-domain service. The Web bundle supplies the browser consumer and a note limit of 8192 bytes.
+将 `dsh-message-feedback` 与 `sessions`、`sessionPersistence` 一起挂载。它不需要 storage-domain 服务。Web 组合提供浏览器消费方，并将备注上限设为 8192 字节。
 
-### Configuration
+### 配置
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `maxNoteBytes` | required | Positive safe integer specifying the maximum UTF-8 byte length of one optional note. |
+| `maxNoteBytes` | 必填 | 单条可选备注的 UTF-8 字节上限，必须为大于零的安全整数。 |
 
-A supplied note must contain a non-whitespace character and fit the configured byte limit. Blank notes return `note-blank`; oversized notes return `note-too-large`. Accepted text is preserved exactly, including surrounding whitespace. Omitting a note clears it. Note validation precedes Session lookup. A supplied category must be one of the [fixed feedback categories](../command-feedback/README.md#the-web-feedback-dialog); the Remote schema rejects any other value, and omitting the category clears it.
+提交的备注必须包含非空白字符，且不超过配置的字节上限。空白备注返回 `note-blank`；过长备注返回 `note-too-large`。通过校验的文本会完整保留，包括首尾空白。省略备注会清除它。备注校验先于 Session 查找。提交的分类必须是[固定反馈分类](../command-feedback/README.md#the-web-feedback-dialog)之一；Remote schema 拒绝其他值，省略分类会清除它。
 
-### Reading and changing feedback
+### 读取与修改反馈
 
-| Operation | Request | Success | Business failures |
+| 操作 | 请求 | 成功 | 业务失败 |
 |---|---|---|---|
-| `list` | Session id | Current items in creation order | Session not found |
-| `put` | Session, message, rating, optional note, optional category, expected version | Current item | Session or target not found, version conflict, invalid note |
-| `delete` | Session, message, expected version | Item absent | Session not found, version conflict |
+| `list` | Session id | 按创建顺序返回当前条目 | Session 不存在 |
+| `put` | Session、消息、评分、可选备注、可选分类、预期版本 | 当前条目 | Session 或目标不存在、版本冲突、备注无效 |
+| `delete` | Session、消息、预期版本 | 条目不存在 | Session 不存在、版本冲突 |
 
-Create with `ifVersion: null`; edit or delete with the returned version. Stale mutations return `version-conflict` and the current item. Each material put mints a fresh token and preserves the original creation time. A put that repeats the stored rating, note, and category is a no-op: it returns the same item without appending an event. Deleting an absent item succeeds regardless of the supplied version, without appending an event. Recreating a deleted item starts a new creation time and ordering position.
+创建时传入 `ifVersion: null`；编辑或删除时使用返回的版本。陈旧修改返回 `version-conflict` 及当前条目。每次实质 put 都生成新 token，并保留原始创建时间。重复已存评分、备注与分类的 put 是无变化操作：返回相同条目，不追加事件。删除不存在的条目始终成功，不受所传版本影响，也不追加事件。重新创建已删除条目会产生新的创建时间和排序位置。
 
-Targets must be non-empty assistant messages produced by append-origin events. User messages, empty assistant placeholders, and replacement-origin messages return `target-not-found`. Feedback survives restart; a fork starts without owned feedback even when its inherited prefix contains parent feedback.
+目标必须是由 append 来源事件产生的非空 assistant 消息。用户消息、空 assistant 占位及 replacement 来源消息返回 `target-not-found`。反馈跨重启保留；fork 即使继承了包含父会话反馈的前缀，初始时也没有自有反馈。
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
-### Canonical log and durability
+### 权威日志与持久性
 
-`feedback/message-put` stores the owning Session id and complete item, including its version and timestamps. `feedback/message-delete` stores the owner and message id. Current state is derived from these events, ignoring other Session owners. Durable payloads are validated before use. No second feedback store or cache exists.
+`feedback/message-put` 保存所属 Session id 及完整条目，包括版本和时间戳。`feedback/message-delete` 保存所属 Session 和消息 id。当前状态从这些事件推导，忽略属于其他 Session 的事件。持久化 payload 在使用前经过校验。不存在第二个反馈存储或缓存。
 
-Live operations append through `Session.append` and await `sessions.flush`, then verify the captured log endpoint and Session header through a persistence read handle before reporting success. Cold mutations hold a persistence write handle across read, validation, comparison, append, flush, and close. Cold reads use a read handle. Neither path constructs a Session or appends lifecycle events.
+活跃会话通过 `Session.append` 追加，并等待 `sessions.flush`，然后通过持久化读句柄核实捕获的日志末端与 Session header，才会报告成功。冷会话修改在读取、校验、比较、追加、flush 和关闭期间持有持久化写句柄。冷读取使用读句柄。两条路径都不会构造 Session 或追加生命周期事件。
 
-A per-Session queue serializes operations within one service instance; the persistence write handle excludes competing cold writers. Disposal stops admission and drains admitted operations before releasing the service. Persistence failures reject instead of becoming business failures. A failed flush does not roll back an accepted event; callers can list and retry with its version. Successful no-op mutations also flush the current prefix.
+每个 Session 的队列在同一服务实例内串行化操作；持久化写句柄排除其他冷写入方。销毁时停止接收操作并排空已接收操作，然后释放服务。持久化故障会 reject，而非变成业务失败。flush 失败不会回滚已接受的事件；调用方可以读取并使用其版本重试。成功的无变化修改也会 flush 当前前缀。
 
-Cold material mutations emit `feedback/committed` after flush with a borrowed read-only canonical prefix; observers must deep-clone it before transferring ownership. Observers finish before write ownership is released, must not await another feedback operation for that Session, and cannot reject an already committed mutation. Live consumers observe `session/event`.
+冷会话的实质修改在 flush 后发出 `feedback/committed` 通知，其中携带借用的只读权威日志前缀；观察方在转移所有权前必须对其进行深拷贝。观察方在写入所有权释放前完成，不得等待同一 Session 的其他反馈操作，也不能使已提交的修改失败。活跃会话消费方观察 `session/event`。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Remote service, payload validation, event projection, and persistence ownership |
-| [`src/types.ts`](src/types.ts) | Requests, results, and Session event declarations; types only |
+| [`src/index.ts`](src/index.ts) | Remote 服务、payload 校验、事件投影与持久化所有权 |
+| [`src/types.ts`](src/types.ts) | 请求、结果和 Session 事件声明；仅类型 |
 
-See the [feedback subsystem](../../../docs/subsystems/feedback.md), [Session persistence](../../../docs/subsystems/persistence.md), and [browser consumer](../../client/ui-message-feedback/README.md) for their respective APIs.
+各自的 API 见[反馈子系统](../../../docs/subsystems/feedback.zh.md)、[Session 持久化](../../../docs/subsystems/persistence.zh.md)和[浏览器消费方](../../client/ui-message-feedback/README.zh.md)。
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Message feedback
+### 消息反馈
 
-#### What the model sees
+#### 模型看到什么
 
-Nothing. `feedback/message-put` and `feedback/message-delete` carry no surface placement, tool, prompt section, or model-facing context. Log export and delivery policies belong to their consumers.
+无。`feedback/message-put` 和 `feedback/message-delete` 不携带 surface 位置、工具、提示词段落或模型可见上下文。日志导出与投递策略由相应消费方负责。
 
-#### Token effect
+#### Token 影响
 
-Zero. Ratings, notes, and service results do not enter model requests.
+为零。评分、备注和服务结果不进入模型请求。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Independent. Feedback does not change the model request prefix.
+相互独立。反馈不改变模型请求前缀。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Log-only authority:** existing `message_feedback` sidecar data is neither read nor migrated. Those files remain untouched, but their feedback is unavailable through this service.
-- **Deletion retains history:** delete removes current feedback, not earlier ratings or notes from the append-only log; it is not a privacy-erasure operation.
-- **Writer ownership:** another process holding a Session write handle causes cold mutations to reject. The service does not wake that owner or coordinate Remote calls across processes.
-- **Trusted callers:** requests contain no authenticated actor or audit identity. Deployments must protect the Host gateway.
-- **Telemetry export:** for all users and providers, including `deepseek-official`, the shipped OTel backend in `FEEDBACK_ONLY` releases the complete canonical prefix only after new explicit text feedback, rating, note, or category edits, or withdrawal. The prefix includes context and verbatim notes; later records wait for the next feedback, and `DISABLED` prevents capture. Deployments own redaction; see the [OTel export policy](../../session/session-telemetry-otel/README.md).
-- **Scan cost:** each `list`, `put`, or `delete` that reaches an existing Session scans its full event log to derive current feedback; cold operations also read the full log from persistence. Work grows with total Session history, not just the number of feedback items.
-- **Retention:** `maxNoteBytes` limits one note, not aggregate log size or mutation count.
+- **仅日志具有权威性：**不读取或迁移现有 `message_feedback` 伴随数据。这些文件保持不变，但其反馈无法通过本服务访问。
+- **删除保留历史：**delete 移除当前反馈，不会从仅追加日志中清除更早的评分或备注；它不是隐私擦除操作。
+- **写入所有权：**另一个进程持有 Session 写句柄时，冷会话修改会 reject。服务不会唤醒该所有者，也不协调跨进程 Remote 调用。
+- **受信任调用方：**请求不包含经过认证的 actor 或审计身份。部署方必须保护 Host 网关。
+- **遥测导出：**对于所有用户和提供方，包括 `deepseek-official`，随附 OTel 后端在 `FEEDBACK_ONLY` 模式下仅在新的显式文本反馈、评分、备注或分类编辑、撤回后释放完整权威日志前缀。前缀包含上下文和原样备注；后续记录等待下一次反馈，`DISABLED` 阻止捕获。部署方负责脱敏；见 [OTel 导出策略](../../session/session-telemetry-otel/README.zh.md)。
+- **扫描成本：**每次访问已有 Session 的 `list`、`put` 或 `delete` 都会扫描完整事件日志来推导当前反馈；冷会话操作还会从持久化存储读取完整日志。工作量随 Session 历史总量增长，而不只是反馈条目数。
+- **保留量：**`maxNoteBytes` 只限制单条备注，不限制日志总大小或变更次数。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
-The [package tests](tests/message-feedback.spec.ts) cover current-state and durable-history semantics; the [Loader composition](tests/loader-composition.spec.ts) verifies live and cold JSONL operations across restart.
+[包测试](tests/message-feedback.spec.ts)覆盖当前状态与持久历史语义；[Loader 组合](tests/loader-composition.spec.ts)验证跨重启的活跃和冷 JSONL 操作。

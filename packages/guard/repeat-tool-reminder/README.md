@@ -1,39 +1,38 @@
 ---
-description: "Advisory loop-hygiene guard that nudges the model out of identical tool-call loops, for users and maintainers choosing, configuring, or debugging the plugin."
+description: "建议性循环卫生 guard：当 agent（智能体）重复完全相同的工具调用时提醒模型，供选择、配置或排查此插件的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-repeat-tool-reminder
 
-English | [中文](README.zh.md)
 
-## Summary
+## 概述
 
-This package helps a model escape loops in which it calls the same tool with identical arguments without making progress. At configured repeat counts, it asks the model to inspect the previous result and change approach or finish. The reminder is advisory: it never blocks or delays a legitimate repeated call. Repeats are tracked separately for each agent and cleared by a new user message. The `dsh` base bundle enables the package with reminders at 3, 5, and 8 repeats.
+本包帮助模型跳出以相同参数反复调用同一工具却没有进展的循环。达到配置的重复次数时，它会要求模型检查上一次结果并改变方法或结束任务。提醒只是建议，绝不会阻止或延迟合理的重复调用。每个 agent 的重复分别跟踪，新的用户消息会清除计数。`dsh` 基础组合包默认启用本包，并在重复 3、5、8 次时提醒。
 
-## Table of Contents
+## 目录
 
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount this plugin when the model should catch itself looping on identical tool calls. There is nothing to learn or wire: the `dsh` base bundle already runs it, and the defaults work for most sessions — tune the thresholds and tool scope below when you want the nudge sooner, later, or on fewer tools.
+当模型应当自行发现自己在相同工具调用上循环时，挂载此插件。无需学习或接线：`dsh` 基础组合包已经运行它，默认值适用于大多数会话——想更早、更晚或在更少的工具上收到提醒时，调优下面的阈值与工具范围即可。
 
-### When to choose it
+### 何时选择
 
-Choose it when the model works autonomously for long stretches and a stuck loop is the failure you want to break with advice rather than force. Avoid it when identical repeats are legitimate and must run undisturbed — the guard only reminds, and a reminder is a small extra message after the repeated call — and when near-identical variants must be caught, because only exact repeats (same tool, same arguments regardless of property order) are detected.
+当模型长时间自主工作、且卡住的循环是你想用建议而非强制来打破的失败模式时，选择它。当相同的重复是合理且必须不受打扰地运行时——guard 只会提醒，提醒只是重复调用之后的一条小消息——以及必须捕获近似变体时（因为只有精确重复——同一工具、同一参数且与属性顺序无关——才会被检测到），避免使用它。
 
-### Setting the thresholds and scope
+### 设置阈值与范围
 
-When you want to change when reminders fire or which tools they cover, mount the plugin with configuration:
+想改变提醒何时触发或覆盖哪些工具时，用配置挂载插件：
 
 ```yaml
 - name: '@deepseek-ai/dsh-repeat-tool-reminder'
@@ -44,103 +43,103 @@ When you want to change when reminders fire or which tools they cover, mount the
     argumentsPreviewChars: 500   # cap on arguments shown in the detailed reminder
 ```
 
-| Field | Default | Meaning |
+| 字段 | 默认值 | 含义 |
 |---|---|---|
-| `thresholds` | `[3, 5, 8]` | Repeat counts that trigger a reminder |
-| `include` | `[]` | Only these tools are tracked; empty means every tool |
-| `exclude` | `[]` | These tools are never tracked; calls to them neither count nor reset |
-| `argumentsPreviewChars` | `500` | How many characters of the repeated arguments the detailed reminder shows |
+| `thresholds` | `[3, 5, 8]` | 触发提醒的重复次数 |
+| `include` | `[]` | 只跟踪这些工具；空表示所有工具 |
+| `exclude` | `[]` | 绝不跟踪这些工具；对它们的调用既不计数也不重置 |
+| `argumentsPreviewChars` | `500` | 详细提醒中显示多少字符的重复参数 |
 
-Invalid configuration fails at startup with a clear error — an empty `thresholds` list, a repeat count below 2, or a duplicate — never a silent change of behavior. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-repeat-tool-reminder) documents every accepted value.
+无效配置会在启动时以清晰错误失败——空的 `thresholds` 列表、小于 2 的重复次数或重复值——绝不会静默改变行为。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-repeat-tool-reminder)记录每个受支持的值。
 
-### What you get
+### 你会得到什么
 
-With the defaults, a model that repeats the same call with identical arguments receives a short reminder on the third repeat — to analyze the previous result before calling again — and detailed reminders on the fifth and eighth, naming the tool and the repeated arguments so it can decide whether to change approach, gather more evidence, or finish. Only model-direct calls count, including `run_code`; calls inside a PTC program neither increment nor reset the count. A new user message clears the count, so a fresh instruction is never treated as a loop. Reminders appear in the conversation after the repeated call's result, attributed to the plugin, so the model reads them like any other message.
+按默认值，以相同参数重复同一调用的模型会在第三次重复时收到简短提醒——先分析上一次结果再调用——并在第五次和第八次收到详细提醒，列出工具与重复参数，使其决定改变方法、收集更多证据还是结束任务。只统计模型直接发起的调用，包括 `run_code`；PTC 程序内部的调用既不递增也不重置计数。新的用户消息会清零计数，因此全新指令绝不会被当作循环。提醒出现在重复调用的结果之后、归属于插件，模型像阅读任何其他消息一样阅读它。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains how the guard detects repeats and delivers reminders, and points at the code that realizes it; the observable behavior is fully covered in [Use this package](#use-this-package).
+本节解释 guard 如何检测重复并投递提醒，并指出实现它的代码位置；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
-### Design philosophy
+### 设计理念
 
-The guard is built on four commitments:
+guard 建立在四项承诺之上：
 
-- **Advisory, not veto.** The guard enriches post-execute decisions with model context; it never blocks or rewrites a call, so `PostToolDecision` blocking stays a later listener's job.
-- **Count in post-execute.** Detection runs on `tools/post-execute`, which also fires for denied calls; counting there lets one listener cover every attempt with no cross-event state.
-- **Exact-match canonicalization.** Arguments reach the guard as the loop's `JSON.parse` output (or its raw-string fallback), so JSON's value domain is the whole input domain and a deep key-sort plus `JSON.stringify` is a complete, deterministic identity — no bigint, cycle, or `undefined` handling exists because no input path can produce them.
-- **Fail loud at load.** `thresholds` and `argumentsPreviewChars` validate in `apply` and throw, never falling back to defaults.
+- **仅建议，不否决。** guard 用模型上下文丰富 post-execute 决策；它从不阻止或改写调用，因此 `PostToolDecision` 阻止仍是后续监听器的事。
+- **在 post-execute 中计数。** 检测运行在 `tools/post-execute` 上，被拒绝的调用同样会经过它；在那里计数让一个监听器即可覆盖所有尝试，无需跨事件状态。
+- **精确匹配规范化。** 参数以循环的 `JSON.parse` 输出（或畸形参数 JSON 的原始字符串回退）到达 guard，因此 JSON 的值域就是全部输入域，深度键排序加 `JSON.stringify` 是完整、确定性的同一性判定——不存在 bigint、循环引用或 `undefined` 处理，因为没有输入路径能产生它们。
+- **加载时快速失败。** `thresholds` 与 `argumentsPreviewChars` 在 `apply` 中校验并抛出错误，绝不回退到默认值。
 
-### Detection: the repeat chain
+### 检测：重复链
 
-Each agent's chain is keyed by `(tool name, canonical arguments)` — two calls with the same tool and canonically identical arguments (property order ignored) count as consecutive, and a different tracked call resets the count to 1. The chain lives in a `WeakMap<Agent, Chain>`.
+每个 agent 的链以「`(tool name, canonical arguments)`」为键——同一工具且规范化后参数相同（忽略属性顺序）的两次调用计为连续，换成另一条受跟踪调用则把计数重置为 1。链保存在 `WeakMap<Agent, Chain>` 中。
 
-- **Untracked calls are transparent to the chain.** A call excluded by `include`/`exclude` neither increments nor resets the counter, so `grep X → todo_write → grep X` still counts as two consecutive `grep X` when `todo_write` is excluded — bookkeeping tools interleaved into a loop do not launder it.
-- **Denied calls count.** Detection sits on `tools/post-execute`, which also runs for calls a `tools/pre-execute` listener denied; a model hammering a denied call is exactly the loop worth breaking.
-- **Nested calls and calls without an agent are ignored.** Calls with `exec.parent` neither increment nor reset the chain; calls without an agent have no model to remind or live agent object to key on.
-- **Per-agent keying, reset on user prompts.** One agent's repetition never trips another's reminder; a user prompt (`agent/pre-step`) deletes the submitting agent's chain, and object lifetime bounds the weak entry without a disposal listener.
-- **In-memory only.** A session resumed from persistence starts with a fresh chain — the guard is a heuristic nudge, not a logged invariant, so reminders after a resume are the accepted cost.
+- **不受跟踪的调用对链透明。** 被 `include`／`exclude` 排除的调用既不递增也不重置计数器，因此 `grep X → todo_write → grep X` 在 `todo_write` 被排除时仍算作连续两次 `grep X`——穿插进循环的记录类工具不能掩盖循环。
+- **被拒绝的调用也计数。** 检测位于 `tools/post-execute`，被 `tools/pre-execute` 监听器拒绝的调用同样会经过它；模型反复尝试被拒绝的调用，恰恰是需要打破的循环。
+- **忽略内部子调用和没有 agent 的调用。** 带有 `exec.parent` 的调用既不递增也不重置链；没有 agent 的调用没有需要提醒的模型，也没有可作为键的活跃 agent 对象。
+- **按 agent 分键，用户提示词时重置。** 一个 agent 的重复绝不会触发另一个 agent 的提醒；用户提示词（`agent/pre-step`）会删除提交该提示词的 agent 链，对象生命周期限制弱引用条目的寿命，无需 dispose（资源释放）监听器。
+- **仅驻留内存。** 从持久化恢复的会话以全新链开始——guard 是启发式提醒，而非记录在案的不变量，因此恢复后的提醒延后是可接受的代价。
 
-### Reminder delivery
+### 提醒传递
 
-Reminders ride the post-execute decision's `additionalContexts` (source `{kind: 'repeat-tool-reminder', form: 'notice', summary: '<tool> × <count>'}`), never a `content` replacement: the `tool/result` event stays the tool's own output for audit. The loop buffers the context and appends it as an injected `user/message` after the step's tool results, which the session renders as a plain synthetic user message — model-visible, source-attributed, and reconstructable from the session log with no new session event. The guard always delegates via `next()` and prepends its reminder to the downstream decision's context array, so both decision variants (a blocked call included) still get the nudge while every entry retains its own source and metadata and a downstream block keeps its feedback and structured error identity.
+提醒随 post-execute 决策的 `additionalContexts`（来源为 `{kind: 'repeat-tool-reminder', form: 'notice', summary: '<tool> × <count>'}`）传递，绝不替换 `content`：用于审计的 `tool/result` 事件仍保留工具自己的输出。循环会缓冲这段上下文，并在该步骤的工具结果之后作为注入的 `user/message` 追加，会话将其渲染为普通的合成用户消息——模型可见、带有来源归属，且无需新会话事件即可从会话日志重建。guard 始终通过 `next()` 委派，并把提醒放在下游决策的上下文数组之前，因此两种决策变体（包括被阻止的调用）都会收到提醒，同时每个条目保留自己的来源与元数据，下游阻止也保留其反馈与结构化错误标识。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, fail-loud validation, chain listeners |
+| [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、快速失败校验、链监听器 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the tools waterfall to exhaustive configuration and the guard group map.
+当包级约定不够用时阅读以下页面。它们从工具 waterfall（瀑布式事件）逐步进入穷尽式配置与 guard 组映射。
 
-- [Tools subsystem reference](../../../docs/subsystems/tools.md) — the `tools/execute` waterfall, `additionalContexts`, and decision shapes this guard consumes.
-- [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-repeat-tool-reminder) — every accepted config field and its source declaration.
-- [guard group map](../README.md) — the sibling guard packages and the loop-hygiene family.
+- [工具子系统参考](../../../docs/subsystems/tools.zh.md)——本 guard 消费的 `tools/execute` waterfall、`additionalContexts` 与决策形态。
+- [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-repeat-tool-reminder)——每个受支持配置字段及其源声明。
+- [guard 组映射](../README.md)——同组的 guard 包与循环卫生家族。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### First-threshold context message
+### 首个阈值的上下文消息
 
-#### What the model sees
+#### 模型看到什么
 
-At the first configured consecutive-repeat threshold, that agent receives the reminder below. No tool schema or normal-call text is added.
+达到第一个配置的连续重复阈值时，对应 agent 会收到下面的提醒。不会添加工具 schema 或正常调用文本。
 
-##### First-threshold reminder
+##### 首个阈值提醒
 
 ```markdown
 You are repeating the exact same tool call with identical arguments. Carefully analyze the previous result before calling again: if the task is not complete, try a different approach or different arguments instead of repeating the call.
 ```
 
-#### Token effect
+#### Token 影响
 
-Zero tokens before the threshold. The reminder is retained history for that agent.
+达到阈值前为零 token。提醒会作为该 agent 的历史记录保留。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV-cache entries.
+仅追加；新出现的内容位于可复用请求前缀之后，不会使现有 KV Cache 条目失效。
 
-### Later-threshold context message
+### 后续阈值的上下文消息
 
-#### What the model sees
+#### 模型看到什么
 
-A later threshold receives the detailed reminder template below. A capped argument preview ends exactly `… (+<omitted> more chars)`.
+达到后续阈值时，agent 会收到下面的详细提醒模板。受上限约束的参数预览严格以 `… (+<omitted> more chars)` 结尾。
 
-##### Later-threshold reminder
+##### 后续阈值提醒
 
 ```markdown
 Repeated tool call detected:
@@ -150,36 +149,36 @@ Repeated tool call detected:
 The repeated calls are not making progress. Do not call this tool with these exact arguments again. Inspect the latest result and choose a different action, different arguments, or finish the task if enough evidence has been gathered.
 ```
 
-#### Token effect
+#### Token 影响
 
-Each reminder is retained history; `argumentsPreviewChars` bounds its data-dependent argument text, while agents keep independent counters.
+每条提醒都会作为历史记录保留；`argumentsPreviewChars` 限制随数据变化的参数文本长度，而各 agent 仍使用独立计数器。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV-cache entries.
+仅追加；新出现的内容位于可复用请求前缀之后，不会使现有 KV Cache 条目失效。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the guard is a poor fit. They are current package constraints, not a task backlog.
+这些限制说明 guard 何时不合适。它们是当前包约束，不是任务积压。
 
-- **Exact-match detection only** — canonicalization is a deep key-sort, so near-identical variants (a tweaked path, extra whitespace inside a value) evade the chain; fuzzy matching is rejected pending evidence of need.
-- **Compaction does not reset chains** — a chain spanning a compaction checkpoint keeps counting.
-- **Advisory only** — escalating to a blocking form at a high threshold is not implemented, though `PostToolDecision` already supports blocking.
-- **No subagent chain-sharing** — chains stay isolated per agent; a parent and its subagent repeating the same call never combine.
-- **Legitimate idempotent polling still draws nudges** past the thresholds — the pressure valves are the `thresholds`/`exclude` config.
-- **Past the highest threshold a chain goes silent** — reminders fire only at exact configured counts, never beyond them.
+- **仅精确匹配检测**——规范化是深度键排序，因此近似变体（稍作修改的路径、值内多余的空白）会绕过链；在没有需求证据前，不采用模糊匹配。
+- **压缩（compaction）不会重置链**——跨越压缩检查点的链会继续计数。
+- **仅提供建议**——尚未实现高阈值时升级为阻止形式，但 `PostToolDecision` 已支持阻止。
+- **subagent 之间不共享链**——链始终按 agent 隔离；父 agent 与其 subagent 重复相同调用也绝不合并。
+- **合理的幂等轮询超过阈值后仍会收到提醒**——可通过 `thresholds`／`exclude` 配置释放压力。
+- **超过最高阈值后链不再提醒**——提醒只在精确达到所配置的次数时触发，超过后不会继续发送。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers: open questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
+本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-The [repeat-tool-guard feature note](../../../.agents/notes/archived/feature/2026-07-08-repeat-tool-guard.md) records the original design and alternatives under the former package name; the [naming ledger](../../../.agents/notes/archived/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.md) records the rename to `repeat-tool-reminder` and its reason.
+[repeat-tool-guard Agent Note](../../../.agents/notes/archived/feature/2026-07-08-repeat-tool-guard.md) 以旧包名记录了原始设计与备选方案；[改名台账](../../../.agents/notes/archived/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.md) 记录了改名为 `repeat-tool-reminder` 及其原因。
 
 </details>
