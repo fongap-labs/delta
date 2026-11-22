@@ -4,7 +4,7 @@
 
 跨仓库工程治理只在 [fongap-labs/action-worker](https://github.com/fongap-labs/action-worker) 维护；本文件不复制或覆盖中央规则，仅定义 Delta 产品专属的架构、边界和验收责任。
 
-优先级：中央机器合同/策略/门禁 → 中央共享规范 → Delta 项目边界 → Delta 实现文档 → 旧版 Harness 技术说明与示例。项目可以收紧自身验收，不得减弱中央要求。
+优先级：中央机器合同/策略/规则 → 中央共享规范 → Delta 产品边界 → Delta 实现文档。Harness 旧文档只作为技术参考与兼容证据，不拥有命名、语言、变更记录或治理权威。Delta 可收紧产品验收，不得减弱中央要求。
 
 中央权威文档：
 
@@ -17,7 +17,7 @@
 - [主分支可信来源](https://github.com/fongap-labs/action-worker/blob/main/docs/07_MAIN_WRITE_GUARD.md)
 - [测试包](https://github.com/fongap-labs/action-worker/blob/main/docs/TEST_PACKS.md)
 
-治理说明使用中文；技术标识保持原文。中央规则变更必须先在 Action Worker 改机器策略、测试和文档，Delta 只保留必要的项目差异，不复制整套规则。
+治理说明统一使用中文，新增自有普通文件采用中央规定的三语义段 `kebab-case`，治理文档采用大写下划线及既有编号；平台与工具标准文件名、机器协议及第三方许可证保持原文。提交按中央 `feat`、`fix`、`chore` 类型，变更日志仅维护根目录 `CHANGELOG.md` 的中文未发布区域。中央规则变更必须先在 Action Worker 改机器策略、测试和文档，Delta 只保留项目差异，不复制第二套规则。
 
 ## 2. 仓库执行边界
 
@@ -52,4 +52,4 @@ PR 合并和主分支发布按中央 `validate-merge`、CI Evidence、PR Governa
 
 每批变更分别通过中央 PR 门禁后合并；不把架构目标当成已完成状态。涉及中央构建、测试、命名或发布规则的变动，先修改 Action Worker 权威，再修改 Delta 源码及执行声明。
 
-本目录单独放置 Delta 专属中文治理参考，避免与现有 Harness `docs/**` 双语配对校验及 Action Worker 中文治理规范冲突。
+本目录仅保留 Delta 产品边界和验收依据。现有 Harness `docs/**` 双语配对检查属于待清理的历史技术约束，迁移应同步修复调用者并通过中央验收；不能继续作为 Delta 文档治理依据。

@@ -7,7 +7,8 @@ Delta 是基于 DeepSeek Harness 运行时持续维护的 AI 工作应用。当�
 - 跨仓库工程规则以 [Action Worker 中央治理](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md)、机器策略及 [Delta 专属治理入口](governance/GOVERNANCE.md) 为准。冲突时遵循中央机器合同、中央共用规范、Delta 产品边界、具体实现文档的顺序，不复制或弱化中央门禁。
 - 产品源码、依赖锁文件、编译参数和不可外置的产品约束归 Delta；共享构建、可外置测试、CI、合并与发布由 Action Worker 维护。未经中央 [工程归属策略](https://github.com/fongap-labs/action-worker/blob/main/policies/engineering-ownership.json) 批准，不得新增本地测试源码、CI 执行器或工作流；新增可外置回归测试应放入 [中央 Delta 测试包](https://github.com/fongap-labs/action-worker/tree/main/tests/packs/delta)。
 - 不直接写入 `main`。PR 需当前提交的 `PR Governance`、`CI Evidence` 和 `validate-merge` 全部签名成功，由中央合法合并；禁止降门禁、空跑测试、伪造报告或自行签发通过状态。
-- 提交标题遵守中央 `feat`、`fix`、`chore` 类型和英文格式；只维护根目录一份中文 [更新日志](CHANGELOG.md) 的 `Unreleased` 区域。
+- 提交标题与中文 [更新日志](CHANGELOG.md) 以 [Action Worker 变更记录规范](https://github.com/fongap-labs/action-worker/blob/main/docs/04_CHANGELOG_CONVENTIONS.md) 为唯一共用标准，仅使用 `feat`、`fix`、`chore`，不得套用 Harness 的提交类型或文档约定。
+- 文档语言、文件和配置命名以 [中央共用治理](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 与 [命名规范](https://github.com/fongap-labs/action-worker/blob/main/docs/03_NAMING_CONVENTIONS.md) 为准；Delta 仅制定产品专属技术内容，不能采用上游仓库规则作为治理标准。
 - 根目录 `CLAUDE.md` 是 `AGENTS.md` 的符号链接；维护本文件，不复制第二套指令。子目录规则只补充本模块约束，不重复全局规则。
 
 <a id="repository-layout"></a>
@@ -74,7 +75,7 @@ pnpm run website:build
 <a id="type-safety-and-documentation"></a>
 ## 文档与类型
 
-代码变更同步更新所属 README、JSDoc、技术参考和必要的生成文档。Markdown 使用中文正文与原样技术标识，遵守 [文档维护规范](docs/AGENTS.md)；旧版双语三件套仍按既有配对检查迁移，不擅自关闭检查或删除格式兼容资料。源码导出使用明确的 TypeScript 类型与必要契约说明；代码注释避免复述实现。
+代码变更同步更新所属 README、JSDoc、技术参考和必要的生成文档。Markdown 的中文正文与文件命名遵守 Action Worker 中央规范及 [Delta 文档维护入口](docs/AGENTS.md)；既有双语三件套仅作为待迁移的技术债保留，不能成为新文档的规范。迁移须在引用、生成器和中央门禁验证后完成，不得跳过检查或删除格式兼容资料。源码导出使用明确的 TypeScript 类型与必要契约说明；代码注释避免复述实现。
 
 <a id="editing-these-instructions"></a>
 ## 指令维护

@@ -29,7 +29,7 @@ delta/
 ├── vendor/                     # 上游依赖
 ├── patches/                    # 必要修补
 ├── governance/                 # Delta 专属架构与治理文档
-├── docs/                       # Harness 技术文档（保留现有约束）
+├── docs/                       # Delta 中文技术文档；历史上游内容分批收敛
 ├── scripts/                    # 已有必要产品脚本；不得另建中央执行器
 ├── .github/                    # Action Worker 薄桥接和执行清单
 ├── upstream.lock.json
@@ -91,10 +91,10 @@ git diff --exit-code legacy/main-pre-harness-migration-2026-11-22-v2 8b73554a94a
 
 约束解释见 [应用架构](ARCHITECTURE.md)，治理引用见 [治理入口](GOVERNANCE.md)。
 
-## 文档语言规范
+## 文档语言与命名归属
 
-Delta 仓库面向使用者、贡献者和维护者的说明文档统一使用简体中文。根目录文档和后续迁移完成的技术说明以普通 `.md` 文件名维护中文正文，不再为相同内容建立英文 `.md`、中文 `.zh.md` 与 `.i18n.yaml` 三件套。
+Delta 的语言、文档治理、文件命名与变更日志严格遵循 [Action Worker 共用规范](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md)、[命名规范](https://github.com/fongap-labs/action-worker/blob/main/docs/03_NAMING_CONVENTIONS.md) 与 [变更记录规范](https://github.com/fongap-labs/action-worker/blob/main/docs/04_CHANGELOG_CONVENTIONS.md)。Delta 仅维护本产品专属说明；上游 Harness 的文档约定没有治理效力。面向使用者、贡献者和维护者的人工维护文档统一使用简体中文，新增普通文件使用中央命名形式的单份 `.md`，治理文件保留大写下划线与既有编号，不再建立英文 `.md`、中文 `.zh.md` 与 `.i18n.yaml` 三件套。
 
 本规则不改变桌面应用、Web 界面、插件及其运行时所需的中英文 locale、i18n 资源、配置键、命令、API/协议标识；许可证原文、第三方版权声明、上游冻结基线也不在文档单语清理范围内。
 
-存量双语文档按目录分批迁移，迁移时同步修复相对链接、自动生成器、测试和中央 CI 契约；未迁移文档继续遵守现行的配对检查。不得通过直接关闭门禁来掩盖失效引用或遗漏清理。
+存量双语文档只因当前生成器、引用和验证机制仍消费这些文件而暂时保留，不再作为新文档命名的依据。按目录分批清点并迁移，修复相对链接、自动生成器、测试和中央 CI 契约；尚未迁移部分必须维持现有检查，禁止通过关闭门禁掩盖失效引用或遗漏清理。
