@@ -1,5 +1,5 @@
 ---
-description: "Web GUI Host 侧的包映射：HTTP 与 SPA 服务器、工作区目录选择实现、open-in-app 启动路由、插件清单投影和显式产品事件上报。"
+description: "Web GUI Host 侧的包映射：HTTP 与 SPA 服务器、工作区目录选择实现、open-in-app 启动路由、插件清单投影。"
 kind: "package-group"
 ---
 

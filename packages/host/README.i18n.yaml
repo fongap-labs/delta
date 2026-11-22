@@ -4,7 +4,7 @@
 #   pnpm run verify-translation-pairing --write packages/host/README.md
 /:
   en: c46e5e538c108efd
-  zh: 328e9539b83f5df2
+  zh: 5857114a23c8ecd0
 /host-web-gui-host-half:
   en: dfb700c867632d7f
   zh: 8afebea57ae7845a
