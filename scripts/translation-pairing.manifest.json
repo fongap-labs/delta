@@ -93,6 +93,8 @@
     "native/system/packages/linux-x64/README.md",
     "native/system/README.md",
     "packages/attachment/README.md",
+    "packages/attachment/attachment-local/README.md",
+    "packages/attachment/attachment/README.md",
     "packages/compaction/command-compact/README.md",
     "packages/compaction/compaction-basic/README.md",
     "packages/compaction/compaction-image-offload/README.md",
