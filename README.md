@@ -13,6 +13,10 @@ Delta 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 **限制**：严格复制旧版 Tauri/Rust 的构建内部机制与保持 Harness 的 Electron 底座两者不能同时成立。这里保留旧版的用户可见便携包结构、启动器、产物命名和校验方式，而不是把 Harness 重写成 Tauri。Action Workers 已在受控历史迁移验收中完成一次真实 Windows x64 便携 ZIP 构建和打包运行检查；这**不等于**覆盖所有用户机器环境、插件兼容性与正式发布验收，未经完整发布门禁仍不得当作已正式验证的发布版本。
 
+## 文档
+
+项目说明入口：[Delta 中文文档中心](docs/README.md)。Delta 专属治理边界见 [治理入口](governance/GOVERNANCE.md)，共用工程规则由 [Action Worker](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 统一维护。
+
 ## 开发和打包
 
 需要 Node.js >= 24.9.0、pnpm 11.28.5。Windows 便携版还需要 Rust stable 和 Windows 构建工具。
