@@ -6,15 +6,13 @@ Browser use lets a model inspect and operate web pages through a configured back
 
 ## Choose a provider
 
-Mount [`dsh-browser-use`](../../packages/browser-use/browser-use/README.md) and one provider in the same composition. The providers are experimental public npm packages and require explicit activation. Their initial browser engine is Chromium.
+Mount the [shared browser-use registry](../../packages/browser-use/browser-use/README.md) with the [Playwright MCP provider](../../packages/experimental/browser-use-playwright-mcp/README.md) through the optional [Browser Use bundle](../../packages/experimental/browser-use-bundle/README.md). The bundle is disabled by default and launches isolated Chromium only after explicit activation. Chrome DevTools MCP and Stagehand were not restored.
 
 | Provider | Integration |
 |---|---|
-| [Playwright MCP](../../packages/experimental/browser-use-playwright-mcp/README.md) | Playwright's browser-control MCP tools |
-| [Chrome DevTools MCP](../../packages/experimental/browser-use-chrome-devtools-mcp/README.md) | Chrome DevTools inspection and control through MCP |
-| [Stagehand](../../packages/experimental/browser-use-stagehand-native/README.md) | Native browser operations with AI-assisted actions, observation, and extraction |
+| [Playwright MCP](../../packages/experimental/browser-use-playwright-mcp/README.md) | Session-owned Chromium tools through the pinned Playwright MCP server |
 
-The shared service registers only a name and rejects any second provider, including another instance with the same name. It has no common browser-operation methods, browser resources, or model-controlled selector. Provider configuration in a profile or preset selects launch or attachment for that activation.
+The registry accepts one named browser provider at a time and has no browser operations of its own. The Playwright provider defaults to an isolated, headless launch; attaching an existing browser requires an explicitly configured debugging endpoint.
 
 ## Session ownership
 
@@ -32,7 +30,7 @@ If an attachment is busy, that activation continues without the browser and does
 
 ## Tools and recorded results
 
-Provider tools use the normal DSH execution pipeline and Session log. The providers own their tool schemas, result rendering, image support, configuration, and upstream limitations; the shared service adds no model-visible content. Stagehand's AI-assisted operations use its explicitly configured native model while DSH retains the task loop. DSH model routing, credential reuse, underlying inference request/response capture, and integration into Session usage accounting are deferred; returned SDK data and metadata remain ordinary logged tool results.
+Browser tools use the existing DSH tool execution pipeline and Session log. The restored Playwright MCP provider owns Chromium startup, tool schemas, results and connection lifecycle; the shared browser-use registry supplies only provider registration. Chrome DevTools MCP and Stagehand were not restored. No automatic telemetry upload, browser-credential capture or inference request/response collection is introduced.
 
 Browser MCP connections also expose [resources and server instructions](mcp.md). Resource calls addressed to a browser server use its Session queue and reject other Sessions; server instructions are assembled only for its owning Session.
 
