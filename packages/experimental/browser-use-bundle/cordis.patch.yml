@@ -1,0 +1,8 @@
+- insert:
+    - id: browser-use-registry
+      name: '@deepseek-ai/dsh-browser-use'
+    - id: browser-use-playwright
+      name: '@deepseek-ai/dsh-browser-use-playwright-mcp'
+      config:
+        mode: launch
+        headless: true

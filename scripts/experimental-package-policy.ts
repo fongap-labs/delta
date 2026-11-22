@@ -6,6 +6,9 @@
  * experimental name only through this map.
  */
 export const EXPERIMENTAL_PACKAGE_NAME_EXCEPTIONS: Readonly<Record<string, string>> = {
+  'packages/experimental/browser-use-bundle': '@deepseek-ai/dsh-browser-use-bundle',
+  'packages/experimental/browser-use-playwright-mcp': '@deepseek-ai/dsh-browser-use-playwright-mcp',
+  'packages/experimental/browser-use-runtime': '@deepseek-ai/dsh-browser-use-runtime',
   'packages/experimental/cua': '@deepseek-ai/dsh-cua',
   'packages/experimental/cua-bundle': '@deepseek-ai/dsh-cua-bundle',
   'packages/experimental/cua-macos': '@deepseek-ai/dsh-cua-macos',
