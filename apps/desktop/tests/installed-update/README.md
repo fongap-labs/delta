@@ -1,37 +1,35 @@
 ---
-description: "Operator checklist for a Windows installed update with a failed download, explicit retry, and retained evidence."
+description: "Windows 已安装应用更新的人工清单，覆盖下载失败、显式重试与证据保留。"
 ---
 
-# Windows installed-update walkthrough
+# Windows 已安装应用更新演练
 
-English | [中文](README.zh.md)
+## 摘要
 
-## Summary
+准备独立测试应用和全新的 test 分发命名空间，再由操作者亲手安装、注入故障、重试并确认重启。本地清单或完整日志序列不能证明安装器合格或数据保留。下述已安装应用步骤在操作者使用已验证安装包执行之前仍未验证。
 
-Prepare a private test application and fresh test distribution namespace, then let the operator install, inject a fault, retry, and confirm restart. A local manifest or complete journal sequence does not certify an installer or preserved data. The installed-app steps below remain unverified until the operator performs them with verified packages.
+## 目录
 
-## Table of Contents
-
-- [Prepare materials](#prepare)
-- [Operator sequence](#sequence)
-- [Evidence and recovery](#evidence)
-- [Dev Note](#dev-note)
+- [准备物料](#prepare)
+- [人工操作顺序](#sequence)
+- [证据与恢复](#evidence)
+- [开发备注](#dev-note)
 
 <a id="prepare"></a>
 
-## Prepare materials
+## 准备物料
 
-From the repository root with dependencies installed, allocate a run with two increasing derived test versions. This writes only an ignored local manifest; it does not build, sign, upload, install, or read credentials.
+在已安装依赖的仓库根目录中，用两个递增的派生测试版本创建批次。这只写入已忽略的本地清单，不构建、签名、上传、安装或读取凭据。
 
-The examples use base version `0.1.6-alpha.1`. Before creating new material, substitute the actual base, Asia/Shanghai date, and unused index according to the [release version rules](../../packaging/README.md#release-versions).
+示例以 `0.1.6-alpha.1` 为基础版本。创建新物料前，按[发布版本规则](../../packaging/README.md#release-versions)替换为实际基础版本、北京时间日期和未使用的序号。
 
 ```powershell
 node --import tsx apps/desktop/scripts/prepare-installed-update.ts init 0.1.6-alpha.1.20260916.1 0.1.6-alpha.1.20260916.2
 ```
 
-Retain the returned `run.json` and reuse its random identity and `qualification/<id>` paths for both packages. The source commit and dirty-file list identify the starting checkout, not the contents of a later package. Record final build source identifiers and artifact hashes separately; do not regenerate the manifest midway through an update.
+保留返回的 `run.json`，两个安装包复用其中的随机身份与 `qualification/<id>` 路径。源提交与脏文件列表标识起始工作区，不代表后续安装包内容。最终构建来源和产物哈希另行记录；不要在更新中途重新生成清单。
 
-Prepare fresh source resources with the repository's preparation-only workflow, then generate the shared bootstrap, two private version-bound runtime copies, and frozen application files. Replace `<run.json>` with the allocator's manifest path. Preparation-only builds and checks the source runtime but stops before signing; the other commands never invoke a signer or installer. These commands refuse to overwrite existing per-run outputs; retain partial material after an error instead of retrying over it.
+通过仓库的仅准备流程生成新源码资源，再生成共享启动入口、两份独立的版本绑定运行时和冻结的应用文件。将 `<run.json>` 替换为批次清单路径。仅准备流程构建并检查原始运行时，但在签名前停止；其余命令绝不调用签名器或安装器。这些命令拒绝覆盖已有批次产物；出错后保留不完整物料，不在其上重试。
 
 ```powershell
 node apps/desktop/node_modules/pnpm/bin/pnpm.mjs --dir apps/desktop run prepare:package win-x64
@@ -40,93 +38,93 @@ node --import tsx apps/desktop/scripts/prepare-installed-update.ts runtime "<run
 node --import tsx apps/desktop/scripts/prepare-installed-update.ts application "<run.json>"
 ```
 
-Package both files from the generated `bootstrap` directory beside `lib/`, and set the package main entry to `qualification-bootstrap.mjs`. That entry validates the installed application ID and version before loading production main. It assigns Electron user/session data, Harness home, and journals under the operating system's application-data directory at `dsh-update-qualification/<id>/`; both versions use the same paths. The runtime copier changes only release-family package versions and matching dependency references, preserves third-party versions, and re-verifies both copied inventories and the untouched source. Its `runtime-preparation/result.json` records hashes and explicitly does not claim signing or startup qualification of the copied versions. These synthetic versions are test materials, not npm releases.
+将生成的 `bootstrap` 目录中的两个文件放在包内 `lib/` 同级，将包主入口设为 `qualification-bootstrap.mjs`。该入口在加载生产主程序前验证已安装应用的 ID 与版本。它将 Electron 用户/会话数据、Harness home 和日志放在操作系统应用数据目录下的 `dsh-update-qualification/<id>/`；两个版本使用相同路径。运行时复制器仅修改发布家族包版本和对应依赖引用，保留第三方版本，并重新校验两个副本清单和未修改的原始资源。其 `runtime-preparation/result.json` 记录哈希，并明确不宣称签名或副本版本的启动验收通过。这些合成版本属于测试物料，不是 npm 发布版本。
 
-The `application` command copies built main/preload modules, renderer files, and the prepared bootstrap into `application/files`, with SHA-256 values in `application/result.json`. It does not copy the app's root `.env.windows` or freeze `node_modules` and build tools. The [qualification builder configuration](../../scripts/installed-update-builder.ts) verifies this inventory and the selected private runtime, selects the shared frozen files and isolated package metadata, and preserves ordinary installer and signing hooks. Its tests substitute the signer and pass the pinned builder's configuration validator; they do not produce an installer. A separately authorized supervised build must still record dependency/tool inputs and verify final package contents and signatures.
+`application` 命令将已构建的主程序/预加载模块、界面文件和准备好的启动入口复制到 `application/files`，并在 `application/result.json` 中记录 SHA-256。它不复制应用根目录的 `.env.windows`，也不冻结 `node_modules` 与构建工具。[验收打包配置](../../scripts/installed-update-builder.ts)校验该清单与选定的独立运行时，选用共享冻结文件和隔离包元数据，并保留常规安装器与签名钩子。其测试替换签名器，并通过固定版本构建器的配置校验；测试不生成安装器。另行授权的受监督构建仍须记录依赖/工具输入，并验证最终包内容及签名。
 
-The [packaging entry](../../scripts/package-installed-update.ts) defaults to checks. A retained signing interlock rejects before credentials are loaded; it never clears that interlock. With no interlock, checks load `.env.windows`, validate prepared inputs, and launch no child. The shared builder requires a valid `DOWNLOAD_TEST_RELEASE_ID` from the [test release settings](../../publishing/README.md#upload-updates); qualification still publishes through the manifest’s separate `qualification/<id>` paths. Run this from the repository root with one exact version:
+[打包入口](../../scripts/package-installed-update.ts)默认只检查。保留的签名保护锁会在读取凭据前使其拒绝；入口绝不清除此锁。没有保护锁时，检查会加载 `.env.windows`、校验准备输入，不启动子进程。共享构建器要求[测试发布配置](../../publishing/README.md#upload-updates)中有效的 `DOWNLOAD_TEST_RELEASE_ID`；资格验收仍使用清单中独立的 `qualification/<id>` 路径发布。在仓库根目录使用一个准确版本执行：
 
 ```powershell
 node --import tsx apps/desktop/scripts/package-installed-update.ts "<run.json>" 0.1.6-alpha.1.20260916.1 --check
 ```
 
-Actual packaging remains unverified and requires separate hardware-recovery approval and a present operator. The `--execute` mode requires a terminal and an exact confirmation containing the version and run ID; there is no piped approval option. It rechecks the interlock and exclusively allocates that version's `packaging` directory. The supervised child builds only that version, disables publication, strips unrelated credentials, and stops on failure or a 15-minute overall deadline. This deadline does not bound individual CSP authentication attempts. Records retain source/tool hashes, redacted output, events, and artifact file hashes; an existing attempt or output refuses reuse. `builderCompleted` and a successful supervisor result do not establish package verification, signature acceptance, or installation success; `packageVerification` remains `pending` until those checks are performed independently.
+实际打包仍未验证，必须另行获得硬件恢复授权并有操作者在场。`--execute` 模式要求终端和包含版本、批次 ID 的准确确认，没有管道批准选项。它再次检查保护锁，并独占创建该版本的 `packaging` 目录。受监督子进程只构建该版本、禁用发布、移除无关凭据，失败或达到 15 分钟整体期限时停止。该期限不限制单次 CSP 内部认证尝试。记录保留源码/工具哈希、脱敏输出、事件和产物文件哈希；已有尝试或输出拒绝复用。`builderCompleted` 与监督程序成功结果不证明包验证、验签或安装成功；独立完成这些检查前，`packageVerification` 保持 `pending`。
 
-Before the operator starts, supply both verified installers, generated metadata and blockmaps, packaging and signature records, the exact installed executable path, and fixed test feed URL. Both packages must use the same test identity, isolated data directories, and absolute external `DSH_DESKTOP_UPDATE_JOURNAL_DIR` on every launch, including an installer-triggered restart. A variable set only in the original launch terminal is insufficient. The [Windows signing rules](../../windows-signing/README.md#windows-ev-signing) still apply; a manifest never clears a signing interlock.
+操作者开始前，提供两个已验证安装包、生成的元数据与 blockmap、打包和签名记录、准确的安装后可执行文件路径与固定 test feed URL。两个安装包必须使用相同的测试身份、隔离数据目录，并在每次启动时设置同一个安装目录外的绝对路径 `DSH_DESKTOP_UPDATE_JOURNAL_DIR`，包括安装器触发的重启。仅在首次启动终端中设置变量是不够的。[Windows 签名规则](../../windows-signing/README.md#windows-ev-signing)仍适用；清单绝不解除签名保护锁。
 
-The Windows [read-only signature helper](../../scripts/installed-update-signature.mjs) uses the real updater verifier with a publisher derived from the trusted public certificate, then requires valid Authenticode and timestamp attributes and unchanged SHA-512. Verification children receive no inherited signing/upload secrets or PowerShell module-path overrides. The helper never loads `.env.windows`, signs a file, or executes the inspected executable. Signed-probe acceptance and unsigned-installer rejection have been observed locally; they do not certify either prepared version, package identity, or installation behavior.
+Windows [只读签名检查器](../../scripts/installed-update-signature.mjs)使用真实 updater 验签，发布者来自可信公钥证书，随后要求 Authenticode 与时间戳属性有效且 SHA-512 未变。验签子进程不继承签名/上传秘密或 PowerShell 模块路径覆盖。检查器绝不加载 `.env.windows`、签名文件或执行被检查的可执行文件。本地已观察到签名探针通过、未签名安装包被拒绝；这些结果不能证明任一准备版本、包身份或安装行为已验收。
 
-The [package verifier](../../scripts/verify-installed-update-package.ts) checks the final installer before extracting it with a reviewed local 7-Zip executable. Supply absolute paths for the manifest, trusted public certificate, and tool; never select a tool extracted from the installer being verified. This command creates a fresh `verification/check-*` directory, preserves partial records, and fails immediately when the installer is absent:
+[安装包检查器](../../scripts/verify-installed-update-package.ts)先校验最终安装包，再使用经过审查的本地 7-Zip 可执行文件解包。清单、可信公钥证书和工具均须提供绝对路径；绝不选择从待验安装包中解出的工具。此命令创建全新的 `verification/check-*` 目录，保留部分记录，安装包缺失时立即失败：
 
 ```powershell
 node --import tsx apps/desktop/scripts/verify-installed-update-package.ts "<run.json>" 0.1.6-alpha.1.20260916.1 "<public.cer>" "<reviewed-7za.exe>"
 ```
 
-The verifier checks actual archived application identity, entry, frozen application bytes, updater dependency versions, feed/cache/publisher configuration, and the bundled Harness runtime against prepared inputs; the mandatory test policy must be valid. It extracts the runtime from `app.asar` and checks executable signatures at their `app.asar.unpacked` paths. Changed runtime executables require separate signature checks; other runtime bytes must match the prepared bytes after electron-builder's dependency-manifest transformation. It rejects unsafe archive paths before extraction and records installer, application, and runtime-executable signatures. Before success, it rechecks installer, feed/blockmap, manifest, certificate, and tool hashes. `passed` covers these checks only: dependency bytes are not frozen, and installer registration, startup, upgrade, and data retention remain explicit manual checks. Real archive reading has been observed on a retained older package; complete signed-package verification for the prepared versions remains pending.
+检查器核对实际归档内的应用身份、入口、冻结应用字节、updater 依赖版本、feed/缓存/发布者配置，并将内置 Harness 运行时与准备输入比较；测试强更策略也必须有效。它从 `app.asar` 提取运行时，并在 `app.asar.unpacked` 路径核对可执行文件签名。发生变化的运行时可执行文件须单独验签；其他运行时字节在经过 electron-builder 的依赖 manifest 转换后必须与准备输入一致。它在解包前拒绝不安全归档路径，记录安装器、应用及运行时可执行文件的签名。成功前再次核对安装包、feed/blockmap、清单、证书和工具哈希。`passed` 仅覆盖这些检查：依赖字节未冻结，安装器注册、启动、升级和数据保留仍是明确的人工检查项。保留的旧包已完成真实归档读取；本批次准备版本的完整签名包检查仍待执行。
 
-Follow the separate [upload and publication procedure](publication/README.md). Leave the fixed feed absent for the 404 case, then publish version 1 for the same-version case. Keep version 2 metadata local until both cases finish in the installed version 1 application. Retain publication records and remote objects for diagnosis; do not delete a published feed to recreate an earlier case.
+遵循独立的[上传与发布步骤](publication/README.md)。先保持固定 feed 不存在以测试 404，再发布版本 1 以测试同版本。两个场景在已安装的版本 1 应用内完成之前，版本 2 元数据保留在本地。保留发布记录及远端对象用于诊断，不删除已发布的 feed 来重建较早场景。
 
-The local `files` command accepts `<run.json>` and one exact run version. It reads that version's `installer/nightly.yml`, verifies the expected installer name, size, SHA-512, and nonempty external blockmap, and prints separate binary destinations and a fixed-feed body. Missing installers fail validation. It writes nothing and reads no credentials. Its `file-integrity-only` result cannot authorize upload or replace verification of signed package contents and application identity; those remain required before publication.
+本地 `files` 命令接受 `<run.json>` 与本批次的一个准确版本。它读取该版本的 `installer/nightly.yml`，验证预期安装包文件名、大小、SHA-512 和非空外部 blockmap，输出分开的二进制目标与固定 feed 内容。安装包缺失会导致验证失败。它不写文件，也不读取凭据。其 `file-integrity-only` 结果不能授权上传，也不能替代签名包内容和应用身份验证；这些仍是发布前的必要条件。
 
 <a id="sequence"></a>
 
-## Operator sequence
+## 人工操作顺序
 
-Proceed manually only after preparation passes. Use disposable test conversations and settings, never a production workspace or unsaved work.
+仅在准备通过后亲手操作。使用可丢弃的测试会话和设置，不使用生产工作区或未保存的工作。
 
-1. Install version 1. Record installer path, hash, signature result, and time. Start the installed shortcut and verify its executable path and displayed version; do not launch an unpacked build or development server.
-2. Confirm version 1 `started` and `workspace-ready` in a new journal. Create an identifiable test conversation and change a harmless setting; record expected values privately. Complete the two feed checks below and keep version 1 running.
-   - **Missing feed:** retain a timestamped GET of the configured fixed URL returning 404. Observe startup automatic checking without a disruptive dialog, then manually check: expect checking followed by failure, not “no updates,” and no download or installation. Save screenshots and journals before publishing anything.
-   - **Same-version feed:** after separate authorization, publish version 1 to that same URL and retain the complete 200 response, version, and SHA-512. Check manually in the still-running version 1: expect no available update and its current version, no download or installation, and no stale error indicator from the 404 case. Automatic no-update checking must remain quiet. Retain evidence before authorizing version 2.
-3. Authorize version 2 metadata publication at the existing fixed feed URL. Re-read that URL and verify version 2 and its binary hash. Preserve publication evidence after version 1 startup evidence.
-4. In version 1, check manually and confirm availability without automatic download. Prepare the reviewed [application-scoped fault and recovery](network/README.md). Never disable the adapter, VPN, shared proxy, remote-control connection, or domain-wide access.
-5. Click download and interrupt only the test application's transfer after progress begins. Capture one failure and persistent retry feedback; confirm no installation or silent retry. A connection failure before progress begins is a different observation and does not satisfy a transfer-interruption test.
-6. Remove the exact run-owned fault and verify recovery. Click retry yourself. Record progress, verification, and readiness. Expect a separate installation confirmation; download completion alone must not approve restart.
-7. Confirm installation. With active tasks, inspect the warning and explicitly authorize stopping them; without tasks, the confirmation must not claim tasks exist. Record the last version 1 window and let installation and restart finish without manually starting another instance.
-8. Verify the installed version 2 executable and displayed version. Check the conversation and setting from step 2 and capture the result. Find version 2 `started` and `workspace-ready` in the same external evidence directory. Report missing automatic restart separately from successful manual startup; one cannot substitute for the other.
+1. 安装版本 1。记录安装包路径、哈希、签名结果和时间。通过安装后的快捷方式启动，核对可执行文件路径与界面版本；不要启动解包目录中的应用或开发服务器。
+2. 确认新日志包含版本 1 的 `started` 和 `workspace-ready`。创建可辨认的测试会话并修改一项无害设置，在本地记录预期值。完成下面两项 feed 检查，并保持版本 1 运行。
+   - **清单缺失：**保留对配置的固定 URL 执行 GET 返回 404 的带时间戳记录。观察启动自动检查不弹出打扰性弹窗，再手动检查：预期先检查、后提示失败，而非“暂无更新”，且不下载、不安装。发布任何清单前先保存截图和日志。
+   - **同版本清单：**另行授权后将版本 1 发布到相同 URL，保留完整的 200 响应、版本与 SHA-512。在仍运行的版本 1 内手动检查：预期显示暂无可用更新及当前版本，不下载、不安装，且不残留此前 404 的错误图标。自动检查无更新时应静默。授权版本 2 前先保留证据。
+3. 授权将版本 2 元数据发布到已有的固定 feed URL。回读该 URL，验证版本 2 及其二进制哈希。保留晚于版本 1 启动证据的发布证据。
+4. 在版本 1 中手动检查，确认提示可用版本但不自动下载。准备经过审查的[仅针对测试应用的故障与恢复](network/README.md)。绝不禁用网卡、VPN、共享代理、远控连接或整个域名的访问。
+5. 点击下载，在进度开始后仅中断测试应用的传输。截取一次失败与持续重试提示，确认不安装或静默重试。进度开始前的连接失败是另一种观测，不能满足传输中断测试。
+6. 移除本批次的准确故障设置并验证恢复。亲手点击重试。记录进度、校验和就绪。预期出现独立安装确认；下载完成本身不得授权重启。
+7. 确认安装。有任务时检查警告并显式授权停止；没有任务时，确认内容不得声称存在任务。记录版本 1 最后的窗口，让安装和重启自然结束，不手动启动另一实例。
+8. 验证安装后的版本 2 可执行文件与界面版本。检查第 2 步的会话和设置并截图。在同一外部证据目录中找到版本 2 的 `started` 和 `workspace-ready`。自动重启缺失与手动启动成功分开报告，二者不能互相替代。
 
 <a id="evidence"></a>
 
-## Evidence and recovery
+## 证据与恢复
 
-The intentional 404 is a check-failure case, not the later interrupted-download case. A browser response alone does not prove application behavior. Keep each observation's URL, UTC time, HTTP status, feed body/hash when present, screenshot, and journal snapshot together. The journal inspector does not certify the two feed cases or record raw HTTP diagnostics; the operator supplies those observations. A later successful manual check must recover without restarting the application.
+故意保留的 404 属于检查失败，不是后续的下载中断场景。仅有浏览器响应不能证明应用行为。每次观测的 URL、UTC 时间、HTTP 状态、存在时的 feed 原文及哈希、截图和日志快照应一同保存。日志检查器不认证这两个 feed 场景，也不记录原始 HTTP 诊断；这些观察结果由操作者提供。后续手动检查成功应无需重启应用即可恢复。
 
-Retain the manifest, build records, original feeds, binary hashes, publication receipts and readbacks, fault setup/removal evidence, screenshots, and all process journals. Installer logs and test data may contain private paths or content; review before sharing. The inspector is read-only and copies only milestone references, not raw diagnostics. Replace the directory placeholder and use the manifest's exact versions:
+保留清单、构建记录、原始 feed、二进制哈希、发布回执与回读、故障设置和移除证据、截图及全部进程日志。安装器日志与测试数据可能包含私有路径或内容，分享前须审查。检查器只读，仅复制里程碑引用，不复制原始诊断。替换目录占位符并使用清单中的准确版本：
 
 ```powershell
 node --import tsx apps/desktop/scripts/prepare-installed-update.ts inspect 0.1.6-alpha.1.20260916.1 0.1.6-alpha.1.20260916.2 "<journal-directory>"
 ```
 
-Exit 0 means the ordered journal milestones are present; exit 2 means missing milestones; exit 1 means input or command validation failed. A failure/retry sequence cannot combine different version 1 processes. A successor started before the original process quit is not counted; clock changes can leave evidence incomplete and require investigation. `recordedFlow: complete` is not overall acceptance. The report always requires independent operator checks for publication timing, network failure and recovery, installer completion and path, preserved data, and screenshots and confirmations.
+退出码 0 表示按序日志标记齐全；退出码 2 表示缺少标记；退出码 1 表示输入或命令验证失败。失败重试序列不能拼接不同版本 1 进程。早于原进程退出就启动的后继进程不计入；系统时间变化可能导致证据不完整，需要调查。`recordedFlow: complete` 不等于整体验收通过。报告始终要求独立人工检查发布时间、网络失败与恢复、安装器完成与路径、数据保留以及截图和确认。
 
-To retain a local journal snapshot and its report, use `collect` with the matching installed application's `dsh-update-qualification/<run-id>/journals` directory. It validates all selected records before creating a fresh `evidence/collection-*` under the material run. The copied journals and `report.json` describe the same in-memory snapshot, with SHA-256 values and `operatorAcceptance: pending`; original files are unchanged. Other files, settings, conversations, build output, and credentials are not collected. Keep their separately reviewed evidence alongside the report, not inside the journal directory.
+使用 `collect` 及匹配安装应用的 `dsh-update-qualification/<run-id>/journals` 目录保存本地日志快照与报告。它先验证所有选中记录，再在物料批次下创建新的 `evidence/collection-*`。复制的日志与 `report.json` 描述同一份内存快照，包含 SHA-256 和 `operatorAcceptance: pending`；原文件保持不变。不收集其他文件、设置、会话、构建输出或凭据。将这些另外审查过的证据与报告一同保留，不放进日志目录。
 
 ```powershell
 node --import tsx apps/desktop/scripts/prepare-installed-update.ts collect "<run.json>" "<journal-directory>"
 ```
 
-Collection exit 0 means files were saved, even if the recorded flow is incomplete; inspect `report.json` before drawing conclusions. Failed writes retain partial output and a failure marker when storage permits. Repeated collection creates another directory without replacing earlier evidence. Inspection and collection reject partial tails, unknown fields or diagnostic values, files over 10 MiB, and snapshots over 50 MiB. Collect after the relevant actions settle; a live application can append records after the snapshot, and a racing partial append requires a later collection rather than truncating the original log. Real installed-app collection remains an operator step; tests use the actual journal writer with synthetic lifecycle actions.
+收集退出码 0 表示文件已保存，即使记录流程不完整；下结论前检查 `report.json`。写入失败时保留部分输出，并在存储允许时留下失败标记。重复收集创建新目录，不替换旧证据。检查和收集拒绝不完整结尾、未知字段或诊断值、超过 10 MiB 的文件及超过 50 MiB 的快照。相关操作稳定后再收集；运行中的应用可能在快照之后追加记录，竞争中的不完整追加要求稍后再收集，不能截断原日志。真实安装应用的收集仍需人工执行；测试使用真实日志写入器和合成生命周期操作。
 
-Use this report template; leave unobserved results pending:
+使用下表记录结果，未观测项保留待验证：
 
-| Item | Evidence location | Result |
+| 项目 | 证据位置 | 结果 |
 |---|---|---|
-| Both installers and signatures verified | | pending |
-| Feed 404: automatic quiet failure and manual visible failure, no download | | pending |
-| Version 1 feed: no available update in running version 1, prior error cleared | | pending |
-| Version 1 running before version 2 publication | | pending |
-| Test-only fault and observed download failure | | pending |
-| Fault removed and explicit retry reached readiness | | pending |
-| Separate confirmation and installer completion | | pending |
-| Automatic restart into installed version 2 | | pending |
-| Test conversation and setting preserved | | pending |
-| Journals and screenshots retained | | pending |
-| Test network changes absent afterward | | pending |
+| 两个安装包及签名已验证 | | 待验证 |
+| feed 404：自动静默失败、手动可见失败且不下载 | | 待验证 |
+| 版本 1 feed：运行中的版本 1 无可用更新，旧错误已清除 | | 待验证 |
+| 版本 1 运行早于版本 2 发布 | | 待验证 |
+| 仅测试应用故障且观察到下载失败 | | 待验证 |
+| 故障移除后显式重试达到就绪 | | 待验证 |
+| 独立确认与安装器完成 | | 待验证 |
+| 自动重启到已安装的版本 2 | | 待验证 |
+| 测试会话与设置保留 | | 待验证 |
+| 日志与截图保留 | | 待验证 |
+| 结束后不存在测试网络改动 | | 待验证 |
 
-Stop at the first failed prerequisite. Signing failure stops packaging and preserves its record; do not retry PIN authentication automatically. A feed mismatch stops the test before download. If a fault affects remote control, stop and restore only its owned change with the prepared recovery action. Do not uninstall, clear caches, delete evidence, or overwrite failed batches to make a later attempt appear successful. Allocate a new run for a clean attempt and retain the failed one.
+首个前置条件失败时即停止。签名失败终止打包并保留记录，不自动重试 PIN 认证。feed 不符则在下载前停止测试。故障影响远控时停止，并通过准备好的恢复动作仅还原其拥有的改动。不要卸载、清缓存、删除证据或覆盖失败批次，让后续尝试看起来成功。需要全新尝试时新建批次，并保留失败批次。
 
 <a id="dev-note"></a>
 
-## Dev Note
+## 开发备注
 
-Local allocation and journal inspection have automated tests. Signed package production, isolated network-fault tooling, late feed publication, installer-triggered restart, and this full operator sequence require separate qualification; this page does not report them as completed.
+本地批次创建与日志检查已有自动化测试。签名产物生成、隔离网络故障工具、延后 feed 发布、安装器触发重启和完整人工流程仍需单独验收；本页不将其报告为已完成。

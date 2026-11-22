@@ -1,20 +1,18 @@
 # DeepSeek Harness Python SDK
 
-English | [中文](README.zh.md)
+用于以子进程方式驱动 DeepSeek Harness 的 Python 包。客户端 SDK 通过 stdio 使用按行分隔的 JSON-RPC 与内置运行时通信。
 
-Python packages for driving DeepSeek Harness as a subprocess. The client SDK communicates with the bundled runtime over newline-delimited JSON-RPC on stdio.
+## 包
 
-## Packages
-
-| Directory | Dist / module | Role |
+| 目录 | 分发名／模块 | 职责 |
 |---|---|---|
-| [sdk](sdk/README.md) | `deepseek-harness-sdk` / `deepseek_harness` | High-level turns API and lower-level JSON-RPC client |
-| [sdk-runtime](sdk-runtime/README.md) | `deepseek-harness-runtime-bin` / `deepseek_harness_runtime` | Bundled `dsh` CLI executable and native sidecars |
+| [sdk](sdk/README.md) | `deepseek-harness-sdk` / `deepseek_harness` | 高层轮次 API 与低层 JSON-RPC 客户端 |
+| [sdk-runtime](sdk-runtime/README.md) | `deepseek-harness-runtime-bin` / `deepseek_harness_runtime` | 内置 `dsh` CLI（命令行界面）可执行程序与原生伴随文件 |
 
-## Behavior
+## 行为
 
-The SDK starts the matching bundled `dsh --profile sdk` runtime unless the caller selects another `dsh` executable or profile. The runnable minimal example selects the shipped standalone `sdk-minimal` profile; the same runtime also packages `dsh web` and its frontend assets for separate CLI use. Every launch requires an explicitly selected Harness home; Python never silently reads `~/.dsh`. The [SDK reference](sdk/README.md) and [runtime carrier reference](sdk-runtime/README.md) own runtime selection, profiles, patches, and external plugin management.
+除非调用方选择另一个 `dsh` 可执行程序或 profile，否则 SDK 会启动匹配的内置 `dsh --profile sdk` 运行时。可运行的极简示例选择随附的独立 `sdk-minimal` profile；同一运行时还会打包 `dsh web` 及其前端产物，供单独通过 CLI 使用。每次启动都要求显式选择 Harness home；Python 绝不会静默读取 `~/.dsh`。[SDK 参考](sdk/README.md) 和 [运行时载体参考](sdk-runtime/README.md) 定义运行时选择、profile、patch 与外部插件管理约定。
 
-## Contributor workflows
+## 贡献者工作流
 
-The [Python contributor workflows](development.md) cover building runtime artifacts, validating the packages, source-mode development, and distribution.
+[Python 贡献者工作流](development.md)介绍运行时产物构建、包验证、源码模式开发和分发。
