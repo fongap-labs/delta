@@ -46,7 +46,7 @@ Windows 无签名离线 CI 必须同时选择 Windows x64、目录打包 `--dir`
 
 ## 开源许可
 
-Delta 自有部分采用 Apache-2.0；Harness 上游采用 MIT，详见 [UPSTREAM_LICENSE](UPSTREAM_LICENSE)。第三方组件版权与许可参见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Delta 有权授权的第一方代码采用 [Apache-2.0](LICENSE)，根项目及 Delta 第一方插件以此声明；保留的 DeepSeek Harness 原始代码仍遵循 [MIT](UPSTREAM_LICENSE)，不得把上游版权或许可视为已被替换。独立依赖、`vendor/` 源码及其他第三方内容保留各自许可证与版权说明，详见 [第三方许可清单](THIRD_PARTY_NOTICES.md)。
 
 
 ## 隐私约束（Delta）
