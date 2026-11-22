@@ -20,4 +20,4 @@ Delta 可以在用户授权范围内执行模型生成的代码与命令、装�
 
 ## 许可与免责声明
 
-使用 Delta 前应了解并自行评估上述风险。Delta 自有代码遵循 [Apache-2.0 许可证](LICENSE)，所包含的 DeepSeek Harness 上游部分遵循 [MIT 许可证](UPSTREAM_LICENSE)，其他第三方组件按 [第三方声明](THIRD_PARTY_NOTICES.md) 执行。软件按照适用许可证中的免责声明提供；相关保证与责任限制以各许可证条款及适用法律为准。
+使用 Delta 前应了解并自行评估上述风险。Delta 自有代码遵循 [Apache-2.0 许可证](../LICENSE)，所包含的 DeepSeek Harness 上游部分遵循 [MIT 许可证](../UPSTREAM_LICENSE)，其他第三方组件按 [第三方声明](../THIRD_PARTY_NOTICES.md) 执行。软件按照适用许可证中的免责声明提供；相关保证与责任限制以各许可证条款及适用法律为准。

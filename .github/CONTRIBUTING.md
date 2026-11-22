@@ -11,7 +11,7 @@ Delta 是基于 DeepSeek Harness 构建的桌面应用发行版，接受问题�
 ## 代码贡献
 
 - 以当前 `main` 为基础创建短期分支，不直接修改受保护主线或冻结的上游基线。
-- 遵守 [仓库治理要求](governance/GOVERNANCE.md) 及 [架构说明](governance/REPOSITORY.md)，应用与插件变更均须经过 Action Worker 中央 CI 和合并门禁。
+- 遵守 [仓库治理要求](../governance/GOVERNANCE.md) 及 [架构说明](../governance/REPOSITORY.md)，应用与插件变更均须经过 Action Worker 中央 CI 和合并门禁。
 - 变更应包含必要的回归验证；不得降低现有权限、安全、隐私或制品检查要求。
 - 是否接受外部 PR，以仓库当时的权限和治理规则为准。
 

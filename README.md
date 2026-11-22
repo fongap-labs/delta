@@ -15,7 +15,7 @@ Delta 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 ## 文档
 
-项目说明入口：[Delta 中文文档中心](docs/README.md)。Delta 专属治理边界见 [治理入口](governance/GOVERNANCE.md)，共用工程规则由 [Action Worker](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 统一维护。
+项目说明入口：[Delta 中文文档中心](docs/README.md)。Delta 专属治理边界见 [治理入口](governance/GOVERNANCE.md)，共用工程规则由 [Action Worker](https://github.com/fongap-labs/action-worker/blob/main/docs/01_SHARED_GOVERNANCE.md) 统一维护。参与贡献见 [贡献指南](.github/CONTRIBUTING.md)，运行风险与使用注意事项见 [安全说明](governance/SAFETY.md)。
 
 ## 开发和打包
 
