@@ -1,38 +1,36 @@
 ---
-description: "Strict instant and zone parsing, millisecond spans, and bounded Cron/RRULE recurrence for callers that own time-based behavior."
+description: "为拥有时间行为的调用方提供严格时刻与时区解析、毫秒跨度及有界 Cron/RRULE 重复计算。"
 kind: "package-library"
 ---
 
 # dsh-util-time
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+为时刻、时区、耗时和重复规则边界提供共享时间词汇。严格解析器返回接受值或拒绝原因；`resolveLocalInstant` 使用维护中的 Temporal 缺口与重叠行为。`Duration` 保存毫秒跨度。`Cron` 和 `RRule` 解析不同表达式类型，并从显式决策时刻计算有界发生时点。库不拥有任务状态、投递策略、领域错误或面向模型的文案。
 
-Shared time vocabulary for instant, zone, elapsed-time, and recurrence boundaries. Strict parsers return accepted values or refusal reasons; `resolveLocalInstant` applies maintained Temporal gap and overlap behavior. `Duration` stores a millisecond span. `Cron` and `RRule` parse distinct expression types and compute bounded occurrences from explicit decision times. The library owns no task state, delivery policy, domain errors, or model-facing text.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [延伸阅读](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-### When to use it
+### 何时使用
 
-It is a **library, not a service or plugin**: no `ctx`, registers nothing, holds no state.
+它是**库，不是服务也不是插件**：无 `ctx`、不注册任何东西、不持有状态。
 
-Call it at the boundary that receives the zone or the wall-clock selector, before the value reaches anything durable. `dsh-api-session-controller` and `dsh-subagent` admit a caller-reported zone through `canonicalClientTimeZone`; `dsh-time-context` admits the zone a request turn reports through `canonicalizeTimeZone` and refuses an alias rather than rewriting it; `dsh-schedule` reads absolute and wall-clock selectors through the strict parsers, resolves local targets through `resolveLocalInstant`, and uses the shared `Cron` / `RRule` recurrence values; `dsh-session-format-v0-to-v1` validates a stored schedule instant through `fourDigitYearEpoch` while keeping its own released-log error. `dsh-time-context` reads its elapsed reading through `Duration` and keeps the wording of the line it injects. Schedule retains its record types, relative intervals, daily/weekly policy, and delivery limits. The library works in Host and browser code without a Cordis service.
+在接收时区或墙钟选择器的那个边界上调用它，让值在进入任何持久物之前先过一遍。`dsh-api-session-controller` 与 `dsh-subagent` 通过 `canonicalClientTimeZone` 接收调用方所报时区；`dsh-time-context` 通过 `canonicalizeTimeZone` 接收某一轮请求所报时区，并拒绝别名而不是把它改写；`dsh-schedule` 通过严格解析器读取绝对选择器与墙钟选择器，通过 `resolveLocalInstant` 解析本地目标，并使用共享的 `Cron` / `RRule` 重复规则值；`dsh-session-format-v0-to-v1` 通过 `fourDigitYearEpoch` 校验持久记录里的调度时刻，同时保留它自己的已发布日志错误。`dsh-time-context` 通过 `Duration` 读取其耗时读数，并保留它注入那一行的措辞。Schedule 保留记录类型、相对间隔、每日/每周策略和投递限制。库可用于宿主和浏览器代码，无需 Cordis 服务。
 
 
-### Entry point
+### 入口
 
 ```ts
 import { Duration, canonicalClientTimeZone, fourDigitYearEpoch, parseLocalCalendar, resolveLocalInstant } from '@deepseek-ai/dsh-util-time'
@@ -48,76 +46,76 @@ if (local.kind === 'accepted') {
 Duration.fromMilliseconds(1_500).decompose() // { days: 0, hours: 0, minutes: 0, seconds: 1, milliseconds: 500 }
 ```
 
-`canonicalClientTimeZone` answers `undefined` for a name it refuses, and the caller raises its own refusal — `session/invalid-time-zone` for the Session prompt, `subagent/invalid-time-zone` for a subagent continuation. `canonicalizeTimeZone`, the strict parsers, and `fourDigitYearEpoch` instead report why they refused, as a discriminated result whose `rejected` arm carries a stable reason, so each caller chooses its own code and diagnostic. `formatFourDigitYearInstant` and `resolveLocalInstant` take already-validated values and answer a string, or epoch milliseconds, with `undefined` for an unrepresentable epoch or a wall-clock value inside a DST gap. `Duration` is a frozen value type over one millisecond count: it validates that the count is finite and inside the exactly representable range, and splits a non-negative span into whole parts. It publishes only the operations its consumers call; a member for another unit or for span arithmetic lands with the caller that needs it.
+不可用的时区名称由 `canonicalClientTimeZone` 回答 `undefined`，由调用方抛出自己的拒绝——Session 提示词用 `session/invalid-time-zone`，subagent 续话用 `subagent/invalid-time-zone`。`canonicalizeTimeZone`、各严格解析器与 `fourDigitYearEpoch` 则会说明拒绝原因，以带判别值的结果回答，其 `rejected` 分支携带稳定的拒绝原因，由各调用方选择自己的错误码与诊断文案。`formatFourDigitYearInstant` 与 `resolveLocalInstant` 接收已校验的值，分别回答字符串与纪元毫秒，无法表示的纪元或落在 DST 缺口内的墙钟值回答 `undefined`。`Duration` 是一个基于单一毫秒计数的冻结值类型：它校验计数有限且落在可精确表示的范围内，并把非负的时间段拆成整数量。它只发布消费方会调用的部分；面向其它单位或时间段算术的成员都随第一个需要它的调用方落地。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现内部细节 —— 点击展开</summary>
 
-`src/instant.ts` owns strict time boundaries, `src/duration.ts` owns spans, and `src/cron.ts` / `src/rrule.ts` own recurrence. Their public barrel is `src/index.ts`; parsers return discriminated results, leaving error codes and presentation to callers.
+`src/instant.ts` 拥有严格时间边界，`src/duration.ts` 拥有跨度，`src/cron.ts` / `src/rrule.ts` 拥有重复计算。公共入口是 `src/index.ts`；解析器返回带判别值的结果，把错误码和呈现交给调用方。
 
-The strict parsers match a fixed regular expression before constructing any date, so a malformed spelling, an out-of-range clock field, and a date the calendar does not have answer distinct reasons. Local resolution defers to `@js-temporal/polyfill`: `disambiguation: 'earlier'` picks the first instant of an overlap, and the local-field round trip answers `undefined` for a value inside a forward transition's gap.
+严格解析器先匹配固定正则，再构造任何日期，因此拼写错误、越界时钟字段与日历上不存在的日期分别回答不同的原因。本地解析交给 `@js-temporal/polyfill`：`disambiguation: 'earlier'` 取重叠时段中的第一个时刻，而本地字段往返比对对前向跳变缺口内的值回答 `undefined`。
 
-Both recurrence values validate committed `scheduledAt` values with `fourDigitYearEpoch`: each must name a real date in the canonical UTC profile with three fractional digits. Cron constructs calendar values only for candidate minutes it visits; its day matching, gap and overlap policy, and search bounds remain shared with every caller.
+两种重复规则值都通过 `fourDigitYearEpoch` 校验已提交的 `scheduledAt`：它必须是真实日期，并采用带 3 位小数秒的规范 UTC 剖面。Cron 只为实际访问的候选分钟构造日历值；日期匹配、缺口与重叠策略及搜索边界由所有调用方共享。
 
-| Entry | Accepted input |
+| 入口 | 接受的输入 |
 |---|---|
-| `canonicalClientTimeZone` | `UTC` or an IANA `Area/Location` name; answers `undefined` when refused. |
-| `canonicalizeTimeZone` | The same names; answers the canonical spelling or a refusal reason, and carries the platform error when the platform refused a well-formed name. |
-| `parseLocalCalendar` | `YYYY-MM-DD` and `HH:mm:ss`, with optional one-to-three fractional digits. |
-| `parseOffsetInstant` | RFC 3339 with an explicit `Z` or numeric offset; the offset is part of the input. |
-| `fourDigitYearEpoch` | The canonical stored profile: exactly three fractional digits and a `Z`. |
-| `formatFourDigitYearInstant` | An integral epoch inside the four-digit-year range; answers `undefined` outside it or when non-integral. |
-| `isFourDigitYearInstant` | The same range, as a predicate, so a caller that only needs the bound does not re-derive it. |
-| `resolveLocalInstant` | Exact calendar fields of a real date, or an already-built `Temporal.PlainDateTime`, plus an already-canonical zone. |
-| `Duration` | One finite, exactly representable millisecond count and its decomposition. |
-| `Cron.parse(expression, zone)` | Five-field Vixie Cron with an explicit IANA zone and star-sensitive day matching; bounded to a Gregorian 400-year search. |
-| `RRule.parse(expression, options?)` | One `DTSTART` and `RRULE`, bounded RFC 5545 profile, minute floor, static expansion limits, and optional stricter authoring checks. |
+| `canonicalClientTimeZone` | `UTC` 或 IANA `Area/Location` 名称；被拒绝时回答 `undefined`。 |
+| `canonicalizeTimeZone` | 同样的名称；回答规范拼写或拒绝原因；平台拒绝了一个格式合法的名称时，还会携带该平台错误。 |
+| `parseLocalCalendar` | `YYYY-MM-DD` 与 `HH:mm:ss`，可带 1 到 3 位小数秒。 |
+| `parseOffsetInstant` | 带显式 `Z` 或数字偏移的 RFC 3339；偏移量属于输入的一部分。 |
+| `fourDigitYearEpoch` | 规范存储剖面：恰好 3 位小数秒与 `Z`。 |
+| `formatFourDigitYearInstant` | 四位年份范围内的整数纪元毫秒；超出范围或非整数时回答 `undefined`。 |
+| `isFourDigitYearInstant` | 同一范围的谓词形式，只判断范围边界的调用方无需自行推导。 |
+| `resolveLocalInstant` | 真实日期的精确日历字段，或已构造好的 `Temporal.PlainDateTime`，外加已规范化的时区。 |
+| `Duration` | 一个有限且可精确表示的毫秒计数及其拆分。 |
+| `Cron.parse(expression, zone)` | 带显式 IANA 时区的五字段 Vixie Cron，包含依赖星号的日期匹配；搜索限制为格里历 400 年。 |
+| `RRule.parse(expression, options?)` | 一个 `DTSTART` 和 `RRULE`，有界 RFC 5545 子集、分钟下限、静态展开限制及可选的严格作者输入检查。 |
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 延伸阅读
 
-- [Schedule Host storage](../../schedule/schedule/README.md) — the consumer that stores committed UTC targets.
-- [Session controller](../../api/session-controller/README.md) — the request boundary that canonicalizes a browser zone.
-- [Time context](../../context/time-context/README.md) — the request consumer that refuses a non-canonical browser zone.
-- [util/ package map](../README.md) — where this library sits among the shared utilities.
+- [Schedule 宿主存储](../../schedule/schedule/README.zh.md) —— 保存已提交 UTC 时点的消费方。
+- [Session 控制器](../../api/session-controller/README.zh.md) —— 规范化浏览器时区的请求边界。
+- [时间上下文](../../context/time-context/README.zh.md) —— 拒绝非规范浏览器时区的请求消费方。
+- [util/ 包地图](../README.md) —— 本库在共享工具中的位置。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-Indirectly, through the consumers that store a canonical zone or a committed UTC instant on durable records: `dsh-time-context` renders the turn's model-visible zone instruction and timestamp from the zone, and `dsh-schedule` renders its model-visible scheduler text from the committed instant.
+间接影响，取决于把规范时区或已提交 UTC 时刻记到持久记录上的那些消费方：`dsh-time-context` 据时区渲染本轮模型可见的时区指令与时间戳，`dsh-schedule` 据已提交时刻渲染其模型可见的调度文本。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None of its own. The consumer that injects a zone- or schedule-derived line into a request owns that request's cache behavior.
+自身没有。把时区或调度的派生文本注入请求的那个消费方，对该请求的缓存行为负责。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Alias resolution follows the runtime's ICU data** — which name an alias group canonicalizes to is the platform's answer, so two processes on different Node builds can disagree about it.
-- **Recurrence is bounded** — the [Schedule reference](../../../docs/subsystems/schedule.md#recurrence-rules) lists shared expression profiles. A successful parse returns a frozen `rule` with `expression`, `timeZone`, `next(after)`, and `resolve(scheduledAt, acceptedAt)`; resolution preserves a committed occurrence and coalesces missed ones. Refusals carry `syntax`, `time_zone`, `density`, or `range`; invalid decision times throw `RangeError`. No method reads the wall clock or starts a timer.
-- **`Duration` has no calendar units** — a day is exactly 24 hours and a month has no fixed length, so a caller that needs local calendar days derives them from the zone.
-- **`Duration` publishes only what a consumer calls** — `fromMilliseconds` and `decompose()`; a conversion, an arithmetic operation, or a `zero` identity lands with the caller that needs it, so the published contract grows with a caller rather than ahead of one.
-- **Seconds-unit spans still multiply** — `dsh-schedule`'s interval and delay fields and the DeepSeek file store's refresh margin are second-valued spans converted with `* 1_000`; none has moved onto this library, and an epoch expressed in seconds is not a span and must not be built into one.
-- **The root entry loads recurrence dependencies** — importing it resolves both `@js-temporal/polyfill` and `rrule`, including for a consumer that only needs a zone or span. Browser consumers must account for those dependencies in their bundle.
+- **别名解析取决于运行时的 ICU 数据**——一个别名组规范化成哪个名称由平台回答，因此两个跑在不同 Node 构建上的进程可能给出不同答案。
+- **重复计算有界**——[Schedule 参考](../../../docs/subsystems/schedule.zh.md#recurrence-rules)列出共享表达式子集。解析成功返回冻结的 `rule`，提供 `expression`、`timeZone`、`next(after)` 和 `resolve(scheduledAt, acceptedAt)`；求值保留已提交发生时点并合并错过的时点。拒绝原因是 `syntax`、`time_zone`、`density` 或 `range`；无效决策时间抛出 `RangeError`。方法不读取墙钟或启动定时器。
+- **`Duration` 没有日历单位**——一天恰好是 24 小时，月没有固定长度；需要本地日历天的调用方从时区推导。
+- **`Duration` 只发布消费方会调用的部分**——`fromMilliseconds` 与 `decompose()`；某个换算、某个算术运算或 `zero` 恒等元都随第一个需要它的调用方落地，公开契约跟着调用方长，而不是长在它前面。
+- **以秒为单位的跨度仍在自行相乘**——`dsh-schedule` 的间隔与延迟字段、DeepSeek 文件存储的刷新余量都是以秒为单位的跨度，用 `* 1_000` 换算；它们都还没迁移到本库，而以秒表示的纪元不是跨度，不得构造成跨度。
+- **根入口加载重复计算依赖**——导入它会解析 `@js-temporal/polyfill` 和 `rrule`，只需要时区或跨度的消费方也一样。浏览器消费方必须在打包时计入这些依赖。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

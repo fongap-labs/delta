@@ -1,31 +1,29 @@
 ---
-description: "Shared TypeScript declarations for package identity, runtime requirements, and DSH plugin metadata."
+description: "包身份、运行时要求和 DSH 插件元数据的共享 TypeScript 声明。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-package-manifest
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+使用 `DshPackageManifest` 描述包元数据、`DshManifest` 描述 `dsh` 下的公共字段，以及 `DshClientManifest` 等成员类型描述单个领域。各读取方负责 JSON 解析、校验和默认值解析。
 
-Use `DshPackageManifest` for package metadata, `DshManifest` for the public fields under `dsh`, and member types such as `DshClientManifest` for one domain. Each reader owns JSON parsing, validation, and default resolution.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与后续工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Import from the package root. Use a development dependency when only checking your own source; use a production dependency if your published declarations reference these types.
+从包根导入类型。仅检查自己的源码时使用开发依赖；若发布的声明文件引用这些类型，则使用生产依赖。
 
 ```ts
 import type { DshClientManifest, DshPackageManifest } from '@deepseek-ai/dsh-package-manifest'
@@ -43,64 +41,64 @@ const manifest: DshPackageManifest = {
 }
 ```
 
-`DshPackageManifest` describes the package.json fields used by DSH, with required `name` and `version`; it includes dependency, peer, and optional dependency declarations but is not an exhaustive npm schema. Local profile readers use `Partial<DshPackageManifest>` because profiles need no published version. `DshManifest` describes only public author fields under `dsh`. `DshBundleManifest.patch` is one patch file path or an ordered list of them, each relative to the package root; the launcher applies a list in order as one bundle layer. TypeScript checks the example and erases `import type`; these interfaces do not parse JSON or write a file.
+`DshPackageManifest` 描述 DSH 使用的 package.json 字段，其中 `name` 和 `version` 必填；它包含普通依赖、peer 依赖及可选依赖声明，未覆盖 npm 的所有字段。本地 profile 读取方使用 `Partial<DshPackageManifest>`，因为 profile 无需发布版本。`DshManifest` 仅描述 `dsh` 下的公共作者字段。`DshBundleManifest.patch` 是一个 patch 文件路径，或一个有序的路径列表，均相对于包根目录；launcher 按列表顺序把它们作为同一个组合包层应用。TypeScript 检查示例并删除 `import type`；这些接口不解析 JSON，也不写入文件。
 
-`DshBundleManifest.listedByDefault` is an optional boolean, defaulting to true. False hides an installation-carried bundle from the default GUI lists until the profile enables or installs it; the management inventory remains complete. [Plugin Manager](../../client/ui-plugin-manager/README.md#use-this-package) owns the display and explicit activation paths.
+`DshBundleManifest.listedByDefault` 为可选布尔值，默认为 true。false 使随安装提供的组合包在 profile 启用或安装它之前不出现在默认 GUI 列表中；管理清单仍保持完整。[插件管理页](../../client/ui-plugin-manager/README.zh.md#use-this-package)管理展示与显式启用入口。
 
-The following metadata fields are optional. Omitting them leaves the format version or compatible host versions undeclared; readers do not infer defaults.
+以下元数据字段均可选。省略时，格式版本或兼容的宿主版本保持未声明状态；读取方不推断默认值。
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
-| `dsh.manifestVersion` | Manifest format identifier; the declared format is `1`, independent of the npm package version and Session format version. |
-| `dsh.bundle.platforms` | Optional nonempty list of Node Host platform names, such as `["darwin"]`; omission allows every operating system. The launcher and plugin manager enforce it before composing or selecting the bundle. |
-| `engines.dsh` | Author-declared compatible DSH versions as a SemVer range, including exact prerelease versions. This field sits beside `engines.node` and `engines.npm`; an engines object may omit `dsh`. |
+| `dsh.manifestVersion` | manifest（元数据清单）格式标识；声明的格式为 `1`，独立于 npm 包版本和 Session 格式版本。 |
+| `dsh.bundle.platforms` | 可选的非空 Node Host 平台名称列表，例如 `["darwin"]`；省略时允许所有操作系统。启动器和插件管理器在组合或选择该组合包前检查此字段。 |
+| `engines.dsh` | 作者声明的兼容 DSH 版本，使用 SemVer 范围，也可填写精确的预发布版本。此字段与 `engines.node`、`engines.npm` 并列；engines 对象可省略 `dsh`。 |
 
-`LocalizedText` carries literal text or a language map with a required English fallback. `PluginLocalizedMeta` carries optional display title, description, an image data URL resolved from a package root's `package.json.icon` or an exported `<specifier>/icon`, and metadata diagnostics for installed plugins. [App boot](../../boot/app-boot/README.md) reads these values; this package only supplies their types.
+`LocalizedText` 携带字面文本或带必需英文回退值的语言映射。`PluginLocalizedMeta` 携带已安装插件的可选展示标题、描述、从包根 `package.json.icon` 或导出的 `<标识>/icon` 解析的图片 data URL，以及元信息诊断。[App boot](../../boot/app-boot/README.zh.md) 读取这些值；本包只提供其类型。
 
-Public composition declarations are defined in [`src/types.ts`](src/types.ts). Internal `configTrees`, `sessionFormatMigration`, and generated `moduleFallback` metadata remain owned by their image-packer, catalog, and launcher readers; the public types do not expose them.
+公共组合声明定义在 [`src/types.ts`](src/types.ts) 中。内部 `configTrees`、`sessionFormatMigration` 和生成的 `moduleFallback` 元数据分别由镜像打包器、目录生成器和启动器读取方拥有；公共类型不暴露这些字段。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The package root only re-exports declarations from [`src/types.ts`](src/types.ts).
+包根仅重新导出 [`src/types.ts`](src/types.ts) 中的声明。本包
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-- [Profile launcher](../../boot/app-boot/README.md#profiles) — manifest loading and composition.
-- [Public package metadata](../../../.agents/notes/implemented/architecture/2026-09-10-public-package-manifest.md) — field placement and reader ownership.
+- [Profile 启动器](../../boot/app-boot/README.zh.md#profiles)——manifest 加载与组合。
+- [公共包元数据](../../../.agents/notes/implemented/architecture/2026-09-10-public-package-manifest.zh.md)——字段位置与读取方归属。
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as this package only exports types.
+无，因为本包仅导出类型。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Type declarations add no model input, so provider cache reuse is unaffected.
+类型声明不增加模型输入，因此不影响提供方的缓存复用。
 
-## Known Limitations and Deferred Work
+## 已知限制与后续工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Static typing only.** Consumers read and validate the JSON fields they use, then adapt the shared declarations to their runtime data. The package supplies no parser, getter helpers, file checks, or defaults.
-- **Compatibility is declarative.** Current installers and loaders do not enforce `dsh.manifestVersion` or `engines.dsh`; declaring a range does not reject incompatible hosts or validate SemVer syntax.
+- **仅提供静态类型。** 消费方读取并校验所需的 JSON 字段，再将共享声明适配为运行时数据。本包不提供解析器、getter helper、文件检查或默认值。
+- **兼容性仅作声明。** 当前安装器和加载器不强制检查 `dsh.manifestVersion` 或 `engines.dsh`；声明范围不会拒绝不兼容的宿主，也不会校验 SemVer 语法。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

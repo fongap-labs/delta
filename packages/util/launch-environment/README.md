@@ -1,32 +1,30 @@
 ---
-description: "An immutable snapshot of this run's environment that remembers which layer supplied each value, for packages that must resolve user-facing values without trusting a flattened process.env."
+description: "本次运行环境的不可变快照，记住每个值来自哪一层；供必须以不信任压平 process.env 的方式解析面向用户值的包使用。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-launch-environment
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+使用 `@deepseek-ai/dsh-launch-environment` 解析启动时的环境值，无需信任压平的 `process.env`。它会冻结继承的进程值、调用目录的 `.env` 和 Harness 主目录的 `.env`，再按固定可信顺序返回胜出的值及其来源。调用方可以在敏感查找中排除某些层；无论之后顺序如何变化，被省略的层都不可达。快照不可变，但每一层仍会被复制到 `process.env`，因此它不隔离子进程。请把它作为库导入；不能从 `cordis.yml` 挂载它。
 
-Use `@deepseek-ai/dsh-launch-environment` to resolve launch-time environment values without trusting the flattened `process.env`. It freezes inherited process values, the invocation directory's `.env`, and the Harness home's `.env`, then returns the winning value and its source in a fixed trust order. Callers can exclude layers for sensitive lookups; an omitted layer stays unreachable regardless of later ordering changes. The snapshot is immutable, but every layer is still copied into `process.env`, so it does not isolate subprocesses. Import it as a library; it cannot be mounted from `cordis.yml`.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Resolve user-facing values through the snapshot instead of `process.env` whenever the layers are not equally trusted — for example a credential override a caller must never take from a project directory.
+当各层并非同等可信时，通过快照而非 `process.env` 解析面向用户的值——例如调用方绝不能从项目目录取得的凭据覆盖值。
 
-### Resolving a value
+### 解析一个值
 
 ```ts
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
@@ -35,81 +33,81 @@ declare const ctx: import('@deepseek-ai/cordis').Context
 const endpoint = launchEnvironmentOf(ctx).get('DEEPSEEK_BASE_URL')?.value
 ```
 
-`get(name)` searches every layer, most trusted first. `getFrom(name, sources)` searches only the named layers without changing that trust order — a caller that must never accept a layer leaves it out of the list, so no future reordering can let it back in.
+`get(name)` 按可信度从高到低搜索所有层。`getFrom(name, sources)` 只搜索指定的层，不改变这一可信顺序——绝不能接受某一层的调用方不把它列进去，因此后续任何重新排序都无法让它回来。
 
-`launchedThroughSsh(snapshot)` returns true only for a non-empty `SSH_CONNECTION` or `SSH_TTY` in the inherited process layer. Web browser handoff, the adaptive directory picker, and Open In share this predicate; project and user `.env` values never establish an SSH session.
+`launchedThroughSsh(snapshot)` 仅在继承的进程层中存在非空 `SSH_CONNECTION` 或 `SSH_TTY` 时返回 true。Web 浏览器唤起、自适应目录选择器与 Open In 共用此判断；项目与用户 `.env` 中的值不作为 SSH 会话的依据。
 
-### How layers rank
+### 各层的优先级
 
-| Layer | What it is |
+| 层 | 它是什么 |
 |---|---|
-| Inherited process environment | What the launching shell, CI job, or container passed in — this run's explicit intent |
-| `<invocation cwd>/.env` | The project the harness was launched in, which the product trusts to configure its own agent |
-| `$DSH_HOME/.env` | The user's own machine-level defaults |
+| 继承的进程环境 | 启动 shell、CI 任务或容器传入的内容——本次运行的明确意图 |
+| `<invocation cwd>/.env` | harness 被启动于其中的项目；产品信任它配置自己的 agent（智能体） |
+| `$DSH_HOME/.env` | 用户自己的机器级默认值 |
 
-The `dsh` launcher refuses to start when the project `.env` sets a name that decides how the process starts or reaches the network, and when `$DSH_HOME/.env` sets any such name other than the proxy and DeepSeek endpoint names; [app-boot](../../boot/app-boot/README.md) describes those names and the exceptions.
+项目 `.env` 设置了决定进程如何启动或如何访问网络的变量名时，`dsh` 启动器会拒绝启动；`$DSH_HOME/.env` 设置这类变量名时同样拒绝，代理名与 DeepSeek 端点变量名除外。[app-boot](../../boot/app-boot/README.zh.md) 说明了这些变量名及其例外。
 
-Names match the way the platform matches them: exactly on POSIX, case-insensitively on Windows. A case-sensitive lookup on Windows would rank the wrong layer — a shell's `deepseek_api_key` and a project `.env`'s `DEEPSEEK_API_KEY` are one variable to the OS.
+变量名按平台自身的规则匹配：POSIX 上精确匹配，Windows 上不区分大小写。在 Windows 上做大小写敏感的查找会选错层——shell 里的 `deepseek_api_key` 与项目 `.env` 里的 `DEEPSEEK_API_KEY` 对操作系统而言是同一个变量。
 
-### When no launcher booted the tree
+### 没有启动器引导这棵树时
 
-`launchEnvironmentOf(ctx)` returns the launcher's snapshot when the product CLI booted the tree, and otherwise the inherited environment as the only layer. The fallback does not weaken the rules: an SDK host or a bare `cordis.yml` discovered no files, so everything it has is the environment it was launched with.
+当产品 CLI（命令行界面）引导了这棵树时，`launchEnvironmentOf(ctx)` 返回启动器的快照；否则返回只含继承环境的那一层。该回退并不削弱规则：SDK 宿主或裸 `cordis.yml` 从未发现过任何文件，因此它拥有的一切就是它被启动时的环境。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The snapshot is built on one separation: the launcher owns which files exist, and the snapshot owns how values rank.
+快照建立在一个分离之上：启动器决定存在哪些文件，快照决定值如何排序。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `createLaunchEnvironmentSnapshot`, `launchEnvironmentOf`, and the `ctx.launchEnvironment` slot |
+| [`src/index.ts`](src/index.ts) | `createLaunchEnvironmentSnapshot`、`launchEnvironmentOf` 与 `ctx.launchEnvironment` 槽位 |
 
-### How the snapshot stays frozen
+### 快照如何保持冻结
 
-`createLaunchEnvironmentSnapshot` copies every layer's values at construction, so a later mutation of the source object cannot change the snapshot. Lookups walk a canonical trust order regardless of construction order; on Windows, names are folded to uppercase before storage so case variants cannot split precedence.
+`createLaunchEnvironmentSnapshot` 在构造时复制每一层的值，因此之后对源对象的修改无法改变快照。无论构造顺序如何，查找都按规范信任顺序进行；在 Windows 上，名字在存储前折叠为大写，因此大小写变体无法拆分优先级。
 
-### What omission means
+### 省略意味着什么
 
-`getFrom` filters by the canonical order, never by the caller's list order. Omitting a layer is a refusal: the value is unreachable through that call, which is the mechanism a caller uses when a layer must never influence a specific decision.
+`getFrom` 按规范顺序过滤，绝不按调用方列表的顺序。省略一层就是拒绝：该值在该调用中不可达，这正是调用方在某个决策绝不能被某层影响时使用的机制。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when you need the launcher that builds the snapshot or the consumers that resolve through it.
+当你需要构建快照的启动器或通过快照解析的消费方时，阅读以下页面。
 
-- [Boot package](../../boot/app-boot/README.md) — the launcher that fills `ctx.launchEnvironment` before any config entry mounts.
-- [Credentials store](../../credentials/credentials-local/README.md) — resolves stored credentials against the snapshot's layers.
-- [DeepSeek provider](../../llm/llm-deepseek/README.md) — reads provider configuration through the launch environment.
+- [boot 包](../../boot/app-boot/README.zh.md)——在任何配置项挂载之前填充 `ctx.launchEnvironment` 的启动器。
+- [凭据存储](../../credentials/credentials-local/README.zh.md)——针对快照各层解析已存储的凭据。
+- [DeepSeek 提供方](../../llm/llm-deepseek/README.zh.md)——通过启动环境读取提供方配置。
 
 -----
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the snapshot is not a security boundary. They are current package constraints, not a task backlog.
+这些限制说明快照何时不是安全边界。它们是当前包约束，不是任务积压。
 
-- **The snapshot is not a subprocess boundary** — every layer is also materialized into `process.env`, so ordinary project variables reach child processes under [`dsh-subprocess`](../../subprocess/subprocess/README.md)'s scrub; the product launcher's [`.env` contract](../../boot/app-boot/README.md) rejects bootstrap variables before materialization.
-- **No per-workspace layer** — the project layer is the invoking directory, fixed at launch; a workspace selected later in the Web UI contributes nothing, deliberately, because following it would let a model's own workspace change the harness environment mid-session.
+- **快照不是子进程边界**——每一层同样会被物化进 `process.env`，因此项目里的普通变量会按 [`dsh-subprocess`](../../subprocess/subprocess/README.zh.md) 的清洗规则抵达子进程；产品启动器的 [`.env` 约定](../../boot/app-boot/README.zh.md) 会在物化之前拒绝 bootstrap 变量。
+- **没有按工作区划分的层**——项目层是调用目录，在启动时固定；之后在 Web UI 中选择的工作区不贡献任何内容，这是刻意的，因为跟随它等于让模型自己的工作区在会话中途改变 harness 环境。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>
