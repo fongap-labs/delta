@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 将四份基准测试说明合并为中文 README.md，清理英文副本及双语配对记录，继续保留应用运行时语言资源。
+
 - 维护: 清理已无现行 GitHub Actions 工作流作为输入的旧 master 平台调度与上游发布 Runner 测试；现有 Delta CI/PR 分发合同由中央可信测试包维护。
 
 - 维护: 精简上游 Runner 与 Windows 旧工作流测试，保留实际 Node 工具缓存隔离及 Windows PowerShell 优先级只读检查，移除失去调用者的旧归档测试辅助模块。
