@@ -1,11 +1,9 @@
 # native/
 
-English | [中文](README.zh.md)
+Delta 使用的原生源码和公开包。[`system/` workspace](system/README.md) 负责 Landlock 启动器、POSIX flock 绑定、平台包和[发布流程](system/docs/release.md)。
 
-Native source and public packages maintained with DeepSeek Harness. The [`system/` workspace](system/README.md) owns the Landlock launcher and POSIX flock binding, their platform packages, and the [release procedure](system/docs/release.md).
+## Workspace 与发布边界
 
-## Workspace and release boundary
+`system/` 及其包属于仓库根 pnpm workspace，并共用根锁文件。开发和 CI 中的 harness 消费方直接使用当前 workspace 的入口包，因此启动器约定变更与消费方更新可以在同一个改动中落地并一起测试。
 
-`system/` and its packages belong to the repository's root pnpm workspace and lockfile. Harness consumers use the current workspace entry package during development and CI, so a launcher contract change and its consumer update can land and be tested together.
-
-The main repository's `Node Addon System` workflow builds and tests each supported architecture. `Node Addon System Release` assembles those native artifacts, packs and verifies the npm tarballs, then optionally publishes them under one native version. The entry package retains platform packages as npm optional dependencies, so npm still installs only the package matching the user's operating system and CPU.
+主仓库的 `Node Addon System` 工作流为每个受支持架构构建并测试。`Node Addon System Release` 汇集这些原生产物，打包并验证 npm tarball，随后可选择以同一个原生包版本发布。入口包继续将平台包声明为 npm 可选依赖，因此 npm 仍然只会安装与用户操作系统和 CPU 匹配的包。
