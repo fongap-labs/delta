@@ -5,12 +5,16 @@
     ".agents/notes/implemented/CLAUDE.md",
     ".github/review-ownership/README.md",
     "CONTRIBUTING.md",
+    "README.md",
+    "SAFETY.md",
+    "benchmarks/active-stream-reconnect/README.md",
+    "benchmarks/agent-continuation/README.md",
+    "benchmarks/long-session-browser/README.md",
+    "benchmarks/session-corpus/README.md",
     "docs/AGENTS.md",
     "docs/cordis-api/inherited.md",
     "docs/i18n/style-samples.md",
     "docs/i18n/terminology.md",
-    "docs/i18n/translation-prompt.md",
-    "README.md",
-    "SAFETY.md"
+    "docs/i18n/translation-prompt.md"
   ]
 }

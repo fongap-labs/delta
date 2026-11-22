@@ -1,7 +1,5 @@
-# Active Assistant reconnect benchmark
+# 活跃 Assistant 重连基准
 
-English | [中文](README.zh.md)
+[reconnect.bench.client.ts](reconnect.bench.client.ts) 测量重连携带一个包含 100,000 个 delta、尚未完成的 reasoning 前缀时，生产 Client 的折叠成本。编译后的私有适配器调用 `ClientAssistantStream.replace()`，不增加产品导出。三个全新的纯 Node worker 在计时前合成紧凑基线；替换时间与强制 GC 后的保留堆分别执行中位数预算检查。下一个稠密序号的实时 frame 仍须被接受。50 ms 参考机器预期使用共享的 2× CI 时间倍率与 1.25× 余量，得到 125 ms 上限；保留 heap 预算仍为 30 MiB，不应用时间倍率。实测样本和合成回归对照使用与 worker 判定相同的时间断言。
 
-[reconnect.bench.client.ts](reconnect.bench.client.ts) measures the production Client fold when a reconnect carries an unfinished 100,000-delta reasoning prefix. A compiled private adapter reaches `ClientAssistantStream.replace()` without adding product exports. Three fresh plain-Node workers synthesize the compact baseline before timing; replacement time and retained heap after forced GC have separate median budgets. The next dense live frame must still be accepted. The 50 ms reference-machine expectation uses the shared 2× CI time scale and 1.25× headroom, giving a 125 ms ceiling; the retained-heap budget remains 30 MiB without time scaling. Recorded-sample and synthetic-regression controls exercise the same time assertion as the worker verdict.
-
-Build with `pnpm run build:bench`, then select `benchmarks/active-stream-reconnect` in `vitest.bench.config.ts`. This focused Node workload neither builds nor measures browser rendering. [Frontend performance budgets](../../.agents/notes/implemented/testing/2026-09-06-frontend-performance-budgets.md) records calibration and exclusions.
+通过 `pnpm run build:bench` 构建，再在 `vitest.bench.config.ts` 中选择 `benchmarks/active-stream-reconnect`。这项针对 Node 的工作负载既不构建也不测量浏览器渲染。[前端性能预算](../../.agents/notes/implemented/testing/2026-09-06-frontend-performance-budgets.zh.md)记录校准与排除项。

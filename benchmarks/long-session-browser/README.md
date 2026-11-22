@@ -1,19 +1,17 @@
-# Long-session browser benchmark
+# 长会话浏览器基准
 
-English | [中文](README.zh.md)
+[long-session.bench.ts](long-session.bench.ts) 中必需的 Chromium 工作流测量打开包含 240 个轮次的合成会话、加载所有较早页面、访问 Trajectory，以及在有节奏的流式回复期间输入下一条草稿。随产品维护的 Web scaffold 拥有隔离的主目录、持久化、回放适配器和回环监听器；Chromium 加载构建后的 Web 产物，而非替代开发服务器。
 
-The required Chromium workflow in [long-session.bench.ts](long-session.bench.ts) measures opening a synthetic 240-turn Session, loading every older page, visiting Trajectory, and typing another draft during a paced reply. The shipped Web scaffold owns the isolated home, persistence, replay adapter, and loopback listener; Chromium loads the built Web artifacts, not a replacement development server.
+## 运行
 
-## Run
+`pnpm run test:bench` 先构建 library、worker 和 Web 产物，再串行运行基准清单。产物已构建时，通过 `pnpm exec vitest run --config vitest.bench.config.ts benchmarks/long-session-browser` 选择此目录。首次运行前，通过 benchmark workspace 安装 Chromium。
 
-`pnpm run test:bench` builds libraries, workers, and Web artifacts before running the serial benchmark inventory. With artifacts already built, select this directory through `pnpm exec vitest run --config vitest.bench.config.ts benchmarks/long-session-browser`. Install Chromium through the benchmark workspace before the first run.
+## 测量
 
-## Measurements
+三个全新浏览器进程与 scaffold 环境产生原始样本及中位数判定。打开和分页在预期 transcript（文本记录）状态出现且经过两次动画帧后结束；这包含一次渲染机会，而非硬件显示时间戳。分页计时前先等待名为 `Load earlier` 的控件挂载，再解析恰好一个当前按钮；可操作性等待、受信任的点击、turn-tail 增长及最后两次动画帧仍计时。按钮被替换时失败，不改选替代节点。分页报告每一页，并对各样本最慢分页时间的中位数执行预算检查。流式报告首次可见回复、受信任的草稿键入、完整回复壁钟时间和 Chromium 主线程任务时间。Enter 从已聚焦的输入框提交；草稿键入保留该焦点，不执行鼠标点击。回复标记查找与输入事件文本观察器仅读取最新 Assistant 步骤，避免重复进行全量历史文本扫描和无障碍扫描。输入事件文本观察器在提交前安装，首个标记可见后立即开始草稿键入，不额外等待输入前动画帧。回复标记在动画帧上采样，要求文本在最新步骤内可见。首次观察在浏览器内记录标记状态与焦点；诊断在键入后取回，不增加输入前的通信往返。诊断还包含首个输入事件的浏览器时钟时间戳与焦点。诊断不会暂停回放；首次观察或输入延迟仍可能导致重叠失败。实际首个输入事件必须观察到未完成的回复；完整回复的测量会在 Host 结算后等待新 turn-tail 渲染完成。测量后，在 DONE 之后发送的受信任按键必须无法通过同一个重叠断言。打开、最慢的较早页面和首次 Trajectory 使用标准托管预期 900/700/520 ms。共享的 1.25× 余量分别产生 1125/875/650 ms 上限；流式终点的额外开销预算不变。强制 GC 后的 heap 与 DOM 数量仅供诊断，不作为泄漏预算。
 
-Three fresh browser processes and scaffold worlds produce raw samples and median verdicts. Open and paging end after the expected transcript state and two animation frames; this includes a rendering opportunity, not a hardware presentation timestamp. Paging waits for the named `Load earlier` control to attach and resolves exactly one current button before timing; actionability, the trusted click, turn-tail growth and the final two animation frames remain timed. A replaced button fails instead of selecting a replacement. Paging reports every page and gates the median of each sample’s slowest page. Stream reports first visible reply, trusted draft typing, complete reply wall time, and Chromium main-thread task duration. Enter submits from the focused composer; draft typing retains that focus without a mouse click. Reply-marker lookups and the input-event text witness read only the latest Assistant step, avoiding repeated whole-history text and accessibility scans. The input witness is installed before submission, and draft typing starts as soon as the first marker is visible, without an extra pre-input animation-frame wait. Reply markers are sampled on animation frames, with visible text required inside the latest step. The first observation captures marker state and focus in the browser; its diagnostics are retrieved after typing so they add no pre-input round trip. Diagnostics also include browser-clock timestamps and focus at the first input event. They do not pause replay; a delayed first observation or input can still fail overlap. The actual first input event must observe an unfinished reply; completion waits for the new rendered turn-tail after Host settlement. After measurement, a trusted keystroke after DONE must fail the same overlap assertion. Open, the slowest older page, and first Trajectory use standard-hosted expectations of 900/700/520 ms. Shared 1.25× headroom gives limits of 1125/875/650 ms respectively; stream endpoint overhead budgets are unchanged. Heap after forced GC and DOM counts are diagnostics, not leak budgets.
+Trajectory 就绪状态在动画帧上采样，要求搜索框可见且其自身表格中存在可见记录。真实 tab 点击和最后的两帧等待仍计入测量区间；隐藏记录与无关表格行不能满足就绪条件。
 
-Trajectory readiness is sampled on animation frames from the visible searchbox and a visible record inside its own table. The trusted tab click and final two-frame wait remain inside the measured interval; hidden records and unrelated table rows cannot satisfy readiness.
+fixture（测试前置数据）在首条用户消息前保留空 system 头节点，每条用户消息都位于其步骤内。它包含混合语言提示词、正文、推理（reasoning）、20 个围栏代码块和 40 个合成工具结果。每条历史 Assistant 都含紧凑流，由生产 accumulator 从匹配的推理、文本、工具参数、usage 和 finish 分片构建。其内容不来自模型、工具、外部网络、录制会话或私有 Harness 主目录。流式回复以 16 ms 回放间隔发送 120 个文本 delta，经过真实输入框、agent loop（智能体循环）、传输与持久化。
 
-The fixture reserves an empty system head before the first user message, with each user message inside its step. It contains mixed-language prompts, prose, reasoning, 20 code fences, and 40 synthetic tool results. Every historical Assistant includes a compact stream built by the production accumulator from matching reasoning, text, tool arguments, usage, and finish chunks. No model, tool, external network, recorded Session, or private Harness home supplies its content. Streaming uses 120 text deltas at 16 ms replay pacing through the real composer, agent loop, transport, and persistence.
-
-The [decision record](../../.agents/notes/implemented/testing/2026-09-06-frontend-performance-budgets.md) owns calibration, exclusions, and alternatives. The larger [manual diagnostic](../../apps/web/tests/complex-history.perf.ts) remains separate.
+[决策记录](../../.agents/notes/implemented/testing/2026-09-06-frontend-performance-budgets.zh.md)拥有校准、排除项与替代方案。更大规模的[手动诊断](../../apps/web/tests/complex-history.perf.ts)保持独立。

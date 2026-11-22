@@ -1,39 +1,37 @@
-# Session corpus benchmarks
+# Session 语料基准
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+在合成语料上测量 Web Host 的 Session 列表、内容搜索和 fork；语料中每个 Session 的长度都不短于一份实测本地 DSH 语料在同一分位上的长度。搜索和 fork 用例分别运行在独立的 1,000 个 Session 语料上；列表用例运行 3,000 个 Session，这是在标准托管 CI 上让此文件五分钟内完成的最大数量。内容搜索模拟通过 `openAt: first-search` 启用该功能的部署；已发布的 profile 默认禁用它。所有用例均不使用网络服务、录制的 Session 或浏览器。
 
-Measure the Web Host's Session list, content search, and fork over synthetic corpora in which every Session is at least as long as the same quantile of a measured local DSH corpus. Search and fork run over separate 1,000-Session corpora; the list runs over 3,000, the largest count that keeps this file within five minutes on standard hosted CI. Content search models a deployment that opts in with `openAt: first-search`; shipped profiles disable it. No case uses network services, recorded Sessions, or a browser.
+## 目录
 
-## Table of Contents
-
-- [Run](#run)
-- [Measurements](#measurements)
-- [Dev Note](#dev-note)
+- [运行](#run)
+- [测量](#measurements)
+- [开发备注](#dev-note)
 
 <a id="run"></a>
 
-## Run
+## 运行
 
-From the repository root, build the libraries and workers with `pnpm run build:bench`, then run `pnpm exec vitest run --config vitest.bench.config.ts benchmarks/session-corpus/session-corpus.bench.ts`. Do not overlap timing runs with builds or other benchmarks. Seeding writes about 1.5 GB of Zstandard logs under a private temporary root, which the test removes after success or failure.
+在仓库根目录使用 `pnpm run build:bench` 构建库和 worker，然后运行 `pnpm exec vitest run --config vitest.bench.config.ts benchmarks/session-corpus/session-corpus.bench.ts`。不要让计时运行与构建或其他基准重叠。播种过程会在私有临时根目录下写入约 1.5 GB 的 Zstandard 日志，测试成功或失败后都会删除该目录。
 
-The test reports every fresh-process sample, the CPU model, available parallelism, platform, and Node version, and enforces median budgets. Its last case fails when the file, including seeding, exceeds five minutes. Fork workers use a fixed V8 heap limit; peak RSS still measures the whole process. A failed worker reports its exit, signal, timeout, and stderr tail. The required benchmark lane discovers this file automatically.
+测试报告每个新进程样本、CPU 型号、可用并行度、平台和 Node 版本，并约束中位数预算。当整个文件（包括播种）超过五分钟时，最后一个用例失败。Fork worker 使用固定的 V8 堆上限；峰值 RSS 仍测量整个进程。worker 失败时报告退出状态、信号、超时和 stderr 末尾。必需基准通道自动发现此文件。
 
 <a id="measurements"></a>
 
-## Measurements
+## 测量
 
-[corpus-shape.ts](corpus-shape.ts) holds the measured quantile anchors. [synthetic-corpus.ts](synthetic-corpus.ts) authors one event body per anchor and stores each Session as its own header frame followed by that body. [The Agent Note](../../.agents/notes/implemented/testing/2026-09-28-session-corpus-performance.md) owns the workload derivation, timing endpoints, calibration, and exclusions.
+[corpus-shape.ts](corpus-shape.ts) 保存实测分位锚点。[synthetic-corpus.ts](synthetic-corpus.ts) 为每个锚点生成一份事件主体，并把每个 Session 存储为独立的 header 帧加上该主体。[Agent Note](../../.agents/notes/implemented/testing/2026-09-28-session-corpus-performance.zh.md) 负责说明工作负载推导、计时终点、校准和排除项。
 
-| Case | Corpus | Timed endpoints |
+| 用例 | 语料 | 计时终点 |
 |---|---|---|
-| List | 3,000 Sessions | Host boot; first and repeated `session.list`, each returning every Session with cached projections |
-| Content search | 1,000 Sessions | First `session.search`, which builds the in-memory index; a second query over the built index |
-| Fork | 1,000 Sessions | `session.fork` return for ten length strata, the p99 Session, and the longest Session |
+| 列表 | 3,000 个 Session | Host 启动；首次和重复的 `session.list`，每次都返回全部 Session 及其缓存投影 |
+| 内容搜索 | 1,000 个 Session | 构建内存索引的首次 `session.search`；在已构建索引上的第二次查询 |
+| Fork | 1,000 个 Session | 十个长度分层、p99 Session 和最长 Session 的 `session.fork` 返回 |
 
 <a id="dev-note"></a>
 
-## Dev Note
+## 开发备注
 
-None.
+无。
