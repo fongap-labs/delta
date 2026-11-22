@@ -46,9 +46,6 @@
       "path": "../../schedule/schedule"
     },
     {
-      "path": "../../feedback/message-feedback"
-    },
-    {
       "path": "../../host/plugin-inventory"
     },
     {
@@ -92,9 +89,6 @@
     },
     {
       "path": "../../typert/protocol"
-    },
-    {
-      "path": "../../feedback/command-feedback"
     },
     {
       "path": "../terminal-controller/tsconfig.client.json"
