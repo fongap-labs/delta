@@ -45,6 +45,7 @@ import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, forwardWebRequest, removeLegacyHostCookies } from './web-document.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
+import { LocalDiagnosticJournal } from './local-diagnostics.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
 import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
@@ -86,6 +87,7 @@ if (process.env.DELTA_PORTABLE === '1') {
   app.setPath('userData', profileDir)
 }
 
+const localDiagnostics = new LocalDiagnosticJournal(app.getPath('userData'))
 let focusPrimaryWindow = (): void => {}
 /** Avoid logging exception objects, arbitrary URLs, local paths or credentials. */
 function logPrivateError(...items: unknown[]): void {
@@ -123,10 +125,11 @@ const recovery = new DesktopFatalRecovery({
   restart: () => { app.relaunch(); quitWithoutConfirmation() },
 })
 
-/** Fatal errors stay in the native dialog, with no crash report generation or upload. */
+/** Fatal recovery shows details locally; a bounded metadata-only journal records the failure. */
 function reportFatal(error: unknown, source: 'host' | 'web-boot' | 'renderer' | 'main'): void {
   logPrivateError('Delta desktop fatal error:', desktopErrorState(error).message)
   if (shuttingDown) return
+  void localDiagnostics.recordFatal(source, error)
   void recovery.present(error, source).catch((failure: unknown) => {
     logPrivateError(failure)
     shuttingDown = true
