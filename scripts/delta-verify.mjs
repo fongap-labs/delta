@@ -167,6 +167,17 @@ assert.doesNotMatch(basePatch, /^    - id: command-feedback$/m)
 assert.doesNotMatch(webPatch, /^    - id: (message-feedback|ui-message-feedback)$/m)
 assert.match(webPatch, /^    - id: ui-settings-account$/m)
 assert.doesNotMatch(text('packages/api/remotes/src/client/index.ts'), /messageFeedbackRemote|sessionFeedbackRemote/)
+// PR #63 removed feedback remotes; LiveShare's generated-endpoint table and
+// session export UI must not silently reintroduce obsolete feedback surfaces.
+assert.doesNotMatch(text('packages/experimental/liveshare/src/endpoint-classification.ts'),
+  /['"](?:sessionFeedback|messageFeedback)\//, 'stale feedback endpoint in LiveShare viewer policy')
+assert.doesNotMatch(text('packages/session-query/session-log-export/src/client/index.ts'),
+  /\bfeedbackUi\b|session-log-download\.feedback/, 'feedback reintroduced into session export UI')
+assert.doesNotMatch(text('packages/session-query/session-log-export/src/client/locales.ts'),
+  /menu\.feedback|feedbackUi|sessionFeedback|messageFeedback/i,
+  'obsolete feedback locale keys in session export dictionaries')
+assert.doesNotMatch(text('packages/client/ui-brand-official/src/client/index.ts'),
+  /\bPixelWhale\b|home-whale/, 'upstream whale decoration reintroduced into Delta branding')
 assert.doesNotMatch(text('packages/boot/app-boot/src/profile-context.ts'), /telemetryDisabledEnv|resolveTelemetryPatch/)
 assert.doesNotMatch(text('packages/api/remotes/src/client/index.ts'), /productAnalytics/)
 
