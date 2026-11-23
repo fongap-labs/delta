@@ -1,5 +1,7 @@
 # Delta
 
+项目规范入口：[AGENTS.md](AGENTS.md) · [更新日志](CHANGELOG.md)
+
 Delta 项目仓库。
 
 本分支于 2026 年 11 月 23 日从全新 Git 根提交初始化，采用 [Apache License 2.0](LICENSE)。
