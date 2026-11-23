@@ -501,17 +501,33 @@ export async function packageTarget(
       '--pack-destination',
       buildPaths.packedDsh,
     ], buildEnv, REPOSITORY_ROOT)
-    await executePreparation(['run', 'release:pack', '--family', 'vendor', '--out', buildPaths.packedVendor, ...packArguments], buildEnv, REPOSITORY_ROOT)
-    rmSync(buildPaths.packedLandlock, { recursive: true, force: true })
-    mkdirSync(buildPaths.packedLandlock, { recursive: true })
-    await executePreparation(['--dir', 'native/system', 'run', 'build:ts'], buildEnv, REPOSITORY_ROOT)
-    await executePreparation([
-      '--dir',
-      'native/system/packages/entry',
-      'pack',
-      '--pack-destination',
-      buildPaths.packedLandlock,
-    ], buildEnv, REPOSITORY_ROOT)
+    const packVendor = () => executePreparation(
+      ['run', 'release:pack', '--family', 'vendor', '--out', buildPaths.packedVendor, ...packArguments],
+      buildEnv, REPOSITORY_ROOT)
+    const packLandlock = async (): Promise<void> => {
+      rmSync(buildPaths.packedLandlock, { recursive: true, force: true })
+      mkdirSync(buildPaths.packedLandlock, { recursive: true })
+      await executePreparation(['--dir', 'native/system', 'run', 'build:ts'], buildEnv, REPOSITORY_ROOT)
+      await executePreparation([
+        '--dir',
+        'native/system/packages/entry',
+        'pack',
+        '--pack-destination',
+        buildPaths.packedLandlock,
+      ], buildEnv, REPOSITORY_ROOT)
+    }
+    // These operations own disjoint vendor and native staging directories.
+    // Overlap only the unsigned Windows directory smoke: signed release
+    // packaging and macOS keep their existing serial publish order.
+    if (target.platform === 'win32' && invocation.unsigned && invocation.directory) {
+      const results = await Promise.allSettled([packVendor(), packLandlock()])
+      // Draining both is mandatory. A failed pack cannot race ahead into
+      // assembly, packaging, smoke verification or release completion.
+      for (const result of results) if (result.status === 'rejected') throw result.reason
+    } else {
+      await packVendor()
+      await packLandlock()
+    }
   }
   const prepareRuntime = () => executePreparation(
     ['run', 'prepare:runtime', ...(signPrimaryRuntime ? ['--defer-primary-runtime-smoke'] : [])], downloadEnv)

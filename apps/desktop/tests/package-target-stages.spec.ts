@@ -122,6 +122,88 @@ it.each(['pack', 'runtime'] as const)('drains the other Windows preparation afte
   }
 })
 
+it('overlaps only independent vendor and native staging in unsigned Windows directory smoke', async () => {
+  const { run, stages } = supervisor()
+  const vendor = Promise.withResolvers<undefined>()
+  const native = Promise.withResolvers<undefined>()
+  run.run.mockImplementation(async (stage) => {
+    stages.push(stage)
+    if (stage.startsWith('run release:pack --family vendor ')) await vendor.promise
+    if (stage === '--dir native/system run build:ts') await native.promise
+  })
+  const operation = packageTarget(parseDesktopPackageInvocation(['win-x64', '--unsigned', '--dir'], 'win32', 'x64'), environment, run)
+  const outcome = operation.then(() => undefined, (error: unknown) => error)
+  try {
+    await vi.waitFor(() => {
+      expect(stages.some(stage => stage.startsWith('run release:pack --family vendor '))).toBe(true)
+      expect(stages).toContain('--dir native/system run build:ts')
+    })
+    const host = stages.findIndex(stage => stage.startsWith('--dir apps/desktop-host pack '))
+    expect(host).toBeGreaterThan(-1)
+    expect(host).toBeLessThan(stages.findIndex(stage => stage.startsWith('run release:pack --family vendor ')))
+    expect(host).toBeLessThan(stages.indexOf('--dir native/system run build:ts'))
+    expect(stages.some(stage => stage.startsWith('run prepare:packages'))).toBe(false)
+    vendor.resolve(undefined)
+    await setImmediate()
+    expect(stages.some(stage => stage.startsWith('run prepare:packages'))).toBe(false)
+    native.resolve(undefined)
+    expect(await outcome).toBeUndefined()
+    expect(stages).toContain('run prepare:packages')
+    expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+    expect(writeFileSync).not.toHaveBeenCalled()
+  } finally {
+    vendor.resolve(undefined)
+    native.resolve(undefined)
+    await outcome
+  }
+})
+
+it.each(['vendor', 'native'] as const)('drains independent unsigned Windows pack work after %s fails, blocking assembly', async (failed) => {
+  const { run, stages } = supervisor()
+  const vendor = Promise.withResolvers<undefined>()
+  const native = Promise.withResolvers<undefined>()
+  const error = new Error(failed + ' pack failed')
+  let settled = false
+  run.run.mockImplementation(async (stage) => {
+    stages.push(stage)
+    if (stage.startsWith('run release:pack --family vendor ')) await vendor.promise
+    if (stage === '--dir native/system run build:ts') await native.promise
+  })
+  const operation = packageTarget(parseDesktopPackageInvocation(['win-x64', '--unsigned', '--dir'], 'win32', 'x64'), environment, run).then(
+    () => { settled = true; return undefined },
+    (reason: unknown) => { settled = true; return reason },
+  )
+  try {
+    await vi.waitFor(() => {
+      expect(stages.some(stage => stage.startsWith('run release:pack --family vendor '))).toBe(true)
+      expect(stages).toContain('--dir native/system run build:ts')
+    })
+    ;(failed === 'vendor' ? vendor : native).reject(error)
+    await setImmediate()
+    expect(settled).toBe(false)
+    expect(stages.some(stage => stage.startsWith('run prepare:packages'))).toBe(false)
+    ;(failed === 'vendor' ? native : vendor).resolve(undefined)
+    expect(await operation).toBe(error)
+    expect(stages.some(stage => stage.startsWith('run prepare:packages') || stage.startsWith('run prepare:dsh'))).toBe(false)
+    expect(stages.some(stage => stage.startsWith('exec electron-builder'))).toBe(false)
+    expect(writeFileSync).not.toHaveBeenCalled()
+  } finally {
+    vendor.resolve(undefined)
+    native.resolve(undefined)
+    await operation
+  }
+})
+
+it('preserves sequential vendor then native staging for signed Windows releases', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)
+  const vendorIndex = stages.findIndex(stage => stage.startsWith('run release:pack --family vendor '))
+  const nativeIndex = stages.indexOf('--dir native/system run build:ts')
+  expect(vendorIndex).toBeGreaterThan(-1)
+  expect(nativeIndex).toBeGreaterThan(vendorIndex)
+  expect(stages).toContain('run sign:primary-runtime --dsh')
+})
+
 it.each([undefined, '3'])('passes the package cache and selected compression to their subprocesses (%s)', async (level) => {
   const { run } = supervisor()
   const cache = resolve('fixture-package-cache')
