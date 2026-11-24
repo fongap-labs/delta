@@ -1,5 +1,6 @@
 /** Static Delta source and product-policy gate; it never installs or executes project code. */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -114,6 +115,18 @@ for (const marker of ["join(outputRoot, 'App')", "join(outputRoot, 'Data')", "jo
   if (!portablePackager.includes(marker)) {
     throw new Error(`delta-verify: portable packager is missing ${marker}`)
   }
+}
+
+// Audit the complete immutable base tree in the existing isolated Linux CI.
+if (process.platform === 'linux' && process.env.CI === 'true'
+  && process.env.TARGET_PRIVATE === 'false' && process.env.CENTRAL_CI_AW_ROOT
+  && process.env.CENTRAL_CI_BASE_SHA) {
+  const audit = spawnSync('python3', [
+    join(root, 'scripts', 'delta-source-privacy-audit.py'), root,
+    process.env.CENTRAL_CI_BASE_SHA,
+    join(process.env.CENTRAL_CI_AW_ROOT, 'policies', 'security.json'),
+  ], { stdio: 'inherit', timeout: 240000 })
+  if (audit.status !== 0) throw new Error('delta-verify: source privacy inventory did not complete')
 }
 
 process.stdout.write('Delta static source and portable-product checks passed.\n')
