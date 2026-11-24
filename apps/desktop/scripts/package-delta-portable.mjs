@@ -15,6 +15,10 @@ const appOutput = join(outputRoot, 'App')
 const dataOutput = join(outputRoot, 'Data')
 const otherOutput = join(outputRoot, 'Other')
 const packageJson = JSON.parse(readFileSync(join(appRoot, 'package.json'), 'utf8'))
+const releaseVersion = process.env.DELTA_RELEASE_VERSION
+if (releaseVersion !== undefined && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-beta\.[1-9]\d*)?$/.test(releaseVersion)) {
+  throw new Error('Invalid Delta release version')
+}
 const node = process.execPath
 const tsx = resolve(repositoryRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs')
 const pnpm = resolve(repositoryRoot, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
@@ -97,7 +101,7 @@ cpSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), join(otherO
 cpSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), join(otherOutput, 'THIRD_PARTY_NOTICES.md'))
 writeFileSync(join(otherOutput, 'VERSION.json'), `${JSON.stringify({
   product: 'Delta',
-  version: packageJson.version,
+  version: releaseVersion ?? packageJson.version,
   harnessSource: process.env.DELTA_HARNESS_SHA ?? '4b399c39a6d1479cd84ca591b4d7c88e24d38a96',
   platform: 'win32-x64',
   electron: JSON.parse(readFileSync(join(appRoot, 'node_modules', 'electron', 'package.json'), 'utf8')).version,

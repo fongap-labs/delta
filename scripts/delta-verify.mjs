@@ -90,6 +90,22 @@ for (const path of [
   requireFile(path, path)
 }
 
+const releaseManifest = JSON.parse(readFileSync(requireFile('.github/release.manifest.json', 'release manifest'), 'utf8'))
+const [releaseBuild] = releaseManifest.builds ?? []
+if (releaseManifest.schema_version !== 1
+  || releaseManifest.target_repository !== 'fongap-labs/delta'
+  || releaseManifest.builds.length !== 1
+  || releaseBuild.runner_profile !== 'windows-build'
+  || releaseBuild.target !== 'x86_64-pc-windows-msvc'
+  || releaseBuild.assets?.join(',') !== 'Delta-win-x64.zip'
+  || releaseBuild.attest_asset !== 'Delta-win-x64.zip') {
+  throw new Error('delta-verify: invalid Windows x64 release contract')
+}
+for (const path of [releaseManifest.node_version_file, releaseBuild.script, releaseBuild.acceptance_script]) {
+  if (typeof path !== 'string' || !path) throw new Error('delta-verify: incomplete release contract')
+  requireFile(path, path)
+}
+
 const portablePackager = readFileSync(join(root, 'apps/desktop/scripts/package-delta-portable.mjs'), 'utf8')
 for (const marker of ["join(outputRoot, 'App')", "join(outputRoot, 'Data')", "join(outputRoot, 'Other')",
   "'Other/THIRD_PARTY_NOTICES.md'", "'Other/LICENSE'"]) {
