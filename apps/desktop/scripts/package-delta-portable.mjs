@@ -72,14 +72,12 @@ if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
     throw new Error('delta portable: requested runtime reuse, but prepared runtime inputs are incomplete')
   }
   run('pack Delta runtime packages', ['apps/desktop/scripts/pack-local-packages.ts', '--out', paths.packedDsh], repositoryRoot)
-  runPnpm('pack Delta worktree plugin', ['--dir', 'packages/delta/worktree', 'pack', '--pack-destination', paths.packedDsh], repositoryRoot)
-  runPnpm('pack Delta Forge plugin', ['--dir', 'packages/delta/forge', 'pack', '--pack-destination', paths.packedDsh], repositoryRoot)
-  runPnpm('pack desktop host', ['--dir', 'apps/desktop-host', 'pack', '--pack-destination', paths.packedDsh], repositoryRoot)
   run('pack bundled vendor packages', ['scripts/release/pack.ts', '--family', 'vendor', '--out', paths.packedVendor], repositoryRoot)
+  rmSync(paths.packedLandlock, { recursive: true, force: true })
   mkdirSync(paths.packedLandlock, { recursive: true })
   runPnpm('build native package metadata', ['--dir', 'native/system', 'run', 'build:ts'], repositoryRoot)
   runPnpm('pack native entry package', ['--dir', 'native/system/packages/entry', 'pack', '--pack-destination', paths.packedLandlock], repositoryRoot)
-  run('assemble production package set', ['apps/desktop/scripts/prepare-package-set.ts'], repositoryRoot)
+  run('assemble production package set', ['apps/desktop/scripts/prepare-package-set.ts', '--pack-missing'], repositoryRoot)
   run('prepare application runtime', ['apps/desktop/scripts/prepare-dsh.ts'], repositoryRoot)
   const builder = spawnSync(node, [resolve(appRoot, 'node_modules', 'electron-builder', 'cli.js'), '--config',
     'delta-electron-builder.config.mjs', '--win', '--x64', '--dir'], {

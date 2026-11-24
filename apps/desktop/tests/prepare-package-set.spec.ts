@@ -7,6 +7,7 @@ import { DESKTOP_HOST_RUNTIME_FILES, DESKTOP_PACKAGES_DIR } from '../src/core-pa
 import {
   assertDesktopHostPackageFiles,
   prepareDesktopPackageSet,
+  planMissingDesktopPacks,
   selectDesktopPackageClosure,
   type PackedDesktopPackage,
 } from '../scripts/prepare-package-set.ts'
@@ -161,4 +162,28 @@ it('copies no macOS tarball into the Windows package set', () => {
   prepareDesktopPackageSet([inputs], output, { platform: 'darwin', arch: 'arm64' })
   expect(readFileSync(join(output, DESKTOP_PACKAGES_DIR, 'dsh-cua-macos.tgz')))
     .toEqual(readFileSync(join(inputs, 'dsh-cua-macos.tgz')))
+})
+
+it('plans all missing Delta runtime plugins and the private Desktop Host from the actual workspace', () => {
+  const plan = planMissingDesktopPacks(new Map(), { platform: 'win32', arch: 'x64' })
+  const names = plan.map(entry => entry.manifest.name)
+  for (const name of ['@deepseek-ai/dsh-desktop-host', '@delta/browser-use', '@delta/computer-use',
+    '@delta/forge', '@delta/liveshare', '@delta/worktree']) expect(names).toContain(name)
+  expect(names).not.toContain('@deepseek-ai/node-addon-system-darwin-arm64')
+  expect(names).not.toContain('@deepseek-ai/node-addon-system-linux-x64')
+})
+
+it('automatically discovers a new transitive private package and aggregates missing required edges', () => {
+  const cli = packed('@deepseek-ai/dsh', { dependencies: { '@delta/new-plugin': '1.0.0', '@delta/other': '1.0.0' } })
+  const host = packed('@deepseek-ai/dsh-desktop-host')
+  const available = new Map([[String(cli.manifest.name), cli], [String(host.manifest.name), host]])
+  const workspace = new Map([
+    ['@delta/new-plugin', { directory: 'plugin', manifest: { name: '@delta/new-plugin', dependencies: { '@delta/helper': 'workspace:*' } } }],
+    ['@delta/helper', { directory: 'helper', manifest: { name: '@delta/helper' } }],
+    ['@delta/other', { directory: 'other', manifest: { name: '@delta/other' } }],
+  ])
+  const target = { platform: 'win32', arch: 'x64' } as const
+  expect(planMissingDesktopPacks(available, target, workspace).map(entry => entry.manifest.name))
+    .toEqual(['@delta/helper', '@delta/new-plugin', '@delta/other'])
+  expect(() => selectDesktopPackageClosure(available, target, workspace)).toThrow(/new-plugin.*other/u)
 })
