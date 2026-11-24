@@ -80,6 +80,8 @@ for (const path of [
   'packages/delta/worktree/package.json',
   'apps/desktop/portable-launcher.mjs',
   'apps/desktop/scripts/package-delta-portable.mjs',
+  'docs/delta/portable/README.md',
+  'docs/delta/portable/UPGRADE.md',
   'apps/desktop/resources/delta-brand/delta.ico',
   'apps/desktop/resources/delta-brand/delta-logo-256x256.png',
   'apps/desktop/resources/delta-brand/delta-logo-512x512.png',
