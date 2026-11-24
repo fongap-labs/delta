@@ -46,8 +46,8 @@ it('preserves built-in order, groups, icons, command identities, and captured ac
   const views = menu.source.getSnapshot()
   expect(views.map(({ id, label, icon, commandId, separatorBefore, afterContent }) =>
     [id, label, icon !== undefined, commandId, separatorBefore, afterContent])).toEqual([
-    ['session.pin/pin', 'Pin session', true, undefined, undefined, undefined],
     ['session.rename/rename', 'Rename', true, 'session.rename', undefined, undefined],
+    ['session.pin/pin', 'Pin session', true, undefined, undefined, undefined],
     ['session.read-state/mark', 'Mark as unread', true, 'session.toggleRead', undefined, undefined],
     ['session.fork/fork', 'Fork session', true, 'session.fork', undefined, undefined],
     ['session.id/copy', 'Copy Session ID', true, undefined, true, undefined],
@@ -63,7 +63,7 @@ it('preserves built-in order, groups, icons, command identities, and captured ac
   expect(b.actions.archiveSession).toHaveBeenCalledWith('background')
   const unpin = b.open()
   b.list.set({ ...b.list.getSnapshot(), pinnedSessionIds: [b.target.value.sessionId] })
-  expect(unpin.source.getSnapshot()[0]).toMatchObject({ label: 'Unpin session' })
+  expect(unpin.source.getSnapshot().find(item => item.id === 'session.pin/pin')).toMatchObject({ label: 'Unpin session' })
   unpin.select('session.pin/pin')
   expect(b.actions.unpinSession).toHaveBeenCalledWith('background')
   const restore = b.open()

@@ -96,7 +96,7 @@ function runPowerShell(input, signal, { spawnImpl = spawn, powerShellPath = defa
   if (process.platform !== 'win32') return Promise.reject(new Error('Delta CUA is available on Windows only'))
   return (async () => {
     signal.throwIfAborted()
-    const script = await (scriptLoader ?? (() => readFile(new URL('../src/powershell.ps1', import.meta.url), 'utf8')))()
+    const script = await (scriptLoader ?? (() => readFile(new URL('../src/delta-cua-provider.ps1', import.meta.url), 'utf8')))()
     signal.throwIfAborted()
     const encoded = Buffer.from(script, 'utf16le').toString('base64')
     return new Promise((resolve, reject) => {

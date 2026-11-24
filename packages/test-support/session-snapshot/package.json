@@ -1,0 +1,30 @@
+{
+  "name": "@deepseek-ai/dsh-session-snapshot",
+  "description": "Delta internal test support for recorded session fixtures",
+  "version": "0.2.3-alpha.2",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/dsh-http-proxy": "workspace:*",
+    "@deepseek-ai/dsh-llm-replay": "workspace:*",
+    "@deepseek-ai/dsh-loader-smoke": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-format": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
+    "js-yaml": "^4.3.2",
+    "vitest": "^4.1.11"
+  }
+}

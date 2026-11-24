@@ -95,6 +95,9 @@
       "path": "../terminal-controller/tsconfig.client.json"
     },
     {
+      "path": "../../delta/liveshare/tsconfig.host.json"
+    },
+    {
       "path": "../../boot/plugin-manager"
     },
     {

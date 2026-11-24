@@ -314,6 +314,10 @@
       name: '@delta/forge'
       disabled: true
 
+    # LiveShare has no background network activity until the owner creates a link.
+    - id: delta-liveshare
+      name: '@delta/liveshare'
+
     # Delta's visible browser is isolated per session and asks before every operation.
     - id: browser-use
       name: '@deepseek-ai/dsh-browser-use'

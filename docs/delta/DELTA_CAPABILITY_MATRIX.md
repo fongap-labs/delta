@@ -22,13 +22,13 @@ Windows x64 便携版，发行根目录包含 `App/`、`Data/`、`Other/`。Delt
 
 | 能力 | 简要用途 | 已确认的处理方向 | 需核查 |
 |---|---|---|---|
-| CUA | 在授权下观察和操作本机应用窗口、键盘和鼠标 | Delta 自有 Windows provider 已加入源码并默认关闭 | Node 定向检查通过；需验证 Windows 实机授权、屏幕截图、键鼠操作、拒绝与取消 |
-| 浏览器操作 | 观察和操作网页 | Delta 自有 Playwright provider 已加入源码并默认关闭 | Node 定向检查通过；需验证 Edge/Chrome 实际启动、网页读取与操作、权限和资源清理 |
-| Forge | 与 GitHub/GitLab 代码托管平台交互 | 保留 | 非实验来源或自研；验证 GitHub、GitLab 接入和认证 |
-| Worktree | 为会话使用独立 Git 工作目录 | 保留 | 非实验来源或自研；验证创建、切换、隔离和清理 |
-| LiveShare | 分享会话并管理访问范围 | 保留；首版采用用户自托管 HTTPS/WSS Relay，默认只读，链接限时且可撤销；Delta 实现尚未完成 | 验证服务部署、分享创建、只读访问、越权拒绝、撤销、到期、断线和服务故障 |
+| CUA | 在授权下观察和操作本机应用窗口、键盘和鼠标 | Delta 自有 Windows provider 已加入源码并默认关闭 | 中央 Node 回归 6 项通过；需验证 Windows 实机授权、屏幕截图、键鼠操作、拒绝与取消 |
+| 浏览器操作 | 观察和操作网页 | Delta 自有 Playwright provider 已加入源码并默认关闭 | 中央 Node 回归 8 项通过；需验证 Edge/Chrome 实际启动、网页读取与操作、权限和资源清理 |
+| Forge | 与 GitHub/GitLab 代码托管平台交互 | Delta 自有 GitHub/GitLab 适配、命令和智能体工具已保留 | 中央回归 14 项通过；验证私有 GitHub、GitLab 实例接入、认证和桌面操作 |
+| Worktree | 为会话使用独立 Git 工作目录 | Delta 自有 Git worktree 和会话命令已加入源码 | 中央回归 9 项通过；验证配置默认关闭、菜单及会话文案、创建/切换、并发、隔离和清理 |
+| LiveShare | 分享会话并管理访问范围 | Delta 自有 Relay、Host 和客户端分享实现已加入源码；分享只读、限时且可撤销；Relay 回归检查通过 | 中央 Node 回归 12 项通过；验证 Windows Desktop 与用户自托管 HTTPS/WSS Relay 的真实端到端部署、分享、越权拒绝、撤销、到期、断线和故障 |
 
-产品能力继续保留，但不直接吸收 Harness 处于实验状态的功能实现。上游固定版本中，这五项的部分实现或提供方属于实验范围；Delta 自有 CUA 和浏览器 provider 已通过模拟服务单元检查，未完成 Windows/Edge/Chrome 实机验收。LiveShare 当前仍无实现。用户自托管 Relay 会接触经其转发的会话数据；必须避免保存正文和请求体日志，并在分享前明确告知。不得通过重命名上游实验代码规避要求，也不能在真实验收前声称功能已可用。默认关闭或由用户主动启用。
+产品能力继续保留，但不直接吸收 Harness 处于实验状态的功能实现。上游固定版本中，这五项的部分实现或提供方属于实验范围；49 项回归检查已迁入 Action Worker 中央测试包（42 项 Node 检查、7 项 Vitest 集成检查），本地均通过。中央测试包 CI 尚待最新 Delta 提交重新运行。Windows/Edge/Chrome 实机、私有 Forge 账号和 LiveShare 真实 Relay 端到端验收仍未完成。用户自托管 Relay 会接触经其转发的会话数据；必须避免保存正文和请求体日志，并在分享前明确告知。不得通过重命名上游实验代码规避要求，也不能在真实验收前声称功能已可用。默认关闭或由用户主动启用。
 
 ## 范围与证据
 

@@ -49,7 +49,7 @@ export function registerSessionMenus(ctx: Context, actions: Actions): void {
       run: () => { (pinned ? actions.unpinSession : actions.pinSession)(target.sessionId) },
     }]
   })
-  register('rename', 200, ['session/rename'], target => allowed(target, 'session/rename') ? [{
+  register('rename', 50, ['session/rename'], target => allowed(target, 'session/rename') ? [{
     id: 'rename', label: t('rename'), icon: { key: 'workspace.rename' }, commandId: 'session.rename' as ShortcutCommandId,
     run: () => { actions.requestSessionRename(target.sessionId, target.displayTitle) },
   }] : [])

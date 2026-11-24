@@ -28,18 +28,17 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     const names = catalog.flatMap(entry => entry.schemas.map(s => s.name)).sort()
     expect(names).toEqual([
       'apply_patch', 'ask_user_question', 'bash', 'bash', 'cordis_inspect',
-      'create_goal', 'edit', 'enter_worktree', 'exit_plan_mode', 'exit_worktree', 'get_goal', 'glob', 'grep',
+      'create_goal', 'edit', 'exit_plan_mode', 'get_goal', 'glob', 'grep',
       'interrupt_agent', 'job_kill', 'job_list', 'job_output',
       'list_agents', 'list_mcp_resource_templates', 'list_mcp_resources', 'list_session',
-      'list_subagent_models', 'list_workspace', 'load_workspace_dependencies', 'lsp', 'office_convert', 'office_recalculate', 'office_render', 'plugin_manager', 'plugin_market', 'present', 'pwsh', 'pwsh', 'ralph',
+      'list_subagent_models', 'list_workspace', 'load_workspace_dependencies', 'office_convert', 'office_recalculate', 'office_render', 'plugin_manager', 'plugin_market', 'present', 'pwsh', 'pwsh',
       'read', 'read_image', 'read_mcp_resource', 'run_code', 'schedule_create', 'schedule_edit',
-      'schedule_list', 'schedule_view', 'send_message', 'session_event_read', 'session_event_search',
-      'session_event_trace', 'session_search', 'session_send_message', 'session_trace', 'skill',
-      'stagehand_act', 'stagehand_extract', 'stagehand_navigate', 'stagehand_observe', 'stagehand_screenshot', 'stagehand_tabs',
-      'str_replace_editor', 'subagent', 'subagent_oar', 'team_task_create',
-      'team_task_get', 'team_task_list', 'team_task_update', 'terminal_close', 'terminal_list',
-      'terminal_open', 'terminal_read', 'terminal_send', 'terminal_signal', 'todo_write',
-      'update_goal', 'user_terminal_list', 'user_terminal_read', 'wait_agent', 'web_fetch', 'web_search', 'workflow',
+      'schedule_list', 'schedule_view', 'send_message',
+      'session_send_message', 'skill',
+      'str_replace_editor', 'subagent', 'team_task_create',
+      'team_task_get', 'team_task_list', 'team_task_update',
+      'todo_write',
+      'update_goal', 'wait_agent', 'web_fetch', 'web_search', 'workflow',
       'write',
     ])
     // Every tool carries a JSON-Schema `parameters` object (what the model sees).
@@ -48,11 +47,10 @@ describe('gen-tool-catalog collectToolCatalog', () => {
         expect((schema.parameters as unknown as JsonSchema).type).toBe('object')
       }
     }
-    const worktree = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-experimental-tool-worktree')
-    expect(worktree?.sources.enter_worktree).toBe('packages/experimental/tool-worktree/src/index.ts')
-    const parameters = worktree?.schemas.find(schema => schema.name === 'enter_worktree')?.parameters
-    expect(parameters).toHaveProperty('properties.name.type', 'string')
-    expect(parameters?.required ?? []).not.toContain('name')
+    expect(catalog.some(entry => entry.pkg.includes('/dsh-experimental-'))).toBe(false)
+    for (const excluded of ['enter_worktree', 'terminal_send', 'stagehand_navigate', 'session_search', 'subagent_oar']) {
+      expect(names).not.toContain(excluded)
+    }
   })
 
   it('resolves a runtime-spread enum to its literal members (the payoff over AST)', async () => {

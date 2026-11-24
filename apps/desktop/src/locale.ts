@@ -197,6 +197,12 @@ export const en = {
 /** Every Desktop locale supplies the complete English key set. */
 export type DesktopMessages = { readonly [Key in keyof typeof en]: string }
 
+/** Locale payload exposed to the Desktop-owned renderer and native windows. */
+export interface DesktopLocale {
+  readonly id: 'en' | 'zh-CN'
+  readonly messages: DesktopMessages
+}
+
 export const zh = {
   cliCommandMenu: '管理 dsh 命令…',
   cliCommandTitle: '管理 dsh 命令',

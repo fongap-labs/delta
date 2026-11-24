@@ -42,4 +42,8 @@ Relay 是受信任的传输边界，不能代替 Host 授权。Host 必须按当
 5. 会话数据、分享令牌、Owner 凭据不会进入 Relay 正文日志、Delta 日志、崩溃报告、URL 查询参数或遥测。
 6. 在真实 Windows x64 Delta Desktop 与独立 Relay 间完成创建、分享、查看、拒绝、撤销、到期和断线恢复验收。
 
-服务方向已确认，但 Relay Owner 凭据初始化/轮换界面、具体 Relay API、应用内分享界面、Host 授权集成和真实端到端测试仍属于未完成工作。完成这些工作前不得把 LiveShare 标为已实现或首版可用。
+## 当前实现与未完成验收
+
+Delta 已实现独立 HTTPS/WSS Relay 服务、Owner 管理接口、短期查看凭据、摘要化状态持久化、Host 到 Relay 的 TLS 连接、按会话绑定的 `session/follow` 授权、只投影用户/助手纯文本的客户端分享界面、Owner 凭据管理和链接撤销。Relay 不保存会话正文，Viewer 不接触模型密钥、工具或其他会话。中央 Action Worker 测试包对注册表、HTTPS/WSS 转发、令牌摘要、TTL、撤销和会话投影执行了 12 项回归检查。
+
+这些检查不等同于首版验收。仍需在 Windows x64 Delta Desktop 和用户实际部署的 HTTPS/WSS Relay 之间完成配置、创建链接、浏览器查看、权限拒绝、撤销、到期、网络中断恢复及 Relay 停止等端到端验证；还需验证随包行为和干净环境安装。未通过前，不得把 LiveShare 或 Delta 首版标记为可发布。

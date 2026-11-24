@@ -314,7 +314,20 @@
     "scripts/*.client.spec.ts",
     "scripts/client-bundle-css.spec.ts",
     "packages/typert/generator/tests/fixtures/**",
-    "scripts/client-bundle-purity.spec.ts"
+    "scripts/client-bundle-purity.spec.ts",
+    // Harness tooling outside Delta's imported product source; its owning website,
+    // benchmark, session-query snapshot, and SSH source trees are not in this checkout.
+    "scripts/project-doc-site.ts",
+    "scripts/project-doc-site.spec.ts",
+    "scripts/verify-doc-site-fragments.ts",
+    "scripts/verify-doc-site-fragments.spec.ts",
+    "scripts/render-benchmark-report.ts",
+    "scripts/render-benchmark-report.spec.ts",
+    "scripts/session-query-spill-command.spec.ts",
+    "scripts/build-exe-for-ssh-helper.ts",
+    "scripts/ssh-helper/probe.ts",
+    "scripts/stage-dsh-docs.ts",
+    "scripts/stage-dsh-docs.spec.ts"
   ],
   "references": [
     { "path": "./packages/interaction/action-cards" },
@@ -439,6 +452,7 @@
     { "path": "./packages/delta/forge" },
     { "path": "./packages/delta/browser-use" },
     { "path": "./packages/delta/computer-use" },
+    { "path": "./packages/delta/liveshare/tsconfig.host.json" },
     { "path": "./packages/session-query/tool-session-list" },
     { "path": "./packages/session/session-title-llm" },
     { "path": "./packages/session/session-title-first-prompt-llm" },
@@ -537,6 +551,7 @@
     { "path": "./packages/boot/app-boot" },
     { "path": "./packages/boot/cmdline" },
     { "path": "./packages/sdk/server" },
+    { "path": "./packages/test-support/session-snapshot" },
     { "path": "./packages/test-support/llm-replay" },
     { "path": "./packages/typert/generator" },
     { "path": "./packages/test-support/loader-smoke" },

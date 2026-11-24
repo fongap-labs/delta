@@ -1,5 +1,5 @@
 /** Static Delta source and product-policy gate; it never installs or executes project code. */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -36,6 +36,26 @@ if (lock.schemaVersion !== 1
 
 if (existsSync(join(root, 'packages', 'experimental'))) {
   throw new Error('delta-verify: Harness experimental package tree must not be shipped')
+}
+
+const workspaceManifests = [
+  'package.json',
+  ...readdirSync(join(root, 'apps'), { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => join('apps', entry.name, 'package.json')),
+  ...readdirSync(join(root, 'packages'), { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(group => readdirSync(join(root, 'packages', group.name), { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => join('packages', group.name, entry.name, 'package.json'))),
+  ...readdirSync(join(root, 'vendor'), { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => join('vendor', entry.name, 'package.json')),
+].filter(path => existsSync(join(root, path)))
+for (const path of workspaceManifests) {
+  if (readFileSync(join(root, path), 'utf8').includes('@deepseek-ai/dsh-experimental-')) {
+    throw new Error(`delta-verify: upstream experimental package referenced by workspace manifest: ${path}`)
+  }
 }
 
 const corePatch = readFileSync(requireFile('packages/bundle/base/cordis.patch.yml', 'base profile patch'), 'utf8')

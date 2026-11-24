@@ -1,7 +1,7 @@
 /** Agent-facing, one-shot-approved read access to GitHub and GitLab change requests. */
 import { validateChangeRequest } from './index.mjs'
-import en from '../locale/en.json' with { type: 'json' }
-import zh from '../locale/zh.json' with { type: 'json' }
+import en from './locale/en.json' with { type: 'json' }
+import zh from './locale/zh.json' with { type: 'json' }
 
 function deniedStatus(outcome) {
   if (outcome === 'cancelled') return 'cancelled'

@@ -1,5 +1,5 @@
 {
   "extends": "../../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "lib/types", "allowJs": true, "checkJs": false },
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types", "allowJs": true, "checkJs": false, "resolveJsonModule": true },
   "include": ["src"]
 }

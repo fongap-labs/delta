@@ -78,12 +78,12 @@ it.each(['dsh-app://shell/plugin-manager.html', 'dsh-app://other/index.html', 'h
   expect(electron.ipcRenderer.on.mock.calls.some(([channel]) => channel === DESKTOP_IPC.browserOpenRequested)).toBe(false)
 })
 
-it('reads the local machine description only from the application main frame', async () => {
-  const description = 'platform=darwin; os=15.6; app_arch=arm64; cpu=Apple M4; memory_gib=32.0'
+it('exposes the application API only to the trusted main frame', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/index.html'))
-  electron.ipcRenderer.invoke.mockResolvedValue(description)
   await import('../src/preload-app.ts')
   const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  expect(api).toHaveProperty('browser')
+  expect(api).toHaveProperty('updates')
   vi.resetModules()
   electron.contextBridge.exposeInMainWorld.mockClear()
   vi.stubGlobal('process', { ...process, isMainFrame: false })

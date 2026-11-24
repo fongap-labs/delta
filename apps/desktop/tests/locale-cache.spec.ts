@@ -23,15 +23,6 @@ it('uses the confirmed Chinese language for recovery before Host settings are av
   expect(readDesktopLocaleCache(directory)).toBe('en')
 })
 
-it('uses the confirmed Japanese language for recovery before Host settings are available', () => {
-  const directory = fixture()
-  writeDesktopLocaleCache(directory, 'ja')
-  const cached = readDesktopLocaleCache(directory)
-  const locale = cached === undefined ? resolveDesktopStartupLocale(null, ['en-US']) : resolveDesktopLocale(cached)
-  expect(locale.id).toBe('ja')
-  expect(locale.messages.getDiagnosticReport).toBe('診断レポートを取得')
-})
-
 it.each(SHIPPED_LOCALE_IDS)('restores the confirmed shipped language %s before Host settings are available', (id) => {
   const directory = fixture()
   const selected = resolveDesktopLocale(id)

@@ -98,6 +98,7 @@
     { "path": "./packages/api/remote-access/tsconfig.client.json" },
     { "path": "./packages/api/workspace-controller/tsconfig.client.json" },
     { "path": "./packages/api/remotes/tsconfig.client.json" },
+    { "path": "./packages/delta/liveshare/tsconfig.client.json" },
     { "path": "./packages/extensions/cordis-client-runner" },
     { "path": "./packages/extensions/ui-cordis" },
     { "path": "./packages/test-support/client-runtime" },
