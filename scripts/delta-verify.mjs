@@ -122,7 +122,7 @@ if (process.platform === 'linux' && process.env.CI === 'true'
   && process.env.TARGET_PRIVATE === 'false' && process.env.CENTRAL_CI_AW_ROOT
   && process.env.CENTRAL_CI_BASE_SHA) {
   const audit = spawnSync('python3', [
-    join(root, 'scripts', 'delta-source-privacy-audit.py'), root,
+    join(root, 'scripts', 'source-privacy-audit.py'), root,
     process.env.CENTRAL_CI_BASE_SHA,
     join(process.env.CENTRAL_CI_AW_ROOT, 'policies', 'security.json'),
   ], { stdio: 'inherit', timeout: 240000 })
