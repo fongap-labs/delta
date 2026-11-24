@@ -5,8 +5,7 @@
 // events — with ZERO model calls in replay (no replay fixture; a stray stream
 // fails loud on the open llm seam). The cold session also carries keyless
 // command-row surfaces: the seeded manual `/compact` lifecycle folds into its
-// checkpoint, an Access-chip pick later runs `/permission` on the host, and
-// `/feedback` pins its expandable correlation ids. The seed is a recorded
+// checkpoint, an Access-chip pick later runs `/permission` on the host. The seed is a recorded
 // fixture under the same record discipline as every other: DSH_SNAPSHOT=record drives the turn
 // live through the composer (real read tool against seeded workspace files)
 // and harvests session.v3.jsonl; replay/refresh seed it cold and only render.
@@ -51,7 +50,6 @@ const UI_EXPANDED_EXPECTED = fileURLToPath(
 const THINKING_EXPECTED = join(SNAPSHOT_DIR, 'thinking-expanded.expected.md')
 // Command-row goldens over the same conversation after direct host commands.
 const COMMAND_ROW_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/seeded-history/command-row.expected.md', import.meta.url))
-const FEEDBACK_ROW_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/seeded-history/feedback-row.expected.md', import.meta.url))
 const FILE_PREVIEW_EXPECTED = join(SNAPSHOT_DIR, 'file-preview.expected.md')
 const CHECKPOINT_SIDEBAR_EXPECTED = join(SNAPSHOT_DIR, 'checkpoint-sidebar.expected.md')
 const CHECKPOINT_TITLE = 'Context summary'
@@ -628,47 +626,6 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await compareOrRefreshGolden(COMMAND_ROW_EXPECTED, snapshot, MODE)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('reports full feedback correlation ids in an expandable two-line row', async () => {
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-feedback-row'))
-    const previousDshHome = process.env.DSH_HOME
-    process.env.DSH_HOME = scaffold.harnessHome
-    try {
-      const input = page.locator('[data-composer-input]').first()
-      await input.fill('/feedback the diff view is unreadable')
-      await input.press('Enter')
-      const row = page.locator('[data-variant="others"]').filter({
-        hasText: `Feedback recorded for session ${SEED_ID}`,
-      })
-      await row.waitFor({ timeout: 10_000 })
-      const disclosure = row.locator('[data-expandable]')
-      expect(await disclosure.getAttribute('aria-expanded')).toBe('false')
-      await disclosure.click()
-      await expect.poll(() => disclosure.getAttribute('aria-expanded')).toBe('true')
-
-      const agent = scaffold.ctx.agents.get(brandString<SessionId>(SEED_ID))
-      if (agent === undefined) throw new Error('seeded session did not attach an agent')
-      const done = agent.session.snapshotEvents().filter(event => event.type === 'command/done').at(-1)
-      if (done?.type !== 'command/done') throw new Error('feedback command did not settle')
-      const [sessionLine, userLine, extraLine] = done.data.text?.split('\n') ?? []
-      expect(sessionLine).toBe(`Feedback recorded for session ${SEED_ID}`)
-      expect(userLine).toMatch(/^Anonymous user: [0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.$/i)
-      expect(extraLine).toBeUndefined()
-      const userId = userLine?.match(/^Anonymous user: ([0-9a-f-]+)/i)?.[1]
-      if (userId === undefined) throw new Error('feedback command omitted the user id')
-
-      // command/done can arrive before the submit reply releases the composer.
-      await expect.poll(() => input.textContent(), { timeout: 10_000 }).toBe('')
-      await expect.poll(() => page.getByRole('button', { name: 'Add files or run commands' }).isEnabled(), { timeout: 10_000 }).toBe(true)
-      const snapshot = (await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd))
-        .split(SEED_ID).join('{{seededId}}')
-        .split(userId).join('{{userId}}')
-      await compareOrRefreshGolden(FEEDBACK_ROW_EXPECTED, snapshot, MODE)
-    } finally {
-      if (previousDshHome === undefined) delete process.env.DSH_HOME
-      else process.env.DSH_HOME = previousDshHome
-    }
-  }, 60_000)
-
   it.skipIf(MODE === 'record')('shows short injected context as a collapsed Context row without dropping the event', async () => {
     const agent = scaffold.ctx.agents.get(brandString<SessionId>(SEED_ID))
     if (agent === undefined) throw new Error('seeded session did not attach an agent')
@@ -886,7 +843,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(REASONING_EXPECTED_DIR, ['blank-reasoning.expected.md'])
     await assertFixtureInventory(SNAPSHOT_DIR, [
-      'command-row.expected.md', 'feedback-row.expected.md', 'file-preview.expected.md',
+      'command-row.expected.md', 'file-preview.expected.md',
       'automatic-compaction-running.expected.md', 'automatic-compaction-completed.expected.md', 'checkpoint-sidebar.expected.md', 'session.v3.jsonl', 'thinking-expanded.expected.md',
       'ui.expected.md', 'ui-expanded.expected.md',
     ])

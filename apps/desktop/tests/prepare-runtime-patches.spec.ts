@@ -43,8 +43,7 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   const before = readFileSync(join(repository, 'pnpm-lock.yaml'))
   const plan = prepareRuntimePatches(project, repository)
   expect(plan.patches.map(entry => entry.spec)).toEqual(['@earendil-works/pi-ai@1.3.0', 'node-pty@1.2.0-beta.15'])
-  expect(plan.workspaceOnly).toHaveLength(10)
-  expect(plan.workspaceOnly).toContain('@botiverse/oar')
+  expect(plan.workspaceOnly).toHaveLength(9)
   expect(plan.workspaceOnly).toContain('lexical')
   const settings = yaml.load(readFileSync(join(project, 'pnpm-workspace.yaml'), 'utf8')) as { overrides: Record<string, string> }
   expect(settings.overrides['@earendil-works/pi-ai']).toBeUndefined()
@@ -54,11 +53,11 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
     patchedDependencies: Object.fromEntries(plan.patches.map(entry => [entry.spec, entry.hash])),
     packages: {
       ...Object.fromEntries(plan.patches.map(entry => [entry.spec, {}])),
-      '@botiverse/oar@0.67.0': {},
+      'lexical@0.49.0': {},
     },
   }))
   expect(() => { verifyRuntimePatches(project, plan) })
-    .toThrow('workspace-only dependency entered the runtime: @botiverse/oar@0.67.0')
+    .toThrow('workspace-only dependency entered the runtime: lexical@0.49.0')
 })
 
 it('does not infer version overrides from selected patches', () => {

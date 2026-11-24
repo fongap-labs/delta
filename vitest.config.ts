@@ -32,13 +32,8 @@ const windowsUnsupportedPackages = process.platform === 'win32'
       'packages/shell/bash-local',
       'packages/shell/bash-sandbox',
       'packages/shell/tool-bash',
-      'packages/experimental/hook-protocol',
-      'packages/experimental/hooks-claude-code',
-      'packages/experimental/hooks-codex',
       'packages/terminal/terminal-bash',
       'packages/sandbox/sandbox-local',
-      // OpenSSH multiplexing and Unix-socket helper streams require POSIX endpoints.
-      'packages/ssh/*',
     ]
   : []
 
@@ -50,30 +45,10 @@ const windowsUnsupportedTests = process.platform === 'win32'
       'packages/subprocess/subprocess-local/tests/process-inspector.spec.ts',
       'packages/subprocess/subprocess-local/tests/spawn.spec.ts',
       'packages/subprocess/subprocess-local/tests/terminal.spec.ts',
-      // Oracle-diff suites: they compare the worker's POSIX path/url faces
-      // against the host Node's own answers, which are win32 semantics on
-      // Windows. The worker always speaks POSIX; the Linux lanes hold the diff.
-      'packages/experimental/webworker-runtime/tests/node/path-diff.spec.ts',
-      'packages/experimental/webworker-runtime/tests/node/shim-diff.spec.ts',
-      // The subprocess ladder over the worker's child_process face: its kill
-      // rung reaches the in-worker process table through `process.kill`,
-      // which the ladder's win32 branch replaces with taskkill-by-real-pid —
-      // undeliverable to a table pid. The worker host always reports 'linux',
-      // so the Linux lanes hold the ladder.
-      'packages/experimental/webworker-runtime/tests/node/child-process.spec.ts',
     ]
   : []
 
-// These suites compare against or assemble the Worker's fixed Linux platform.
-// Host-native Windows and macOS behavior is not their oracle.
-const nonLinuxWebWorkerTests = process.platform === 'linux'
-  ? []
-  : [
-      'packages/experimental/webworker-runtime/tests/node/fs-watch-stream.spec.ts',
-      'packages/experimental/webworker-runtime/tests/node/sandbox-stack.spec.ts',
-    ]
-
-const platformUnsupportedTests = [...windowsUnsupportedTests, ...nonLinuxWebWorkerTests]
+const platformUnsupportedTests = windowsUnsupportedTests
 
 const windowsUnsupportedCoveragePackages = process.platform === 'win32'
   ? [...windowsUnsupportedPackages, 'packages/subprocess/*']
@@ -108,18 +83,6 @@ const windowsRunnerCoverageExclusions = process.platform === 'win32'
       // Windows suite through the real backend.
       'packages/session/session-persistence-jsonl/src/lease.ts',
       'packages/session/session-persistence-sqlite/src/lease.ts',
-      // The macOS provider transport uses Unix sockets; POSIX lanes cover its real socket lifecycle.
-      'packages/experimental/cua-macos/src/shared-native.ts',
-      // The GitHub CLI runner's suite stands in for `gh` with POSIX shell
-      // scripts and skips on Windows: the Linux and macOS lanes hold its
-      // per-file 100%, while the provider suite pins its callers everywhere.
-      'packages/experimental/forge-github/src/gh.ts',
-      // The GitLab CLI runner's suite does the same with a POSIX `glab` stand-in.
-      'packages/experimental/forge-gitlab/src/glab.ts',
-      // The panel's Git failure and environment cases stand in for `git` with
-      // POSIX shell scripts and skip on Windows: the Linux and macOS lanes hold
-      // its per-file 100%, while its real-Git cases run everywhere.
-      'packages/experimental/client-ui-forge/src/git.ts',
     ]
   : []
 
@@ -329,33 +292,6 @@ export default defineConfig({
         'packages/client/ui-layout/src/*',
         'packages/client/web/src/*',
         'packages/host/webserver/src/*',
-        // The browser-worker runtime and its image packer: the executing
-        // composition is a real dedicated Worker driven by the web browser lane
-        // (apps/web/tests/preview-boot.e2e.ts), which unit-process V8 coverage
-        // cannot observe. Unit specs cover the algorithmic cores; the assembled
-        // evidence is that boot. TODO(webworker): revisit when a browser-grade
-        // coverage lane exists.
-        'packages/experimental/webworker-runtime/src/**',
-        'packages/experimental/webworker-packer/src/*',
-        // Inspector execution adapters run in a Node Worker, the Host native
-        // inspector session, or a browser realm, outside attributable parent
-        // Vitest coverage.
-        'packages/experimental/inspector/src/client/**',
-        'packages/experimental/inspector/src/host/bridge/**',
-        'packages/experimental/inspector/src/host/cdp/**',
-        'packages/experimental/inspector/src/worker/bridge/**',
-        'packages/experimental/inspector/src/worker/cdp/**',
-        'packages/experimental/inspector/src/worker/realms/**',
-        'packages/experimental/inspector/src/worker/{entry,server}.ts',
-        // Keep already-complete Inspector modules under the per-file gate and
-        // enumerate the remaining direct-test debt instead of exempting src/**.
-        // TODO(inspector): close these branch gaps and remove the entries.
-        'packages/experimental/inspector/src/shared/bridge/{control-codec,rpc}.ts',
-        'packages/experimental/inspector/src/shared/bridge/messages/observation.ts',
-        'packages/experimental/inspector/src/shared/bridge/messages/query/codec.ts',
-        'packages/experimental/inspector/src/shared/bridge/messages/runtime/{command-codec,console-frames,frames,value-codec}.ts',
-        'packages/experimental/inspector/src/shared/bridge/messages/sources/{codec,frames}.ts',
-        'packages/experimental/inspector/src/worker/inspection/{cordis-store,query-router,realm-store}.ts',
         // Web config-tree boot round: the new host-side web-transport halves
         // whose remaining branches need real-composition/process harnesses.
         // TODO(gui): cover and remove with the client test lane above.
@@ -372,21 +308,9 @@ export default defineConfig({
         // The Team browser entry binds its source-covered mount lifecycle to
         // the generated Team Remote contribution, which likewise exists only in lib.
         'packages/client/ui-agent-team/src/client/index.ts',
-        // The speech entry also imports generated Remote definitions; voice-input.e2e.ts
-        // exercises the built entry, while source tests cover mountVoiceInput.
-        'packages/experimental/client-ui-voice-input/src/client/index.ts',
-        // The permission entry binds generated Remote code; cua-permissions.e2e.ts covers
-        // its built entry, while source tests exercise mountCuaPermissions and its UI.
-        'packages/experimental/cua/src/client/index.ts',
-        // The mods band entry imports the bridge's generated Remote contribution, which exists only in lib;
-        // the Web snapshot exercises the built entry, while source tests cover mountModsBand.
-        'packages/experimental/client-ui-claude-code-mods/src/client/index.ts',
         // The access entry imports its generated Remote contribution, which exists only in lib;
         // the Web snapshot exercises the built entry, while source tests cover mountAccess.
         'packages/api/remote-access/src/client/index.ts',
-        // The forge panel entry imports its generated Remote contribution, which exists only in lib;
-        // forge-panel.e2e.ts exercises the built entry, while source tests cover mountForgePanel.
-        'packages/experimental/client-ui-forge/src/client/index.ts',
         // Slash/command/input round: per-file gaps deferred with the same
         // client-lane debt. TODO(gui): cover and remove with the lane above.
         'packages/client/ui-commands/src/index.ts',
@@ -418,10 +342,6 @@ export default defineConfig({
         // Typert correctness is checked by its uninstrumented suites,
         // including compiler fixtures and byte-for-byte catalog reproduction.
         'packages/typert/*/src/**/*.{ts,tsx}',
-        // Experimental webworker-runtime is outside the coverage requirement
-        // by decision: its correctness signal is its uninstrumented suite and
-        // the packer's end-to-end image spec.
-        'packages/experimental/webworker-runtime/src/**/*.ts',
         // Command executor lifecycle branches need the same maturing lanes.
         // TODO(gui): cover and remove with the client test lane above.
         'packages/interaction/commands/src/index.ts',

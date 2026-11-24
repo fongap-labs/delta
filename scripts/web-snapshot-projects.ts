@@ -74,7 +74,6 @@ export const WEB_SNAPSHOT_SLICE_ENV = 'DSH_WEB_SNAPSHOT_SLICE'
  * wall time when they run whole in one worker; each count must be at least two.
  */
 export const WEB_SNAPSHOT_SLICE_COUNTS: Readonly<Record<string, number>> = {
-  'apps/web/tests/forge-panel.e2e.ts': 4,
   'apps/web/tests/fold-blank-matrix.e2e.ts': 3,
   'apps/web/tests/document-preview.e2e.ts': 2,
   'apps/web/tests/chat-scroll-contract.e2e.ts': 2,

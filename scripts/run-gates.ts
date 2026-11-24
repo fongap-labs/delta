@@ -556,7 +556,6 @@ function ciStaticGates(options: { ownsBuild: boolean }): Gate[] {
           docTypecheckScript: 'doc-typecheck:contracts-ready',
         }
         : {},
-      docsBuildScript: 'docs:build:mpa',
     }),
     pnpmScript('module-graph', 'verify-module-graph', { label: 'module graph' }),
   ]
@@ -718,7 +717,6 @@ function webSnapshotGate(needs: string[], after?: string[]): Gate {
 function ciWindowsBlockingGates(): Gate[] {
   return [
     ciBuildGate('windows-build', { label: 'build' }),
-    pnpmScript('windows-site', 'docs:build', { label: 'production site' }),
   ]
 }
 
@@ -742,7 +740,6 @@ function ciWindowsCompleteGates(): Gate[] {
     }))
   return [
     ciBuildGate(),
-    pnpmScript('windows-site', 'docs:build', { label: 'production site' }),
     ...coverage,
     ...observational,
   ]
@@ -985,17 +982,14 @@ function docSyncLeafGates(options: {
   docTypecheckNeeds?: string[]
   docTypecheckEnv?: Record<string, string | undefined>
   docTypecheckScript?: 'doc-typecheck' | 'doc-typecheck:contracts-ready'
-  docsBuildScript?: 'docs:build' | 'docs:build:mpa'
 } = {}): Gate[] {
   const docTypecheckOptions: Partial<Gate> = {}
   if (options.docTypecheckNeeds !== undefined) docTypecheckOptions.needs = options.docTypecheckNeeds
   if (options.docTypecheckEnv !== undefined) docTypecheckOptions.env = options.docTypecheckEnv
   return [
-    // Stable FIFO starts the longest leaves first; only docs-site-build writes website/.generated.
     ...options.includeDocTypecheck === false
       ? []
       : [pnpmScript('doc-typecheck', options.docTypecheckScript ?? 'doc-typecheck', docTypecheckOptions)],
-    pnpmScript('docs-site-build', options.docsBuildScript ?? 'docs:build', { label: 'documentation build' }),
     pnpmScript('doc-graphs', 'verify-doc-graphs', { label: 'doc graphs' }),
     pnpmScript('cli-help', 'verify-cli-help', {
       label: 'CLI help reference',
@@ -1012,7 +1006,6 @@ function docSyncLeafGates(options: {
     pnpmScript('markdown-wrap', 'verify-md-wrap', { label: 'markdown wrap', quick: true }),
     pnpmScript('client-catalog', 'verify-client-catalog', { label: 'client catalog' }),
     pnpmScript('export-jsdoc', 'verify-export-jsdoc', { label: 'export jsdoc' }),
-    pnpmScript('tool-catalog', 'verify-tool-catalog', { label: 'tool catalog' }),
     pnpmScript('config-catalog', 'verify-config-catalog', { label: 'config catalog' }),
     pnpmScript('plugin-packages', 'verify-plugin-packages', { label: 'skill plugin package list' }),
     pnpmScript('dependency-catalog', 'verify-dependency-catalog', { label: 'npm dependency catalog', quick: true }),
@@ -1041,16 +1034,6 @@ function docSyncLeafGates(options: {
     pnpmExec('doc-standard-tests', ['vitest', 'run', 'scripts/doc-standard.spec.ts'], {
       label: 'documentation standard tests',
       quick: true,
-    }),
-    pnpmExec('docs-site-projection', [
-      'vitest', 'run', 'scripts/project-doc-site.spec.ts', 'scripts/verify-doc-site-fragments.spec.ts',
-      'website/tests/mermaid-viewer.spec.ts',
-      'website/tests/image-viewer.spec.ts',
-      'website/tests/code-groups.spec.ts',
-      'website/tests/table-filter.spec.ts',
-      'website/tests/page-markdown-actions.spec.ts', 'website/tests/raw-markdown.spec.ts',
-    ], {
-      label: 'documentation site checks',
     }),
     pnpmScript('package-readme-limitations', 'verify-package-readme-limitations', { label: 'package README limitations', quick: true }),
   ]

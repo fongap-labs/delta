@@ -612,10 +612,6 @@
       "path": "apps/desktop-host/package.json"
     },
     {
-      "name": "@deepseek-ai/dsh-desktop-publisher",
-      "path": "apps/desktop-publisher/package.json"
-    },
-    {
       "name": "@deepseek-ai/dsh-error",
       "path": "packages/util/error/package.json"
     },

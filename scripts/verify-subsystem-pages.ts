@@ -16,6 +16,7 @@ const root = resolve(import.meta.dirname, '..')
  */
 export const GROUPS_WITHOUT_SUBSYSTEM_PAGE: Readonly<Record<string, string>> = {
   acp: 'Protocol transport entry point; the server package README owns its interoperability contract.',
+  delta: 'Delta-owned capability packages whose package READMEs own their contracts; no upstream subsystem page exists.',
   bundle: 'Composition patch carriers whose mounted packages own all runtime contracts.',
   sdk: 'Out-of-process protocol and client packages whose package READMEs own the SDK contracts.',
   'test-support': 'Repository test harnesses; docs/testing.md owns the testing policy they serve.',

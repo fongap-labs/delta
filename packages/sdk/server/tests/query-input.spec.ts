@@ -8,7 +8,6 @@ const commands: readonly CommandDescriptor[] = [
   { name: 'plan', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-plan-mode'), description: 'Plan', input: { hint: 'Task' } },
   { name: 'goal', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-command-goal'), description: 'Goal', input: { hint: 'Goal' } },
   { name: 'permission', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-permission-presets'), description: 'Permission', input: { hint: 'Preset' } },
-  { name: 'feedback', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-command-feedback'), description: 'Feedback', input: { hint: 'Feedback' } },
   { name: 'export', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-session-log-export'), description: 'Export' },
 ]
 
