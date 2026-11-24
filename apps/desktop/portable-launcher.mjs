@@ -28,4 +28,9 @@ process.env.DSH_HOME = paths.home
 process.env.DSH_CLIENT_TITLE = 'Delta'
 if (process.platform === 'win32') app.setAppUserModelId('org.fongap.delta')
 
-await import('./lib/main.js')
+if (app.isPackaged && process.argv.slice(1).join(' ') === '--version') {
+  console.log(app.getVersion())
+  app.exit(0)
+} else {
+  await import('./lib/main.js')
+}
