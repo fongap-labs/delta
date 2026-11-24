@@ -217,8 +217,8 @@ export const zh: Record<TaskManagerKey, string> = {
   'host.frequency.monthly': '每月',
   'host.frequency.advanced': '自定义',
 
-  'panel': '自动化任务',
-  'title': '自动化任务',
+  'panel': '定时任务',
+  'title': '定时任务',
   'new.action': '新建',
   'list.label': '任务列表',
   'list.nextPrefix': '下次计划时间：',

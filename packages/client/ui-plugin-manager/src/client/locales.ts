@@ -7,12 +7,12 @@ export const INSTALL_PATH_EXAMPLE = '/Users/name/my-plugin'
 
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
-  panel: '插件',
+  panel: '插件管理',
   settingsEntry: '插件管理',
   clientSyncing: '正在同步本页面的插件…',
   clientSyncFailed: '本页面的插件未能完成同步；服务端的启用状态保持不变。',
   clientSyncRetry: '重试本页面同步',
-  title: '插件',
+  title: '插件管理',
   intro: '安装、启用和配置插件',
   infoLabel: '插件说明',
   infoDescription: '在这里配置官方插件，安装、管理和配置其他插件。',
