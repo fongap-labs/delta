@@ -15,6 +15,19 @@
           "capability_requests": [
             "source.read"
           ]
+        },
+        {
+          "id": "windows",
+          "runner_profile": "windows-standard",
+          "command": [
+            "pwsh",
+            "-File",
+            "{central_root}/tests/packs/delta/windows-desktop-ci.ps1"
+          ],
+          "timeout_minutes": 90,
+          "capability_requests": [
+            "source.read"
+          ]
         }
       ]
     }
