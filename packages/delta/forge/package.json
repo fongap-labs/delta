@@ -1,0 +1,15 @@
+{
+  "name": "@delta/forge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": { ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" }, "./package.json": "./package.json" },
+  "files": ["lib/index.js", "lib/types/index.d.ts", "lib/types/index.d.mts", "lib/types/command.d.mts", "README.md"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-user-approval": "workspace:*"
+  }
+}

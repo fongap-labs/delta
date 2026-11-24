@@ -1,0 +1,64 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/preset/persona/README.md
+/:
+  en: fca2b93080507b37
+  zh: 0a8c803deedc0731
+/deepseek-ai-dsh-persona:
+  en: 743695093b8a920e
+  zh: 3784b6641780bd27
+/deepseek-ai-dsh-persona/summary:
+  en: d0c75ff01fb017e4
+  zh: 0b38aa28d9be6ccc
+/deepseek-ai-dsh-persona/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-persona/use-this-package:
+  en: 6404ae1637a12294
+  zh: f0c482174d45fef3
+/deepseek-ai-dsh-persona/use-this-package/configuration:
+  en: 0aef6d00c1a39266
+  zh: 56f7258bc18cd584
+/deepseek-ai-dsh-persona/use-this-package/persona-behavior:
+  en: 65e877d875449c5f
+  zh: 364b952825d2b6d9
+/deepseek-ai-dsh-persona/use-this-package/when-to-use-it:
+  en: b07444ab57b3e37f
+  zh: cf04dd79385603d6
+/deepseek-ai-dsh-persona/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-persona/understand-the-implementation/how-the-row-registers:
+  en: 269c2cbf5ae2f8ad
+  zh: f9fe879e0cca4acf
+/deepseek-ai-dsh-persona/understand-the-implementation/how-overrides-compose:
+  en: 281db27acd893366
+  zh: 1bd040f55dbd9cdb
+/deepseek-ai-dsh-persona/understand-the-implementation/source-map:
+  en: 8c43d805ee2999a7
+  zh: d50c981e9e1db9dd
+/deepseek-ai-dsh-persona/further-exploration:
+  en: 83eeab77ab6594df
+  zh: b1ad5d560825db01
+/deepseek-ai-dsh-persona/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-persona/model-experience/the-persona-section:
+  en: 2b53c1d07ef68f24
+  zh: 33a3c17ab56adf57
+/deepseek-ai-dsh-persona/model-experience/the-persona-section/what-the-model-sees:
+  en: 4236e11cd32c85f0
+  zh: 8f2661ce11f10f9c
+/deepseek-ai-dsh-persona/model-experience/the-persona-section/token-effect:
+  en: cf1571583243999b
+  zh: 9ef9e43233d6f5d8
+/deepseek-ai-dsh-persona/model-experience/the-persona-section/kv-cache-effect:
+  en: 420a69e2e445a878
+  zh: d4b104d01066dfe1
+/deepseek-ai-dsh-persona/known-limitations-and-deferred-work:
+  en: 7ddd1309757ce8a8
+  zh: 9ad789161f72047a
+/deepseek-ai-dsh-persona/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98
