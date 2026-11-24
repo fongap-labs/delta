@@ -64,8 +64,6 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
 export interface HeroShellProps {
   /** The owner's locale seat, passed down as a plain prop. */
   t: HeroTranslate
-  /** Authorized renderer for the hero brand-mark slot. */
-  renderSlot: ConversationContentProps['renderSlot']
   /** Text shown instead of the default headline and preview badge. */
   headline?: string | undefined
   /** Overlay content after the stack (modals). */
