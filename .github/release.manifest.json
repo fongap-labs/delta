@@ -14,8 +14,8 @@
       "id": "windows-x64",
       "runner_profile": "windows-build",
       "target": "x86_64-pc-windows-msvc",
-      "script": "scripts/build-delta-release.ps1",
-      "acceptance_script": "scripts/verify-delta-release.mjs",
+      "script": "apps/desktop/scripts/build-delta-release.ps1",
+      "acceptance_script": "apps/desktop/scripts/verify-delta-release.mjs",
       "setup_rust": true,
       "assets": [
         "Delta-win-x64.zip"

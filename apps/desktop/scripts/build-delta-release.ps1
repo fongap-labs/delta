@@ -11,7 +11,7 @@ if ($Target -ne 'x86_64-pc-windows-msvc' -or $env:PROCESSOR_ARCHITECTURE -ne 'AM
 if ($Version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-beta\.[1-9]\d*)?$') {
   throw 'Invalid Delta release version.'
 }
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $output = [IO.Path]::GetFullPath($OutputDir)
 $stage = Join-Path ([IO.Path]::GetFullPath((Join-Path $root '../../outputs'))) ("Delta-release-" + [guid]::NewGuid().ToString('N'))
 $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'
