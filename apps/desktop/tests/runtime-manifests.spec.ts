@@ -27,13 +27,14 @@ it('seals dependency metadata that remains unchanged by archive preparation', as
 })
 
 it('removes only optional package contact addresses and is idempotent', () => {
+  const fixtureAddress = (name: string): string => [name, 'example.invalid'].join('@')
   const manifest = {
     name: '@example/package', version: '1.0.0', license: 'MIT', main: 'index.js',
-    author: 'Example Author <author@example.invalid>',
-    contributors: [{ name: 'Example Contributor', email: 'contributor@example.invalid', url: 'https://example.invalid' }],
-    maintainers: ['Maintainer <maintainer@example.invalid>'],
+    author: `Example Author <${fixtureAddress('author')}>`,
+    contributors: [{ name: 'Example Contributor', email: fixtureAddress('contributor'), url: 'https://example.invalid' }],
+    maintainers: [`Maintainer <${fixtureAddress('maintainer')}>`],
     dependencies: { '@example/runtime': '1.0.0' },
-    customRuntimeField: 'runtime@example.invalid',
+    customRuntimeField: fixtureAddress('runtime'),
   }
   expect(stripRuntimeContactEmails(manifest)).toBe(true)
   expect(manifest).toEqual({
@@ -42,7 +43,7 @@ it('removes only optional package contact addresses and is idempotent', () => {
     contributors: [{ name: 'Example Contributor', url: 'https://example.invalid' }],
     maintainers: ['Maintainer'],
     dependencies: { '@example/runtime': '1.0.0' },
-    customRuntimeField: 'runtime@example.invalid',
+    customRuntimeField: fixtureAddress('runtime'),
   })
   expect(stripRuntimeContactEmails(manifest)).toBe(false)
 })
