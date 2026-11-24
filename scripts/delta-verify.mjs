@@ -53,7 +53,14 @@ const workspaceManifests = [
     .map(entry => join('vendor', entry.name, 'package.json')),
 ].filter(path => existsSync(join(root, path)))
 for (const path of workspaceManifests) {
-  if (readFileSync(join(root, path), 'utf8').includes('@deepseek-ai/dsh-experimental-')) {
+  const source = readFileSync(join(root, path), 'utf8')
+  if (path.split(/[\\/]/u)[0] === 'vendor') {
+    const { author } = JSON.parse(source)
+    if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u.test(JSON.stringify(author ?? ''))) {
+      throw new Error('delta-verify: vendor author metadata must not contain email addresses')
+    }
+  }
+  if (source.includes('@deepseek-ai/dsh-experimental-')) {
     throw new Error(`delta-verify: upstream experimental package referenced by workspace manifest: ${path}`)
   }
 }
