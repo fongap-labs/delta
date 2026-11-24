@@ -1,0 +1,88 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/core/system-prompt/README.md
+/:
+  en: 51d99b2500db958f
+  zh: 91f2b113ba7989fd
+/deepseek-ai-dsh-system-prompt:
+  en: e1cfb1611662e8ab
+  zh: 5476f22f8ffe923a
+/deepseek-ai-dsh-system-prompt/summary:
+  en: 9534c24925ff0568
+  zh: 7ea6594dfcc2fb8d
+/deepseek-ai-dsh-system-prompt/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-system-prompt/use-this-package:
+  en: 0d20e2eb48aa3d68
+  zh: a7c2fa714ba1011d
+/deepseek-ai-dsh-system-prompt/use-this-package/configure-the-prompt:
+  en: 850c183346fc46eb
+  zh: 2e44d71e13af55a3
+/deepseek-ai-dsh-system-prompt/use-this-package/contribute-a-prompt-section:
+  en: 76ba449c70ec3e04
+  zh: 734f5a882229b51d
+/deepseek-ai-dsh-system-prompt/use-this-package/contribute-a-prompt-variable:
+  en: b3e4c9b4ced59488
+  zh: d80c791e72bd5821
+/deepseek-ai-dsh-system-prompt/use-this-package/contribute-tool-schemas:
+  en: 009ef267dac2f270
+  zh: e79c24bff5cd836f
+/deepseek-ai-dsh-system-prompt/use-this-package/suppress-runtime-context:
+  en: a664608a3b37f8d7
+  zh: d6dd60772f4d72b8
+/deepseek-ai-dsh-system-prompt/understand-the-implementation:
+  en: ce7e776e9d516bdb
+  zh: 59d2751743db7795
+/deepseek-ai-dsh-system-prompt/understand-the-implementation/design-concept:
+  en: c91963b89a866fed
+  zh: ef9ef4940145778f
+/deepseek-ai-dsh-system-prompt/understand-the-implementation/source-map:
+  en: b6137db955fa60b1
+  zh: fe9aa6ce2caa3461
+/deepseek-ai-dsh-system-prompt/understand-the-implementation/assembly-and-rendering:
+  en: a2042ef08e45337e
+  zh: 0e5dc1118ed3f5b6
+/deepseek-ai-dsh-system-prompt/understand-the-implementation/scoping:
+  en: 0a06d7f96d3098cb
+  zh: d34698ba2d95542b
+/deepseek-ai-dsh-system-prompt/further-exploration:
+  en: 108d1b4cca466bc7
+  zh: e1275966f83c14f9
+/deepseek-ai-dsh-system-prompt/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-system-prompt/model-experience/system-prompt:
+  en: cf78b9dd5596495f
+  zh: bd44560f8c2435e8
+/deepseek-ai-dsh-system-prompt/model-experience/system-prompt/what-the-model-sees:
+  en: c49684e6e91eabc4
+  zh: 422b359f07067803
+/deepseek-ai-dsh-system-prompt/model-experience/system-prompt/what-the-model-sees/harness-identity:
+  en: 40effd71cb503319
+  zh: 9969356237a4f398
+/deepseek-ai-dsh-system-prompt/model-experience/system-prompt/token-effect:
+  en: 3ac0b13bbde8a090
+  zh: 3036d6d3495d1270
+/deepseek-ai-dsh-system-prompt/model-experience/system-prompt/kv-cache-effect:
+  en: 4a3825cd79d6c834
+  zh: df427d4ead72fb59
+/deepseek-ai-dsh-system-prompt/model-experience/tool-schemas:
+  en: 3039bc5e7a796b21
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-system-prompt/model-experience/tool-schemas/what-the-model-sees:
+  en: b3bf090cda036432
+  zh: 9c4cf3742c8cd88f
+/deepseek-ai-dsh-system-prompt/model-experience/tool-schemas/token-effect:
+  en: f3a7d374c55e1720
+  zh: 0ee48af678cb875f
+/deepseek-ai-dsh-system-prompt/model-experience/tool-schemas/kv-cache-effect:
+  en: ebd329e360f0d143
+  zh: 9d67fe503a6a095a
+/deepseek-ai-dsh-system-prompt/known-limitations-and-deferred-work:
+  en: ff3aad2a7ca161fc
+  zh: c055ba905d9a6995
+/deepseek-ai-dsh-system-prompt/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

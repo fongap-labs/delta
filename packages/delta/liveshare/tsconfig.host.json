@@ -1,0 +1,18 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
+  },
+  "include": ["src/index.ts", "src/types.ts", "src/session-public-projection.ts"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../api/remote-access/tsconfig.host.json" },
+    { "path": "../../api/session-controller/tsconfig.host.json" },
+    { "path": "../../credentials/credentials" },
+    { "path": "../../core/session" },
+    { "path": "../../typert/protocol" }
+  ]
+}

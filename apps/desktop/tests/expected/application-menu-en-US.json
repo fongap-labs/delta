@@ -1,0 +1,52 @@
+[
+  {
+    "label": "About Delta",
+    "role": "about"
+  },
+  {
+    "type": "separator"
+  },
+  {
+    "id": "dsh-settings-open",
+    "label": "Settings…",
+    "enabled": false
+  },
+  {
+    "type": "separator"
+  },
+  {
+    "label": "Check for Updates…"
+  },
+  {
+    "label": "Manage dsh Command…"
+  },
+  {
+    "type": "separator"
+  },
+  {
+    "role": "toggleDevTools",
+    "label": "Developer tools"
+  },
+  {
+    "type": "separator"
+  },
+  {
+    "role": "hide",
+    "label": "Hide Delta"
+  },
+  {
+    "role": "hideOthers",
+    "label": "Hide Others"
+  },
+  {
+    "role": "unhide",
+    "label": "Show All"
+  },
+  {
+    "type": "separator"
+  },
+  {
+    "role": "quit",
+    "label": "Quit Delta"
+  }
+]

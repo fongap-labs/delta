@@ -1,0 +1,18 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../attachment/attachment" },
+    { "path": "../../computer-use/computer-use" },
+    { "path": "../../interaction/user-approval" },
+    { "path": "../../core/system-prompt" },
+    { "path": "../../core/tools" }
+  ]
+}

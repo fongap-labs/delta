@@ -1,0 +1,54 @@
+{
+  "darwin:en-US": {
+    "menu": [
+      { "label": "About Delta", "role": "about" },
+      { "type": "separator" }
+    ],
+    "options": {
+      "applicationName": "Delta",
+      "applicationVersion": "1.0.0",
+      "version": "",
+      "copyright": "",
+      "iconPath": "<app icon>"
+    }
+  },
+  "darwin:zh-CN": {
+    "menu": [
+      { "label": "关于 Delta", "role": "about" },
+      { "type": "separator" }
+    ],
+    "options": {
+      "applicationName": "Delta",
+      "applicationVersion": "1.0.0",
+      "version": "",
+      "copyright": "",
+      "iconPath": "<app icon>"
+    }
+  },
+  "win32:zh-CN": {
+    "menu": [
+      { "label": "关于 Delta" },
+      { "type": "separator" }
+    ],
+    "options": {
+      "applicationName": "Delta",
+      "applicationVersion": "1.0.0",
+      "version": "",
+      "copyright": "",
+      "iconPath": "<app icon>"
+    }
+  },
+  "win32:en-US": {
+    "menu": [
+      { "label": "About Delta" },
+      { "type": "separator" }
+    ],
+    "options": {
+      "applicationName": "Delta",
+      "applicationVersion": "1.0.0",
+      "version": "",
+      "copyright": "",
+      "iconPath": "<app icon>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness",
+    "ref": "master",
+    "commit": "4b399c39a6d1479cd84ca591b4d7c88e24d38a96",
+    "analysisDate": "2026-11-23"
+  },
+  "deltaImport": {
+    "baseCommit": "3effeb139e9af5198bfa5d380b1d3457caea4fcb",
+    "initialImportCommit": "9358e4914e9f17f9fcae16b52146079b0f86a63f",
+    "branch": "codex/delta-v1-source-import",
+    "candidateFileCount": 12807,
+    "allowedPackages": 334,
+    "excludedExperimentalPackages": 59,
+    "evidence": "docs/delta/DELTA_FIRST_IMPORT_BASELINE.md"
+  },
+  "acceptance": {
+    "sourceInventoryReviewed": false,
+    "portablePackageBuilt": false,
+    "realDesktopAcceptance": false,
+    "centralGovernancePassed": false
+  }
+}

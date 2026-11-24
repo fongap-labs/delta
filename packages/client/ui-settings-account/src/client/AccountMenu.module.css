@@ -1,0 +1,11 @@
+.root { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; }
+.root[data-wide='false'] { justify-content: center; padding: 0; }
+.identity { position: relative; display: flex; align-items: center; outline: none; }
+.avatar { display: flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border-radius: 50%; overflow: hidden; corner-shape: round; background: var(--dsw-alias-bg-skeleton); color: var(--dsw-alias-label-tertiary); }
+.actions { display: flex; align-items: center; gap: 4px; }
+.iconBtn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--dsw-radius-md); background: transparent; color: var(--dsw-alias-label-primary); cursor: pointer; }
+@media (hover: hover) { .iconBtn:hover { background-color: var(--dsw-alias-interactive-bg-hover); } }
+.card { display: none; position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 20; min-width: 160px; padding: 8px 12px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-primary); color: var(--dsw-alias-label-primary); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16); font-size: 13px; font-weight: 400; line-height: 20px; white-space: nowrap; }
+.identity:focus-visible .card { display: block; }
+@media (hover: hover) { .identity:hover .card { display: block; } }
+.cardRow { display: flex; justify-content: space-between; gap: 16px; font-weight: 400; }

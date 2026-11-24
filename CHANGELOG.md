@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- 新增: 增加用户自托管 HTTPS Relay 的限时、可撤销、只读 LiveShare。
+- 修复: 使启动、审批与会话结果文案按应用语言显示，并符合中央工程语言门禁。
+- 新增: 将经仓库外裁剪和 Delta 适配的 Harness 源码首次导入 `codex/delta-v1-source-import` 分支；首版实现与验收仍在进行中。
+- 维护: 增加 Delta 首版架构、能力范围、来源基线和裁剪记录；分别保留 Delta Apache-2.0 与 Harness MIT 许可文本。
+
+- 修复: 首版不再装配产品分析或会话反馈上传，DeepSeek 模型请求不附加会话历史字段。
+
 - 维护: 统一 Delta 智能体规范中的 Git 提交正文条款表述。
 
 - 修复: 为全新 Delta 主分支恢复与中央 Action Worker 一致的受控通知桥接，确保 PR 和主分支事件参与组织安全覆盖审计。

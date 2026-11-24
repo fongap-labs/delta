@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "title": "Delta Forge",
+    "description": "Read GitHub pull requests and GitLab merge requests with user approval."
+  },
+  "approval": {
+    "github": "Allow a read-only request for GitHub pull request {project} #{number}?",
+    "gitlab": "Allow a read-only request for GitLab merge request {project} #{number}?"
+  }
+}
