@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_name": "delta-release",
+  "target_repository": "fongap-labs/delta",
+  "release_key": "delta",
+  "release_name": "Delta",
+  "release_notes": "",
+  "license_expression": "Apache-2.0 AND MIT",
+  "node_version_file": ".node-version",
+  "python_version_file": "",
+  "sbom_asset": "delta-sbom.cdx.json",
+  "builds": [
+    {
+      "id": "windows-x64",
+      "runner_profile": "windows-build",
+      "target": "x86_64-pc-windows-msvc",
+      "script": "apps/desktop/scripts/build-delta-release.ps1",
+      "acceptance_script": "apps/desktop/scripts/verify-delta-release.mjs",
+      "setup_rust": true,
+      "assets": [
+        "Delta-win-x64.zip"
+      ],
+      "attest_asset": "Delta-win-x64.zip"
+    }
+  ]
+}

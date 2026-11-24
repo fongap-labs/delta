@@ -15,6 +15,10 @@ const repositoryRoot = join(appRoot, '..', '..')
 const paths = desktopTargetBuildPaths('win-x64')
 const product = JSON.parse(await (await import('node:fs/promises')).readFile(join(appRoot, 'package.json'), 'utf8'))
 const dshProduct = JSON.parse(await (await import('node:fs/promises')).readFile(join(repositoryRoot, 'package.json'), 'utf8'))
+const releaseVersion = process.env.DELTA_RELEASE_VERSION
+if (releaseVersion !== undefined && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-beta\.[1-9]\d*)?$/.test(releaseVersion)) {
+  throw new Error('Invalid Delta release version')
+}
 let windowsCode = []
 
 export default {
@@ -24,7 +28,7 @@ export default {
   extraMetadata: {
     main: 'portable-launcher.mjs',
     dshDesktopAppId: 'org.fongap.delta',
-    version: dshProduct.version,
+    version: releaseVersion ?? dshProduct.version,
   },
   artifactName: 'Delta-${version}-win-x64.${ext}',
   directories: { output: join(paths.root, 'delta-electron-builder') },

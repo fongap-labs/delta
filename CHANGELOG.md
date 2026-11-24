@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 补齐中央发布清单、Windows x64 便携构建与产物验收，确保发行版本与请求一致。
+
 - 新增: 增加用户自托管 HTTPS Relay 的限时、可撤销、只读 LiveShare。
 - 修复: 使启动、审批与会话结果文案按应用语言显示，并符合中央工程语言门禁。
 - 新增: 将经仓库外裁剪和 Delta 适配的 Harness 源码首次导入 `codex/delta-v1-source-import` 分支；首版实现与验收仍在进行中。
