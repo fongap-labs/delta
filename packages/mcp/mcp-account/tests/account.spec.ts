@@ -86,7 +86,7 @@ it('fills the section copy with the connector text and the shared line on where 
     title: 'Acme account', hint: text({ zh: '授权需要在运行 DSH 的这台电脑上的浏览器中完成。' }),
     activation: { title: 'Connect Acme?', body: 'The connector is on.', connect: 'Connect Acme' },
   })
-  expect(Object.keys(sectionCopy(COPY).hint)).toEqual(['en', 'zh', 'ja', 'es', 'fr', 'de', 'ru', 'pt'])
+  expect(Object.keys(sectionCopy(COPY).hint)).toEqual(['en', 'zh'])
 })
 
 it('publishes a running authorization as the operation and a finished one as the result', () => {

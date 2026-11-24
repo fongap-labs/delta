@@ -8,7 +8,7 @@
 - 源码基线：Harness `4b399c39a6d1479cd84ca591b4d7c88e24d38a96`；仓库外裁剪回放报告记录 334 个允许包、59 个 Harness 实验包排除，以及不应进入首版的其他包排除。
 - 源码复制统计：12,807 个候选文件、约 102.6 MB；未复制未处理 Harness 全量快照、Git 元数据、忽略的本地依赖和环境文件。确切候选范围以本分支提交为准。
 - 已导入 Delta 品牌资源、便携启动适配、语言适配、Worktree 与 Forge 自有模块，以及本目录中的治理资料。
-- 此分支不是可发布首版：未生成当前源码的发行包；CUA、浏览器操作和 LiveShare 的非实验实现与真实验收尚未完成；其他首版能力也须绑定最终提交完成完整验收。
+- 此分支不是可发布首版：按用户要求，本轮不生成本地发行包。Delta 自有 CUA 与浏览器操作模块已加入源码并默认关闭，定向单元检查通过；Windows 桌面实机验收、真实浏览器操作验收和 LiveShare 实现仍未完成，其他首版能力也须绑定最终提交完成完整验收。
 
 ## 文档索引
 
@@ -16,10 +16,12 @@
 - [首版开发计划](DELTA_V1_DEVELOPMENT_PLAN.md)：按阶段实施及完成条件。
 - [能力清单](DELTA_CAPABILITY_MATRIX.md)：首版保留能力和各项验证样例。
 - [五项功能来源评估](DELTA_FEATURE_SOURCES.md)：CUA、浏览器、Forge、Worktree、LiveShare 的实现状态与缺口。
+- [LiveShare 首版决策](DELTA_LIVESHARE_DECISION.md)：自托管 Relay、只读权限、限时链接和首版安全验收条件。
 - [实验实现排除说明](DELTA_EXPERIMENTAL_EXCLUSIONS.md)：解释“排除上游实验实现，不删除产品能力”。
 - [保留功能记录](DELTA_RETAINED_FEATURES.md)：对早期误写范围的纠正指引。
 - [首次导入基线](DELTA_FIRST_IMPORT_BASELINE.md)：分析基线、裁剪依据和此前发现。
 - [包清单](DELTA_PACKAGE_INVENTORY.json)：静态包盘点数据，不等于最终运行闭包或验收结论。
+- [上游锁定文件](../../upstream.lock.json)：记录官方源 SHA、导入基线和尚未通过的验收项。
 
 ## 证据边界
 

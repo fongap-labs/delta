@@ -8,6 +8,9 @@ export const LOCALE_SETTINGS_NAMESPACE = 'locale'
 /** Field carrying an explicit locale selection; absence delegates to the browser. */
 export const LOCALE_PREFERENCE_FIELD = 'preference'
 
+/** Selector value that clears the explicit language and follows the system. */
+export const SYSTEM_LOCALE_ID = 'system' as const
+
 /** Accepted BCP 47-style language ids. */
 export const LOCALE_ID_PATTERN = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/u
 

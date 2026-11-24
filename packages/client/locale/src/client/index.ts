@@ -17,7 +17,7 @@ import { parseLocaleBootstrap, type LocaleBootstrap, type LocaleBridge } from '.
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import {
-  LOCALE_ID_PATTERN, LOCALE_IDS, LOCALE_PREFERENCE_FIELD, LOCALE_SETTINGS_NAMESPACE,
+  LOCALE_ID_PATTERN, LOCALE_IDS, LOCALE_PREFERENCE_FIELD, LOCALE_SETTINGS_NAMESPACE, SYSTEM_LOCALE_ID,
   type BuiltInLocaleId, type LocaleId, type LocaleSettings,
 } from '../locale-settings.ts'
 import { en, zh, type CommonKey } from '../locales/index.ts'
@@ -28,6 +28,7 @@ import { createLanguageRowStore } from './settings-store.ts'
 
 export type { LanguageRowComponentProps, LanguageRowInjected } from './LanguageRow.tsx'
 export type { LanguageOptionRow, LanguageRowState } from './settings-store.ts'
+export { SYSTEM_LOCALE_ID } from '../locale-settings.ts'
 export type { CommonKey } from '../locales/index.ts'
 export type { BuiltInLocaleId, LocaleId, LocaleSettings } from '../locale-settings.ts'
 
@@ -204,6 +205,16 @@ export class LocaleRuntime {
   }
 
   /**
+   * Read the user's selection independently from the locale resolved for text.
+   * The `system` choice can resolve to Chinese or English while remaining
+   * visibly selected in the settings row.
+   * @returns an explicit preference, or the system-following sentinel.
+   */
+  getSelection(): LocaleId | typeof SYSTEM_LOCALE_ID {
+    return this.preference ?? SYSTEM_LOCALE_ID
+  }
+
+  /**
    * Resolve package text through the active language's declared fallback chain.
    * Plain strings stay verbatim; maps do not consult registered dictionaries.
    * @param text - package text whose locale keys are lowercase and include English.
@@ -251,10 +262,21 @@ export class LocaleRuntime {
    * @param id - a registered locale id; unknown ids throw.
    */
   setLocale(id: string): void {
+    if (id === SYSTEM_LOCALE_ID) {
+      const selectionChanged = this.preference !== undefined
+      this.preference = undefined
+      const active = this.resolveActive()
+      const localeChanged = active !== this.snapshot.active
+      if (localeChanged || selectionChanged) this.publish(active, localeChanged)
+      void this.host?.unset(LOCALE_PREFERENCE_FIELD)
+      return
+    }
     const match = this.catalog.get(localeKey(id))
     if (match === undefined) throw new Error(`locale "${id}" is not registered`)
+    const selectionChanged = this.getSelection() !== match.id
     this.preference = match.id
-    if (this.snapshot.active !== match.id) this.publish(match.id, true)
+    const localeChanged = this.snapshot.active !== match.id
+    if (localeChanged || selectionChanged) this.publish(match.id, localeChanged)
     void this.host?.set(LOCALE_PREFERENCE_FIELD, match.id)
   }
 
@@ -302,17 +324,18 @@ export class LocaleRuntime {
   private adopt(host: ConfigForm<LocaleSettings>): void {
     const section = host.getSnapshot().value
     if (section === undefined) return
+    const previousPreference = this.preference
     this.preference = section.preference
     const target = this.resolveActive()
-    if (this.snapshot.active === target) return
-    this.publish(target, true)
+    const localeChanged = this.snapshot.active !== target
+    if (localeChanged || previousPreference !== this.preference) this.publish(target, localeChanged)
   }
 
   /** Recompute browser fallback and publish the current catalog. */
   private publishCatalog(): void {
     this.fallbackChains.clear()
     const locales = this.localeList()
-    this.provisional = resolveInitialLocale(locales, this.bootstrap?.languages)
+    this.provisional = resolveInitialLocale(BUILT_IN_LOCALES, this.bootstrap?.languages)
     const active = this.resolveActive()
     this.publish(active, active !== this.snapshot.active, locales)
   }
@@ -594,8 +617,8 @@ export async function apply(ctx: ClientContext): Promise<void> {
     const snapshot = locale.getSnapshot()
     syncDocumentLanguage(snapshot)
     bound?.sync(
-      snapshot.active,
-      snapshot.locales.map(l => ({ id: l.id, label: l.label })),
+      locale.getSelection(),
+      BUILT_IN_LOCALES.map(l => ({ id: l.id, label: l.label })),
       snapshot.revision,
     )
   }

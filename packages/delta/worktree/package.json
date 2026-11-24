@@ -18,5 +18,5 @@
     "lib/types/**/*.d.mts",
     "README.md"
   ],
-  "license": "MIT"
+  "license": "Apache-2.0"
 }

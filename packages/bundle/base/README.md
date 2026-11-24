@@ -47,7 +47,7 @@ Run `dsh --profile my-profile "your task"` and you get a working agent with mode
 
 ### What you get
 
-Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, HTTP(S) fetch, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Web fetch runs without per-call approval and can reach loopback and private-network hosts. Feedback stays in the Session log. [OTel session upload](../../session/session-telemetry-otel/README.md) defaults to `FEEDBACK_ONLY` for all users, including `deepseek-official`: new text feedback, message ratings, edits, and withdrawals release the complete canonical prefix through that event, including context. Later records wait for the next explicit feedback; sending an authorized batch needs no further interaction or model call. `DISABLED` prevents OTel capture. The default-on [DeepSeek session-log contributor](../../session/session-log-deepseek/README.md) remains a separate request path.
+Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, HTTP(S) fetch, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Web fetch runs without per-call approval and can reach loopback and private-network hosts. Delta does not enable product analytics or attach Session history as a feedback field to model requests. Model requests still go to the provider you select.
 
 Both `subagent` and `subagent_fork` create managed children and return the child's name immediately. Use `send_message` to steer active children or continue their conversations after completion. [Delegation-tool behavior](../../subagent/tool-subagent/README.md) describes result delivery and backend capabilities.
 
@@ -111,10 +111,8 @@ The patch gates the two shell stacks by platform on its own rows: `bash-sandbox`
 Read these pages when you want to go deeper into profiles, the surfaces built on this core, or the exact composition.
 
 - [app-boot profile section](../../boot/app-boot/README.md) — how profiles are resolved, layered, and customized.
-- [Bundle package map](../README.md) — the surfaces built on this core.
 - [Generated composition graph](../../../apps/cli/composition.md) — the exact plugin set each shipped profile uses.
-- [Profile plugin bundles note](../../../.agents/notes/implemented/architecture/2026-08-05-profile-plugin-bundles.md) — the profile and bundle composition design.
-- [Codex and Claude Code provider bundles](../../subagent/README.md) — optional provider bundles you can install on top.
+- [Subagent package](../../subagent/subagent/README.md) — child-agent lifecycle, limits, and routing.
 
 -----
 

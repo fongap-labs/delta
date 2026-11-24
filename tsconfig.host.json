@@ -437,6 +437,8 @@
     { "path": "./packages/session/working-directory" },
     { "path": "./packages/delta/worktree" },
     { "path": "./packages/delta/forge" },
+    { "path": "./packages/delta/browser-use" },
+    { "path": "./packages/delta/computer-use" },
     { "path": "./packages/session-query/tool-session-list" },
     { "path": "./packages/session/session-title-llm" },
     { "path": "./packages/session/session-title-first-prompt-llm" },

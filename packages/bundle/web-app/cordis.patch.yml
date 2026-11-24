@@ -34,13 +34,6 @@
 # `dsh.client` rows are the browser roster the modules node half scans into
 # window.__DSH_BOOT__; the modules row is simultaneously a host row.
 - insert:
-    - id: product-analytics
-      name: '@deepseek-ai/dsh-client-product-analytics'
-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
-      config:
-        enabled: true
-        appVersion: !!js process.env.DSH_CLIENT_VERSION
-
     # Host-owned authorization sampled at Agent creation. The Plugins page
     # edits this settings namespace independently of the selected preset.
     - id: subagent-model-selection-settings

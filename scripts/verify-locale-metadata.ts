@@ -51,13 +51,17 @@ export function localeMetadataProblems(root: string): string[] {
       const description = en['meta.description']
       if (description !== undefined && !/[.!?]$/u.test(description)) problems.push(`${directory}/en.json: meta.description must end with sentence punctuation`)
       const expected = { ...zh, ...en }
+      const translations: [string, Record<string, string>][] = []
+      if (existsSync(join(root, directory, 'zh.json'))) translations.push(['zh', zh])
       for (const language of SHIPPED_LOCALE_IDS.filter(id => id !== 'en' && id !== 'zh')) {
-        const translated = read(language)
+        translations.push([language, read(language)])
+      }
+      for (const [language, translated] of translations) {
         for (const key of new Set([...Object.keys(expected), ...Object.keys(translated)])) {
           if (translated[key] === undefined) problems.push(`${directory}/${language}.json: missing ${key}`)
           else if (expected[key] === undefined) problems.push(`${directory}/${language}.json: unexpected ${key}`)
           else {
-            if (language !== 'ja' && key === 'meta.description' && ((zh[key] !== undefined && /\p{Script=Han}/u.test(zh[key]) && translated[key] === zh[key])
+            if (language !== 'zh' && key === 'meta.description' && ((zh[key] !== undefined && /\p{Script=Han}/u.test(zh[key]) && translated[key] === zh[key])
               || (en[key] !== undefined && translated[key] === en[key]))) {
               problems.push(`${directory}/${language}.json: ${key} contains untranslated source text`)
             }

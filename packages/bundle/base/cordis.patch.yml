@@ -42,6 +42,8 @@
 
     - id: session-log-deepseek
       name: '@deepseek-ai/dsh-session-log-deepseek'
+      # Delta never attaches Session history or feedback to model requests.
+      disabled: true
 
     - id: typert
       name: '@deepseek-ai/dsh-typert-registry'
@@ -310,6 +312,26 @@
     # Forge makes requests only after the user enables it and runs a command.
     - id: delta-forge
       name: '@delta/forge'
+      disabled: true
+
+    # Delta's visible browser is isolated per session and asks before every operation.
+    - id: browser-use
+      name: '@deepseek-ai/dsh-browser-use'
+
+    - id: delta-browser-use
+      name: '@delta/browser-use'
+      disabled: true
+      config:
+        root: !!js dshHomePath('browser')
+        allowLocalNetwork: false
+        channel: msedge
+
+    # Delta's own Windows desktop provider is isolated from Harness experiments.
+    - id: computer-use
+      name: '@deepseek-ai/dsh-computer-use'
+
+    - id: delta-computer-use
+      name: '@delta/computer-use'
       disabled: true
 
     - id: goal

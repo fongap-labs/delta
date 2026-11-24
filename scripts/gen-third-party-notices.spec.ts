@@ -7,6 +7,7 @@ import {
   CLAUDE_AGENT_SDK_PACKAGE,
   assertRuntimeLicenses,
   claudeDistributionFromManifest,
+  collectVendored,
   collectPythonDependencies,
   collectBundledPythonDependencies,
   isOwnerAuthorizedRuntime,
@@ -14,7 +15,6 @@ import {
   type Manifest,
   manifestPatterns,
   parsePyprojectRequirements,
-  parseVendoredRows,
   render,
   tierExternalDeps,
   virtualManifest,
@@ -32,15 +32,16 @@ describe('THIRD_PARTY_NOTICES.md', () => {
     timeout: 120_000,
   }, async () => {
     const generated = await render()
-    expect(generated).toContain('It depends on the third-party software listed below.')
-    expect(generated).toContain('| [`cross-spawn`](https://github.com/moxystudio/node-cross-spawn) | MIT |')
+    expect(generated).toContain('Delta includes code licensed under')
     expect(generated).not.toContain('https://github.com/git@')
     expect(generated).toContain(`| [\`numpy\`](https://github.com/numpy/numpy) | ${primaryRuntimeLock.pythonPackages.numpy} | BSD-3-Clause |`)
     expect(generated).toContain('## LibreOffice conversion kit')
     expect(generated).toContain('Recipients must have access to those corresponding sources and notices.')
-    expect(generated.split('## Development-only npm dependencies')[0]).toContain('| [`chrome-devtools-frontend`]')
-    expect(generated.split('## Development-only npm dependencies')[0]).toContain('| [`@botiverse/oar`]')
-    expect(generated).toContain('third-party license and notice files supplied by the npm source')
+    expect(generated).toContain('| [`playwright-core`](https://github.com/microsoft/playwright) | Apache-2.0 |')
+    expect(generated).not.toContain('chrome-devtools-frontend')
+    expect(generated).not.toContain('packages/experimental/inspector')
+    expect(generated).not.toContain('python/sdk/uv.lock')
+    expect(generated.split('## Development-only npm dependencies')[0]).toContain('| [`playwright-core`]')
     expect(readFileSync(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'), 'stale notices — run `pnpm run gen-third-party-notices`').toBe(generated)
   })
 })
@@ -250,37 +251,38 @@ describe('virtualManifest', () => {
   })
 })
 
-describe('parseVendoredRows', () => {
-  it('reads the committed vendor manifest table', () => {
-    const rows = parseVendoredRows(readFileSync(resolve(root, 'vendor/README.md'), 'utf8'))
-
+describe('collectVendored', () => {
+  it('reads the source-vendored package manifests and their licenses', () => {
+    const rows = collectVendored()
     expect(rows.length).toBeGreaterThan(0)
     expect(rows).toContainEqual({
       npmName: '@deepseek-ai/cordis',
-      upstreamName: 'cordis',
-      upstream: 'https://github.com/cordiverse/cordis',
+      sourceDirectory: 'vendor/cordis',
+      version: '4.2.0-alpha.1',
+      license: 'MIT',
     })
-    // The upstream column carries a trailing package path for some rows; it is not part of the URL.
-    expect(rows.every(row => /^https:\/\/\S+$/.test(row.upstream))).toBe(true)
-  })
-
-  it('yields nothing when the table columns change, so the generator fails loud', () => {
-    expect(parseVendoredRows('| `cordis/` | `@deepseek-ai/cordis` | cordis | 4.0.0 | https://example.com | `abc123` |\n')).toEqual([])
   })
 
   it('covers every vendored directory, so no package can drop out of the notices', () => {
-    const parsed = new Set(parseVendoredRows(readFileSync(resolve(root, 'vendor/README.md'), 'utf8')).map(row => row.npmName))
+    const rows = collectVendored()
+    const parsed = new Set(rows.map(row => row.npmName))
     const onDisk = readdirSync(resolve(root, 'vendor'), { withFileTypes: true })
       .filter(entry => entry.isDirectory())
       .map(entry => (JSON.parse(readFileSync(resolve(root, 'vendor', entry.name, 'package.json'), 'utf8')) as Manifest).name)
 
     expect([...onDisk].sort()).toEqual([...parsed].sort())
+    const inventory = readFileSync(resolve(root, 'vendor/README.md'), 'utf8')
+    for (const row of rows) {
+      const directory = row.sourceDirectory.slice('vendor/'.length)
+      expect(inventory).toContain(`| \`${directory}/\` | \`${row.npmName}\` | \`${row.version}\` | ${row.license} |`)
+    }
   })
 })
 
 describe('parsePyprojectRequirements', () => {
-  it('reads the committed manifests', () => {
-    expect(parsePyprojectRequirements(readFileSync(resolve(root, 'python/sdk/pyproject.toml'), 'utf8'))).toContain('pydantic')
+  it('parses Python project manifests without requiring a packaged SDK tree', () => {
+    expect(parsePyprojectRequirements('[project]\nname = "delta-tool"\ndependencies = ["pydantic>=2"]\n'))
+      .toEqual(['pydantic'])
   })
 
   it('locates requirement arrays by TOML table, so author-named groups are not missed', () => {

@@ -37,6 +37,8 @@
     }
   },
   "dependencies": {
+    "@delta/browser-use": "workspace:*",
+    "@delta/computer-use": "workspace:*",
     "@delta/forge": "workspace:*",
     "@delta/worktree": "workspace:*",
     "@deepseek-ai/cordis-plugin-timer": "workspace:~",
@@ -47,6 +49,8 @@
     "@deepseek-ai/dsh-agent-team": "workspace:*",
     "@deepseek-ai/dsh-api-gateway": "workspace:*",
     "@deepseek-ai/dsh-api-remote-access": "workspace:*",
+    "@deepseek-ai/dsh-browser-use": "workspace:*",
+    "@deepseek-ai/dsh-computer-use": "workspace:*",
     "@deepseek-ai/dsh-attachment-local": "workspace:*",
     "@deepseek-ai/dsh-authorization": "workspace:*",
     "@deepseek-ai/dsh-bash-sandbox": "workspace:*",

@@ -1,5 +1,7 @@
 /** Agent-facing, one-shot-approved read access to GitHub and GitLab change requests. */
 import { validateChangeRequest } from './index.mjs'
+import en from '../locale/en.json' with { type: 'json' }
+import zh from '../locale/zh.json' with { type: 'json' }
 
 function deniedStatus(outcome) {
   if (outcome === 'cancelled') return 'cancelled'
@@ -8,10 +10,11 @@ function deniedStatus(outcome) {
 }
 
 function approvalText(provider, project, number) {
-  const service = provider === 'github' ? 'GitHub pull request' : 'GitLab merge request'
+  const english = provider === 'github' ? en.approval.github : en.approval.gitlab
+  const chinese = provider === 'github' ? zh.approval.github : zh.approval.gitlab
   return {
-    en: `Allow a read-only request for ${service} ${project} #${number}?`,
-    zh: `允许只读读取${provider === 'github' ? ' GitHub 拉取请求' : ' GitLab 合并请求'} ${project} #${number} 吗？`,
+    en: english.replace('{project}', project).replace('{number}', String(number)),
+    zh: chinese.replace('{project}', project).replace('{number}', String(number)),
   }
 }
 

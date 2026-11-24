@@ -10,7 +10,7 @@
   - text: 权限 选择新会话的默认权限模式
   - button "工作区内修改"
   - text: 语言
-  - button "中文"
+  - button "跟随系统"
   - text: 外观
   - button "浅色"
   - button "深色"

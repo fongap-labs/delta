@@ -2243,6 +2243,9 @@ importers:
       '@deepseek-ai/dsh-bash-sandbox':
         specifier: workspace:*
         version: link:../../shell/bash-sandbox
+      '@deepseek-ai/dsh-browser-use':
+        specifier: workspace:*
+        version: link:../../browser-use/browser-use
       '@deepseek-ai/dsh-cli-account':
         specifier: workspace:*
         version: link:../../connector/cli-account
@@ -2264,6 +2267,9 @@ importers:
       '@deepseek-ai/dsh-compaction-tool-result-pruner':
         specifier: workspace:*
         version: link:../../compaction/compaction-tool-result-pruner
+      '@deepseek-ai/dsh-computer-use':
+        specifier: workspace:*
+        version: link:../../computer-use/computer-use
       '@deepseek-ai/dsh-config-editor':
         specifier: workspace:*
         version: link:../../boot/config-editor
@@ -2504,6 +2510,12 @@ importers:
       '@deepseek-ai/dsh-working-directory':
         specifier: workspace:*
         version: link:../../session/working-directory
+      '@delta/browser-use':
+        specifier: workspace:*
+        version: link:../../delta/browser-use
+      '@delta/computer-use':
+        specifier: workspace:*
+        version: link:../../delta/computer-use
       '@delta/forge':
         specifier: workspace:*
         version: link:../../delta/forge
@@ -9103,6 +9115,51 @@ importers:
       '@deepseek-ai/dsh-working-directory':
         specifier: workspace:*
         version: link:../../session/working-directory
+
+  packages/delta/browser-use:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-attachment':
+        specifier: workspace:*
+        version: link:../../attachment/attachment
+      '@deepseek-ai/dsh-browser-use':
+        specifier: workspace:*
+        version: link:../../browser-use/browser-use
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-user-approval':
+        specifier: workspace:*
+        version: link:../../interaction/user-approval
+      playwright-core:
+        specifier: 1.61.1
+        version: 1.61.1
+
+  packages/delta/computer-use:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-attachment':
+        specifier: workspace:*
+        version: link:../../attachment/attachment
+      '@deepseek-ai/dsh-computer-use':
+        specifier: workspace:*
+        version: link:../../computer-use/computer-use
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-user-approval':
+        specifier: workspace:*
+        version: link:../../interaction/user-approval
 
   packages/delta/forge:
     dependencies:

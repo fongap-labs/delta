@@ -47,7 +47,7 @@ kind: "package-bundle"
 
 ### 你得到什么
 
-开箱即用，基于本核心构建的每个 profile 都提供：DeepSeek 模型连接（提供方与模型可配置，你还可以在设置中启用额外提供方）、完整工具集——文件编辑、shell 命令、web 搜索、HTTP(S) 抓取、subagent、任务与目标跟踪——可跨重启存活的持久会话，以及默认权限策略：把文件写入限制在工作区内，危险操作前征询许可。Web 抓取无需逐次审批，并且可以访问 loopback 与内网主机。反馈保存在会话日志中。[OTel 会话上传](../../session/session-telemetry-otel/README.zh.md)对所有用户默认使用 `FEEDBACK_ONLY`，包括 `deepseek-official`：新的文本反馈、消息评分、编辑与撤回会释放截至该事件的完整规范会话日志前缀，包含上下文。后续记录等待下一次显式反馈；发送已授权批次无需进一步交互或模型调用。`DISABLED` 阻止 OTel 捕获。默认开启的 [DeepSeek 会话日志贡献器](../../session/session-log-deepseek/README.zh.md)仍是独立的请求路径。
+开箱即用，基于本核心构建的每个 profile 都提供：DeepSeek 模型连接（提供方与模型可配置，你还可以在设置中启用额外提供方）、完整工具集——文件编辑、shell 命令、web 搜索、HTTP(S) 抓取、subagent、任务与目标跟踪——可跨重启存活的持久会话，以及默认权限策略：把文件写入限制在工作区内，危险操作前征询许可。Web 抓取无需逐次审批，并且可以访问 loopback 与内网主机。Delta 不启用产品分析，也不会在模型请求中附加会话历史作为反馈字段。模型请求仍会发送到你选择的模型提供方。
 
 `subagent` 与 `subagent_fork` 都创建受管理的子任务，并立即返回子任务名称。使用 `send_message` 可引导活跃子任务，或在完成后继续其对话。[委派工具行为](../../subagent/tool-subagent/README.zh.md)说明了结果交付和后端能力。
 
@@ -111,10 +111,8 @@ patch 在自身上按平台门控两个 shell 栈：`bash-sandbox` 与 `tool-bas
 当你想深入了解 profile、基于本核心构建的表层或确切组合时，阅读以下页面。
 
 - [app-boot 的 profile 章节](../../boot/app-boot/README.zh.md)——profile 如何解析、分层与定制。
-- [组合包索引](../README.zh.md)——基于本核心构建的表层。
 - [生成组合图](../../../apps/cli/composition.md)——随发行版交付的每个 profile 使用的确切插件集合。
-- [Profile 组合包设计笔记](../../../.agents/notes/implemented/architecture/2026-08-05-profile-plugin-bundles.zh.md)——profile 与组合包的组合设计。
-- [Codex 与 Claude Code 提供方组合包](../../subagent/README.zh.md)——可叠加安装的可选提供方组合包。
+- [子智能体包](../../subagent/subagent/README.zh.md)——子智能体的生命周期、限制与路由。
 
 -----
 

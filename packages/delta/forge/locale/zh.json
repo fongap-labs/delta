@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "title": "Delta Forge",
+    "description": "经用户批准后读取 GitHub Pull Request 和 GitLab Merge Request。"
+  },
+  "approval": {
+    "github": "允许只读读取 GitHub 拉取请求 {project} #{number} 吗？",
+    "gitlab": "允许只读读取 GitLab 合并请求 {project} #{number} 吗？"
+  }
+}

@@ -1,8 +1,8 @@
 /**
  * Generate `THIRD_PARTY_NOTICES.md` from the workspace manifests: every
- * external dependency named by a workspace `package.json`, the vendored-package
- * manifest in `vendor/README.md`, the Python `pyproject.toml` files, the shared
- * Python distribution lock, and the pnpm patch list. npm metadata comes from the installed
+ * external dependency named by a workspace `package.json`, package manifests
+ * under `vendor/`, optional Python project manifests, the shared Python
+ * distribution lock, and the pnpm patch list. npm metadata comes from the installed
  * store, so the tree must be installed. `--check` verifies the committed
  * artifact. Tier policy and ownership live in
  * `.agents/notes/implemented/process/2026-07-30-generated-third-party-notices.md`.
@@ -15,7 +15,6 @@ import { parse as parseToml, type TomlTableWithoutBigInt, type TomlValueWithoutB
 import parseSpdx from 'spdx-expression-parse'
 import primaryRuntimeLock from './primary-runtime/lock.json' with { type: 'json' }
 import { browserBundledExternals } from './browser-bundled-externals.ts'
-import { DEVTOOLS_NPM_VERSION, DEVTOOLS_SOURCE_REVISION } from '../packages/experimental/inspector/scripts/devtools/source.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const OUT = 'THIRD_PARTY_NOTICES.md'
@@ -450,61 +449,42 @@ export function tierExternalDeps(
   return tiers
 }
 
-/** A vendored package row parsed out of the `vendor/README.md` manifest table. */
+/** A source-vendored package read from its workspace manifest. */
 export interface VendoredRow {
   npmName: string
-  /** The name this package carries upstream; MIT attribution names the fork's origin, not our scope. */
-  upstreamName: string
-  upstream: string
+  sourceDirectory: string
+  version: string
+  license: string
 }
 
 /**
- * Parse the vendored-package manifest table out of `vendor/README.md`.
- * @param text - the complete `vendor/README.md` contents.
- * @returns one row per manifest-table entry, in table order.
+ * Read the vendored package inventory from the workspace itself and verify
+ * that every package carries its declared license file. This keeps the notice
+ * generator independent of Harness-specific vendor documentation and ensures
+ * newly added vendor directories cannot silently disappear from disclosure.
+ * @returns one row per vendored package, sorted by npm package name.
  */
-export function parseVendoredRows(text: string): VendoredRow[] {
+export function collectVendored(): VendoredRow[] {
   const rows: VendoredRow[] = []
-  for (const line of text.split('\n')) {
-    const match = new RegExp(String.raw`^\| \x60\S+\/\x60 \| \x60([^\x60]+)\x60 \| \x60([^\x60]+)\x60 \| \S+ \| `
-      + String.raw`(https:\/\/\S+?)(?: \([^)]*\))? \| \x60[0-9a-f]+\x60 \|$`).exec(line)
-    if (match === null) continue
-    const [, npmName, upstreamName, upstream] = match
-    if (npmName === undefined || upstreamName === undefined || upstream === undefined) continue
-    rows.push({ npmName, upstreamName, upstream })
-  }
-  return rows
-}
-
-/**
- * Parse the vendored manifest table and confirm it accounts for every vendored
- * directory. The `vendor/` tree — not the table — is the set that must be
- * disclosed, so a row that stops matching the table format is a hard error
- * rather than a package that quietly vanishes from the notices.
- */
-function collectVendored(): (VendoredRow & { sourceDirectory: string })[] {
-  const rows = parseVendoredRows(readFileSync(resolve(root, 'vendor/README.md'), 'utf8'))
-  const onDisk = new Map<string, string>()
   for (const entry of readdirSync(resolve(root, 'vendor'), { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const manifest = readManifest(`vendor/${entry.name}/package.json`)
-    if (manifest.name !== undefined) onDisk.set(manifest.name, entry.name)
-  }
-
-  const parsed = new Set(rows.map(row => row.npmName))
-  const missing = [...onDisk.keys()].filter(name => !parsed.has(name))
-  if (missing.length > 0) {
-    throw new Error(`gen-third-party-notices: vendor/README.md has no manifest-table row for ${missing.join(', ')}; its table format changed or the sync is incomplete.`)
-  }
-  return rows.map((row) => {
-    const dir = onDisk.get(row.npmName)
-    if (dir === undefined) throw new Error(`gen-third-party-notices: vendored package ${row.npmName} from vendor/README.md has no vendor/ directory.`)
-    const license = readManifest(`vendor/${dir}/package.json`).license
-    if (license !== 'MIT') {
-      throw new Error(`gen-third-party-notices: vendored ${row.npmName} declares license ${JSON.stringify(license)}; the vendored section assumes MIT throughout.`)
+    const sourceDirectory = `vendor/${entry.name}`
+    const manifest = readManifest(`${sourceDirectory}/package.json`)
+    if (typeof manifest.name !== 'string') {
+      throw new Error(`gen-third-party-notices: ${sourceDirectory}/package.json does not declare a package name.`)
     }
-    return { ...row, sourceDirectory: `vendor/${dir}` }
-  })
+    if (typeof manifest.version !== 'string') {
+      throw new Error(`gen-third-party-notices: ${sourceDirectory}/package.json does not declare a package version.`)
+    }
+    if (manifest.license !== 'MIT') {
+      throw new Error(`gen-third-party-notices: vendored ${manifest.name} declares license ${JSON.stringify(manifest.license)}; the vendored section requires MIT.`)
+    }
+    if (!existsSync(resolve(root, sourceDirectory, 'LICENSE'))) {
+      throw new Error(`gen-third-party-notices: ${sourceDirectory} is missing its LICENSE file.`)
+    }
+    rows.push({ npmName: manifest.name, sourceDirectory, version: manifest.version, license: manifest.license })
+  }
+  return rows.sort((a, b) => a.npmName.localeCompare(b.npmName))
 }
 
 /** Whether a parsed TOML value is a table rather than an array or scalar. */
@@ -627,7 +607,7 @@ export function collectPythonDependencies(
 /** Direct Python dependencies named by the `pyproject.toml` manifests under `python/`. */
 function collectPython(): { name: string; license: string; repo: string; role: string }[] {
   const manifests = globSync('python/*/pyproject.toml', { cwd: root })
-  if (manifests.length === 0) throw new Error('gen-third-party-notices: no python/*/pyproject.toml found; the Python tree moved.')
+  if (manifests.length === 0) return []
   return collectPythonDependencies(manifests.map(path => readFileSync(resolve(root, path), 'utf8')))
 }
 
@@ -759,8 +739,6 @@ ${rows.join('\n')}
  */
 export async function render(): Promise<string> {
   const browser = await browserBundledExternals(root)
-  // The Inspector's Host build hook compiles this standalone frontend outside the Client bundle graph.
-  browser.add('chrome-devtools-frontend')
   // The linked-manifest cache is keyed by name only, so it must not outlive
   // the manifests map it was resolved from; render() owns that single load.
   workspaceLinkedManifestCache.clear()
@@ -788,33 +766,29 @@ export async function render(): Promise<string> {
 
 # Third-Party Notices
 
-DeepSeek Harness is licensed under [MIT](LICENSES/DEEPSEEK-HARNESS-MIT.txt). It depends on the third-party software listed below. Each project remains under its own license; nothing in this file changes those terms.
+Delta includes code licensed under [MIT](LICENSES/DEEPSEEK-HARNESS-MIT.txt) and depends on the third-party software listed below. Each project remains under its own license; nothing in this file changes those terms.
 
 This file lists **direct** dependencies declared by the workspace, the explicitly disclosed official Claude Code platform payload closure, and the Bundled Python distributions. It is generated by \`scripts/gen-third-party-notices.ts\`, and \`scripts/gen-third-party-notices.spec.ts\` asserts in the test lane that the committed bytes match. Run \`pnpm run gen-third-party-notices\` after changing one of its inputs, or \`pnpm run verify-third-party-notices\` for the standalone check.
 
-The complete npm transitive closure, including the Landlock launcher workspace, is recorded with exact pinned versions in [\`pnpm-lock.yaml\`](pnpm-lock.yaml) — inspect it with \`pnpm licenses list\`. The Python SDK closure is recorded separately in [\`python/sdk/uv.lock\`](python/sdk/uv.lock).
+The complete npm transitive closure, including the Landlock launcher workspace, is recorded with exact pinned versions in [\`pnpm-lock.yaml\`](pnpm-lock.yaml) — inspect it with \`pnpm licenses list\`.
 
 ## Vendored source (\`vendor/\`)
 
-The Cordis framework and its foundation libraries are source-vendored into this repository rather than consumed from npm, and republished under the \`@deepseek-ai\` scope. All are MIT-licensed; each directory preserves its upstream \`LICENSE\` file. Exact upstream commits and local modifications are recorded in [\`vendor/README.md\`](vendor/README.md).
+The framework packages below are source-vendored into this repository rather than consumed from npm. Each package's manifest declares its license and each directory preserves a corresponding \`LICENSE\` file. Source changes are reviewed in the repository history.
 
-| Package | Upstream name | Source | License |
-| --- | --- | --- | --- |
-${vendored.map(row => `| \`${row.npmName}\` | \`${row.upstreamName}\` | [${row.sourceDirectory}](${row.sourceDirectory}/) | MIT |`).join('\n')}
+| Package | Source | License |
+| --- | --- | --- |
+${vendored.map(row => `| \`${row.npmName}\` | [${row.sourceDirectory}](${row.sourceDirectory}/) | ${row.license} |`).join('\n')}
 
 ## Runtime npm dependencies
 
-External packages installed for runtime use or embedded in distributed Host or browser artifacts. Browser inputs are resolved through the shipping tsdown and Vite configurations, independently of npm dependency sections. Host embedding declarations identify the distributing package and its embedded dependencies. The tier covers every plugin a user can mount from \`cordis.yml\` — not only what the \`dsh\` CLI, Web UI, and Python SDK runtime load by default.
+External packages installed for runtime use or embedded in distributed Host or browser artifacts. Browser inputs are resolved through the shipping tsdown and Vite configurations, independently of npm dependency sections. Host embedding declarations identify the distributing package and its embedded dependencies. The tier covers every plugin a user can mount from \`cordis.yml\`.
 
 ${renderNpmTable(runtimeDeps)}
 
 pnpm applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
 
 ${patchedLines.join('\n')}
-
-## Chrome DevTools frontend
-
-The optional experimental Inspector distributes a locally compiled copy of [chrome-devtools-frontend ${DEVTOOLS_NPM_VERSION}](https://www.npmjs.com/package/chrome-devtools-frontend/v/${DEVTOOLS_NPM_VERSION}), from upstream revision [${DEVTOOLS_SOURCE_REVISION}](https://chromium.googlesource.com/devtools/devtools-frontend/+/${DEVTOOLS_SOURCE_REVISION}). The build includes the Chromium [BSD-3-Clause license](packages/experimental/inspector/assets/devtools/LICENSE) and the third-party license and notice files supplied by the npm source. The Chromium root license does not replace those dependencies' licenses.
 
 ${renderClaudeDistribution(claudeDistribution)}
 ${kitRuntime ? `
@@ -831,14 +805,14 @@ External packages **directly declared** for development, tests, types, or toolin
 
 ${renderNpmTable(devDeps)}
 ${renderNonPermissiveNote(nonPermissiveDev)}
-## Python SDK dependencies (\`python/\`)
+${python.length > 0 ? `## Python project dependencies
 
-Direct dependencies of the \`pyproject.toml\` manifests, plus \`uv\` as the development workflow tool.
+Direct dependencies of the \`pyproject.toml\` manifests under \`python/\`.
 
 | Package | License | Role |
 | --- | --- | --- |
 ${python.map(dep => `| [\`${dep.name}\`](${dep.repo}) | ${dep.license} | ${dep.role} |`).join('\n')}
-| [\`uv\`](https://github.com/astral-sh/uv) | MIT / Apache-2.0 | development workflow tool |
+` : ''}
 
 ## Bundled Python distributions
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { stubConfigForm, type StubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import type { LocaleSettings, LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
-import { zh, en, ja } from '../src/locales/settings.ts'
+import { zh, en } from '../src/locales/settings.ts'
 import { FALLBACK_LOCALE, LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 const make = (host?: StubConfigForm<LocaleSettings>): {
   ctx: Context
@@ -26,6 +26,8 @@ const make = (host?: StubConfigForm<LocaleSettings>): {
 const stubLanguages = (...tags: string[]): void => {
   vi.stubGlobal('navigator', { languages: tags, language: tags[0] ?? '' })
 }
+
+const ja = { 'language.title': '言語', 'language.followSystem': 'システムに従う' }
 
 describe('LocaleRuntime', () => {
   beforeEach(() => {
@@ -196,6 +198,37 @@ describe('LocaleRuntime', () => {
     expect(events).toHaveLength(1)
   })
 
+  it('tracks system selection separately when it resolves to the same locale', () => {
+    const { svc, events } = make()
+    const initialRevision = svc.getLocale().revision
+    svc.setLocale('zh')
+    expect(svc.getLocale().active).toBe('zh')
+    expect(svc.getSelection()).toBe('zh')
+    expect(svc.getLocale().revision).toBe(initialRevision + 1)
+    expect(events).toHaveLength(0)
+    svc.setLocale('system')
+    expect(svc.getSelection()).toBe('system')
+    expect(svc.getLocale().active).toBe('zh')
+  })
+
+  it('clears the persisted selection when following the system again', () => {
+    const host = stubConfigForm<LocaleSettings>()
+    const { svc } = make(host)
+    host.publish({ status: 'ready', value: { preference: 'en' }, revision: 1, writable: true })
+    svc.setLocale('system')
+    expect(svc.getSelection()).toBe('system')
+    expect(svc.getLocale().active).toBe('zh')
+    expect(host.unset).toHaveBeenCalledWith('preference')
+  })
+
+  it('keeps browser detection limited to built-in locales when language packs register', () => {
+    stubLanguages('fr-FR')
+    const { svc } = make()
+    svc.addLanguage({ id: 'fr', label: 'Français', fallback: 'en' })
+    expect(svc.getLocale().active).toBe('en')
+    expect(svc.getSelection()).toBe('system')
+  })
+
   it('throws on unknown locale ids', () => {
     const { svc } = make()
     expect(() => { svc.setLocale('fr') }).toThrow('not registered')
@@ -357,12 +390,12 @@ describe('LocaleRuntime', () => {
     expect(make().svc.getLocale().active).toBe('en')
   })
 
-  it('re-evaluates browser languages as external definitions register and unload', () => {
+  it('does not let an external language change the system locale selection', () => {
     stubLanguages('pt-BR', 'zh-CN')
     const { svc } = make()
     expect(svc.getLocale().active).toBe('zh')
     const dispose = svc.addLanguage({ id: 'pt-BR', label: 'Português (Brasil)', fallback: 'en' })
-    expect(svc.getLocale().active).toBe('pt-BR')
+    expect(svc.getLocale().active).toBe('zh')
     dispose()
     expect(svc.getLocale().active).toBe('zh')
   })

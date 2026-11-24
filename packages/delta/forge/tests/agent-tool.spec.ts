@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { applyAgentForgeTool } from '../src/agent-tool.mjs'
+import zhLocale from '../locale/zh.json' with { type: 'json' }
 import { assertSupportedJsonSchema, projectToolSchema } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -64,7 +65,7 @@ it('requires a fresh localized one-shot approval before resolving credentials or
     reason: 'The agent wants to make one read-only request to a configured Forge service.',
     displayReason: {
       en: 'Allow a read-only request for GitHub pull request owner/repo #12?',
-      zh: '允许只读读取 GitHub 拉取请求 owner/repo #12 吗？',
+      zh: zhLocale.approval.github.replace('{project}', 'owner/repo').replace('{number}', '12'),
     },
   }))
   expect(fixture.resolve).toHaveBeenCalledOnce()

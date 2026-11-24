@@ -890,10 +890,12 @@ describe('desktop main startup', () => {
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
     ;(about!.click as () => void)()
     await vi.advanceTimersByTimeAsync(0)
-    const zh = locale === 'zh-CN'
+    const isChinese = locale === 'zh-CN'
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'info', title: zh ? '关于 Delta' : 'About Delta', message: 'Delta',
-      detail: zh ? '版本 V1.0.0' : 'Version V1.0.0', buttons: [zh ? '确定' : 'OK'], cancelId: 0,
+      type: 'info', title: isChinese ? zh.aboutMenu : en.aboutMenu,
+      message: isChinese ? zh.aboutProduct : en.aboutProduct,
+      detail: (isChinese ? zh.aboutVersion : en.aboutVersion).replace('{version}', '1.0.0'),
+      buttons: [isChinese ? zh.updateAcknowledge : en.updateAcknowledge], cancelId: 0,
     }))
     // A dialog that cannot open is logged, not surfaced as an unhandled rejection.
     harness.dialog.showMessageBox.mockRejectedValueOnce(new Error('overlay unavailable'))
@@ -1401,7 +1403,8 @@ describe('desktop main startup', () => {
     expect(() => handler(event, 'application', NaN, 34)).toThrow('invalid popup request')
     const application = handler(event, 'application', 48, 34)
     expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '关于 Delta', 'separator', '设置…', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', zh.toggleDevToolsMenu, 'separator', '退出',
+      zh.aboutMenu, 'separator', zh.settingsMenu, 'separator', zh.checkUpdatesMenu, zh.cliCommandMenu,
+      'separator', zh.toggleDevToolsMenu, 'separator', zh.quit,
     ])
     expect(harness.popup.mock.lastCall![0]).toMatchObject({ window, x: 48, y: 34 })
     expect(harness.popup.mock.lastCall![0].callback).toBeTypeOf('function')

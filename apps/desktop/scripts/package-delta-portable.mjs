@@ -92,6 +92,9 @@ cpSync(electronBuilderOutput, appOutput, { recursive: true })
 for (const path of [join(dataOutput, 'UserData'), join(dataOutput, 'Session'), join(dataOutput, 'Logs'),
   join(dataOutput, 'Temp'), join(dataOutput, 'Home')]) mkdirSync(path, { recursive: true })
 mkdirSync(otherOutput, { recursive: true })
+cpSync(join(repositoryRoot, 'LICENSE'), join(otherOutput, 'LICENSE'))
+cpSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), join(otherOutput, 'DEEPSEEK-HARNESS-MIT.txt'))
+cpSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), join(otherOutput, 'THIRD_PARTY_NOTICES.md'))
 writeFileSync(join(otherOutput, 'VERSION.json'), `${JSON.stringify({
   product: 'Delta',
   version: packageJson.version,
@@ -114,7 +117,8 @@ writeFileSync(join(appOutput, 'delta.cmd'), [
   '',
 ].join('\r\n'))
 const hashes = [...filesUnder(appOutput).map(file => `App/${file}`),
-  'Other/README.md', 'Other/VERSION.json']
+  'Other/README.md', 'Other/VERSION.json', 'Other/LICENSE', 'Other/DEEPSEEK-HARNESS-MIT.txt',
+  'Other/THIRD_PARTY_NOTICES.md']
   .sort()
   .map(file => `${createHash('sha256').update(readFileSync(join(outputRoot, file))).digest('hex')}  ${file}`)
 writeFileSync(join(otherOutput, 'SHA256SUMS.txt'), `${hashes.join('\n')}\n`)

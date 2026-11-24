@@ -8,6 +8,7 @@ import { useState } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { SYSTEM_LOCALE_ID } from '../locale-settings.ts'
 import type { createLanguageRowStore } from './settings-store.ts'
 import css from './LanguageRow.module.css'
 
@@ -31,7 +32,11 @@ export function LanguageRow({ t, setLocale, useStore }: LanguageRowComponentProp
   const active = useStore(s => s.active)
   const options = useStore(s => s.options)
   const [open, setOpen] = useState(false)
-  const activeLabel = options.find(o => o.id === active)?.label ?? active
+  const menuOptions = [
+    { id: SYSTEM_LOCALE_ID, label: t('language.followSystem') },
+    ...options,
+  ]
+  const activeLabel = menuOptions.find(o => o.id === active)?.label ?? active
 
   return (
     <div className={css.row}>
@@ -41,7 +46,7 @@ export function LanguageRow({ t, setLocale, useStore }: LanguageRowComponentProp
       <Menu
         open={open}
         onClose={() => { setOpen(false) }}
-        items={options.map(o => ({ id: o.id, label: o.label }))}
+        items={menuOptions}
         selectedId={active}
         onSelect={(id) => {
           setLocale(id)

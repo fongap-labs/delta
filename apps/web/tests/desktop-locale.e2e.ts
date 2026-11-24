@@ -52,27 +52,17 @@ describe.skipIf(MODE === 'record')('web e2e: native and Client locale preference
     await scaffold?.close()
   })
 
-  it('uses OS languages without saving them, then shares an explicit choice across reloads', async () => {
+  it('follows supported OS languages without saving them and persists explicit overrides', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-desktop-locale'))
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await openSettings(page, 'zh')
     const zhDialog = page.getByRole('dialog', { name: '设置', exact: true })
-    await zhDialog.getByRole('button', { name: '中文', exact: true }).waitFor()
+    await zhDialog.getByRole('button', { name: '跟随系统', exact: true }).waitFor()
     await expect.poll(() => reported).toEqual(['zh'])
     expect(scaffold.ctx.settings.describe().find(row => row.ns === 'locale')!.value).toEqual({})
     await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'automatic.expected.md'),
       await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd, versionCapture), MODE)
-    languages = ['ja-JP', 'zh-CN', 'en-US']
-    const automaticWarnings = tripwire.warnings.length
-    reported.length = 0
-    await page.reload({ waitUntil: 'load' })
-    acknowledgeReloadConnectionLoss(tripwire, automaticWarnings)
-    await openSettings(page, 'ja')
-    const jaDialog = page.getByRole('dialog', { name: '設定', exact: true })
-    await jaDialog.getByRole('button', { name: '日本語', exact: true }).waitFor()
-    await expect.poll(() => reported).toEqual(['ja'])
-    expect(scaffold.ctx.settings.describe().find(row => row.ns === 'locale')!.value).toEqual({})
-    await jaDialog.getByRole('button', { name: '日本語', exact: true }).click()
+    await zhDialog.getByRole('button', { name: '跟随系统', exact: true }).click()
     await page.getByRole('menuitem', { name: 'English', exact: true }).click()
     const enDialog = page.getByRole('dialog', { name: 'Settings', exact: true })
     await enDialog.getByRole('button', { name: 'English', exact: true }).waitFor()
@@ -91,20 +81,32 @@ describe.skipIf(MODE === 'record')('web e2e: native and Client locale preference
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('en')
     expect(await page.evaluate(() => localStorage.getItem('dsh.locale'))).toBeNull()
     await enDialog.getByRole('button', { name: 'English', exact: true }).click()
-    await page.getByRole('menuitem', { name: '日本語', exact: true }).click()
-    await jaDialog.getByRole('button', { name: '日本語', exact: true }).waitFor()
+    await page.getByRole('menuitem', { name: 'Follow system', exact: true }).click()
     await expect.poll(() => readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8'))
-      .toContain('preference: ja')
-    const japaneseReloadWarnings = tripwire.warnings.length
+      .not.toContain('preference: en')
+    languages = ['zh-CN', 'en-US']
+    const systemReloadWarnings = tripwire.warnings.length
     reported.length = 0
     await page.reload({ waitUntil: 'load' })
-    acknowledgeReloadConnectionLoss(tripwire, japaneseReloadWarnings)
-    await openSettings(page, 'ja')
-    await jaDialog.getByRole('button', { name: '日本語', exact: true }).waitFor()
-    await expect.poll(() => reported).toEqual(['ja'])
-    expect(await page.evaluate(() => document.documentElement.lang)).toBe('ja')
+    acknowledgeReloadConnectionLoss(tripwire, systemReloadWarnings)
+    await openSettings(page, 'zh')
+    const systemDialog = page.getByRole('dialog', { name: '设置', exact: true })
+    await systemDialog.getByRole('button', { name: '跟随系统', exact: true }).waitFor()
+    await expect.poll(() => reported).toEqual(['zh'])
+    expect(scaffold.ctx.settings.describe().find(row => row.ns === 'locale')!.value).toEqual({})
+    expect(await page.evaluate(() => document.documentElement.lang)).toBe('zh-CN')
+    languages = ['it-IT']
+    const unsupportedWarnings = tripwire.warnings.length
+    reported.length = 0
+    await page.reload({ waitUntil: 'load' })
+    acknowledgeReloadConnectionLoss(tripwire, unsupportedWarnings)
+    await openSettings(page, 'en')
+    const fallbackDialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+    await fallbackDialog.getByRole('button', { name: 'Follow system', exact: true }).waitFor()
+    await expect.poll(() => reported).toEqual(['en'])
+    expect(await page.evaluate(() => document.documentElement.lang)).toBe('en')
     await page.setViewportSize({ width: 390, height: 844 })
-    const overflows = (): Promise<number> => jaDialog.evaluate((dialog) => {
+    const overflows = (): Promise<number> => fallbackDialog.evaluate((dialog) => {
       // The narrow navigation strip scrolls horizontally by design; inspect the panel and section content.
       const options = dialog.lastElementChild!
       const containers = [dialog, options, ...options.querySelectorAll<HTMLElement>('*')]
@@ -112,7 +114,7 @@ describe.skipIf(MODE === 'record')('web e2e: native and Client locale preference
       return containers.filter(element => element.clientWidth > 0 && element.scrollWidth > element.clientWidth + 1).length
     })
     await expect.poll(overflows).toBe(0)
-    await jaDialog.evaluate((dialog) => {
+    await fallbackDialog.evaluate((dialog) => {
       const options = dialog.lastElementChild!
       const probe = document.createElement('div')
       probe.dataset.localeOverflowProbe = ''
@@ -123,7 +125,7 @@ describe.skipIf(MODE === 'record')('web e2e: native and Client locale preference
     try {
       expect(await overflows()).toBeGreaterThan(0)
     } finally {
-      await jaDialog.locator('[data-locale-overflow-probe]').evaluate((element) => { element.remove() })
+      await fallbackDialog.locator('[data-locale-overflow-probe]').evaluate((element) => { element.remove() })
     }
     await expect.poll(overflows).toBe(0)
 

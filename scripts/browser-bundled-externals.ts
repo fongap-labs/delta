@@ -2,7 +2,7 @@
 
 import { globSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, resolve } from 'node:path'
+import { dirname, isAbsolute, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Rolldown, type UserConfigExport } from 'tsdown'
 import ts from 'typescript'
@@ -138,8 +138,15 @@ async function collectShell(
     const vite = await import(pathToFileURL(vitePath).href) as ViteApi
     const config = await vite.resolveConfig({ root: dir, logLevel: 'error' }, 'build', 'production', 'production')
     const input = config.build.rollupOptions?.input
-    const entries = typeof input === 'string' ? [input] : Object.values(input ?? {})
-    const pages = entries.filter(entry => entry.endsWith('.html'))
+    // Vite defaults to <root>/index.html when rollupOptions.input is omitted.
+    // Keep the notices walk usable from a clean source checkout; it must not
+    // depend on a prior application build generating dist/ or mutating config.
+    const entries = input === undefined
+      ? ['index.html']
+      : typeof input === 'string' ? [input] : Object.values(input)
+    const pages = entries
+      .filter(entry => entry.endsWith('.html'))
+      .map(entry => isAbsolute(entry) ? entry : resolve(dir, entry))
     if (pages.length === 0) throw new Error(`browser notices: ${manifest.name} has no HTML build entry`)
     await vite.build({
       root: dir,

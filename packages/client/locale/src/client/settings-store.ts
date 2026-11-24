@@ -15,7 +15,7 @@ export interface LanguageOptionRow {
 
 /** Store state mirrored from the locale snapshot. */
 export interface LanguageRowState {
-  /** Active locale id. */
+  /** Selected preference id, or the system-following sentinel. */
   active: string
   /** Selectable locales in display order. */
   options: LanguageOptionRow[]

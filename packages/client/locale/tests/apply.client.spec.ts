@@ -34,8 +34,8 @@ async function bench(preference?: string) {
     ok: true as const,
     value: { writable: true, hasDocument: true, namespaces: [namespace()] },
   }))
-  const mutate = vi.fn(async (_ns: string, ops: { value: string }[]) => {
-    preference = ops[0]!.value
+  const mutate = vi.fn(async (_ns: string, ops: { op: 'set' | 'unset'; path: string[]; value?: string }[]) => {
+    preference = ops[0]!.op === 'unset' ? undefined : ops[0]!.value
     revision += 1
     return { ok: true as const, value: namespace() }
   })
@@ -166,9 +166,14 @@ describe('locale apply', () => {
     expect(instance.getSnapshot().active).toBe('zh')
     expect(locale.bind(SETTINGS_NS)('language.title')).toBe('语言')
     await vi.waitFor(() => { expect(b.mutate).toHaveBeenCalledTimes(2) })
+    face.setLocale('system')
+    expect(locale.getSelection()).toBe('system')
+    expect(instance.getSnapshot().active).toBe('system')
+    await vi.waitFor(() => { expect(b.mutate).toHaveBeenCalledTimes(3) })
+    expect(b.mutate.mock.calls.at(-1)?.[1]).toEqual([{ op: 'unset', path: ['preference'] }])
   })
 
-  it('projects external locale registration and disposal into the Language row', async () => {
+  it('keeps language-pack locales out of the first-party selector', async () => {
     const b = await bench()
     declareItems(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
@@ -185,48 +190,38 @@ describe('locale apply', () => {
     expect(instance.getSnapshot().options).toEqual([
       { id: 'zh', label: '中文' },
       { id: 'en', label: 'English' },
-      { id: 'ja', label: '日本語' },
-      { id: 'es', label: 'Español' },
-      { id: 'fr', label: 'Français' },
-      { id: 'de', label: 'Deutsch' },
-      { id: 'ru', label: 'Русский' },
-      { id: 'pt', label: 'Português' },
-      { id: 'it', label: 'Italiano' },
     ])
 
     await languagePack.dispose()
-    expect(instance.getSnapshot().options.map(option => option.id)).toEqual(['zh', 'en', 'ja', 'es', 'fr', 'de', 'ru', 'pt'])
+    expect(instance.getSnapshot().options.map(option => option.id)).toEqual(['zh', 'en'])
   })
 
-  it.each([
-    ['ja', '日本語', '言語', 'キャンセル'],
-    ['es', 'Español', 'Idioma', 'Cancelar'],
-    ['fr', 'Français', 'Langue', 'Annuler'],
-    ['de', 'Deutsch', 'Sprache', 'Abbrechen'],
-    ['ru', 'Русский', 'Язык', 'Отмена'],
-    ['pt', 'Português', 'Idioma', 'Cancelar'],
-  ])('restores %s from the Host and releases its language and dictionaries on unload', async (id, label, languageTitle, cancel) => {
-    const b = await bench(id)
+  it('restores an external language pack without adding it to the first-party row', async () => {
+    const b = await bench('it')
     onTestFinished(() => b.ctx.fiber.dispose())
     declareItems(b.slots)
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const locale = b.ctx.get('locale') as LocaleRuntime
     const { instance, face } = faceOf(b.slots)
-    expect(instance.getSnapshot().active).toBe(id)
-    expect(locale.bind(SETTINGS_NS)('language.title')).toBe(languageTitle)
-    expect(locale.bind('common')('cancel')).toBe(cancel)
+    expect(instance.getSnapshot().active).toBe('it')
+    expect(locale.bind(SETTINGS_NS)('language.title')).toBe('Language')
     face.setLocale('en')
-    face.setLocale(id)
+    const languagePack = b.ctx.plugin({ inject: ['locale'], apply: ctx => ctx.effect(() => {
+      const removeLanguage = ctx.locale.addLanguage({ id: 'it', label: 'Italiano', fallback: 'en' })
+      const removeCommon = ctx.locale.register('common', 'it', { cancel: 'Annulla' })
+      return () => { removeCommon(); removeLanguage() }
+    }, 'test external language pack') })
+    await languagePack.await()
+    face.setLocale('it')
     await vi.waitFor(() => { expect(b.mutate).toHaveBeenCalledTimes(2) })
-    expect(b.mutate.mock.calls.at(-1)?.[1]).toEqual([{ op: 'set', path: ['preference'], value: id }])
-    await fiber.dispose()
+    expect(b.mutate.mock.calls.at(-1)?.[1]).toEqual([{ op: 'set', path: ['preference'], value: 'it' }])
+    expect(locale.bind('common')('cancel')).toBe('Annulla')
+    expect(instance.getSnapshot().options.map(option => option.id)).toEqual(['zh', 'en'])
+    await languagePack.dispose()
     expect(locale.getSnapshot().locales.map(option => option.id)).toEqual(['zh', 'en'])
-    expect(() => { locale.setLocale(id) }).toThrow('not registered')
-    const remove = locale.addLanguage({ id, label, fallback: 'en' })
-    locale.setLocale(id)
-    expect(locale.bind('common')('cancel')).toBe('cancel')
-    remove()
+    expect(locale.bind('common')('cancel')).toBe('Cancel')
+    await fiber.dispose()
   })
 
   it('loads and refreshes the explicit Host preference after nonblocking activation', async () => {

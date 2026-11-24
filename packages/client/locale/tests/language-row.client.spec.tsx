@@ -49,7 +49,8 @@ function mount(active = 'en') {
     useContextMenu: contextMenuHook(),
     useStore: bindSnapshotSelector(store),
     actions: store.actions,
-    t: (key: string) => key === 'language.title' ? 'Language' : key,
+    t: (key: string) => key === 'language.title' ? 'Language'
+      : key === 'language.followSystem' ? 'Follow system' : key,
     setLocale,
   }
   render(<LanguageRow {...props} />)
@@ -73,6 +74,14 @@ describe('LanguageRow', () => {
     expect(b.setLocale).toHaveBeenCalledWith('zh')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByRole('menuitem', { name: '中文' })).toBeNull()
+  })
+
+  it('shows and selects the system-following option', () => {
+    const b = mount('system')
+    expect(screen.getByRole('button', { name: /Follow system/ })).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: /Follow system/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Follow system' }))
+    expect(b.setLocale).toHaveBeenCalledWith('system')
   })
 
   it('closes on outside pointerdown without selecting', () => {

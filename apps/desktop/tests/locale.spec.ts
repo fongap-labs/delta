@@ -32,4 +32,9 @@ describe('desktop locale dictionaries', () => {
     expect(resolveDesktopStartupLocale('ja', ['zh-CN']).id).toBe('en')
   })
 
+  it('uses the selected application language for the startup splash', () => {
+    expect(resolveDesktopLocale('zh-CN').messages.splashStarting).toBe(zh.splashStarting)
+    expect(resolveDesktopLocale('en-US').messages.splashStarting).toBe(en.splashStarting)
+  })
+
 })
