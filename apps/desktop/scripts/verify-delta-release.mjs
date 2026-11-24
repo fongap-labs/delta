@@ -53,7 +53,17 @@ try {
   }
   if (expected.size) throw new Error('Missing checksum entries')
   run('cmd.exe', ['/d', '/c', 'delta.cmd', '--help'], { cwd: join(directory, 'App'), timeout: 120000 })
-  console.log('Delta portable release archive, version, checksums and CLI startup verified.')
+  const desktopEnvironment = { ...process.env }
+  delete desktopEnvironment.ELECTRON_RUN_AS_NODE
+  delete desktopEnvironment.NODE_OPTIONS
+  run(join(directory, 'App', 'Delta.exe'), ['--delta-portable-smoke'], {
+    cwd: join(directory, 'App'), env: desktopEnvironment, timeout: 180000,
+  })
+  const startup = JSON.parse(readFileSync(join(directory, 'Data', 'Temp', 'delta-startup-verified.json'), 'utf8'))
+  if (startup.version !== values.version || startup.workspaceReady !== true || startup.backendReady !== true) {
+    throw new Error('Portable desktop startup did not verify the requested version and workspace')
+  }
+  console.log('Delta portable release archive, version, checksums, CLI and desktop workspace startup verified.')
 } finally {
   rmSync(directory, { recursive: true, force: true })
 }

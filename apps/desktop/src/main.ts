@@ -72,6 +72,10 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { createDeltaSplashWindow } from './splash-window.ts'
 
+// The release verifier explicitly requests a full, isolated desktop startup and clean shutdown.
+const portableSmoke = app.isPackaged && process.env.DELTA_PORTABLE === '1'
+  && process.argv.slice(1).join(' ') === '--delta-portable-smoke'
+
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
 let shuttingDown = false
@@ -1494,7 +1498,7 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  if (!portableSmoke && (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1')) app.setAsDefaultProtocolClient('dsh')
   app.on('open-url', (event, url) => {
     event.preventDefault()
     if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
@@ -1604,6 +1608,18 @@ async function main(): Promise<void> {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
     }).catch((error: unknown) => { console.error(error) })
   }
+  if (portableSmoke) {
+    await reconcileBackend()
+    const window = currentMainWindow()
+    if (!backendReady || !enteredWorkspace || recovery.active || isQuitting()
+      || window === undefined || window.isDestroyed() || !window.isVisible()) {
+      throw new Error('Delta portable smoke: desktop workspace did not become ready')
+    }
+    await writeFile(join(app.getPath('temp'), 'delta-startup-verified.json'),
+      JSON.stringify({ version: app.getVersion(), workspaceReady: true, backendReady: true }), { flag: 'wx' })
+    quitWithoutConfirmation()
+    return
+  }
   automaticCheck()
   await reconcileBackend().catch(() => undefined)
   // Window lifecycle callbacks run while backend startup is pending.
@@ -1623,6 +1639,12 @@ if (ownsDesktopInstance) void app.whenReady().then(main).catch(async (error: unk
   const diagnosticFile = process.env.DSH_DESKTOP_DIAGNOSTIC_FILE
   if (diagnosticFile !== undefined) {
     await writeFile(diagnosticFile, `${error instanceof Error ? error.stack ?? message : message}\n`).catch(() => undefined)
+  }
+  if (portableSmoke) {
+    shuttingDown = true
+    await stopForRecovery().catch(() => undefined)
+    app.exit(1)
+    return
   }
   reportFatal(error, 'main')
 }).catch(async (error: unknown) => {

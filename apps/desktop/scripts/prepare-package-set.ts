@@ -1,6 +1,7 @@
 /** Select and copy the local npm tarball closures that supply Desktop dsh and its private Host. */
 
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import {
   constants,
   copyFileSync,
@@ -12,7 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import * as yaml from 'js-yaml'
 import {
@@ -24,6 +25,7 @@ import {
   type DesktopCorePackageRecord,
 } from '../src/core-package-set.ts'
 import { capture } from '../../../scripts/release/process.ts'
+import { pnpmInvocation } from '../../../scripts/pnpm-invocation.ts'
 import { tarballFiles } from '../../../scripts/release/tarball.ts'
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 
@@ -61,45 +63,113 @@ function dependencyNames(manifest: Readonly<Record<string, unknown>>, section: s
   return Object.keys(value).sort()
 }
 
-/**
- * Select workspace dependencies rooted at dsh and its private Host; npm resolves external packages.
- * Reads the repository workspace manifest and package manifests to distinguish required local packages from npm-resolved externals.
- * @param available - Packed packages indexed by package name.
- * @param target - Platform and architecture of the installer payload.
- * @returns Selected packages sorted by name.
- */
-export function selectDesktopPackageClosure(
-  available: ReadonlyMap<string, PackedDesktopPackage>,
-  target: ReturnType<typeof desktopTargetPlatform>,
-): PackedDesktopPackage[] {
+interface WorkspaceDesktopPackage {
+  readonly directory: string
+  readonly manifest: Readonly<Record<string, unknown>>
+}
+
+function readWorkspacePackages(): Map<string, WorkspaceDesktopPackage> {
   const workspace = yaml.load(readFileSync(join(REPOSITORY_ROOT, 'pnpm-workspace.yaml'), 'utf8')) as { packages: string[] }
-  const workspaceNames = new Set(globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: REPOSITORY_ROOT })
-    .map(path => (JSON.parse(readFileSync(join(REPOSITORY_ROOT, path), 'utf8')) as { name: string }).name))
-  const selected = new Map<string, PackedDesktopPackage>()
+  const result = new Map<string, WorkspaceDesktopPackage>()
+  for (const path of globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: REPOSITORY_ROOT })) {
+    const manifest = JSON.parse(readFileSync(join(REPOSITORY_ROOT, path), 'utf8')) as Record<string, unknown>
+    const name = manifest.name
+    if (typeof name !== 'string' || name === '' || result.has(name)) {
+      throw new Error(`desktop package set: invalid or duplicate workspace package at ${path}`)
+    }
+    result.set(name, { directory: dirname(resolve(REPOSITORY_ROOT, path)), manifest })
+  }
+  return result
+}
+
+type ManifestPackage = { readonly manifest: Readonly<Record<string, unknown>> }
+
+function targetCompatible(entry: ManifestPackage, target: ReturnType<typeof desktopTargetPlatform>): boolean {
+  return supportsTarget(entry.manifest, 'os', target.platform)
+    && supportsTarget(entry.manifest, 'cpu', target.arch)
+}
+
+/** Select the target-specific local runtime closure, including private workspace packages. */
+export function selectDesktopPackageClosure<T extends ManifestPackage>(
+  available: ReadonlyMap<string, T>,
+  target: ReturnType<typeof desktopTargetPlatform>,
+  workspace: ReadonlyMap<string, ManifestPackage> = readWorkspacePackages(),
+): T[] {
+  const selected = new Map<string, T>()
+  const missing = new Set<string>()
   const visit = (name: string): void => {
     if (selected.has(name)) return
     const packed = available.get(name)
-    if (packed === undefined) throw new Error(`desktop package set: packed inputs omit required package ${name}`)
+    if (packed === undefined) throw new Error(`desktop package set: packed inputs omit ${name}`)
     selected.set(name, packed)
     for (const section of REQUIRED_DEPENDENCY_SECTIONS) {
       for (const dependency of dependencyNames(packed.manifest, section)) {
         if (available.has(dependency)) visit(dependency)
-        else if (workspaceNames.has(dependency)) {
-          throw new Error(`desktop package set: ${name} requires unpacked package ${dependency}`)
-        }
+        else if (workspace.has(dependency)) missing.add(`${name} requires unpacked package ${dependency}`)
       }
     }
     for (const dependency of dependencyNames(packed.manifest, OPTIONAL_DEPENDENCY_SECTION)) {
       const optional = available.get(dependency)
-      if (optional && supportsTarget(optional.manifest, 'os', target.platform)
-        && supportsTarget(optional.manifest, 'cpu', target.arch)) visit(dependency)
+      if (optional !== undefined && targetCompatible(optional, target)) visit(dependency)
+      else if (optional === undefined) {
+        const source = workspace.get(dependency)
+        if (source !== undefined && targetCompatible(source, target)) {
+          missing.add(`${name} requires unpacked package ${dependency} for ${target.platform}/${target.arch}`)
+        }
+      }
     }
   }
-  for (const name of ROOT_PACKAGES) {
-    if (!available.has(name)) throw new Error(`desktop package set: packed inputs omit ${name}`)
-    visit(name)
-  }
+  for (const name of ROOT_PACKAGES) visit(name)
+  if (missing.size > 0) throw new Error(`desktop package set: ${[...missing].sort().join('; ')}`)
   return [...selected.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, packed]) => packed)
+}
+
+/** Plan missing local tarballs from the complete workspace graph, not a plugin allowlist. */
+export function planMissingDesktopPacks(
+  available: ReadonlyMap<string, PackedDesktopPackage>,
+  target: ReturnType<typeof desktopTargetPlatform>,
+  workspace: ReadonlyMap<string, WorkspaceDesktopPackage> = readWorkspacePackages(),
+): WorkspaceDesktopPackage[] {
+  const candidates = new Map<string, ManifestPackage>(workspace)
+  for (const [name, packed] of available) candidates.set(name, packed)
+  return selectDesktopPackageClosure(candidates, target, workspace).flatMap(entry => {
+    const name = String(entry.manifest.name)
+    const source = workspace.get(name)
+    return !available.has(name) && source !== undefined ? [source] : []
+  })
+}
+
+/** Pack every missing local runtime package from this checkout, without publishing it. */
+function packMissingDesktopPackages(
+  inputs: readonly string[], destination: string, target: ReturnType<typeof desktopTargetPlatform>,
+): void {
+  const workspace = readWorkspacePackages()
+  const plan = planMissingDesktopPacks(packedPackages(inputs), target, workspace)
+  console.log(`desktop package set: local pack plan (${plan.length}): ${plan.map(entry => entry.manifest.name).join(', ')}`)
+  for (const entry of plan) {
+    const invocation = pnpmInvocation(['--dir', entry.directory, 'pack', '--pack-destination', destination])
+    const result = spawnSync(invocation.command, invocation.args, { cwd: REPOSITORY_ROOT, stdio: 'inherit', windowsHide: true })
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error(`desktop package set: pack failed for ${String(entry.manifest.name)} (${String(result.status)})`)
+  }
+  const actual = packedPackages(inputs)
+  const selected = selectDesktopPackageClosure(actual, target, workspace)
+  for (const source of plan) {
+    const name = String(source.manifest.name)
+    const entry = actual.get(name)
+    if (entry === undefined || entry.manifest.version !== source.manifest.version) {
+      throw new Error(`desktop package set: missing or mismatched packed identity for ${name}`)
+    }
+  }
+  for (const entry of selected) {
+    const name = String(entry.manifest.name)
+    if (workspace.get(name)?.manifest.private !== true) continue
+    const files = new Set(tarballFiles(entry.tarball))
+    const main = entry.manifest.main
+    if (typeof main === 'string' && !files.has(`package/${main.replace(/^\.\//u, '')}`)) {
+      throw new Error(`desktop package set: ${name} omits runtime entry ${main}`)
+    }
+  }
 }
 
 function packedManifest(tarball: string): Record<string, unknown> {
@@ -188,12 +258,17 @@ function main(): void {
     buildPaths.packedLandlock,
   ]
   const { values } = parseArgs({
-    options: { from: { type: 'string', multiple: true }, out: { type: 'string' } },
+    options: { from: { type: 'string', multiple: true }, out: { type: 'string' }, 'pack-missing': { type: 'boolean' } },
     allowPositionals: false,
   })
   const inputs = (values.from ?? defaultInputs).map(path => resolve(REPOSITORY_ROOT, path))
   const output = values.out === undefined ? buildPaths.packageSet : resolve(REPOSITORY_ROOT, values.out)
-  prepareDesktopPackageSet(inputs, output, desktopTargetPlatform(resolveDesktopBuildTarget()))
+  const target = desktopTargetPlatform(resolveDesktopBuildTarget())
+  if (values['pack-missing']) {
+    if (values.from !== undefined) throw new Error('desktop package set: --pack-missing requires default input directories')
+    packMissingDesktopPackages(inputs, buildPaths.packedDsh, target)
+  }
+  prepareDesktopPackageSet(inputs, output, target)
   console.log(`desktop package set: prepared ${output}`)
 }
 
