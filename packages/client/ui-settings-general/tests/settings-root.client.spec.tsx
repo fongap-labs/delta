@@ -89,8 +89,8 @@ function mount({
   const connectionListeners = new Set<() => void>()
   const reconnect = vi.fn()
   const renderSlot = vi.fn(
-    ((key: string, _owner: unknown, opts?: { only?: string; fallback?: import('react').ReactNode }) =>
-      SEAT_CONTENT[key] ?? opts?.fallback) as SettingsRootComponentProps['renderSlot'],
+    ((key: string, owner: unknown, opts?: { only?: string; fallback?: import('react').ReactNode }) =>
+      key === 'settings.launcher' ? (<>{(owner as { leading?: import('react').ReactNode }).leading}{SEAT_CONTENT[key] ?? opts?.fallback}</>) : (SEAT_CONTENT[key] ?? opts?.fallback)) as SettingsRootComponentProps['renderSlot'],
   )
   const renderFactorySlot = vi.fn(
     ((name: string, factoryProps: { id: string }) =>

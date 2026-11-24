@@ -4,7 +4,7 @@
 export const zh = {
   'panels.unpinTooltip': '从左侧栏取消固定',
   'panels.unpin': '从侧边栏取消固定{name}',
-  'session.new': '新会话',
+  'session.new': '开始会话',
   'session.new.label': '新建会话',
   'toggle.open': '打开侧边栏',
   'toggle.collapse': '收起侧边栏',

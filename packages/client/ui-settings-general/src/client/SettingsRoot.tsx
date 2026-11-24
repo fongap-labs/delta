@@ -235,6 +235,8 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           wide, settingsOpen: open, openSettings,
           ...(shortcut?.keys.length ? { settingsShortcut: { keys: shortcut.keys, aria: shortcut.aria } } : {}),
           openOnboarding: (id) => { close(); setRequestedOnboarding(id) },
+          leading: <DesktopUpdateIndicator wide={wide} hidden={connectionIndicator !== undefined && desktopUpdate.presentation?.phase !== 'installing'}
+            t={t} view={desktopUpdate} onOpen={openDesktopUpdate} />,
         }, { fallback: <Tooltip disabled={open} label={t('trigger')} shortcutKeys={shortcut?.keys}>
           <button
             type="button"
@@ -257,8 +259,6 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           restartActionLabel={t('connection.restart')}
           onReconnect={reconnect}
         />
-        <DesktopUpdateIndicator wide={wide} hidden={connectionIndicator !== undefined && desktopUpdate.presentation?.phase !== 'installing'}
-          t={t} view={desktopUpdate} onOpen={openDesktopUpdate} />
       </div>
       {open && (
         <SettingsPanel

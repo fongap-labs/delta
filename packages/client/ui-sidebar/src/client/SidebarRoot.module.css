@@ -888,3 +888,6 @@
     transition-duration: 0s;
   }
 }
+
+.pinnedNav { flex: none; margin: 0 calc(var(--dsh-sidebar-paint-inset) + 1px); }
+.pinnedNav .panelList { grid-column: auto; grid-row: auto; margin-bottom: 6px; }

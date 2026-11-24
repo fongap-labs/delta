@@ -9,6 +9,7 @@
  * ui-settings-general too.
  */
 
+import type { ReactNode } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -191,4 +192,6 @@ export interface SettingsLauncherOwnerProps {
   openSettings: (sectionId?: string) => void
   /** @param id - registered onboarding editor to open explicitly. */
   openOnboarding: (id: string) => void
+  /** Optional node rendered at the left edge of the launcher's action group (e.g. the new-version notice). */
+  leading?: ReactNode
 }

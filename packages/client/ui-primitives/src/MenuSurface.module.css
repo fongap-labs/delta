@@ -63,3 +63,9 @@
 @media (prefers-reduced-motion: reduce) {
   .surface[data-menu-phase] > *, .backing[data-menu-phase] { animation-duration: 0ms; }
 }
+
+/* Windows has no native vibrancy to blur, so the translucent fill shows an off-theme tint; use the opaque theme base. */
+:global(html[data-platform='win32']) .material {
+  background: var(--dsw-alias-bg-base);
+  backdrop-filter: none;
+}
