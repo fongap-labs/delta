@@ -61,9 +61,9 @@ function portableThirdPartyNotices(source) {
   // to the central artifact scanner. Keep the legal dependency tables while
   // omitting those private source paths from the portable copy.
   const start = source.indexOf('\npnpm applies local patches to the following packages')
-  const end = source.indexOf('\n\n## LibreOffice conversion kit', start)
+  const end = source.indexOf('## LibreOffice conversion kit', start)
   const withoutPatchPaths = start >= 0 && end > start
-    ? source.slice(0, start) + source.slice(end)
+    ? source.slice(0, start) + `\n${source.slice(end)}`
     : source
   const email = new RegExp(String.raw`\b[A-Za-z0-9._%+-]+${String.fromCharCode(64)}[A-Za-z0-9.-]+${String.fromCharCode(46)}[A-Za-z]{2,}\b`, 'g')
   return withoutPatchPaths.replace(email, match => 'x'.repeat(match.length))

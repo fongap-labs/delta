@@ -21,6 +21,7 @@ const TEXT_EXTENSIONS = new Set([
   '.cjs', '.cmd', '.css', '.html', '.js', '.json', '.md', '.mjs', '.py', '.ps1', '.rst', '.sh', '.tcl', '.ts', '.txt',
   '.toml', '.xml', '.xpm', '.yaml', '.yml',
 ])
+const TEXT_NAMES = new Set(['AUTHORS', 'COPYING', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES'])
 
 function replacement(length: number): string {
   return 'x'.repeat(length)
@@ -52,8 +53,8 @@ function sanitizeTextFile(path: string, source: string): string {
   return sanitizeRuntimeText(withEncodedFontToken)
 }
 
-function likelyText(bytes: Buffer, extension: string): boolean {
-  if (TEXT_EXTENSIONS.has(extension)) return true
+function likelyText(bytes: Buffer, extension: string, name: string): boolean {
+  if (TEXT_EXTENSIONS.has(extension) || TEXT_NAMES.has(name.toUpperCase())) return true
   if (bytes.includes(0)) return false
   let printable = 0
   for (const byte of bytes) if (byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte <= 126)) printable += 1
@@ -82,7 +83,7 @@ function visit(directory: string, result: { files: number }): void {
     }
     const extension = entry.name.includes('.') ? `.${entry.name.split('.').pop()!}`.toLowerCase() : ''
     const bytes = readFileSync(path)
-    if (!likelyText(bytes, extension)) continue
+    if (!likelyText(bytes, extension, entry.name)) continue
     const source = bytes.toString('utf8')
     if (source.includes('\uFFFD')) continue
     const sanitized = sanitizeTextFile(path, source)
