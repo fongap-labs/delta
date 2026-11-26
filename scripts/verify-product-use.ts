@@ -307,8 +307,19 @@ function literalDeclaration(file: ts.SourceFile, name: string): unknown {
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const args = process.argv.slice(2)
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--json')) {
+    console.error('Usage: verify-product-use.ts [--json]')
+    process.exit(64)
+  }
   const result = verifyProductUse(resolve(dirname(fileURLToPath(import.meta.url)), '..'))
-  for (const failure of result.failures) console.error(failure)
-  if (result.failures.length > 0) process.exitCode = 1
-  else console.log(`Product use: ${String(result.defaultPackages.length)} default, ${String(result.optionalPackages.length)} optional packages; ${String(result.sourceCount)} source modules.`)
+  if (args[0] === '--json') {
+    // Report the current shipped composition, not an approved target whitelist.
+    console.log(JSON.stringify({ schemaVersion: 1, scope: 'current-product-use', ...result }, null, 2))
+    if (result.failures.length > 0) process.exitCode = 1
+  } else {
+    for (const failure of result.failures) console.error(failure)
+    if (result.failures.length > 0) process.exitCode = 1
+    else console.log(`Product use: ${String(result.defaultPackages.length)} default, ${String(result.optionalPackages.length)} optional packages; ${String(result.sourceCount)} source modules.`)
+  }
 }
