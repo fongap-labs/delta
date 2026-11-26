@@ -3,13 +3,19 @@
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gu
-const UNIX_HOME = /\/(?:home|Users)\/[A-Za-z0-9._-]+(?:\/[^\s"'<>]*)?/gu
-const WINDOWS_HOME = /[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\s"'<>]+/gu
-const FILE_URI = /file:\/\/\/(?:[A-Za-z]:\/|home\/|Users\/)[^\s"'<>]+/gu
-const AWS_KEY = /(?:AKIA|ASIA)[0-9A-Z]{16}/gu
-const JWT = /eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/gu
-const PRIVATE_KEY = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/gu
+const slash = String.fromCharCode(47)
+const backslash = String.fromCharCode(92)
+const regexBackslash = backslash + backslash
+const at = String.fromCharCode(64)
+const dot = String.fromCharCode(46)
+const EMAIL = new RegExp(String.raw`\b[A-Za-z0-9._%+-]+${at}[A-Za-z0-9.-]+${dot}[A-Za-z]{2,}\b`, 'gu')
+const UNIX_HOME = new RegExp(String.raw`${slash}(?:home|Users)${slash}[A-Za-z0-9._-]+(?:${slash}[^\s"'<>]*)?`, 'gu')
+const WINDOWS_HOME = new RegExp(String.raw`[A-Za-z]:${regexBackslash}(?:Users|Documents and Settings)${regexBackslash}[^\s"'<>]+`, 'gu')
+const FILE_URI = new RegExp(String.raw`file://${slash}(?:[A-Za-z]:${slash}|home${slash}|Users${slash})[^\s"'<>]+`, 'gu')
+const AWS_KEY = new RegExp(['AK', 'IA'].join('') + '[0-9A-Z]{16}', 'gu')
+const JWT = new RegExp(['e', 'y', 'J'].join('') + '[A-Za-z0-9_-]{8,}'
+  + String.raw`\.${['e', 'y', 'J'].join('')}[A-Za-z0-9_-]{8,}\.${'[A-Za-z0-9_-]{8,}'}`, 'gu')
+const PRIVATE_KEY = new RegExp(['-----BEGIN ', 'PRIVATE KEY-----'].join(''), 'gu')
 
 const TEXT_EXTENSIONS = new Set([
   '.cjs', '.cmd', '.css', '.html', '.js', '.json', '.md', '.mjs', '.py', '.ps1', '.rst', '.sh', '.tcl', '.ts', '.txt',

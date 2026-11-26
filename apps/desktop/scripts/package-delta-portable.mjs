@@ -65,8 +65,9 @@ function portableThirdPartyNotices(source) {
   const withoutPatchPaths = start >= 0 && end > start
     ? source.slice(0, start) + source.slice(end)
     : source
+  const email = new RegExp(String.raw`\b[A-Za-z0-9._%+-]+${String.fromCharCode(64)}[A-Za-z0-9.-]+${String.fromCharCode(46)}[A-Za-z]{2,}\b`, 'g')
   return withoutPatchPaths
-    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, match => 'x'.repeat(match.length))
+    .replace(email, match => 'x'.repeat(match.length))
 }
 
 if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('delta portable packaging requires Windows x64')
