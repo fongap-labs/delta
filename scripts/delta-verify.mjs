@@ -178,6 +178,16 @@ for (const path of [releaseManifest.node_version_file, releaseBuild.script, rele
 }
 
 const portablePackager = readFileSync(join(root, 'apps/desktop/scripts/package-delta-portable.mjs'), 'utf8')
+const portableBuilder = readFileSync(join(root, 'apps/desktop/delta-electron-builder.config.mjs'), 'utf8')
+const updateCoordinator = readFileSync(join(root, 'apps/desktop/src/update-coordinator.ts'), 'utf8')
+if (!portableBuilder.includes('publish: null')
+  || portableBuilder.includes('operation-report-worker')
+  || !portableBuilder.includes("existsSync(join(resourcesDir, 'app-update.yml'))")
+  || !portablePackager.includes("existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))")
+  || !desktopMain.includes("const policyInput: unknown = process.env.DELTA_PORTABLE === '1' ? undefined")
+  || !updateCoordinator.includes("process.env.DELTA_PORTABLE !== '1' && existsSync")) {
+  throw new Error('delta-verify: portable update isolation missing')
+}
 for (const marker of ["join(outputRoot, 'App')", "join(outputRoot, 'Data')", "join(outputRoot, 'Other')",
   "'Other/THIRD_PARTY_NOTICES.md'", "'Other/LICENSE'"]) {
   if (!portablePackager.includes(marker)) {

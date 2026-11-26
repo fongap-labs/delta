@@ -42,3 +42,15 @@ it('keeps native recovery without any diagnostic report persistence interface', 
 it('does not restore automatic diagnostic file output', () => {
   expect(desktop).not.toContain('DSH_DESKTOP_DIAGNOSTIC_FILE')
 })
+
+it('keeps portable releases disconnected from inherited update and mandatory-policy feeds', () => {
+  const coordinator = readFileSync(new URL('../src/update-coordinator.ts', import.meta.url), 'utf8')
+  const builder = readFileSync(new URL('../delta-electron-builder.config.mjs', import.meta.url), 'utf8')
+  const packager = readFileSync(new URL('../scripts/package-delta-portable.mjs', import.meta.url), 'utf8')
+  expect(desktop).toContain("const policyInput: unknown = process.env.DELTA_PORTABLE === '1' ? undefined")
+  expect(coordinator).toContain("process.env.DELTA_PORTABLE !== '1' && existsSync")
+  expect(builder).toContain('publish: null')
+  expect(builder).toContain("existsSync(join(resourcesDir, 'app-update.yml'))")
+  expect(builder).not.toContain('operation-report-worker')
+  expect(packager).toContain("existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))")
+})

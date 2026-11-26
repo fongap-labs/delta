@@ -102,6 +102,10 @@ if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
   throw new Error(`delta portable: reusable Electron output is incomplete: ${electronBuilderOutput}`)
 }
 
+// Reused build outputs must pass the same no-upstream-feed invariant as fresh outputs.
+if (existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))) {
+  throw new Error('delta portable: automatic update feed must not be embedded')
+}
 cpSync(electronBuilderOutput, appOutput, { recursive: true })
 for (const path of [join(dataOutput, 'UserData'), join(dataOutput, 'Session'), join(dataOutput, 'Logs'),
   join(dataOutput, 'Temp'), join(dataOutput, 'Home')]) mkdirSync(path, { recursive: true })

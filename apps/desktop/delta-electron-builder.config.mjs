@@ -1,5 +1,6 @@
 /** Minimal Windows x64 directory build used by Delta's portable package. */
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { desktopTargetBuildPaths, resolveDesktopBuildTarget } from './scripts/desktop-build-paths.mjs'
 import { officePackageDirectories } from '../../scripts/libreoffice-packages.mjs'
@@ -37,7 +38,7 @@ export default {
   electronFuses: { runAsNode: true },
   files: [
     'portable-launcher.mjs',
-    'lib/main.js', 'lib/operation-report-worker.js', 'lib/welcome/**/*',
+    'lib/main.js', 'lib/welcome/**/*',
     'lib/preload-app.cjs', 'lib/preload-mandatory.cjs', 'lib/preload-platform-account.cjs',
     'lib/preload-update-dialog.cjs', 'lib/preload-welcome.cjs',
     'renderer/**/*', 'package.json',
@@ -66,6 +67,8 @@ export default {
     windowsCode = await prepareWindowsAsarUnpack(context, paths.dsh)
   },
   afterPack: async context => {
+    const resourcesDir = context.packager.getResourcesDir(context.appOutDir)
+    if (existsSync(join(resourcesDir, 'app-update.yml'))) throw new Error('Delta portable must not embed an automatic update feed')
     await verifyDesktopRuntime(paths.dsh, dshProduct.version, { platform: 'win32', arch: 'x64' })
     await verifyWindowsAsarUnpack(paths.dsh, context.packager.getResourcesDir(context.appOutDir), windowsCode)
   },
