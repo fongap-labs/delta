@@ -61,10 +61,10 @@ mkdirSync(outputRoot, { recursive: true })
 delete process.env.DSH_CLIENT_TITLE
 delete process.env.DSH_CLIENT_BUILD_PROFILE
 delete process.env.DSH_BUILD_CLIENT_PROFILE
-if (process.env.DELTA_SKIP_BUILD !== '1') run('build Delta artifacts', ['scripts/build.ts', '--profile', 'local', '--scope', 'artifacts', '--serial'], repositoryRoot)
+if (process.env.DELTA_SKIP_BUILD !== '1') run('build Delta artifacts', ['scripts/build.ts', '--profile', 'local', '--scope', 'artifacts'], repositoryRoot)
 if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
   if (process.env.DELTA_REUSE_PREPARED_RUNTIME !== '1') {
-    run('prepare primary runtime', ['apps/desktop/scripts/prepare-primary-runtime.ts'], repositoryRoot)
+    // prepare-runtime owns the complete clean runtime build, including primary-runtime preparation.
     run('prepare runtime', ['apps/desktop/scripts/prepare-runtime.ts'], repositoryRoot)
   } else if (!existsSync(join(paths.runtime, 'versions.json'))
     || !existsSync(join(paths.runtime, 'primary-runtime', 'runtime.json'))

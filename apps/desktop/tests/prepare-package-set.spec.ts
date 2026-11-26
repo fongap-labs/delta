@@ -187,3 +187,22 @@ it('automatically discovers a new transitive private package and aggregates miss
     .toEqual(['@delta/helper', '@delta/new-plugin', '@delta/other'])
   expect(() => selectDesktopPackageClosure(available, target, workspace)).toThrow(/new-plugin.*other/u)
 })
+
+it('builds portable artifacts without repeating primary runtime preparation', () => {
+  const portable = readFileSync(new URL('../scripts/package-delta-portable.mjs', import.meta.url), 'utf8')
+  const runtime = readFileSync(new URL('../scripts/prepare-runtime.ts', import.meta.url), 'utf8')
+  expect(portable).toContain("['scripts/build.ts', '--profile', 'local', '--scope', 'artifacts']")
+  expect(portable).not.toContain("'apps/desktop/scripts/prepare-primary-runtime.ts'")
+  expect(portable.match(/'apps\/desktop\/scripts\/prepare-runtime\.ts'/gu)).toHaveLength(1)
+  expect(runtime).toContain('rmSync(RUNTIME_ROOT, { recursive: true, force: true })')
+  expect(runtime).toContain('Promise.allSettled([prepareElectron(target), preparePrimary()])')
+  expect(runtime).toContain('preparePrimaryRuntime({ deferSmoke:')
+})
+
+it('retains the pinned package manager and frozen install in the release entrypoint', () => {
+  const release = readFileSync(new URL('../scripts/build-delta-release.ps1', import.meta.url), 'utf8')
+  expect(release).toContain("$pnpmVersion -cne '11.28.5'")
+  expect(release).toContain("(& pnpm.cmd --version | Out-String).Trim() -cne '11.28.5'")
+  expect(release).toContain('& pnpm.cmd install --frozen-lockfile')
+  expect(release).toContain('& pnpm.cmd run package:desktop:portable')
+})
