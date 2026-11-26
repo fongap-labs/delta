@@ -76,6 +76,7 @@ if (rowBlock(webPatch, 'product-analytics')) {
 // Delta must not reconnect the native collection paths through upstream sync.
 const desktopMain = readFileSync(requireFile('apps/desktop/src/main.ts', 'desktop main'), 'utf8')
 const prohibitedDesktopRuntime = [
+  /\b(?:writeReport|revealReport)\s*:/u,
   /\banalyticsEnabled\s*:/u,
   /\bnew\s+OperationJournal\b/u,
   /\bnew\s+RendererConsoleTail\b/u,
@@ -85,6 +86,17 @@ const prohibitedDesktopRuntime = [
 ]
 if (prohibitedDesktopRuntime.some(pattern => pattern.test(desktopMain))) {
   throw new Error('delta-verify: native telemetry or automatic diagnostic collection must not be restored')
+}
+
+for (const path of [
+  'apps/desktop/src/crash-report.ts',
+  'apps/desktop/src/operation-history.ts',
+  'apps/desktop/src/operation-journal.ts',
+  'apps/desktop/src/operation-report.ts',
+  'apps/desktop/src/operation-report-job.ts',
+  'apps/desktop/src/operation-report-worker.ts',
+]) {
+  if (existsSync(join(root, path))) throw new Error('delta-verify: deleted privacy collection module restored: ' + path)
 }
 
 for (const path of [

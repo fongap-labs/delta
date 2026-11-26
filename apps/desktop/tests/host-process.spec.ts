@@ -4,9 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError, QUIT_INSPECTION_DEADLINE_MS } from '../src/host-process.ts'
-import { OperationJournal } from '../src/operation-journal.ts'
-import { readOperationHistory } from '../src/operation-history.ts'
-import { renderCrashReport } from '../src/crash-report.ts'
 
 vi.mock('node:child_process', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:child_process')>()
@@ -144,57 +141,9 @@ process.once('message', message => {
     await host.start()
     const failure = await failed.promise
     await host.stop()
-    const report = renderCrashReport({ source: 'host', phase: 'running', error: failure,
-      rendererConsole: [], operationHistoryPlanned: true, time: new Date('2026-10-19T00:00:00Z'),
-      app: { name: 'qualification', version: 'test', platform: process.platform, arch: process.arch,
-        electron: 'not-running', node: process.version, locale: 'zh-CN' },
-    })
-    expect(report).toContain(`qualification-${kind}`)
-    expect(report).toContain('phase: running')
-    expect(report).toContain("hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8'")
-    if (kind === 'exception') expect(report).toContain('qualification-runtime-cause')
-    if (kind === 'exit') expect(report).toContain('7')
-  })
-
-  it('persists validated operation IPC across Host lifetimes and isolates a failing diagnostic sink', async () => {
-    const record = {
-      runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8', transportDropped: 0,
-      operation: { id: 'c254ab28-97c9-4382-95e6-2db9c66f98c9', time: '2026-10-19T00:00:00.000Z',
-        reason: 'bundle', phase: 'started', target: 'test-bundle', stage: 'enable' },
-      secret: 'not-persisted',
-    }
-    const runtime = projectWithHost(`
-process.send({ type: 'starting', runId: ${JSON.stringify(record.runId)} })
-process.send({ type: 'plugin-operation', record: { invalid: true } })
-process.send({ type: 'plugin-operation', record: { ...${JSON.stringify(record)}, runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c0' } })
-process.send({ type: 'plugin-operation', record: ${JSON.stringify(record)} })
-${HTTP_HOST}`)
-    const directory = join(runtime, 'operation-history')
-    const journal = new OperationJournal(directory, { recordBytes: 4096, segmentBytes: 8192, queuedBytes: 8192 })
-    onTestFinished(async () => { await journal.close() })
-    const sink = vi.fn(value => journal.enqueue(JSON.stringify(value)))
-    const first = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env,
-      undefined, undefined, undefined, undefined, sink)
-    hosts.push(first)
-    await first.start()
-    await first.stop()
-    await journal.close()
-    expect(sink).toHaveBeenCalledTimes(1)
-    const saved = await readOperationHistory(directory, { bytes: 8192, recordBytes: 4096, records: 10 }, new AbortController().signal)
-    expect(saved.records).toEqual([{ runId: record.runId, transportDropped: 0, operation: record.operation }])
-
-    const warning = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const failure = vi.fn()
-      const second = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env,
-        failure, undefined, undefined, undefined, () => { throw new Error('sink unavailable') })
-      hosts.push(second)
-      await second.start()
-      expect(await second.updateTasks('inspect')).toBe(false)
-      await second.stop()
-      expect(failure).not.toHaveBeenCalled()
-      expect(warning).toHaveBeenCalledWith('desktop plugin operation diagnostic sink failed')
-    } finally { warning.mockRestore() }
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toHaveProperty('hostRunId', 'c254ab28-97c9-4382-95e6-2db9c66f98c8')
+    expect(failure.message).toContain(`qualification-${kind}`)
   })
 
   it('correlates authorized file resources and rejects Host denial over private IPC', async () => {

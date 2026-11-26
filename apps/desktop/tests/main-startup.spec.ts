@@ -13,8 +13,6 @@ import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { DesktopHostFatalError, DesktopHostUncleanExitError } from '../src/host-process.ts'
 import { en, zh } from '../src/locale.ts'
 import { DesktopUpdatePreparationError } from '../src/update-error.ts'
-import { writeCrashReport } from '../src/crash-report.ts'
-import { runOperationReportJob } from '../src/operation-report-job.ts'
 
 type InvokeEvent = { sender?: unknown; senderFrame: { url: string } }
 type InvokeHandler = (event: InvokeEvent, ...args: unknown[]) => unknown
@@ -26,16 +24,8 @@ vi.mock('../src/web-document.ts', () => ({
   serveWebDocument: vi.fn(), forwardWebRequest: vi.fn(),
   removeLegacyHostCookies: harness.removeLegacyHostCookies,
 }))
-vi.mock('../src/operation-report-job.ts', () => ({ runOperationReportJob: vi.fn(async () => ({ appended: false, timedOut: false, cancelled: false })) }))
 vi.mock('../src/splash-window.ts', () => ({
   createDeltaSplashWindow: vi.fn(() => ({ close: vi.fn(), isDestroyed: () => false })),
-}))
-// Report persistence has its own unit tests; here it resolves within microtasks so the fatal
-// dialog never outlives the test that triggered it.
-vi.mock('../src/crash-report.ts', async importOriginal => ({
-  ...await importOriginal<typeof import('../src/crash-report.ts')>(),
-  writeCrashReport: vi.fn<(...args: unknown[]) => Promise<string | undefined>>(),
-  pruneCrashReports: vi.fn(async () => {}),
 }))
 
 const harness = await vi.hoisted(async () => {
@@ -474,7 +464,6 @@ beforeEach(() => {
   const userData = mkdtempSync(join(tmpdir(), 'dsh-main-user-data-'))
   onTestFinished(() => { rmSync(userData, { recursive: true, force: true }) })
   harness.app.getPath.mockImplementation(name => name === 'userData' ? userData : join(userData, `desktop-test-${name}`))
-  vi.mocked(writeCrashReport).mockResolvedValue(join(harness.app.getPath('logs'), 'crash-test.log'))
   harness.dialog.showMessageBox.mockImplementation((options: { title?: string }) => {
     if (options.title !== en.startupFailed && options.title !== zh.startupFailed) return Promise.resolve({ response: 1 })
     harness.dialogShown.resolve()
@@ -749,7 +738,6 @@ describe('desktop main startup', () => {
     expect(harness.analytics).not.toHaveBeenCalled()
     expect(host.primaryRuntime).toBe('test-primary-runtime')
     expect(existsSync(harness.app.getPath('logs'))).toBe(false)
-    expect(writeCrashReport).not.toHaveBeenCalled()
     expect(harness.dialog.showMessageBox).not.toHaveBeenCalledWith(expect.objectContaining({ title: en.startupFailed }))
   })
 
@@ -1382,7 +1370,6 @@ describe('desktop main startup', () => {
     await host.stopping.promise
     host.exited.resolve()
     await harness.dialogShown.promise
-    expect(writeCrashReport).not.toHaveBeenCalled()
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).message).toBe(zh.fatalSummary)
   })
 
@@ -2775,8 +2762,7 @@ describe('desktop main startup', () => {
     handler(event, 'client mount failed')
     await harness.dialogShown.promise
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('client mount failed')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).not.toContain(en.getDiagnosticReport)
-    expect(writeCrashReport).not.toHaveBeenCalled()
+    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).not.toContain('Get diagnostic report')
     expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
@@ -2790,7 +2776,6 @@ describe('desktop main startup', () => {
     window.webContents.emit('did-fail-load', {}, -2, 'failed', 'dsh-app://app/', true)
     await harness.dialogShown.promise
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('Desktop page failed to load')
-    expect(writeCrashReport).not.toHaveBeenCalled()
   })
 
   it('offers all recovery choices when resources fail before the Host starts', async () => {
@@ -2863,8 +2848,6 @@ describe('desktop main startup', () => {
     await host.stopping.promise
     host.exited.resolve()
     await harness.dialogShown.promise
-    expect(writeCrashReport).not.toHaveBeenCalled()
-    expect(runOperationReportJob).not.toHaveBeenCalled()
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('profile has no cordis.yml')
   })
 
@@ -2885,8 +2868,6 @@ describe('desktop main startup', () => {
     })
     host.onFailure!(new Error('dsh desktop host exited with 1: fatal uncaught exception: ENOENT'))
     await host.stopping.promise
-    expect(writeCrashReport).not.toHaveBeenCalled()
-    expect(runOperationReportJob).not.toHaveBeenCalled()
     host.exited.resolve()
     await harness.quitCompleted.promise
   })
@@ -2906,8 +2887,6 @@ describe('desktop main startup', () => {
       const window = harness.windows[0]!
       window.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
       await harness.dialogShown.promise
-      expect(writeCrashReport).not.toHaveBeenCalled()
-      expect(runOperationReportJob).not.toHaveBeenCalled()
       host.exited.resolve()
       window.emit('session-end', { reasons: ['shutdown'] })
       harness.app.quit()
@@ -2940,8 +2919,6 @@ describe('desktop main startup', () => {
     await host.stopping.promise
     expect(harness.app.relaunch).not.toHaveBeenCalled()
     expect(harness.disableAllPlugins).not.toHaveBeenCalled()
-    expect(writeCrashReport).not.toHaveBeenCalled()
-    expect(runOperationReportJob).not.toHaveBeenCalled()
     host.exited.resolve()
     await harness.quitCompleted.promise
     expect(harness.app.relaunch).toHaveBeenCalledTimes(response === 0 ? 0 : 1)

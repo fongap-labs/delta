@@ -6,7 +6,7 @@ import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-
 import { DesktopUpdateSettings } from './update-settings.ts'
 import { isDesktopUpdateChannel } from './settings-file.ts'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
-import { access, readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -43,7 +43,6 @@ import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, forwardWebRequest, removeLegacyHostCookies } from './web-document.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
-import type { CrashReportSource } from './crash-report.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
 import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
@@ -113,19 +112,16 @@ const recovery = new DesktopFatalRecovery({
   },
   exit: () => { quitWithoutConfirmation() },
   restart: () => { app.relaunch(); quitWithoutConfirmation() },
-  // Delta does not automatically persist or collect crash diagnostics.
-  writeReport: () => Promise.resolve(undefined),
-  revealReport: async (path) => { await access(path); shell.showItemInFolder(path) },
 })
 
-function reportFatal(error: unknown, source: CrashReportSource): void {
+function reportFatal(error: unknown): void {
   console.error(error)
   if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
   splashWindow = undefined
   if (shuttingDown) {
     return
   }
-  void recovery.report(error, source).catch((failure: unknown) => {
+  void recovery.report(error).catch((failure: unknown) => {
     console.error(failure)
     shuttingDown = true
     app.exit(1)
@@ -545,7 +541,7 @@ async function main(): Promise<void> {
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
     }
   }, (state) => {
-    if (state.phase === 'error') reportFatal(state.failure, 'host')
+    if (state.phase === 'error') reportFatal(state.failure)
     else if (!shuttingDown) backendReady = state.phase === 'ready'
   })
 
@@ -589,7 +585,7 @@ async function main(): Promise<void> {
           if (backend.host !== undefined) updateJournal?.action('workspace-ready')
         })
         workspaceRecovery = recovery
-        void recovery.catch((error: unknown) => { reportFatal(error, 'main') }).finally(() => {
+        void recovery.catch((error: unknown) => { reportFatal(error) }).finally(() => {
           if (startup === hostReady) startup = undefined
           if (workspaceRecovery === recovery) workspaceRecovery = undefined
         })
@@ -616,7 +612,7 @@ async function main(): Promise<void> {
       // The existing Web document resumes through the boot IPC response.
     })().catch((error: unknown) => {
       updateJournal?.action('workspace-failed')
-      reportFatal(error, 'main')
+      reportFatal(error)
       throw error
     }).finally(() => { startup = undefined })
     return startup
@@ -753,7 +749,7 @@ async function main(): Promise<void> {
       throw new Error('dsh desktop: rejected startup failure from a non-primary frame')
     }
     if (typeof message !== 'string') throw new Error('dsh desktop: startup failure must be text')
-    reportFatal(new Error(message), 'web-boot')
+    reportFatal(new Error(message))
   })
 
   ipcMain.handle(DESKTOP_IPC.browserAcquire, (event, workspace: unknown) => {
@@ -1270,16 +1266,16 @@ async function main(): Promise<void> {
     window.on('closed', () => { if (mainWindow === window) mainWindow = undefined })
     window.webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
       if (isMainFrame && code !== -3 && !quitting && !window.isDestroyed()) {
-        reportFatal(new Error(`Desktop page failed to load: ${url} (${String(code)}: ${description})`), 'renderer')
+        reportFatal(new Error(`Desktop page failed to load: ${url} (${String(code)}: ${description})`))
       }
     })
     window.webContents.on('preload-error', (_event, _path, error) => {
-      if (!quitting && !window.isDestroyed()) reportFatal(error, 'renderer')
+      if (!quitting && !window.isDestroyed()) reportFatal(error)
     })
     window.webContents.on('render-process-gone', (_event, details) => {
       navigation = undefined
       if (!quitting && !window.isDestroyed() && details.reason !== 'clean-exit') {
-        reportFatal(new Error(`Desktop renderer exited: ${details.reason}`), 'renderer')
+        reportFatal(new Error(`Desktop renderer exited: ${details.reason}`))
       }
     })
     return window
@@ -1388,8 +1384,8 @@ async function main(): Promise<void> {
     if (isMandatory()) { mandatoryUI?.focus(); return }
     const window = welcomeWindow ?? mainWindow
     if (window === undefined || window.isDestroyed()) {
-      try { createMainWindow() } catch (error) { reportFatal(error, 'main'); return }
-      void (backend.state.phase === 'ready' ? openInitialWindow() : navigateMain(applicationUrl)).catch((error: unknown) => { reportFatal(error, 'main') })
+      try { createMainWindow() } catch (error) { reportFatal(error); return }
+      void (backend.state.phase === 'ready' ? openInitialWindow() : navigateMain(applicationUrl)).catch((error: unknown) => { reportFatal(error) })
       return
     }
     // Startup and sign-out select the visible window before activation may reveal the workspace.
@@ -1454,7 +1450,7 @@ async function main(): Promise<void> {
       if (quitting || shellInstallerOwnsQuit) return
       if (approved) { finishQuit(); return }
       // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
-      if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error) })
     }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 
@@ -1544,7 +1540,7 @@ if (ownsDesktopInstance) void app.whenReady().then(main).catch(async (error: unk
     app.exit(1)
     return
   }
-  reportFatal(error, 'main')
+  reportFatal(error)
 }).catch((error: unknown) => {
   console.error(error)
   shuttingDown = true
