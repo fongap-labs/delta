@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { availableParallelism } from 'node:os'
 import { desktopTargetBuildPaths } from './desktop-build-paths.mjs'
 
 const appRoot = resolve(import.meta.dirname, '..')
@@ -23,12 +24,21 @@ const node = process.execPath
 const tsx = resolve(repositoryRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs')
 const pnpm = resolve(repositoryRoot, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
 process.env.npm_execpath = pnpm
+// Use the existing bounded family pack scheduler without oversubscribing the Windows runner.
+const packConcurrency = String(Math.max(1, Math.min(4, availableParallelism())))
 
-function run(label, args, cwd) {
+function run(label, args, cwd, timingStage) {
   process.stdout.write(`delta portable: ${label}\n`)
-  const result = spawnSync(node, [tsx, ...args], { cwd, stdio: 'inherit', env: process.env, windowsHide: true })
-  if (result.error) throw result.error
-  if (result.status !== 0) throw new Error(`delta portable: ${label} failed (${String(result.status)})`)
+  const started = performance.now()
+  try {
+    const result = spawnSync(node, [tsx, ...args], { cwd, stdio: 'inherit', env: process.env, windowsHide: true })
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error(`delta portable: ${label} failed (${String(result.status)})`)
+  } finally {
+    if (process.env.CI === 'true' && timingStage !== undefined) {
+      process.stdout.write(`Delta Windows CI timing stage=${timingStage} duration_ms=${Math.round(performance.now() - started)}\n`)
+    }
+  }
 }
 
 function runPnpm(label, args, cwd) {
@@ -71,8 +81,10 @@ if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
     || !existsSync(join(paths.electron, 'electron.exe'))) {
     throw new Error('delta portable: requested runtime reuse, but prepared runtime inputs are incomplete')
   }
-  run('pack Delta runtime packages', ['apps/desktop/scripts/pack-local-packages.ts', '--out', paths.packedDsh], repositoryRoot)
-  run('pack bundled vendor packages', ['scripts/release/pack.ts', '--family', 'vendor', '--out', paths.packedVendor], repositoryRoot)
+  run('pack Delta runtime packages', ['apps/desktop/scripts/pack-local-packages.ts', '--out', paths.packedDsh,
+    '--concurrency', packConcurrency], repositoryRoot, 'package-dsh-pack')
+  run('pack bundled vendor packages', ['scripts/release/pack.ts', '--family', 'vendor', '--out', paths.packedVendor,
+    '--concurrency', packConcurrency], repositoryRoot, 'package-vendor-pack')
   rmSync(paths.packedLandlock, { recursive: true, force: true })
   mkdirSync(paths.packedLandlock, { recursive: true })
   runPnpm('build native package metadata', ['--dir', 'native/system', 'run', 'build:ts'], repositoryRoot)

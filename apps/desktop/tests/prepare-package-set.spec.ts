@@ -206,3 +206,13 @@ it('retains the pinned package manager and frozen install in the release entrypo
   expect(release).toContain('& pnpm.cmd install --frozen-lockfile')
   expect(release).toContain('& pnpm.cmd run package:desktop:portable')
 })
+
+it('uses bounded family pack concurrency and retains both validation entrypoints', () => {
+  const portable = readFileSync(new URL('../scripts/package-delta-portable.mjs', import.meta.url), 'utf8')
+  expect(portable).toContain('Math.max(1, Math.min(4, availableParallelism()))')
+  expect(portable).toContain("'apps/desktop/scripts/pack-local-packages.ts', '--out', paths.packedDsh,")
+  expect(portable).toContain("'scripts/release/pack.ts', '--family', 'vendor', '--out', paths.packedVendor,")
+  expect(portable.match(/'--concurrency', packConcurrency\]/gu)).toHaveLength(2)
+  expect(portable).toContain("repositoryRoot, 'package-dsh-pack'")
+  expect(portable).toContain("repositoryRoot, 'package-vendor-pack'")
+})
