@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 
 const desktop = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8')
+const hostProcess = readFileSync(new URL('../src/host-process.ts', import.meta.url), 'utf8')
 const host = readFileSync(new URL('../../desktop-host/src/index.ts', import.meta.url), 'utf8')
 const bundle = readFileSync(new URL('../tsdown.config.ts', import.meta.url), 'utf8')
 
@@ -20,4 +21,10 @@ it('does not submit desktop product analytics or subscribe to analytics policy',
   expect(desktop).not.toContain('welcomeBackend?.report')
   expect(desktop).not.toContain('track(')
   expect(desktop).toContain('analyticsEnabled: () => Promise.resolve(false)')
+})
+
+it('never retains raw Host stderr or operation diagnostics', () => {
+  for (const marker of ['parsePluginOperationRecord', 'onPluginOperation', 'private stderr', 'MAX_HOST_DIAGNOSTIC_CHARS', 'message.diagnostic']) expect(hostProcess).not.toContain(marker)
+  expect(hostProcess).toContain('child.stderr?.resume()')
+  expect(hostProcess).toContain("!('diagnostic' in candidate)")
 })
