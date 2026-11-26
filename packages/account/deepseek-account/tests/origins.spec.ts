@@ -56,7 +56,7 @@ it('routes read-only notification APIs to Harness while account APIs and pages s
   expect(await account.getBalance(client)).toMatchObject({ status: 'ready' })
   expect((await account.getNotifications(client))?.notifications[0]?.id).toBe(id)
   expect((await account.getNotificationContent(id, client))?.id).toBe(id)
-  await expect(account.reportNotificationEvent(id, 'dismissed', client)).rejects.toThrow('Delta privacy policy')
+  expect(account).not.toHaveProperty('reportNotificationEvent')
   expect(requests).toEqual([
     'https://platform.deepseek.com/auth-api/v0/users/current',
     'https://platform.deepseek.com/api/v0/users/get_user_summary',
