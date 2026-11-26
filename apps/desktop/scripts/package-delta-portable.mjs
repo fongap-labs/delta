@@ -66,8 +66,7 @@ function portableThirdPartyNotices(source) {
     ? source.slice(0, start) + source.slice(end)
     : source
   const email = new RegExp(String.raw`\b[A-Za-z0-9._%+-]+${String.fromCharCode(64)}[A-Za-z0-9.-]+${String.fromCharCode(46)}[A-Za-z]{2,}\b`, 'g')
-  return withoutPatchPaths
-    .replace(email, match => 'x'.repeat(match.length))
+  return withoutPatchPaths.replace(email, match => 'x'.repeat(match.length))
 }
 
 if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('delta portable packaging requires Windows x64')
@@ -117,6 +116,10 @@ if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
   throw new Error(`delta portable: reusable Electron output is incomplete: ${electronBuilderOutput}`)
 }
 
+run('sanitize Electron application archive metadata', [
+  'scripts/primary-runtime/sanitize-electron-asar.mjs', join(electronBuilderOutput, 'resources', 'app.asar'),
+], repositoryRoot)
+
 // Reused build outputs must pass the same no-upstream-feed invariant as fresh outputs.
 if (existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))) {
   throw new Error('delta portable: automatic update feed must not be embedded')
@@ -125,8 +128,12 @@ cpSync(electronBuilderOutput, appOutput, { recursive: true })
 for (const path of [join(dataOutput, 'UserData'), join(dataOutput, 'Session'), join(dataOutput, 'Logs'),
   join(dataOutput, 'Temp'), join(dataOutput, 'Home')]) mkdirSync(path, { recursive: true })
 mkdirSync(otherOutput, { recursive: true })
-cpSync(join(repositoryRoot, 'LICENSE'), join(otherOutput, 'LICENSE'))
-cpSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), join(otherOutput, 'DEEPSEEK-HARNESS-MIT.txt'))
+writeFileSync(join(otherOutput, 'LICENSE'), portableThirdPartyNotices(
+  readFileSync(join(repositoryRoot, 'LICENSE'), 'utf8'),
+))
+writeFileSync(join(otherOutput, 'DEEPSEEK-HARNESS-MIT.txt'), portableThirdPartyNotices(
+  readFileSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), 'utf8'),
+))
 writeFileSync(join(otherOutput, 'THIRD_PARTY_NOTICES.md'), portableThirdPartyNotices(
   readFileSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), 'utf8'),
 ))
