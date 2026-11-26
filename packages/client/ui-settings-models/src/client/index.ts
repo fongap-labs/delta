@@ -6,7 +6,6 @@
  * Export discipline:
  * packages/client/AGENTS.md.
  */
-import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SyncedConfig } from '@deepseek-ai/dsh-client-config/types'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
@@ -106,7 +105,6 @@ export function apply(ctx: ClientContext, config: SyncedConfig<ModelsConfig>): v
     t,
   })
   const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
-    track: (name, attributes) => ctx.get('productAnalytics')?.track(name, attributes),
     controller,
     hooks: { models: controller.store, automatic },
     operations,
