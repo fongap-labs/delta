@@ -27,7 +27,18 @@ try {
   foreach ($name in @('DELTA_SKIP_BUILD', 'DELTA_REUSE_PREPARED_RUNTIME', 'DELTA_REUSE_ELECTRON_OUTPUT', 'DELTA_REPLACE_OUTPUT')) {
     Remove-Item "Env:$name" -ErrorAction SilentlyContinue
   }
-  & npm.cmd install --global pnpm@11.28.5
+  $pnpmVersion = ''
+  $pnpmCommand = Get-Command pnpm.cmd -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($null -ne $pnpmCommand) {
+    try { $pnpmVersion = (& $pnpmCommand.Source --version | Out-String).Trim() }
+    catch { $pnpmVersion = '' }
+  }
+  if ($pnpmVersion -cne '11.28.5') {
+    & npm.cmd install --global pnpm@11.28.5
+  }
+  if ((& pnpm.cmd --version | Out-String).Trim() -cne '11.28.5') {
+    throw 'Delta release requires pinned pnpm 11.28.5.'
+  }
   & pnpm.cmd install --frozen-lockfile
   & pnpm.cmd run package:desktop:portable
   Push-Location $stage
