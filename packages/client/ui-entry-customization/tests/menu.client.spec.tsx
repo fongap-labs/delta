@@ -236,7 +236,7 @@ describe('More menu registrations', () => {
     ['sidebar.panellist.actions', 'sidebar'],
     ['conversation.session.header.views.actions', 'conversation'],
     ['sidebar.right.tab.guide.actions', 'rightbar'],
-  ] as const)('runs both footer actions of %s (%s)', async (seat) => {
+  ] as const)('runs both footer actions of %s (%s)', async (seat, _region) => {
     const b = await bench()
     const menu = within(b.view.getByRole('menu', { name: seat }))
     fireEvent.click(menu.getByRole('menuitem', { name: 'Browse other plugins' }))

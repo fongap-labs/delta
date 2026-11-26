@@ -56,8 +56,5 @@
     {
       "path": "../../settings/settings"
     },
-    {
-      "path": "../product-analytics/tsconfig.client.json"
-    }
   ]
 }

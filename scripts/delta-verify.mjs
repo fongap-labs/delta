@@ -76,6 +76,32 @@ for (const path of ['tsconfig.host.json', 'tsconfig.client.json', 'tsconfig.base
     privacyViolations.push('delta-verify: forbidden collection project reference restored: ' + path)
   }
 }
+const forbiddenPrivacyProjectNames = [
+  'product-analytics',
+  'session-log-deepseek',
+  'plugin-package-inventory-deepseek',
+  'ui-settings-session-log',
+]
+function collectTsconfigFiles(directory, result = []) {
+  if (!existsSync(directory)) return result
+  for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      if (!['node_modules', 'lib', 'dist'].includes(entry.name)) collectTsconfigFiles(path, result)
+    } else if (entry.isFile() && /^tsconfig(?:\.[^.]+)?\.json$/u.test(entry.name)) {
+      result.push(path)
+    }
+  }
+  return result
+}
+for (const group of ['apps', 'packages', 'native', 'vendor']) {
+  for (const path of collectTsconfigFiles(join(root, group))) {
+    const content = readFileSync(path, 'utf8')
+    if (forbiddenPrivacyProjectNames.some(name => content.includes(`${name}/`) || content.includes(`${name}\\`))) {
+      privacyViolations.push('delta-verify: forbidden collection project reference restored: ' + relative(root, path))
+    }
+  }
+}
 const forbiddenPrivacyDependencies = [
   '@deepseek-ai/dsh-session-log-deepseek',
   '@deepseek-ai/dsh-plugin-package-inventory-deepseek',
