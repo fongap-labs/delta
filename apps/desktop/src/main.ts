@@ -43,7 +43,6 @@ import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, forwardWebRequest, removeLegacyHostCookies } from './web-document.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
-import type { CrashReportSource } from './crash-report.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
 import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
@@ -109,17 +108,16 @@ const recovery = new DesktopFatalRecovery({
   },
   exit: () => { quitWithoutConfirmation() },
   restart: () => { app.relaunch(); quitWithoutConfirmation() },
-  // The recovery dialog remains available without automatic report collection or storage.
-  writeReport: () => Promise.resolve(undefined),
-  revealReport: () => Promise.reject(new Error('Automatic diagnostic reports are unavailable')),
 })
 
-function reportFatal(error: unknown, source: CrashReportSource): void {
+type DesktopFailureSource = 'host' | 'web-boot' | 'renderer' | 'main'
+
+function reportFatal(error: unknown, source: DesktopFailureSource): void {
   console.error('Delta desktop fatal failure:', source)
   if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
   splashWindow = undefined
   if (shuttingDown) return
-  void recovery.report(error, source).catch(() => {
+  void recovery.report(error).catch(() => {
     console.error('Delta desktop recovery failed')
     shuttingDown = true
     app.exit(1)

@@ -89,6 +89,10 @@ const desktopHostProcess = readFileSync(requireFile('apps/desktop/src/host-proce
 for (const marker of ['parsePluginOperationRecord', 'onPluginOperation', 'private stderr', 'MAX_HOST_DIAGNOSTIC_CHARS', 'message.diagnostic']) {
   if (desktopHostProcess.includes(marker)) throw new Error('delta-verify: automatic Host diagnostic collection restored')
 }
+const fatalRecovery = readFileSync(requireFile('apps/desktop/src/fatal-recovery.ts', 'desktop fatal recovery'), 'utf8')
+for (const marker of ['writeReport', 'revealReport', 'reportState', 'CRASH_REPORT_WAIT_MS', 'getDiagnosticReport']) {
+  if (fatalRecovery.includes(marker)) throw new Error('delta-verify: automatic recovery report interface restored')
+}
 const sdkPatch = readFileSync(requireFile('packages/bundle/sdk-minimal/cordis.patch.yml', 'SDK profile patch'), 'utf8')
 for (const patch of [corePatch, webPatch, sdkPatch]) {
   for (const id of ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'ui-settings-session-log']) {
