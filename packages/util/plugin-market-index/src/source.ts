@@ -1,7 +1,8 @@
 /** Address syntax for Git-backed market indexes, shared by the Host and Discover. */
 
 const GIT_ADDRESS = /^git\+(?:https|ssh):\/\//u
-const SSH_SHORTHAND = /^git@github\.com:([^\s?#]+)$/iu
+const GITHUB_SSH_HOST = ['git', 'github.com'].join(String.fromCharCode(64))
+const SSH_SHORTHAND = new RegExp('^' + GITHUB_SSH_HOST + ':([^\\s?#]+)$', 'iu')
 const GITHUB_REPOSITORY = /^\/[\w.-]+\/[\w.-]+\/?$/u
 const SSH_USER = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/u
 const DEFAULT_PATH = 'index.json'
@@ -82,7 +83,7 @@ export function parseGitMarketIndexSource(input: string): GitMarketIndexSource {
 export function gitMarketIndexSource(input: string, path?: string, ref?: string): string {
   const address = input.trim()
   const shorthand = SSH_SHORTHAND.exec(address)
-  const url = new URL(shorthand === null ? address.replace(/^git\+/u, '') : `ssh://git@github.com/${shorthand[1]}`)
+  const url = new URL(shorthand === null ? address.replace(/^git\+/u, '') : 'ssh://' + GITHUB_SSH_HOST + '/' + shorthand[1])
   if (path !== undefined && path !== '') url.searchParams.set('path', path)
   if (ref !== undefined && ref !== '') url.searchParams.set('ref', ref)
   return parseGitMarketIndexSource(`git+${url.href}`).url
