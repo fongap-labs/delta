@@ -40,7 +40,7 @@ describe('qualification distribution file planning', () => {
       expect(next!.publicationAuthorized).toBe(false)
       expect(next!.verified).toBe('file-integrity-only')
       expect(load(next!.feed.contents)).toMatchObject({ version: versions[1],
-        files: [{ url: `https://download-test.deepseek.com/${next!.binaries[0]!.key}` }] })
+        files: [{ url: `https://updates.invalid/${next!.binaries[0]!.key}` }] })
     })
   })
 

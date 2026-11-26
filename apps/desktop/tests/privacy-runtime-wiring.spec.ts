@@ -65,3 +65,9 @@ it('does not retain the upstream update publisher or fixed upstream qualificatio
   expect(qualification).not.toContain('bj-toc-download-test-1320056602')
   expect(builder).toContain('const update = testFeed ?')
 })
+
+it('rejects explicitly configured upstream update and policy origins', () => {
+  const environment = readFileSync(new URL('../scripts/desktop-auto-update-environment.mjs', import.meta.url), 'utf8')
+  const policy = readFileSync(new URL('../scripts/desktop-policy-environment.mjs', import.meta.url), 'utf8')
+  for (const source of [environment, policy]) expect(source).toContain("hostname.endsWith('.deepseek.com')")
+})

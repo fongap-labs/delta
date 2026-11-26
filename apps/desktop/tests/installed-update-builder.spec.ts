@@ -18,10 +18,10 @@ vi.mock('../scripts/windows-sign.mjs', () => ({
 }))
 
 const versions = ['0.1.6-nightly.20260914.1', '0.1.6-nightly.20260914.2'] as const
-const environment = { DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DOWNLOAD_TEST_ORIGIN: 'https://download-test.deepseek.com', DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
+const environment = { DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DOWNLOAD_TEST_ORIGIN: 'https://updates.invalid', DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
   DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
   DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
-  DOWNLOAD_TEST_COS_BUCKET: 'bj-toc-download-test-1320056602' }
+  DOWNLOAD_TEST_COS_BUCKET: 'delta-local-qualification-0000000000' }
 const require = createRequire(import.meta.url)
 const { validateConfiguration } = require('app-builder-lib/out/util/config/config.js') as {
   validateConfiguration: (config: object, logger: { isEnabled: false }) => Promise<void>
@@ -104,7 +104,7 @@ describe('installed-update application inputs and builder configuration', () => 
         expect(typeof config.beforeBuild).toBe('function')
         expect(config.nsis.include).toMatch(/scripts[\\/]installer\.nsh$/u)
         expect(config.publish[0]!.url)
-          .toMatch(/^https:\/\/download-test\.deepseek\.com\/dsh-desk\/feeds\/qualification\/[a-f0-9]{24}\/win-x64\/$/u)
+          .toMatch(/^https:\/\/updates\.invalid\/dsh-desk\/feeds\/qualification\/[a-f0-9]{24}\/win-x64\/$/u)
       }
     })
   })
@@ -121,7 +121,7 @@ describe('installed-update application inputs and builder configuration', () => 
   it.each([
     { DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' },
     { DSH_DESKTOP_UNSIGNED: '1' },
-    { DOWNLOAD_TEST_ORIGIN: 'https://download.deepseek.com' },
+    { DOWNLOAD_TEST_ORIGIN: 'https://other.invalid' },
   ])('rejects incompatible qualification settings %j', async (override) => {
     await fixture(async (manifest) => {
       await expect(createInstalledUpdateBuilderConfig(manifest, versions[0], { ...environment, ...override })).rejects.toThrow('test deployment')
