@@ -91,6 +91,30 @@ describe('product package use', () => {
     ]))
   })
 
+  it('traces the private desktop host separately from the current default product roles', () => {
+    const root = fixture()
+    pkg(root, 'apps/desktop-host', '@fixture/desktop-host')
+    pkg(root, candidateDir, candidate)
+    write(root, 'apps/desktop-host/src/index.ts', `import '${candidate}'`)
+    write(root, 'apps/desktop-host/src/cli.ts', 'export {}\n')
+    const policy = declarations()
+    const ordinary = verifyProductUse(root, policy)
+    const detailed = verifyProductUse(root, policy, true)
+    expect(detailed.failures).toEqual(ordinary.failures)
+    expect(detailed.defaultPackages).toEqual(ordinary.defaultPackages)
+    expect(detailed.packageEvidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: candidateDir,
+        contexts: ['entry:apps/desktop-host/src/index.ts'],
+        consumers: ['apps/desktop-host/src/index.ts'],
+      }),
+      expect.objectContaining({
+        path: 'apps/desktop-host',
+        contexts: ['entry:apps/desktop-host/src/cli.ts', 'entry:apps/desktop-host/src/index.ts'],
+      }),
+    ]))
+  })
+
   it('rejects an orphan even when an app manifest installs it', () => {
     const root = fixture()
     pkg(root, candidateDir, candidate)

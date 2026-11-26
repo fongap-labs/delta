@@ -260,6 +260,14 @@ export function verifyProductUse(
   for (const path of ['apps/cli/src/bin.ts', 'apps/desktop/src/main.ts']) {
     scanContext(`entry:${path}`, defaults, reach => scanSource(resolve(root, path), reach))
   }
+  // The private desktop host is a separate process with its own boot and CLI entries.
+  // Trace it for pruning evidence without changing the existing default-role verdict.
+  if (includeEvidence && directories.has(resolve(root, 'apps/desktop-host'))) {
+    const host: Reachability = { packages: new Set(), sources: new Set() }
+    for (const path of ['apps/desktop-host/src/index.ts', 'apps/desktop-host/src/cli.ts']) {
+      scanContext(`entry:${path}`, host, reach => scanSource(resolve(root, path), reach))
+    }
+  }
   const htmlPath = resolve(root, 'apps/web/index.html')
   const dom = new JSDOM(readFileSync(htmlPath, 'utf8'))
   try {
