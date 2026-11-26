@@ -6,7 +6,7 @@ import { zipSync } from 'fflate'
 import { expect, it } from 'vitest'
 import lock from './lock.json' with { type: 'json' }
 import { unpackPrimaryRuntimeWheel } from './prepare.ts'
-import { prunePrimaryRuntimePythonTests } from './prune-python-tests.ts'
+import { prunePrimaryRuntimePythonTests, pruneSourceBackedPythonBytecode } from './prune-python-tests.ts'
 
 const records = {
   numpy: `numpy-${lock.pythonPackages.numpy}.dist-info/RECORD`,
@@ -83,3 +83,35 @@ it.each(['"unterminated,,\n', 'numpy/tests/test_numpy.py,\n', '', ',,\n'])(
     }
   },
 )
+
+it('removes source-backed bytecode and matching wheel records but keeps sourceless modules and native binaries', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'primary-python-bytecode-'))
+  try {
+    const site = join(root, 'site-packages')
+    const removed = ['standard.pyc', 'site-packages/pkg/__pycache__/module.cpython-312.pyc',
+      'site-packages/pkg/__pycache__/module.cpython-312.opt-1.pyc']
+    const retained = ['standard.py', 'site-packages/pkg/module.py',
+      'site-packages/pkg/__pycache__/only.cpython-312.pyc', 'site-packages/pkg/native.pyd',
+      'site-packages/pkg.dist-info/LICENSE']
+    for (const path of [...removed, ...retained]) {
+      const full = join(root, path)
+      await mkdir(join(full, '..'), { recursive: true })
+      await writeFile(full, 'fixture')
+    }
+    const record = join(site, 'pkg.dist-info', 'RECORD')
+    const recorded = [...removed, ...retained].filter(path => path.startsWith('site-packages/'))
+      .map(path => path.slice('site-packages/'.length) + ',,')
+    await writeFile(record, recorded.join('\n') + '\n')
+    pruneSourceBackedPythonBytecode(root, site)
+    for (const path of removed) await expect(readFile(join(root, path))).rejects.toMatchObject({ code: 'ENOENT' })
+    for (const path of retained) expect(await readFile(join(root, path), 'utf8')).toBe('fixture')
+    const after = await readFile(record, 'utf8')
+    expect(after).not.toContain('module.cpython-312')
+    expect(after).toContain('only.cpython-312.pyc')
+    expect(after).toContain('pkg.dist-info/LICENSE')
+    pruneSourceBackedPythonBytecode(root, site)
+    expect(await readFile(record, 'utf8')).toBe(after)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})

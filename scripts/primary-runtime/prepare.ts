@@ -13,7 +13,7 @@ import { x as extractTar } from 'tar'
 import { copyPrimaryRuntime, parsePrimaryRuntime, workspaceDependencyPaths, type PrimaryRuntimeManifest } from '@deepseek-ai/dsh-tool-workspace-dependencies'
 import { acceptsNpmPlatform } from '../npm-platform.ts'
 import lock from './lock.json' with { type: 'json' }
-import { prunePrimaryRuntimePythonTests } from './prune-python-tests.ts'
+import { prunePrimaryRuntimePythonTests, pruneSourceBackedPythonBytecode } from './prune-python-tests.ts'
 
 /**
  * Download or reuse an archive only when its bytes match the release lock.
@@ -126,7 +126,7 @@ export function primaryRuntimePayloadDigest(
   // Identity preserves key order within the selected target, wheel records and distribution map, plus wheel-entry order.
   // Bump format when extraction or assembly changes payload bytes without changing locked inputs.
   return createHash('sha256').update(JSON.stringify({
-    format: 8, target, pythonVersion, pythonRelease, nodeVersion: pnpmVersion === undefined ? undefined : nodeVersion,
+    format: 9, target, pythonVersion, pythonRelease, nodeVersion: pnpmVersion === undefined ? undefined : nodeVersion,
     artifact: runtimeLock.targets[target], wheels, pythonPackages, pnpm: pnpmVersion,
   })).digest('hex')
 }
@@ -239,6 +239,8 @@ export async function preparePrimaryRuntime(options: PreparePrimaryRuntimeOption
       await unpackPrimaryRuntimeWheel(await downloadPrimaryRuntimeAsset(wheel.url, wheel.sha256, paths.downloads), entries.pythonPackages)
     }
     prunePrimaryRuntimePythonTests(entries.pythonPackages)
+    // Windows release payloads must not carry redundant bytecode containing build-machine paths.
+    if (platform === 'win32') pruneSourceBackedPythonBytecode(join(dependencies, 'python', 'Lib'), entries.pythonPackages)
     writeFileSync(join(output, 'runtime.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
     const destination = join(paths.runtime, 'primary-runtime')
     rmSync(destination, { recursive: true, force: true })
