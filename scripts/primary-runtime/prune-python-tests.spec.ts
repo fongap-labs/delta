@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { zipSync } from 'fflate'
 import { expect, it } from 'vitest'
 import lock from './lock.json' with { type: 'json' }
@@ -13,6 +15,39 @@ const records = {
   numpy: `numpy-${lock.pythonPackages.numpy}.dist-info/RECORD`,
   pandas: `pandas-${lock.pythonPackages.pandas}.dist-info/RECORD`,
 }
+
+it('preserves native ASAR placement beyond the glob pattern size limit', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asar-large-native-tree-'))
+  try {
+    const store = resolve('node_modules/.pnpm')
+    const installed = (await readdir(store)).find(name => name.startsWith('@electron+asar@'))!
+    const asar = createRequire(import.meta.url)(join(store, installed, 'node_modules/@electron/asar'))
+    const source = join(root, 'source')
+    const relative = `node_modules/scoped-native-package/${'nested-resource-directory-'.repeat(3)}`
+    const directory = join(source, relative)
+    await mkdir(directory, { recursive: true })
+    const native = Buffer.from([0, 1, 2, 255])
+    for (let index = 0; index < 800; index++) await writeFile(join(directory, `${index}.node`), native)
+    const email = `owner${String.fromCharCode(64)}example.invalid`
+    await writeFile(join(source, 'LICENSE'), email)
+    await writeFile(join(source, 'main.js'), 'module.exports = 42;')
+    const archive = join(root, 'app.asar')
+    await asar.createPackageWithOptions(source, archive, { unpack: '**/*.node' })
+    const result = spawnSync(process.execPath, ['--import', 'tsx',
+      'scripts/primary-runtime/sanitize-electron-asar.mjs', archive], { encoding: 'utf8', timeout: 60000 })
+    expect(result.status, result.stderr).toBe(0)
+    asar.uncacheAll()
+    for (let index = 0; index < 800; index++) {
+      const file = `${relative}/${index}.node`
+      expect(asar.statFile(archive, file).unpacked).toBe(true)
+      expect(await readFile(join(`${archive}.unpacked`, file))).toEqual(native)
+    }
+    expect(asar.extractFile(archive, 'LICENSE').toString()).not.toContain(email)
+    expect(asar.extractFile(archive, 'main.js').toString()).toBe('module.exports = 42;')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}, 60000)
 
 it('removes only NumPy/pandas test directories and keeps retained wheel files and RECORD hashes', async () => {
   const root = await mkdtemp(join(tmpdir(), 'primary-python-pruning-'))

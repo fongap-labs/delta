@@ -1,6 +1,6 @@
 /** Scrub textual release metadata from the Electron application archive. */
 import { createRequire } from 'node:module'
-import { cpSync, existsSync, mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs'
+import { cpSync, createReadStream, existsSync, lstatSync, mkdtempSync, readdirSync, readlinkSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { sanitizeRuntimeMetadata } from './sanitize-runtime-metadata.ts'
 
@@ -8,7 +8,7 @@ const repositoryRoot = resolve(import.meta.dirname, '..', '..')
 const asarStore = join(repositoryRoot, 'node_modules', '.pnpm')
 const asarPackage = readdirSync(asarStore).find(entry => entry.startsWith('@electron+asar@'))
 if (asarPackage === undefined) throw new Error('electron asar sanitizer: @electron/asar is not installed')
-const { createPackageWithOptions, extractAll, getRawHeader } = createRequire(import.meta.url)(
+const { createPackageFromStreams, extractAll, getRawHeader } = createRequire(import.meta.url)(
   join(asarStore, asarPackage, 'node_modules', '@electron', 'asar'),
 )
 const archiveArgument = process.argv[2]
@@ -32,11 +32,25 @@ try {
   collect(getRawHeader(archive).header)
   extractAll(archive, extracted)
   sanitizeRuntimeMetadata(extracted)
-  const literalGlob = value => value.replace(/([\\*?\[\]{}(),!+@])/g, '\\$1')
-  const patterns = unpacked.map(path => literalGlob(`${extracted.replaceAll('\\', '/')}/${path}`))
-  await createPackageWithOptions(extracted, rebuilt, {
-    unpack: patterns.length === 0 ? undefined : patterns.length === 1 ? patterns[0] : `{${patterns.join(',')}}`,
-  })
+  const outsidePaths = new Set(unpacked)
+  const streams = []
+  function stage(directory, prefix = '') {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = prefix ? `${prefix}/${entry.name}` : entry.name
+      const full = join(directory, entry.name)
+      const common = { path, unpacked: outsidePaths.has(path), stat: lstatSync(full) }
+      if (entry.isDirectory()) {
+        streams.push({ ...common, type: 'directory' })
+        stage(full, path)
+      } else if (entry.isSymbolicLink()) {
+        streams.push({ ...common, type: 'link', symlink: readlinkSync(full) })
+      } else {
+        streams.push({ ...common, type: 'file', streamGenerator: () => createReadStream(full) })
+      }
+    }
+  }
+  stage(extracted)
+  await createPackageFromStreams(rebuilt, streams)
   const rebuiltUnpacked = []
   collect(getRawHeader(rebuilt).header, '', false, rebuiltUnpacked)
   if (JSON.stringify(unpacked.sort()) !== JSON.stringify(rebuiltUnpacked.sort())) {
