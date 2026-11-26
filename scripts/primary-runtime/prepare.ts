@@ -240,7 +240,6 @@ export async function preparePrimaryRuntime(options: PreparePrimaryRuntimeOption
       await unpackPrimaryRuntimeWheel(await downloadPrimaryRuntimeAsset(wheel.url, wheel.sha256, paths.downloads), entries.pythonPackages)
     }
     prunePrimaryRuntimePythonTests(entries.pythonPackages)
-    sanitizeRuntimeMetadata(output)
     writeFileSync(join(output, 'runtime.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
     const destination = join(paths.runtime, 'primary-runtime')
     rmSync(destination, { recursive: true, force: true })
@@ -296,5 +295,7 @@ if (import.meta.main) {
     cache: values.cache ?? join(tmpdir(), 'dsh-primary-runtime-downloads'), version,
     pythonOnly: values['python-only'],
   })
-  smokePrimaryRuntime(join(output, 'primary-runtime'))
+  const primaryRuntime = join(output, 'primary-runtime')
+  smokePrimaryRuntime(primaryRuntime)
+  sanitizeRuntimeMetadata(primaryRuntime)
 }
