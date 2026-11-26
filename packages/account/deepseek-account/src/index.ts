@@ -2,14 +2,13 @@
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto'
 import type { ServerResponse } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { arch, platform, release } from 'node:os'
 import { promises as streamPromises } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 import { mergePlatformCookies, platformClientHeaders, platformWireLocale } from './client-metadata.ts'
-import { type AccountNotification, type AccountNotificationBatch, type AccountNotificationEvent, type AccountNotificationId, type AccountClientMetadata, type AccountDetails, type AccountRequestCredential, type AccountUserId, type AccountView, type AccountUpdate, type PlatformSession, type SignInAttemptId, type SignInAttemptView } from './types.ts'
+import { type AccountNotification, type AccountNotificationBatch, type AccountNotificationId, type AccountClientMetadata, type AccountDetails, type AccountRequestCredential, type AccountUserId, type AccountView, type AccountUpdate, type PlatformSession, type SignInAttemptId, type SignInAttemptView } from './types.ts'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { profile, readAccountDetail } from './details.ts'
@@ -301,18 +300,6 @@ export class DeepSeekAccount extends TypertRemoteService {
     }
   }
 
-  /**
-   * Reject obsolete notification interaction RPC calls locally.
-   * @param _id - obsolete notification identity.
-   * @param _event - obsolete interaction type.
-   * @param _client - obsolete reporting metadata.
-   * @returns Never sends an interaction acknowledgement.
-   */
-  @Remote
-  async reportNotificationEvent(_id: AccountNotificationId,
-    _event: AccountNotificationEvent, _client: AccountClientMetadata): Promise<boolean> {
-    throw new Error('Delta privacy policy rejects notification interaction reporting')
-  }
 
   /**
    * Cache one ready profile against the grant token it was read with, so identity reuse cannot cross
@@ -384,22 +371,6 @@ export class DeepSeekAccount extends TypertRemoteService {
     await this.removing
   }
 
-  /**
-   * Read existing login identity without creating a device or returning credentials.
-   * @returns optional device/account identifiers and the provider's OS version string.
-   */
-  async getDeviceIdentity(): Promise<{ deviceId?: string; userId?: AccountUserId; osVersion: string }> {
-    const [record, session] = await Promise.all([
-      this.ctx.credentials.readRecord(DEVICE),
-      this.getPlatformSession(),
-    ])
-    const parsed = record?.kind === 'grant' ? device.safeParse(record.payload) : undefined
-    return {
-      ...parsed?.success ? { deviceId: parsed.data.id } : {},
-      ...session?.userId == null ? {} : { userId: session.userId },
-      osVersion: deviceOsVersion(),
-    }
-  }
 
   /**
    * Read credentials for the configured embedded-page origin, bound to their account environment, and
@@ -783,7 +754,8 @@ export class DeepSeekAccount extends TypertRemoteService {
       const identity = device.parse(deviceRecord.payload)
       const result = exchange.safeParse(await this.request('auth_exchange', {
         code: receivedCode, code_verifier: verifier, redirect_uri: redirectUri,
-        device_id: identity.id, device_model: `${platform()}-${arch()}`, os_version: deviceOsVersion(),
+        // Preserve the authentication protocol without reporting actual machine characteristics.
+        device_id: identity.id, device_model: 'Delta', os_version: 'unspecified',
       }, signal, attempt.clientHeaders), { reportInput: true })
       if (!result.success) this.rejectPayload('auth_exchange', result.error)
       const completionUrl = new URL(browserUrl(result.data.authorized_url, this.origin, '/dsh/authorized', this.rewriteBrowserOrigin))
@@ -855,7 +827,3 @@ export class DeepSeekAccount extends TypertRemoteService {
 }
 export default DeepSeekAccount
 
-/** OS identification shared by login and credential-free identity reads. */
-function deviceOsVersion(): string {
-  return `${platform()} ${release()}`
-}

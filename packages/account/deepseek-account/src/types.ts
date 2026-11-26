@@ -8,7 +8,7 @@ export interface AccountClientMetadata {
   readonly version: string
   /** Active UI language; only its primary subtag selects the Platform wire locale. */
   readonly locale: string
-  /** Offset from UTC in seconds, positive east of Greenwich. */
+  /** Legacy wire compatibility field; Delta always transmits a neutral UTC offset. */
   readonly timezoneOffsetSeconds: number
 }
 
@@ -71,8 +71,6 @@ export interface AccountDetails {
 
 /** Opaque string notification identity; stable across devices, sign-ins, and languages. */
 export type AccountNotificationId = Branded<'AccountNotificationId'>
-/** Presentation, any non-dismiss action click, or explicit dismissal; independent of backend consumption. */
-export type AccountNotificationEvent = 'displayed' | 'cta_clicked' | 'dismissed'
 /** Client action supported by the account notification presentation. */
 export interface AccountNotificationAction {
   readonly label: string

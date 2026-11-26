@@ -64,6 +64,7 @@ const forbiddenPrivacyPackages = [
   'packages/session/session-log-deepseek',
   'packages/llm/plugin-package-inventory-deepseek',
   'packages/client/ui-settings-session-log',
+  'packages/client/product-analytics',
 ]
 for (const path of forbiddenPrivacyPackages) {
   if (existsSync(join(root, path))) throw new Error('delta-verify: forbidden collection package restored: ' + path)
@@ -78,6 +79,7 @@ const forbiddenPrivacyDependencies = [
   '@deepseek-ai/dsh-session-log-deepseek',
   '@deepseek-ai/dsh-plugin-package-inventory-deepseek',
   '@deepseek-ai/dsh-client-ui-settings-session-log',
+  '@deepseek-ai/dsh-client-product-analytics',
 ]
 for (const path of [...workspaceManifests, 'pnpm-lock.yaml']) {
   const content = readFileSync(requireFile(path, path), 'utf8')
@@ -116,6 +118,35 @@ for (const marker of ['contactUrl(', 'deviceInfo', 'CONTACT_CONFIG_GLOBAL']) {
 }
 const accountProtocol = readFileSync(join(root, 'packages/account/deepseek-account/src/protocol.ts'), 'utf8')
 if (accountProtocol.includes('/api/v0/users/notifications/events')) throw new Error('delta-verify: interaction reporting restored')
+const accountHost = readFileSync(join(root, 'packages/account/deepseek-account/src/index.ts'), 'utf8')
+for (const marker of ['reportNotificationEvent', 'getDeviceIdentity', 'deviceOsVersion', "from 'node:os'"]) {
+  if (accountHost.includes(marker)) throw new Error('delta-verify: obsolete account reporting or device collection restored: ' + marker)
+}
+const notificationClient = readFileSync(join(root, 'packages/client/ui-account-notifications/src/client/index.ts'), 'utf8')
+const notificationController = readFileSync(join(root, 'packages/client/ui-account-notifications/src/client/notification-controller.ts'), 'utf8')
+for (const marker of ['reportNotificationEvent', 'reportEvent:', 'ctaClicked']) {
+  if (notificationClient.includes(marker) || notificationController.includes(marker)) throw new Error('delta-verify: notification interaction collection restored: ' + marker)
+}
+for (const path of ['apps/desktop/src/client-metadata.ts', 'packages/client/ui-settings-account/src/client/client-metadata.ts']) {
+  const source = readFileSync(join(root, path), 'utf8')
+  if (source.includes('getTimezoneOffset') || !source.includes('timezoneOffsetSeconds: 0')) throw new Error('delta-verify: client timezone sampling restored: ' + path)
+}
+const accountHeaders = readFileSync(join(root, 'packages/account/deepseek-account/src/client-metadata.ts'), 'utf8')
+if (!accountHeaders.includes("'x-client-timezone-offset': '0'")) throw new Error('delta-verify: account wire timezone minimization missing')
+function checkCollectionSource(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      if (!['node_modules', 'lib', 'dist', 'tests', 'fixtures', 'locale', 'locales', 'assets'].includes(entry.name)) checkCollectionSource(path)
+    } else if (entry.isFile() && /\.(?:[cm]?[jt]sx?|ya?ml|json)$/u.test(entry.name)) {
+      const content = readFileSync(path, 'utf8')
+      if (/\b(?:productAnalytics|TrackProductEvent|ProductEventMap|reportNotificationEvent|analyticsAttempt)\b|@deepseek-ai\/dsh-client-product-analytics/u.test(content)) {
+        throw new Error('delta-verify: removed collection reference restored: ' + path)
+      }
+    }
+  }
+}
+for (const group of ['apps', 'packages']) checkCollectionSource(join(root, group))
 if (rowBlock(webPatch, 'ui-account-notifications')) throw new Error('delta-verify: automatic account notification polling restored')
 const extensionRegistry = readFileSync(join(root, 'packages/llm/deepseek-llm-api-extensions/src/index.ts'), 'utf8')
 const extensionSerializer = readFileSync(join(root, 'packages/llm/llm-deepseek/src/request-extensions.ts'), 'utf8')
@@ -129,7 +160,7 @@ for (const path of ['adapter.ts', 'files-api.ts', 'listing.ts']) {
 
 const sdkPatch = readFileSync(requireFile('packages/bundle/sdk-minimal/cordis.patch.yml', 'SDK profile patch'), 'utf8')
 for (const patch of [corePatch, webPatch, sdkPatch]) {
-  for (const id of ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'ui-settings-session-log']) {
+  for (const id of ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'ui-settings-session-log', 'product-analytics']) {
     if (rowBlock(patch, id)) throw new Error('delta-verify: forbidden collection row restored: ' + id)
   }
 }

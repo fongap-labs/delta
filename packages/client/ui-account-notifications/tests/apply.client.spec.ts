@@ -52,7 +52,7 @@ it('reads the notification and never reports local presentation or dismissal', a
   expect(notificationOperations(c).hooks.notices.getSnapshot()?.[0]?.id).toBe(orderId)
   notificationOperations(c).dismiss(orderId as AccountNotificationId)
   expect(notificationOperations(c).hooks.notices.getSnapshot()?.[0]).toBeUndefined()
-  expect(c.mock.remote.account.reportNotificationEvent).not.toHaveBeenCalled()
+  expect(notificationOperations(c)).not.toHaveProperty('ctaClicked')
 }, 60_000)
 
 it('starts one notification poll across the credential commit and login-success frames', async ({ start }) => {
@@ -105,7 +105,7 @@ it('clears notification cards when credentials change despite a failed replaceme
     await c.flush()
     expect(notificationOperations(c).hooks.notices.getSnapshot()).toEqual([])
     await vi.advanceTimersByTimeAsync(3_000)
-    expect(c.mock.remote.account.reportNotificationEvent).not.toHaveBeenCalled()
+    expect(notificationOperations(c)).not.toHaveProperty('ctaClicked')
     expect(c.mock.remote.account.getNotifications).toHaveBeenCalledTimes(2)
     expect(log).toHaveBeenCalledWith('[deepseek-account] notification read failed; retaining cards and retrying on the next poll')
   } finally { vi.useRealTimers() }
@@ -129,7 +129,7 @@ it('keeps the notice without sending events across repeated signed-in frames', a
     notificationOperations(c).shown(orderId)
     expect(notificationOperations(c).hooks.notices.getSnapshot()?.[0]).toMatchObject({ id: orderId })
     expect(c.mock.remote.account.getNotifications).toHaveBeenCalledOnce()
-    expect(c.mock.remote.account.reportNotificationEvent).not.toHaveBeenCalled()
+    expect(notificationOperations(c)).not.toHaveProperty('ctaClicked')
   } finally { vi.useRealTimers() }
 }, 60_000)
 
@@ -144,7 +144,7 @@ it('keeps the notice absent when the bonus read is refused, then shows the next 
   c.mock.streams.push('account/watch', { type: 'snapshot', state: stored })
   await vi.waitFor(() => { expect(c.mock.remote.account.getNotifications).toHaveBeenCalledOnce() })
   expect(notificationOperations(c).hooks.notices.getSnapshot()?.[0]).toBeUndefined()
-  expect(c.mock.remote.account.reportNotificationEvent).not.toHaveBeenCalled()
+  expect(notificationOperations(c)).not.toHaveProperty('ctaClicked')
   c.mock.remote.account.getNotifications.mockResolvedValue(ok(bonus(orderId)))
   await actions.refreshAccount()
   await vi.waitFor(() => {
@@ -259,7 +259,7 @@ it('refreshes consumed notification content on a locale change without reading t
   await vi.waitFor(() => { expect(notificationOperations(c).hooks.notices.getSnapshot()?.[0]?.body).toBe('新的中文内容') })
   expect(c.mock.remote.account.getNotificationContent).toHaveBeenCalledWith( id, expect.objectContaining({ locale: 'zh' }))
   expect(c.mock.remote.account.getNotifications).toHaveBeenCalledTimes(reads)
-  expect(c.mock.remote.account.reportNotificationEvent).not.toHaveBeenCalled()
+  expect(notificationOperations(c)).not.toHaveProperty('ctaClicked')
 }, 60_000)
 
 it('retains notification content when the localization RPC is refused', async ({ start }) => {

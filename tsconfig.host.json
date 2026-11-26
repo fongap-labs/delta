@@ -323,7 +323,6 @@
     { "path": "./packages/interaction/action-cards" },
     { "path": "./packages/extensions/creation-recommendations" },
     { "path": "./packages/extensions/plugin-recommendations" },
-    { "path": "./packages/client/product-analytics/tsconfig.host.json" },
     { "path": "./packages/client/locale/tsconfig.host.json" },
     { "path": "./packages/client/ui-theme/tsconfig.host.json" },
     { "path": "./packages/client/ui-chat/tsconfig.host.json" },

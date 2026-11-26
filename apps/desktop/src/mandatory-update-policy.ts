@@ -45,6 +45,8 @@ function origin(value: unknown, local: boolean): string {
     || (url.protocol !== 'https:' && !(local && url.protocol === 'http:' && url.hostname === '127.0.0.1'))) {
     throw new Error('desktop policy: expected an HTTPS origin without credentials, path, query, or fragment')
   }
+  const hostname = url.hostname.replace(/\.$/u, '')
+  if (hostname === 'deepseek.com' || hostname.endsWith('.deepseek.com')) throw new Error('Delta update: upstream service origins are not supported')
   return url.origin
 }
 

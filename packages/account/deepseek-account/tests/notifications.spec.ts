@@ -163,11 +163,11 @@ it('sends client identity headers on notification requests without a profile pre
   await f.grant('test-account-token')
   const client = { version: '3.0.0', locale: 'zh-TW', timezoneOffsetSeconds: -18_000 }
   await f.account.getNotifications(client)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', client)).rejects.toThrow('Delta privacy policy')
+  expect(f.account).not.toHaveProperty('reportNotificationEvent')
   expect(f.requests.map(request => [
     request.url, request.bundleId, request.platform, request.version, request.locale, request.timezoneOffset,
   ])).toEqual([
-    ['/api/v0/users/notifications/list', '', 'web', '3.0.0', 'zh_CN', '-18000'],
+    ['/api/v0/users/notifications/list', '', 'web', '3.0.0', 'zh_CN', '0'],
   ])
 })
 
@@ -176,7 +176,7 @@ it('does not query the account identity across repeated notification reads and r
   await f.grant('test-account-token')
   await f.account.getNotifications(clientMetadata('en'))
   await f.account.getNotifications(clientMetadata('en'))
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).rejects.toThrow('Delta privacy policy')
+  expect(f.account).not.toHaveProperty('reportNotificationEvent')
   expect(f.requests.filter(request => request.url === '/auth-api/v0/users/current')).toHaveLength(0)
 })
 
@@ -226,7 +226,7 @@ it('reads generic notifications in server order with account and client headers'
   ] })
   expect(f.requests).toEqual([
     { method: 'GET', url: '/api/v0/users/notifications/list', token: 'test-account-token', locale: 'zh_CN',
-      bundleId: '', platform: 'web', version: '1.2.3', timezoneOffset: '28800' },
+      bundleId: '', platform: 'web', version: '1.2.3', timezoneOffset: '0' },
   ])
 })
 
@@ -250,7 +250,7 @@ it.each(['notice', '123', '', '产品公告/one?lang=zh&part=2#latest%'])('prese
   f.content(wire(id))
   expect((await f.account.getNotifications(clientMetadata()))?.notifications[0]?.id).toBe(id)
   expect((await f.account.getNotificationContent(id, clientMetadata()))?.id).toBe(id)
-  await expect(f.account.reportNotificationEvent(id, 'dismissed', clientMetadata())).rejects.toThrow('Delta privacy policy')
+  expect(f.account).not.toHaveProperty('reportNotificationEvent')
   expect(f.requests).toHaveLength(2)
   expect(f.requests[0]?.url).toBe('/api/v0/users/notifications/list')
   const contentUrl = new URL(f.requests[1]!.url!, 'https://fixture.invalid')
@@ -393,10 +393,10 @@ it.each(['replacement', 'abort'] as const)('discards an opening snapshot invalid
   }
 })
 
-it.each(['displayed', 'cta_clicked', 'dismissed'] as const)('blocks %s without a network request or grant change', async (event) => {
+it('does not expose interaction reporting or change the grant', async () => {
   const f = await fixture()
   await f.grant('test-account-token')
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, event, clientMetadata('zh-CN'))).rejects.toThrow('Delta privacy policy')
+  expect(f.account).not.toHaveProperty('reportNotificationEvent')
   expect(f.requests).toEqual([])
   expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
 })
@@ -446,7 +446,7 @@ it.each([
 it('returns signed-out outcomes without any request', async () => {
   const f = await fixture()
   expect(await f.account.getNotifications(clientMetadata('en'))).toBeNull()
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).rejects.toThrow('Delta privacy policy')
+  expect(f.account).not.toHaveProperty('reportNotificationEvent')
   expect(f.requests).toEqual([])
 })
 
@@ -466,7 +466,7 @@ it('queries notifications without reporting events while profile data is unavail
   f.failProfile(17, 503)
   expect((await f.account.getNotifications(clientMetadata()))?.notifications).toHaveLength(2)
   expect(await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())).toMatchObject({ id: ORDER })
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).rejects.toThrow('Delta privacy policy')
+  expect(f.account).not.toHaveProperty('reportNotificationEvent')
   expect(f.requests.map(request => request.url)).toEqual([
     '/api/v0/users/notifications/list', `/api/v0/users/notifications/content?id=${ORDER}`,
   ])

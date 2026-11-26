@@ -18,7 +18,7 @@ export function accountClientMetadata(locale: string, version: string | undefine
   return {
     version,
     locale,
-    // Date.getTimezoneOffset reports minutes west of UTC; Platform wants seconds east.
-    timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60,
+    // Do not collect the user's local timezone.
+    timezoneOffsetSeconds: 0,
   }
 }
