@@ -12,7 +12,6 @@ import { OnboardingConfirmation, type OnboardingConfirmationKind } from './Onboa
 import backIcon from './assets/onboarding-back.svg'
 import css from './DesktopOnboarding.module.css'
 
-const onboardingPages = {
 /**
  * @param props - durable choices, account state, localized copy and the shared recharge page channel.
  * @returns the active first-run page.
