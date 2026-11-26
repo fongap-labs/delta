@@ -90,7 +90,7 @@ function likelyText(bytes: Buffer, extension: string, name: string): boolean {
   return bytes.length > 0 && printable / bytes.length >= 0.95
 }
 
-function visit(directory: string, result: { files: number }): void {
+function visit(directory: string, result: { files: number; retained: Record<string, number> }): void {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) {
@@ -112,20 +112,36 @@ function visit(directory: string, result: { files: number }): void {
     }
     const extension = entry.name.includes('.') ? `.${entry.name.split('.').pop()!}`.toLowerCase() : ''
     const bytes = readFileSync(path)
-    if (!likelyText(bytes, extension, entry.name)) continue
-    if (!isUtf8(bytes)) continue
-    const source = bytes.toString('utf8')
+    const text = likelyText(bytes, extension, entry.name)
+    const utf8 = isUtf8(bytes)
+    const executable = /\.(?:[cm]?js|ts|py|ps1|cmd|sh)$/.test(entry.name)
+    if (!text || (!utf8 && executable)) {
+      // Fixed format labels only: never disclose paths or matching values.
+      const kind = ['.ttf', '.otf', '.ttc', '.woff', '.woff2'].includes(extension) ? 'font'
+        : ['.exe', '.dll', '.node', '.pyd', '.so', '.dylib', '.a', '.lib', '.bin', '.dat', '.pak'].includes(extension) ? 'native'
+          : executable ? 'non-utf8-code' : 'other-binary'
+      for (let start = 0; start < bytes.length; start += 65536) {
+        const window = bytes.subarray(Math.max(0, start - 8192), start + 65536).toString('latin1')
+        if (sanitizeRuntimeText(window) !== window) {
+          result.retained[kind] = (result.retained[kind] ?? 0) + 1
+          break
+        }
+      }
+      continue
+    }
+    const encoding = utf8 ? 'utf8' : 'latin1'
+    const source = bytes.toString(encoding)
     const sanitized = sanitizeTextFile(path, source)
     if (sanitized === source) continue
-    writeFileSync(path, sanitized)
+    writeFileSync(path, sanitized, encoding)
     result.files += 1
   }
 }
 
 /** Sanitize a prepared release runtime in place and return a small audit count. */
-export function sanitizeRuntimeMetadata(root: string): { files: number } {
+export function sanitizeRuntimeMetadata(root: string): { files: number; retained: Record<string, number> } {
   if (!statSync(root).isDirectory()) throw new Error(`runtime metadata: expected directory ${root}`)
-  const result = { files: 0 }
+  const result = { files: 0, retained: {} }
   visit(root, result)
   return result
 }

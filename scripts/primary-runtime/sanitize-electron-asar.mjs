@@ -31,7 +31,8 @@ try {
   }
   collect(getRawHeader(archive).header)
   extractAll(archive, extracted)
-  sanitizeRuntimeMetadata(extracted)
+  const audit = sanitizeRuntimeMetadata(extracted)
+  process.stdout.write(`delta ASAR metadata audit: ${JSON.stringify(audit)}\n`)
   const outsidePaths = new Set(unpacked)
   const streams = []
   function stage(directory, prefix = '') {

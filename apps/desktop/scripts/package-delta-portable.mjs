@@ -133,6 +133,7 @@ if (existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))) {
 cpSync(electronBuilderOutput, appOutput, { recursive: true })
 const metadataAudit = sanitizeRuntimeMetadata(appOutput)
 process.stdout.write(`delta portable: sanitized ${metadataAudit.files} application text files\n`)
+process.stdout.write(`delta portable retained binary metadata: ${JSON.stringify(metadataAudit.retained)}\n`)
 for (const path of [join(dataOutput, 'UserData'), join(dataOutput, 'Session'), join(dataOutput, 'Logs'),
   join(dataOutput, 'Temp'), join(dataOutput, 'Home')]) mkdirSync(path, { recursive: true })
 mkdirSync(otherOutput, { recursive: true })
