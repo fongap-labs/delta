@@ -2,8 +2,6 @@
 import type { Server } from 'node:http'
 import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app } from 'electron'
-import { recordUpdateCleanupFailure } from '../../update-cleanup-log.ts'
 import type { AppUpdater } from 'electron-updater'
 
 /**
@@ -11,7 +9,7 @@ import type { AppUpdater } from 'electron-updater'
  * This adapter depends on private electron-updater 6.x fields, covered by real-library tests.
  * autoInstallOnAppQuit must be false and quitAndInstall must not have been called.
  * @param updater - Settled updater owned by the Desktop coordinator.
- * @returns After old in-memory targets and the local feed server are retired; residual files only produce durable warnings.
+ * @returns After old in-memory targets and the local feed server are retired; residual files only produce a fixed, non-identifying warning.
  */
 export async function discardDesktopUpdate(updater: AppUpdater): Promise<void> {
   // The dependency omits these private fields from its public integration declarations.
@@ -49,14 +47,14 @@ export async function discardDesktopUpdate(updater: AppUpdater): Promise<void> {
   let names: string[]
   try { names = await readdir(directory) } catch (error) {
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
-      recordUpdateCleanupFailure(app.getPath('logs'), { operation: 'list', path: directory, error })
+      console.warn('desktop update: cache listing failed')
     }
     return
   }
   for (const name of names) {
     const path = join(directory, name)
-    try { await rm(path, { recursive: true, force: true }) } catch (error) {
-      recordUpdateCleanupFailure(app.getPath('logs'), { operation: 'remove', path, error })
+    try { await rm(path, { recursive: true, force: true }) } catch {
+      console.warn('desktop update: cache removal failed')
     }
   }
 }

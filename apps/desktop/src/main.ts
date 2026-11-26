@@ -319,7 +319,8 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
 async function main(): Promise<void> {
   splashWindow = createDeltaSplashWindow(currentDesktopLocale().id)
   const desktopSettings = await readDesktopSettings(app.getPath('userData'))
-  const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
+  // Installed-update qualification is explicitly opt-in; the portable product never writes update evidence.
+  const journalDirectory = process.env.DELTA_PORTABLE === '1' ? undefined : process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
   const paths = resolveDesktopPaths()

@@ -74,3 +74,11 @@ it('rejects explicitly configured upstream update and policy origins', () => {
   const policy = readFileSync(new URL('../scripts/desktop-policy-environment.mjs', import.meta.url), 'utf8')
   for (const source of [environment, policy]) expect(source).toContain("hostname.endsWith('.deepseek.com')")
 })
+
+it('does not persist update cleanup diagnostics or activate qualification journals in portable builds', () => {
+  const discard = readFileSync(new URL('../src/updates/electron-updater/discard.ts', import.meta.url), 'utf8')
+  expect(discard).not.toMatch(/recordUpdateCleanupFailure|appendFile|update-cleanup\.jsonl/u)
+  expect(desktop).toContain("const journalDirectory = process.env.DELTA_PORTABLE === '1' ? undefined")
+  const coordinator = readFileSync(new URL('../src/update-coordinator.ts', import.meta.url), 'utf8')
+  expect(coordinator).toContain('&& hasDeltaUpdateFeed()')
+})

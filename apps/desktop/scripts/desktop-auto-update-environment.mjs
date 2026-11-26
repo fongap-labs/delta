@@ -112,7 +112,8 @@ function httpsOrigin(value, name) {
     || parsed.hash !== '') {
     throw new Error(`desktop auto-update: ${name} must be an absolute HTTPS origin without a path, credentials, query, or fragment`)
   }
-  if (parsed.hostname === 'deepseek.com' || parsed.hostname.endsWith('.deepseek.com')) {
+  const hostname = parsed.hostname.replace(/\.$/u, '')
+  if (hostname === 'deepseek.com' || hostname.endsWith('.deepseek.com')) {
     throw new Error('Delta update: upstream service origins are not supported')
   }
   return parsed.origin

@@ -99,6 +99,7 @@ const forbiddenDiagnosticFiles = [
   'apps/desktop-host/src/fatal-diagnostic.ts',
   'apps/desktop-host/src/operation-diagnostics.ts',
   'apps/desktop/src/crash-report.ts',
+  'apps/desktop/src/update-cleanup-log.ts',
   'apps/desktop/src/operation-history.ts',
   'apps/desktop/src/operation-journal.ts',
   'apps/desktop/src/operation-report-job.ts',
@@ -222,7 +223,9 @@ if (!portableBuilder.includes('publish: null')
   || !portableBuilder.includes("existsSync(join(resourcesDir, 'app-update.yml'))")
   || !portablePackager.includes("existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))")
   || !desktopMain.includes("const policyInput: unknown = process.env.DELTA_PORTABLE === '1' ? undefined")
-  || !updateCoordinator.includes("process.env.DELTA_PORTABLE !== '1' && existsSync")) {
+  || !updateCoordinator.includes("process.env.DELTA_PORTABLE !== '1' && existsSync")
+  || !updateCoordinator.includes('&& hasDeltaUpdateFeed()')
+  || !desktopMain.includes("const journalDirectory = process.env.DELTA_PORTABLE === '1' ? undefined")) {
   throw new Error('delta-verify: portable update isolation missing')
 }
 for (const marker of ["join(outputRoot, 'App')", "join(outputRoot, 'Data')", "join(outputRoot, 'Other')",
