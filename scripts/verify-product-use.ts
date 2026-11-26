@@ -64,12 +64,12 @@ export interface ProductUseResult {
  * Verify effective product composition and source imports without reading built workspace outputs.
  * @param root - Repository root with source mappings and shipped profile declarations.
  * @param policy - Explicit non-default roles; defaults to the repository-owned policy.
- * @param includeEvidence - Compute independent context reachability and reverse source references.
+ * @param shouldIncludeEvidence - Compute independent context reachability and reverse source references.
  * @returns Default/optional reachability and every undeclared or stale package-policy violation.
  */
 export function verifyProductUse(
   root: string, policy: Readonly<Record<string, ProductPackagePolicy>> = PRODUCT_PACKAGE_POLICY,
-  includeEvidence = false,
+  shouldIncludeEvidence = false,
 ): ProductUseResult {
   const failures: string[] = []
   const display = (path: string): string => relative(root, path).replaceAll('\\', '/')
@@ -113,7 +113,7 @@ export function verifyProductUse(
     return undefined
   }
   const recordConsumer = (pkg: Package | undefined, from: string): void => {
-    if (!includeEvidence || pkg === undefined || ownerOf(from) === pkg) return
+    if (!shouldIncludeEvidence || pkg === undefined || ownerOf(from) === pkg) return
     const references = consumers.get(pkg.directory) ?? new Set<string>()
     references.add(display(from))
     consumers.set(pkg.directory, references)
@@ -234,7 +234,7 @@ export function verifyProductUse(
     })]
   })
   const scanContext = (name: string, aggregate: Reachability, scan: (reach: Reachability) => void): void => {
-    if (!includeEvidence) { scan(aggregate); return }
+    if (!shouldIncludeEvidence) { scan(aggregate); return }
     const reach: Reachability = { packages: new Set(), sources: new Set() }
     scan(reach)
     contexts.set(name, reach)
@@ -262,7 +262,7 @@ export function verifyProductUse(
   }
   // The private desktop host is a separate process with its own boot and CLI entries.
   // Trace it for pruning evidence without changing the existing default-role verdict.
-  if (includeEvidence && directories.has(resolve(root, 'apps/desktop-host'))) {
+  if (shouldIncludeEvidence && directories.has(resolve(root, 'apps/desktop-host'))) {
     const host: Reachability = { packages: new Set(), sources: new Set() }
     for (const path of ['apps/desktop-host/src/index.ts', 'apps/desktop-host/src/cli.ts']) {
       scanContext(`entry:${path}`, host, reach => scanSource(resolve(root, path), reach))
@@ -307,7 +307,7 @@ export function verifyProductUse(
   return { failures: [...new Set(failures)].sort(), defaultPackages: [...defaults.packages].sort(),
     optionalPackages: [...optional.packages].filter(path => !defaults.packages.has(path)).sort(), packageCount: packages.size,
     sourceCount: new Set([...defaults.sources, ...optional.sources]).size, configCount: configs.size,
-    ...(includeEvidence ? { packageEvidence: [...packages.values()].map(pkg => ({
+    ...(shouldIncludeEvidence ? { packageEvidence: [...packages.values()].map(pkg => ({
       path: pkg.directory, name: pkg.name,
       contexts: [...contexts].filter(([, reach]) => reach.packages.has(pkg.directory)).map(([name]) => name).sort(),
       consumers: [...(consumers.get(pkg.directory) ?? [])].sort(),
