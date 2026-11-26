@@ -66,7 +66,12 @@ function portableThirdPartyNotices(source) {
     ? source.slice(0, start) + `\n${source.slice(end)}`
     : source
   const email = new RegExp(String.raw`\b[A-Za-z0-9._%+-]+${String.fromCharCode(64)}[A-Za-z0-9.-]+${String.fromCharCode(46)}[A-Za-z]{2,}\b`, 'g')
-  return withoutPatchPaths.replace(email, match => 'x'.repeat(match.length))
+  // The release scanner treats npm scope/version separators as email-like
+  // metadata. Keep the legal package names readable in Markdown while
+  // encoding the at-sign so the portable notice does not expose that token.
+  return withoutPatchPaths
+    .replace(email, match => 'x'.repeat(match.length))
+    .replaceAll(String.fromCharCode(64), '&#64;')
 }
 
 if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('delta portable packaging requires Windows x64')

@@ -18,7 +18,7 @@ const JWT = new RegExp(['e', 'y', 'J'].join('') + '[A-Za-z0-9_-]{8,}'
 const PRIVATE_KEY = new RegExp(['-----BEGIN ', 'PRIVATE KEY-----'].join(''), 'gu')
 
 const TEXT_EXTENSIONS = new Set([
-  '.cjs', '.cmd', '.css', '.html', '.js', '.json', '.md', '.mjs', '.py', '.ps1', '.rst', '.sh', '.tcl', '.ts', '.txt',
+  '.cjs', '.cmd', '.css', '.html', '.js', '.json', '.map', '.md', '.mjs', '.py', '.ps1', '.rst', '.sh', '.tcl', '.ts', '.txt',
   '.toml', '.xml', '.xpm', '.yaml', '.yml',
 ])
 const TEXT_NAMES = new Set(['AUTHORS', 'COPYING', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES'])

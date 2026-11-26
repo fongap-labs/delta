@@ -95,6 +95,7 @@ it('removes release metadata without rewriting native bytes', async () => {
     await mkdir(join(root, 'PIL', '__pycache__'), { recursive: true })
     await mkdir(join(root, 'demo-1.0.0.dist-info'))
     await writeFile(join(root, 'metadata.txt'), `${email} ${unixHome}\n`)
+    await writeFile(join(root, 'metadata.map'), `${email} ${unixHome}\n`)
     await writeFile(join(root, 'LICENSE'), `${email}\n`)
     await writeFile(join(root, 'PIL', 'ImageFont.py'), `font = b"""${awsLike}"""\n`)
     await writeFile(join(root, 'PIL', '__pycache__', 'ImageFont.pyc'), 'bytecode')
@@ -106,6 +107,7 @@ it('removes release metadata without rewriting native bytes', async () => {
 
     expect(sanitizeRuntimeText(`${email} ${unixHome}`)).not.toContain(String.fromCharCode(64))
     expect(await readFile(join(root, 'metadata.txt'), 'utf8')).not.toContain(String.fromCharCode(64))
+    expect(await readFile(join(root, 'metadata.map'), 'utf8')).not.toContain(String.fromCharCode(64))
     expect(await readFile(join(root, 'LICENSE'), 'utf8')).not.toContain(String.fromCharCode(64))
     expect(await readFile(join(root, 'PIL', 'ImageFont.py'), 'utf8')).toContain('A\\x4bIA')
     await expect(readFile(join(root, 'PIL', '__pycache__', 'ImageFont.pyc'))).rejects.toMatchObject({ code: 'ENOENT' })
