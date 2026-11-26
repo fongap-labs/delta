@@ -11,7 +11,7 @@ export type EntryRegion = 'sidebar' | 'conversation' | 'rightbar'
 
 /** Region identity and footer actions injected into each registration. */
 export interface EntryMenuInjected {
-  /** Region of this registration; selects analytics attributes and the Creator prompt. */
+  /** Region of this registration; selects the Creator prompt. */
   readonly region: EntryRegion
   readonly hooks: {
     /** Whether the Plugins page navigation service is present; the discovery row shows only while it is. */
