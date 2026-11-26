@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isUtf8 } from 'node:buffer'
 import { join } from 'node:path'
+import ts from 'typescript'
 
 const slash = String.fromCharCode(47)
 const backslash = String.fromCharCode(92)
@@ -45,6 +46,33 @@ export function sanitizeRuntimeText(source: string): string {
 }
 
 function sanitizeTextFile(path: string, source: string): string {
+  if (/\.(?:[cm]?js|ts)$/.test(path)) {
+    const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true)
+    const edits = new Map<number, { end: number; text: string }>()
+    function comment(range: ts.CommentRange): void {
+      const original = source.slice(range.pos, range.end)
+      const text = sanitizeRuntimeText(original)
+      if (text !== original) edits.set(range.pos, { end: range.end, text })
+    }
+    function visitNode(node: ts.Node): void {
+      for (const range of ts.getLeadingCommentRanges(source, node.pos) ?? []) comment(range)
+      for (const range of ts.getTrailingCommentRanges(source, node.end) ?? []) comment(range)
+      if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+        && !ts.isTaggedTemplateExpression(node.parent)
+        && sanitizeRuntimeText(node.text) !== node.text) {
+        // Encode UTF-16 code units, preserving the exact runtime string value.
+        const text = '"' + node.text.split('').map(char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`).join('') + '"'
+        edits.set(node.getStart(tree), { end: node.end, text })
+      }
+      ts.forEachChild(node, visitNode)
+    }
+    visitNode(tree)
+    let result = source
+    for (const [start, edit] of [...edits].sort((a, b) => b[0] - a[0])) {
+      result = result.slice(0, start) + edit.text + result.slice(edit.end)
+    }
+    return result
+  }
   // Pillow stores the default font as base64 inside this Python source file.
   // Split the scanner token with a Python escape so the decoded font bytes are
   // unchanged while the source no longer contains an AWS-key-shaped sequence.
