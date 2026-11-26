@@ -69,6 +69,28 @@ describe('product package use', () => {
     expect(verifyProductUse(fixture(), {})).toMatchObject({ failures: [], optionalPackages: [], configCount: 1 })
   })
 
+  it('reports separate runtime contexts and reached reverse consumers without declaring orphans safe to delete', () => {
+    const root = fixture()
+    pkg(root, candidateDir, candidate)
+    const orphanDir = 'packages/core/orphan'
+    pkg(root, orphanDir, '@deepseek-ai/dsh-orphan')
+    write(root, 'apps/desktop/src/main.ts', `import '${candidate}'`)
+    write(root, 'apps/cli/src/unreachable.ts', `import '${candidate}'`)
+    const ordinary = verifyProductUse(root, {})
+    const detailed = verifyProductUse(root, {}, true)
+    const { packageEvidence, ...summary } = detailed
+    expect(summary).toEqual(ordinary)
+    expect(packageEvidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: candidateDir, contexts: ['entry:apps/desktop/src/main.ts'], consumers: ['apps/desktop/src/main.ts'] }),
+      expect.objectContaining({ path: orphanDir, contexts: [], consumers: [] }),
+    ]))
+    expect(detailed.failures.join('\n')).toContain(`${orphanDir} (@deepseek-ai/dsh-orphan): no product runtime use`)
+    const declared = verifyProductUse(root, { [orphanDir]: { category: 'optional', reason: 'External configuration.' } }, true)
+    expect(declared.packageEvidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: orphanDir, contexts: [], declaredRole: { category: 'optional', reason: 'External configuration.' } }),
+    ]))
+  })
+
   it('rejects an orphan even when an app manifest installs it', () => {
     const root = fixture()
     pkg(root, candidateDir, candidate)

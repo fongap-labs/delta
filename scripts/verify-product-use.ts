@@ -34,6 +34,14 @@ interface Reachability {
   sources: Set<string>
 }
 
+interface ProductPackageEvidence {
+  path: string
+  name: string
+  contexts: string[]
+  consumers: string[]
+  declaredRole?: ProductPackagePolicy
+}
+
 /** Effective runtime package use, with explicit selections separated from shipped defaults. */
 export interface ProductUseResult {
   /** Violations name the package and the required correction. */
@@ -48,22 +56,28 @@ export interface ProductUseResult {
   sourceCount: number
   /** Effective compositions read, including Include files. */
   configCount: number
+  /** Optional detailed evidence, not an approved whitelist or a safe-delete decision. */
+  packageEvidence?: ProductPackageEvidence[]
 }
 
 /**
  * Verify effective product composition and source imports without reading built workspace outputs.
  * @param root - Repository root with source mappings and shipped profile declarations.
  * @param policy - Explicit non-default roles; defaults to the repository-owned policy.
+ * @param includeEvidence - Compute independent context reachability and reverse source references.
  * @returns Default/optional reachability and every undeclared or stale package-policy violation.
  */
 export function verifyProductUse(
   root: string, policy: Readonly<Record<string, ProductPackagePolicy>> = PRODUCT_PACKAGE_POLICY,
+  includeEvidence = false,
 ): ProductUseResult {
   const failures: string[] = []
   const display = (path: string): string => relative(root, path).replaceAll('\\', '/')
   const packages = new Map<string, Package>()
   const directories = new Map<string, Package>()
   const configs = new Set<string>()
+  const contexts = new Map<string, Reachability>()
+  const consumers = new Map<string, Set<string>>()
   const defaults: Reachability = { packages: new Set(), sources: new Set() }
   const optional: Reachability = { packages: new Set(), sources: new Set() }
   const config = ts.readConfigFile(resolve(root, 'tsconfig.base.json'), path => ts.sys.readFile(path))
@@ -98,6 +112,12 @@ export function verifyProductUse(
     }
     return undefined
   }
+  const recordConsumer = (pkg: Package | undefined, from: string): void => {
+    if (!includeEvidence || pkg === undefined || ownerOf(from) === pkg) return
+    const references = consumers.get(pkg.directory) ?? new Set<string>()
+    references.add(display(from))
+    consumers.set(pkg.directory, references)
+  }
   const resolveModule = (specifier: string, from: string): string | undefined => {
     const resolved = ts.resolveModuleName(specifier, from, converted.options, host, resolutionCache).resolvedModule
     if (resolved === undefined || resolved.resolvedFileName.replaceAll('\\', '/').includes('/node_modules/')) return undefined
@@ -116,8 +136,10 @@ export function verifyProductUse(
     for (const specifier of collectRuntimeLocalSourceSpecifiers(path, source, true)) {
       const resolved = specifier.startsWith('/')
         ? sourceFile(resolve(root, 'apps/web', `.${specifier}`)) : resolveModule(specifier, path)
-      if (resolved !== undefined) scanSource(resolved, reach)
-      else if (/\.[cm]?[jt]sx?$/.test(specifier)) failures.push(`${display(path)}: source import ${specifier} does not resolve to source`)
+      if (resolved !== undefined) {
+        recordConsumer(ownerOf(resolved), path)
+        scanSource(resolved, reach)
+      } else if (/\.[cm]?[jt]sx?$/.test(specifier)) failures.push(`${display(path)}: source import ${specifier} does not resolve to source`)
     }
     const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true)
     const visit = (node: ts.Node): void => {
@@ -127,7 +149,10 @@ export function verifyProductUse(
         if (first !== undefined && ts.isStringLiteralLike(first) && first.text.startsWith('.')
           && base?.getText(file) === 'import.meta.url') {
           const target = sourceFile(resolve(dirname(path), first.text))
-          if (target !== undefined) scanSource(target, reach)
+          if (target !== undefined) {
+            recordConsumer(ownerOf(target), path)
+            scanSource(target, reach)
+          }
         }
       }
       ts.forEachChild(node, visit)
@@ -147,12 +172,17 @@ export function verifyProductUse(
     const normalized = specifier.startsWith('file:') ? fileURLToPath(specifier) : specifier
     const name = /^(?:@[^/]+\/)?[^/]+/.exec(specifier)?.[0] ?? specifier
     const pkg = packages.get(name)
-    if (pkg !== undefined) reach.packages.add(pkg.directory)
+    if (pkg !== undefined) {
+      reach.packages.add(pkg.directory)
+      recordConsumer(pkg, from)
+    }
     // Typert Remote contributions contain generated descriptors and external codecs, with no workspace runtime imports.
     if (pkg?.generatedRemote && specifier === `${pkg.name}/remote`) return
     const target = resolveModule(normalized, from)
-    if (target !== undefined) scanSource(target, reach)
-    else if (pkg !== undefined && !/\.(?:json|css|svg|ya?ml)$/.test(specifier)) {
+    if (target !== undefined) {
+      recordConsumer(ownerOf(target), from)
+      scanSource(target, reach)
+    } else if (pkg !== undefined && !/\.(?:json|css|svg|ya?ml)$/.test(specifier)) {
       failures.push(`${display(from)}: ${specifier} does not resolve to workspace source; add a tsconfig.base.json paths mapping`)
     } else if (pkg === undefined && specifier.startsWith('@deepseek-ai/dsh-')) {
       failures.push(`${display(from)}: unknown workspace package ${specifier}`)
@@ -197,25 +227,39 @@ export function verifyProductUse(
     const pkg = packages.get(name)
     if (pkg?.bundle === undefined) { failures.push(`${PROFILE_SOURCE}: ${name} must declare dsh.bundle.patch`); return [] }
     reach.packages.add(pkg.directory)
+    recordConsumer(pkg, profilePath)
     return [bundlePatchPaths(resolve(root, pkg.directory), pkg.bundle).flatMap((path) => {
       configs.add(path)
       return loadOverlayPatches('verify-product-use', path)
     })]
   })
-  const profiles = [...Object.entries(templates).map(([name, value]) => {
+  const scanContext = (name: string, aggregate: Reachability, scan: (reach: Reachability) => void): void => {
+    if (!includeEvidence) { scan(aggregate); return }
+    const reach: Reachability = { packages: new Set(), sources: new Set() }
+    scan(reach)
+    contexts.set(name, reach)
+    for (const path of reach.packages) aggregate.packages.add(path)
+    for (const path of reach.sources) aggregate.sources.add(path)
+  }
+  const profiles = [...Object.entries(templates).map(([name, value]): [string, string[]] => {
     if (!isRecord(value)) throw new Error(`${PROFILE_SOURCE}: invalid ${name} profile`)
-    return stringList(value.bundles, `${PROFILE_SOURCE} ${name}`)
-  }), fallback]
-  for (const names of profiles) {
+    return [`profile:${name}`, stringList(value.bundles, `${PROFILE_SOURCE} ${name}`)]
+  }), ['profile:fallback', fallback] as [string, string[]]]
+  for (const [name, names] of profiles) {
     if (names.length === 0) failures.push(`${PROFILE_SOURCE}: shipped profile has no bundles`)
-    scanEntries(composeEntries(layers(names, defaults)), profilePath, defaults)
+    scanContext(name, defaults, reach => scanEntries(composeEntries(layers(names, reach)), profilePath, reach))
   }
   const web = templates.web
   if (isRecord(web)) {
     const webBundles = stringList(web.bundles, `${PROFILE_SOURCE} web`)
-    for (const bundle of optionals) scanEntries(composeEntries(layers([...webBundles, bundle], optional)), profilePath, optional)
+    for (const bundle of new Set(optionals)) {
+      scanContext(`optional:${bundle}`, optional,
+        reach => scanEntries(composeEntries(layers([...webBundles, bundle], reach)), profilePath, reach))
+    }
   }
-  for (const path of ['apps/cli/src/bin.ts', 'apps/desktop/src/main.ts']) scanSource(resolve(root, path), defaults)
+  for (const path of ['apps/cli/src/bin.ts', 'apps/desktop/src/main.ts']) {
+    scanContext(`entry:${path}`, defaults, reach => scanSource(resolve(root, path), reach))
+  }
   const htmlPath = resolve(root, 'apps/web/index.html')
   const dom = new JSDOM(readFileSync(htmlPath, 'utf8'))
   try {
@@ -225,7 +269,10 @@ export function verifyProductUse(
       const path = script.getAttribute('src')
       if (path === null || /^(?:https?:)?\/\//.test(path)) {
         failures.push('apps/web/index.html: product module entries must name local source files')
-      } else scanSource(resolve(root, 'apps/web', path.replace(/^\//, '')), defaults)
+      } else {
+        const source = resolve(root, 'apps/web', path.replace(/^\//, ''))
+        scanContext(`entry:${display(source)}`, defaults, reach => scanSource(source, reach))
+      }
     }
   } finally { dom.window.close() }
   for (const [path, entry] of Object.entries(policy)) {
@@ -251,7 +298,13 @@ export function verifyProductUse(
   }
   return { failures: [...new Set(failures)].sort(), defaultPackages: [...defaults.packages].sort(),
     optionalPackages: [...optional.packages].filter(path => !defaults.packages.has(path)).sort(), packageCount: packages.size,
-    sourceCount: new Set([...defaults.sources, ...optional.sources]).size, configCount: configs.size }
+    sourceCount: new Set([...defaults.sources, ...optional.sources]).size, configCount: configs.size,
+    ...(includeEvidence ? { packageEvidence: [...packages.values()].map(pkg => ({
+      path: pkg.directory, name: pkg.name,
+      contexts: [...contexts].filter(([, reach]) => reach.packages.has(pkg.directory)).map(([name]) => name).sort(),
+      consumers: [...(consumers.get(pkg.directory) ?? [])].sort(),
+      ...(policy[pkg.directory] === undefined ? {} : { declaredRole: policy[pkg.directory] }),
+    })).sort((left, right) => left.path.localeCompare(right.path, 'en')) } : {}) }
 }
 
 function validCategory(path: string, category: ProductPackagePolicy['category']): boolean {
@@ -312,10 +365,10 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
     console.error('Usage: verify-product-use.ts [--json]')
     process.exit(64)
   }
-  const result = verifyProductUse(resolve(dirname(fileURLToPath(import.meta.url)), '..'))
+  const result = verifyProductUse(resolve(dirname(fileURLToPath(import.meta.url)), '..'), PRODUCT_PACKAGE_POLICY, args[0] === '--json')
   if (args[0] === '--json') {
     // Report the current shipped composition, not an approved target whitelist.
-    console.log(JSON.stringify({ schemaVersion: 1, scope: 'current-product-use', ...result }, null, 2))
+    console.log(JSON.stringify({ schemaVersion: 2, scope: 'current-product-use', ...result }, null, 2))
     if (result.failures.length > 0) process.exitCode = 1
   } else {
     for (const failure of result.failures) console.error(failure)
