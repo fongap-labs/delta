@@ -43,7 +43,7 @@ describe('installed-update qualification materials', () => {
       expect(first.root).not.toBe(next.root)
       expect(first.appId).not.toBe(next.appId)
       expect(first.feedKey).not.toBe(next.feedKey)
-      expect(first.origin).toBe('https://download-test.deepseek.com')
+      expect(first.origin).toBe('https://updates.invalid')
       expect(first.environment).toBe('test')
       expect(first.feedKey).toBe(`dsh-desk/feeds/qualification/${first.id}/win-x64/nightly.yml`)
       expect(JSON.parse(await readFile(join(first.root, 'run.json'), 'utf8'))).toEqual(first)

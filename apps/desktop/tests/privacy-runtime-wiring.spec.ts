@@ -54,3 +54,14 @@ it('keeps portable releases disconnected from inherited update and mandatory-pol
   expect(builder).not.toContain('operation-report-worker')
   expect(packager).toContain("existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))")
 })
+
+it('does not retain the upstream update publisher or fixed upstream qualification destination', () => {
+  const environment = readFileSync(new URL('../scripts/desktop-auto-update-environment.mjs', import.meta.url), 'utf8')
+  const qualification = readFileSync(new URL('../scripts/installed-update-qualification.ts', import.meta.url), 'utf8')
+  const builder = readFileSync(new URL('../scripts/electron-builder-config.mjs', import.meta.url), 'utf8')
+  expect(environment).not.toContain('download.deepseek.com')
+  expect(environment).not.toContain('resolveDesktopUploadConfig')
+  expect(qualification).not.toContain('download-test.deepseek.com')
+  expect(qualification).not.toContain('bj-toc-download-test-1320056602')
+  expect(builder).toContain('const update = testFeed ?')
+})

@@ -179,6 +179,12 @@ for (const path of [releaseManifest.node_version_file, releaseBuild.script, rele
 
 const portablePackager = readFileSync(join(root, 'apps/desktop/scripts/package-delta-portable.mjs'), 'utf8')
 const portableBuilder = readFileSync(join(root, 'apps/desktop/delta-electron-builder.config.mjs'), 'utf8')
+for (const path of ['apps/desktop/scripts/desktop-auto-update-environment.mjs', 'apps/desktop/scripts/installed-update-qualification.ts']) {
+  const source = readFileSync(join(root, path), 'utf8')
+  for (const marker of ['download.deepseek.com', 'download-test.deepseek.com', 'bj-toc-download-test-1320056602', 'resolveDesktopUploadConfig']) {
+    if (source.includes(marker)) throw new Error('delta-verify: upstream update binding restored: ' + path)
+  }
+}
 const updateCoordinator = readFileSync(join(root, 'apps/desktop/src/update-coordinator.ts'), 'utf8')
 if (!portableBuilder.includes('publish: null')
   || portableBuilder.includes('operation-report-worker')
