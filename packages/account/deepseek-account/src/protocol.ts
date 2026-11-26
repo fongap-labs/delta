@@ -1,6 +1,6 @@
 /** Validated platform HTTP messages and restricted browser destinations. */
 import { z } from 'zod'
-import type { AccountNotificationEvent, AccountNotificationId, SignInErrorCode } from './types.ts'
+import type { AccountNotificationId, SignInErrorCode } from './types.ts'
 
 /** Request header carrying the account token on every request the token authenticates. */
 export const ACCOUNT_TOKEN_HEADER = 'x-dsh-auth-token'
@@ -144,24 +144,6 @@ export function requestNotificationContent(origin: string, token: string, id: Ac
   signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
   return platformRequest(`${origin}/api/v0/users/notifications/content?id=${encodeURIComponent(id)}`,
     { method: 'GET', headers: accountHeaders(headers, token) }, signal)
-}
-
-/**
- * Report an account notification interaction to the events endpoint.
- * @param origin - configured account API origin.
- * @param token - stored account grant.
- * @param id - notification the user interacted with.
- * @param event - displayed frame, business-action click, or explicit dismissal.
- * @param signal - credential lifetime and request timeout.
- * @param headers - deployment and client identity headers for this origin.
- * @returns successful business payload containing the consumption decision.
- */
-export function requestNotificationEvent(origin: string, token: string, id: AccountNotificationId,
-  event: AccountNotificationEvent, signal: AbortSignal, headers: Record<string, string>): Promise<unknown> {
-  return platformRequest(`${origin}/api/v0/users/notifications/events`, {
-    method: 'POST', headers: { ...accountHeaders(headers, token), 'content-type': 'application/json' },
-    body: JSON.stringify({ notification_id: id, type: event }),
-  }, signal)
 }
 
 // The grant is provider-owned; deployment requestHeaders cannot override it or the client identity.

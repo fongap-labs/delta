@@ -68,7 +68,7 @@ const forbiddenPrivacyPackages = [
 for (const path of forbiddenPrivacyPackages) {
   if (existsSync(join(root, path))) throw new Error('delta-verify: forbidden collection package restored: ' + path)
 }
-for (const path of ['tsconfig.host.json', 'tsconfig.client.json']) {
+for (const path of ['tsconfig.host.json', 'tsconfig.client.json', 'tsconfig.base.json']) {
   const content = readFileSync(requireFile(path, path), 'utf8')
   if (forbiddenPrivacyPackages.some(name => content.includes(name))) {
     throw new Error('delta-verify: forbidden collection project reference restored: ' + path)
@@ -93,6 +93,40 @@ const fatalRecovery = readFileSync(requireFile('apps/desktop/src/fatal-recovery.
 for (const marker of ['writeReport', 'revealReport', 'reportState', 'CRASH_REPORT_WAIT_MS', 'getDiagnosticReport']) {
   if (fatalRecovery.includes(marker)) throw new Error('delta-verify: automatic recovery report interface restored')
 }
+const forbiddenDiagnosticFiles = [
+  'apps/desktop-host/src/fatal-diagnostic.ts',
+  'apps/desktop-host/src/operation-diagnostics.ts',
+  'apps/desktop/src/crash-report.ts',
+  'apps/desktop/src/operation-history.ts',
+  'apps/desktop/src/operation-journal.ts',
+  'apps/desktop/src/operation-report-job.ts',
+  'apps/desktop/src/operation-report-worker.ts',
+  'apps/desktop/src/operation-report.ts',
+  'packages/client/ui-settings-account/src/contact-config.ts',
+  'packages/client/ui-settings-account/src/client/contact-url.ts',
+]
+for (const path of forbiddenDiagnosticFiles) {
+  if (existsSync(join(root, path))) throw new Error('delta-verify: forbidden privacy collection source: ' + path)
+}
+const desktopMain = readFileSync(join(root, 'apps/desktop/src/main.ts'), 'utf8')
+if (desktopMain.includes('DSH_DESKTOP_DIAGNOSTIC_FILE')) throw new Error('delta-verify: automatic diagnostic export restored')
+const accountClient = readFileSync(join(root, 'packages/client/ui-settings-account/src/client/index.ts'), 'utf8')
+for (const marker of ['contactUrl(', 'deviceInfo', 'CONTACT_CONFIG_GLOBAL']) {
+  if (accountClient.includes(marker)) throw new Error('delta-verify: contextual feedback collection restored: ' + marker)
+}
+const accountProtocol = readFileSync(join(root, 'packages/account/deepseek-account/src/protocol.ts'), 'utf8')
+if (accountProtocol.includes('/api/v0/users/notifications/events')) throw new Error('delta-verify: interaction reporting restored')
+if (rowBlock(webPatch, 'ui-account-notifications')) throw new Error('delta-verify: automatic account notification polling restored')
+const extensionRegistry = readFileSync(join(root, 'packages/llm/deepseek-llm-api-extensions/src/index.ts'), 'utf8')
+const extensionSerializer = readFileSync(join(root, 'packages/llm/llm-deepseek/src/request-extensions.ts'), 'utf8')
+if (!extensionRegistry.includes('!isApprovedDeepSeekRequestExtension(fieldName)') || !extensionSerializer.includes('!APPROVED_MESSAGES_FIELDS.has(field)') || !extensionSerializer.includes('!isApprovedDeepSeekRequestExtension(field)')) {
+  throw new Error('delta-verify: model request allowlist enforcement missing')
+}
+for (const path of ['adapter.ts', 'files-api.ts', 'listing.ts']) {
+  const source = readFileSync(join(root, 'packages/llm/llm-deepseek/src', path), 'utf8')
+  if (!source.includes('approvedDeepSeekAuthHeaders(')) throw new Error('delta-verify: credential header allowlist missing: ' + path)
+}
+
 const sdkPatch = readFileSync(requireFile('packages/bundle/sdk-minimal/cordis.patch.yml', 'SDK profile patch'), 'utf8')
 for (const patch of [corePatch, webPatch, sdkPatch]) {
   for (const id of ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'ui-settings-session-log']) {

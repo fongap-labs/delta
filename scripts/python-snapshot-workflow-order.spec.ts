@@ -12,7 +12,6 @@ import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import * as spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../packages/core/agent-loop/tests/mock-adapter.ts'
 import type {} from '@deepseek-ai/dsh-tool-workflow/types'
-import type {} from '@deepseek-ai/dsh-session-log-deepseek'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 // @ts-expect-error Scenario plugins are runtime JavaScript without declaration artifacts.
 import * as fixtureModule from './fixtures/python-snapshot-workflow-order.mjs'
@@ -112,23 +111,20 @@ describe('advanced Python snapshot workflow ordering', () => {
     expect(getEventListeners(h.controller.signal, 'abort')).toHaveLength(0)
   })
 
-  it('waits for the parent to consume the direct start and acknowledge its request log', async () => {
+  it('waits for the parent to record the local result and enter its next step', async () => {
     const h = await harness(true)
     const pending = h.step()
     h.parent.append('turn/start', { turn: 1 })
     h.parent.append('step/start', { turn: 1, step: 1 })
     const callId = brandString<ToolCallId>('direct-child')
     h.parent.append('tool/call', { turn: 1, step: 1, callId, name: 'subagent', arguments: '{}' })
-    const result = h.parent.append('tool/result', {
+    h.parent.append('tool/result', {
       turn: 1, step: 1,
       message: createToolResultMessage({ callId, content: [{ type: 'text', text: 'started subagent child' }], isError: false }),
     }, { surfaceOp: 'append' })
-    h.parent.append('step/start', { turn: 1, step: 2 })
     await Promise.resolve()
     expect(h.next).not.toHaveBeenCalled()
-    h.parent.append('session-log-deepseek/delivery-accepted', {
-      sessionId: h.parent.id, sessionFormatVersion: h.parent.header.version, throughSeq: result.seq,
-    })
+    h.parent.append('step/start', { turn: 1, step: 2 })
     expect(await pending).toBe(h.decision)
     expect(h.next).toHaveBeenCalledOnce()
   })

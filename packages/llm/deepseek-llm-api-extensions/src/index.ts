@@ -15,6 +15,14 @@ import type {
 
 export type * from './types.ts'
 
+// No auxiliary data field has been approved for Delta model requests.
+const APPROVED_REQUEST_EXTENSIONS: ReadonlySet<string> = new Set<string>()
+
+/** @param field - proposed top-level field. @returns Whether the explicit privacy allowlist permits it. */
+export function isApprovedDeepSeekRequestExtension(field: string): boolean {
+  return APPROVED_REQUEST_EXTENSIONS.has(field)
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     deepseekLlmApiExtensions: DeepSeekLlmApiExtensionRegistry
@@ -86,7 +94,7 @@ export class DeepSeekLlmApiExtensionRegistry extends Service {
     if (fieldName.length === 0 || fieldName.trim() !== fieldName) {
       throw new Error('deepseek-llm-api-extensions: field must be a non-blank trimmed string')
     }
-    if (fieldName === 'dsh_session_log' || fieldName === 'dsh_plugin_packages') {
+    if (!isApprovedDeepSeekRequestExtension(fieldName)) {
       throw new Error('Delta privacy policy rejects this request extension')
     }
     const providers = this.providers

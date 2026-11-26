@@ -1,8 +1,13 @@
 /** Prepare plugin-contributed request fields and commit their delivery after HTTP acceptance. */
 
 import { errorChain, LlmError } from '@deepseek-ai/dsh-llm'
-import type { DeepSeekLlmApiExtensionRequest, PreparedDeepSeekLlmApiExtensions } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
+import { isApprovedDeepSeekRequestExtension, type DeepSeekLlmApiExtensionRequest, type PreparedDeepSeekLlmApiExtensions } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import type { DeepSeekAdapterOptions } from './types.ts'
+import type { WireRequest } from './wire-types.ts'
+
+const APPROVED_MESSAGES_FIELDS: ReadonlySet<string> = new Set([
+  'model', 'stream', 'messages', 'max_tokens', 'thinking', 'output_config', 'system', 'temperature', 'stop_sequences', 'tools',
+] satisfies (keyof WireRequest)[])
 
 /**
  * Merge contributions without replacing Messages fields. A rejected preparation or
@@ -25,6 +30,9 @@ export async function prepareRequestExtensions(
   onOmitted: (fields: readonly string[], error: unknown) => void,
   onUnaccepted: (error: unknown) => void,
 ): Promise<{ payload: string; accept(): Promise<void> }> {
+  if (Object.keys(body).some(field => !APPROVED_MESSAGES_FIELDS.has(field))) {
+    throw new LlmError('Delta privacy policy rejects an unapproved Messages field', 'REQUEST_EXTENSION')
+  }
   let extensions: PreparedDeepSeekLlmApiExtensions
   try {
     extensions = await prepare({ body, ...options })
@@ -33,8 +41,7 @@ export async function prepareRequestExtensions(
   }
   const fields = Object.keys(extensions.fields)
   // Reject before serialization, even if an adapter bypasses the registry.
-  if (fields.some(field => field === 'dsh_session_log' || field === 'dsh_plugin_packages')
-    || Object.hasOwn(body, 'dsh_session_log') || Object.hasOwn(body, 'dsh_plugin_packages')) {
+  if (fields.some(field => !isApprovedDeepSeekRequestExtension(field))) {
     throw new LlmError('Delta privacy policy rejects auxiliary request data', 'REQUEST_EXTENSION')
   }
   for (const field of fields) {

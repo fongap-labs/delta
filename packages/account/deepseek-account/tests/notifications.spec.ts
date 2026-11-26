@@ -163,12 +163,11 @@ it('sends client identity headers on notification requests without a profile pre
   await f.grant('test-account-token')
   const client = { version: '3.0.0', locale: 'zh-TW', timezoneOffsetSeconds: -18_000 }
   await f.account.getNotifications(client)
-  await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', client)
+  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', client)).rejects.toThrow('Delta privacy policy')
   expect(f.requests.map(request => [
     request.url, request.bundleId, request.platform, request.version, request.locale, request.timezoneOffset,
   ])).toEqual([
     ['/api/v0/users/notifications/list', '', 'web', '3.0.0', 'zh_CN', '-18000'],
-    ['/api/v0/users/notifications/events', '', 'web', '3.0.0', 'zh_CN', '-18000'],
   ])
 })
 
@@ -177,7 +176,7 @@ it('does not query the account identity across repeated notification reads and r
   await f.grant('test-account-token')
   await f.account.getNotifications(clientMetadata('en'))
   await f.account.getNotifications(clientMetadata('en'))
-  await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))
+  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).rejects.toThrow('Delta privacy policy')
   expect(f.requests.filter(request => request.url === '/auth-api/v0/users/current')).toHaveLength(0)
 })
 
@@ -243,7 +242,7 @@ it.each(['list', 'content'] as const)('accepts a %s notification without a busin
   expect(notification).not.toHaveProperty('type')
 })
 
-it.each(['notice', '123', '', '产品公告/one?lang=zh&part=2#latest%'])('preserves the string ID %j across list, content, and events', async (value) => {
+it.each(['notice', '123', '', '产品公告/one?lang=zh&part=2#latest%'])('preserves the string ID %j across list and content without reporting events', async (value) => {
   const f = await fixture()
   await f.grant('test-account-token')
   const id = value as AccountNotificationId
@@ -251,16 +250,13 @@ it.each(['notice', '123', '', '产品公告/one?lang=zh&part=2#latest%'])('prese
   f.content(wire(id))
   expect((await f.account.getNotifications(clientMetadata()))?.notifications[0]?.id).toBe(id)
   expect((await f.account.getNotificationContent(id, clientMetadata()))?.id).toBe(id)
-  expect(await f.account.reportNotificationEvent(id, 'dismissed', clientMetadata())).toBe(true)
-  expect([f.requests[0]?.url, f.requests[2]?.url]).toEqual([
-    '/api/v0/users/notifications/list',
-    '/api/v0/users/notifications/events',
-  ])
+  await expect(f.account.reportNotificationEvent(id, 'dismissed', clientMetadata())).rejects.toThrow('Delta privacy policy')
+  expect(f.requests).toHaveLength(2)
+  expect(f.requests[0]?.url).toBe('/api/v0/users/notifications/list')
   const contentUrl = new URL(f.requests[1]!.url!, 'https://fixture.invalid')
   expect(contentUrl.pathname).toBe('/api/v0/users/notifications/content')
   expect([...contentUrl.searchParams]).toEqual([['id', id]])
   expect(contentUrl.hash).toBe('')
-  expect(f.requests.at(-1)?.body).toBe(JSON.stringify({ notification_id: id, type: 'dismissed' }))
 })
 
 it('keeps action targets and business expiry separate from the display deadline', async () => {
@@ -397,15 +393,12 @@ it.each(['replacement', 'abort'] as const)('discards an opening snapshot invalid
   }
 })
 
-it.each(['displayed', 'cta_clicked', 'dismissed'] as const)('reports %s with the grant, locale, and a JSON body', async (event) => {
+it.each(['displayed', 'cta_clicked', 'dismissed'] as const)('blocks %s without a network request or grant change', async (event) => {
   const f = await fixture()
   await f.grant('test-account-token')
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, event, clientMetadata('zh-CN'))).toBe(true)
-  expect(f.requests).toEqual([
-    { method: 'POST', url: '/api/v0/users/notifications/events', token: 'test-account-token', locale: 'zh_CN',
-      bundleId: '', platform: 'web', version: '1.2.3', timezoneOffset: '28800',
-      contentType: 'application/json', body: JSON.stringify({ notification_id: ORDER, type: event }) },
-  ])
+  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, event, clientMetadata('zh-CN'))).rejects.toThrow('Delta privacy policy')
+  expect(f.requests).toEqual([])
+  expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
 })
 
 it.each([
@@ -413,10 +406,6 @@ it.each([
     f.failBonuses(0, 401)
     return f.account.getNotifications(clientMetadata('en'))
   }, null],
-  ['the acknowledgement', (f: Awaited<ReturnType<typeof fixture>>) => {
-    f.failAck(0, 401)
-    return f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))
-  }, false],
 ])('expires the rejected grant when %s returns HTTP 401', async (_name, run, signedOutOutcome) => {
   const f = await fixture()
   await f.grant('test-account-token')
@@ -431,8 +420,6 @@ it.each([
 
 it.each([
   ['read', (f: Awaited<ReturnType<typeof fixture>>) => f.account.getNotifications(clientMetadata('en')), null],
-  ['acknowledgement', (f: Awaited<ReturnType<typeof fixture>>) =>
-    f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')), false],
 ])('ignores a bonus %s rejection whose response cleanup overlaps a credential replacement', async (_name, run, outcome) => {
   const f = await fixture()
   await f.grant('test-account-token')
@@ -456,50 +443,10 @@ it.each([
   } finally { cleanup.mockRestore(); fetchResponse.mockRestore() }
 })
 
-it('retains the grant when an acknowledgement returns HTTP 500', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failAck(0, 500)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')))
-    .rejects.toThrow('account: network')
-  expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
-})
-
-it('rejects the supplied NOTIFICATION_NOT_FOUND envelope as a business failure', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failAck(1)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en')))
-    .rejects.toThrow('account: protocol')
-  expect(f.requests[0]).toMatchObject({
-    method: 'POST', url: '/api/v0/users/notifications/events', locale: 'en_US',
-    contentType: 'application/json', body: JSON.stringify({ notification_id: ORDER, type: 'displayed' }),
-  })
-})
-
-it.each([
-  ['a business failure', 1, 200, 'account: protocol'],
-  ['an HTTP failure', 0, 500, 'account: network'],
-])('surfaces %s as a retryable acknowledgement failure', async (_name, bizCode, status, message) => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.failAck(bizCode, status)
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).rejects.toThrow(message)
-})
-
-it('accepts an acked false response without treating it as a retryable failure', async () => {
-  const f = await fixture()
-  await f.grant('test-account-token')
-  f.acknowledged(false)
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'dismissed', clientMetadata())).toBe(true)
-  expect(f.requests.map(request => request.url)).toEqual(['/api/v0/users/notifications/events'])
-  expect(await f.account.getState()).toMatchObject({ status: 'credential-stored' })
-})
-
 it('returns signed-out outcomes without any request', async () => {
   const f = await fixture()
   expect(await f.account.getNotifications(clientMetadata('en'))).toBeNull()
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).toBe(false)
+  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).rejects.toThrow('Delta privacy policy')
   expect(f.requests).toEqual([])
 })
 
@@ -513,15 +460,15 @@ it('discards a list response invalidated by a credential change', async () => {
   ])
 })
 
-it('queries notifications and reports events while profile data is unavailable', async () => {
+it('queries notifications without reporting events while profile data is unavailable', async () => {
   const f = await fixture()
   await f.grant('test-account-token')
   f.failProfile(17, 503)
   expect((await f.account.getNotifications(clientMetadata()))?.notifications).toHaveLength(2)
   expect(await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())).toMatchObject({ id: ORDER })
-  expect(await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).toBe(true)
+  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).rejects.toThrow('Delta privacy policy')
   expect(f.requests.map(request => request.url)).toEqual([
-    '/api/v0/users/notifications/list', `/api/v0/users/notifications/content?id=${ORDER}`, '/api/v0/users/notifications/events',
+    '/api/v0/users/notifications/list', `/api/v0/users/notifications/content?id=${ORDER}`,
   ])
 })
 
@@ -530,7 +477,7 @@ it('reuses a cached identity for the same credential after a failed query', asyn
   await f.grant('test-account-token')
   expect(await f.account.getProfile(clientMetadata())).toMatchObject({ status: 'ready' })
   f.failProfile()
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata('en'))).resolves.toBe(true)
+  await expect(f.account.getNotifications(clientMetadata('en'))).resolves.toMatchObject({ notifications: expect.any(Array) })
 })
 
 it('queries notifications independently of a profile without a user ID', async () => {
@@ -539,8 +486,8 @@ it('queries notifications independently of a profile without a user ID', async (
   f.profileId(null)
   expect(await f.account.getProfile(clientMetadata())).toMatchObject({ status: 'ready' })
   f.failProfile()
-  await expect(f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())).resolves.toBe(true)
-  expect(f.requests.at(-1)?.url).toBe('/api/v0/users/notifications/events')
+  await expect(f.account.getNotifications(clientMetadata())).resolves.toMatchObject({ notifications: expect.any(Array) })
+  expect(f.requests.at(-1)?.url).toBe('/api/v0/users/notifications/list')
 })
 
 it('reads localized content of a consumed notification without listing or acknowledging it', async () => {
@@ -599,11 +546,11 @@ it('discards content when the credential changes before its response', async () 
   expect(await f.ctx.credentials.readRecord(f.key)).toMatchObject({ payload: { token: 'replacement-token' } })
 })
 
-it.each(['list', 'content', 'display'] as const)('discards a successful %s response whose reader cleanup overlaps credential replacement', async (operation) => {
+it.each(['list', 'content'] as const)('discards a successful %s response whose reader cleanup overlaps credential replacement', async (operation) => {
   const f = await fixture()
   await f.grant('test-account-token')
   await f.account.getProfile(clientMetadata())
-  const payload = operation === 'list' ? { next_poll_after: 300, notifications: [wire(ORDER)] } : operation === 'content' ? wire(ORDER) : { acked: true }
+  const payload = operation === 'list' ? { next_poll_after: 300, notifications: [wire(ORDER)] } : wire(ORDER)
   const response = new Response(JSON.stringify({ code: 0, data: { biz_code: 0, biz_data: payload } }))
   const body = response.body!
   const reader = body.getReader()
@@ -616,9 +563,8 @@ it.each(['list', 'content', 'display'] as const)('discards a successful %s respo
   const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response)
   try {
     const result = operation === 'list' ? await f.account.getNotifications(clientMetadata())
-      : operation === 'content' ? await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())
-        : await f.account.reportNotificationEvent(ORDER as AccountNotificationId, 'displayed', clientMetadata())
-    expect(result).toBe(operation === 'display' ? false : null)
+      : await f.account.getNotificationContent(ORDER as AccountNotificationId, clientMetadata())
+    expect(result).toBeNull()
     expect(cleanup).toHaveBeenCalledOnce()
     expect(await f.ctx.credentials.readRecord(f.key)).toMatchObject({ payload: { token: 'replacement-token' } })
   } finally {

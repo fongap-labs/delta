@@ -16,7 +16,6 @@ import { ChatSettingsSchema as ChatConfig } from '../../ui-chat/src/chat-setting
 import { DeveloperToolsSettingsSchema as SettingsConfig } from '../../ui-settings/src/developer-tools-settings.ts'
 import type { DesktopOnboardingInjected } from '../src/client/DesktopOnboardingEntry.tsx'
 import type { AccountSectionInjected } from '../src/client/AccountSection.tsx'
-import { CONTACT_CONFIG_GLOBAL } from '../src/contact-config.ts'
 import { AccountPlatformHost } from '../src/client/AccountPlatformHost.tsx'
 import type { AccountPlatformHostInjected } from '../src/client/AccountPlatformHost.tsx'
 import { AccountQuotaNotice } from '../src/client/AccountQuotaNotice.tsx'
@@ -91,8 +90,7 @@ it('claims account balance notices from the frame-wide quota chain and declines 
   expect(select({ ...notice, code: 'QUOTA' })).toBeNull()
 }, 60_000)
 
-it('shares account actions across seats, publishes dialog ownership, and opens contextual support', async ({ start }) => {
-  vi.stubGlobal(CONTACT_CONFIG_GLOBAL, { contactFormUrl: 'https://example.test/form/?prefill_device_model=old&hide_device_model=1', contactSource: 'harness' })
+it('shares account actions across seats, publishes dialog ownership, and opens support without context', async ({ start }) => {
   const open = vi.spyOn(window, 'open').mockReturnValue(null)
   vi.stubGlobal('dshDesktop', {})
   const c = await start()
@@ -120,9 +118,7 @@ it('shares account actions across seats, publishes dialog ownership, and opens c
   actions.showLogin(false)
   expect(listener).toHaveBeenCalledTimes(2)
   actions.contactUs()
-  const signedOut = new URL(String(open.mock.calls.at(-1)![0]))
-  expect(signedOut.searchParams.has('prefill_uid')).toBe(false)
-  expect(signedOut.searchParams.get('hide_uid')).toBe('1')
+  expect(open).toHaveBeenLastCalledWith('https://github.com/fongap-labs/delta/issues', '_blank', 'noopener,noreferrer')
   c.mock.remote.account.getProfile.mockResolvedValue(ok(profile))
   c.mock.streams.push('account/watch', { type: 'snapshot', state: stored })
   await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().details?.profile).toEqual(profile) })
@@ -130,81 +126,23 @@ it('shares account actions across seats, publishes dialog ownership, and opens c
   expect(entry.inject!()).toBe(actions)
   expect(resolveSlotLabel(entry.options.label)).toBe('Account')
   actions.contactUs()
-  const support = new URL(String(open.mock.calls.at(-1)![0]))
-  expect(support.searchParams.get('prefill_uid')).toBe('account-user')
-  expect(support.searchParams.get('hide_uid')).toBe('1')
-  expect(support.searchParams.get('hide_harness_version')).toBe('1')
-  expect(support.searchParams.get('prefill_harness_version')).toBe('0.0.0-test')
-  expect(support.searchParams.get('hide_device_info')).toBe('1')
-  expect(support.searchParams.get('prefill_device_info')).toBe(`${navigator.userAgent}; screen_resolution=3024x1964`)
-  expect(support.searchParams.has('prefill_device_model')).toBe(false)
-  expect(support.searchParams.has('hide_device_model')).toBe(false)
-  for (const field of ['os_version', 'device_brand', 'app_locale', 'screen_resolution']) {
-    expect(support.searchParams.has(`prefill_${field}`)).toBe(false)
-    expect(support.searchParams.has(`hide_${field}`)).toBe(false)
-  }
-  expect(support.searchParams.has('prefill_app_version')).toBe(false)
+  expect(open).toHaveBeenLastCalledWith('https://github.com/fongap-labs/delta/issues', '_blank', 'noopener,noreferrer')
   c.mock.streams.push('account/watch', { type: 'snapshot', state: view })
   await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().view).toEqual(view) })
   actions.contactUs()
-  const signedOutAgain = new URL(String(open.mock.calls.at(-1)![0]))
-  expect(signedOutAgain.searchParams.has('prefill_uid')).toBe(false)
-  expect(signedOutAgain.searchParams.get('hide_uid')).toBe('1')
+  expect(open).toHaveBeenLastCalledWith('https://github.com/fongap-labs/delta/issues', '_blank', 'noopener,noreferrer')
   await c.unload(SELF)
   expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(0)
 }, 60_000)
 
-it('prefills the native device description from the Desktop bridge on every click', async ({ start }) => {
+it('does not read native device information or add query parameters to the support link', async ({ start }) => {
   const open = vi.spyOn(window, 'open').mockReturnValue(null)
-  const deviceInfo = vi.fn(async () => 'platform=darwin; os=15.0; app_arch=arm64; cpu=Apple M3; memory_gib=16.0')
-  vi.stubGlobal('dshDesktop', { deviceInfo })
-  const c = await start()
-  const actions = operations(c)
-  actions.contactUs()
-  await vi.waitFor(() => { expect(open).toHaveBeenCalledOnce() })
-  const first = new URL(String(open.mock.calls.at(-1)![0]))
-  expect(first.searchParams.get('prefill_device_info'))
-    .toBe('platform=darwin; os=15.0; app_arch=arm64; cpu=Apple M3; memory_gib=16.0; screen_resolution=3024x1964')
-  expect(first.searchParams.get('hide_device_info')).toBe('1')
-  deviceInfo.mockResolvedValue('platform=win32; os=10.0; app_arch=x64; memory_gib=32.0')
-  vi.stubGlobal('screen', { width: 1920, height: 1080 })
-  vi.stubGlobal('devicePixelRatio', 1)
-  actions.contactUs()
-  await vi.waitFor(() => { expect(open).toHaveBeenCalledTimes(2) })
-  expect(new URL(String(open.mock.calls.at(-1)![0])).searchParams.get('prefill_device_info'))
-    .toBe('platform=win32; os=10.0; app_arch=x64; memory_gib=32.0; screen_resolution=1920x1080')
-  expect(deviceInfo).toHaveBeenCalledTimes(2)
-}, 60_000)
-
-it('opens the questionnaire with screen resolution when the native read fails', async ({ start }) => {
-  const open = vi.spyOn(window, 'open').mockReturnValue(null)
-  const deviceInfo = vi.fn(async (): Promise<string> => { throw new Error('platform ipc unavailable') })
+  const deviceInfo = vi.fn(async () => 'private device fixture')
   vi.stubGlobal('dshDesktop', { deviceInfo })
   const c = await start()
   operations(c).contactUs()
-  await vi.waitFor(() => { expect(open).toHaveBeenCalledOnce() })
-  const url = new URL(String(open.mock.calls.at(-1)![0]))
-  expect(url.searchParams.get('prefill_device_info')).toBe('screen_resolution=3024x1964')
-  expect(url.searchParams.get('hide_device_info')).toBe('1')
-  expect(url.searchParams.has('prefill_app_locale')).toBe(false)
-  expect(deviceInfo).toHaveBeenCalledOnce()
-}, 60_000)
-
-it('reports the account sampled by the click when a native read outlasts a sign-out', async ({ start }) => {
-  const open = vi.spyOn(window, 'open').mockReturnValue(null)
-  const device = Promise.withResolvers<string>()
-  vi.stubGlobal('dshDesktop', { deviceInfo: vi.fn(() => device.promise) })
-  const c = await start()
-  const actions = operations(c)
-  c.mock.remote.account.getProfile.mockResolvedValue(ok(profile))
-  c.mock.streams.push('account/watch', { type: 'snapshot', state: stored })
-  await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().details?.profile).toEqual(profile) })
-  actions.contactUs()
-  c.mock.streams.push('account/watch', { type: 'snapshot', state: view })
-  await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().view).toEqual(view) })
-  device.resolve('platform=darwin; os=15.0; app_arch=arm64; memory_gib=16.0')
-  await vi.waitFor(() => { expect(open).toHaveBeenCalledOnce() })
-  expect(new URL(String(open.mock.calls.at(-1)![0])).searchParams.get('prefill_uid')).toBe('account-user')
+  expect(deviceInfo).not.toHaveBeenCalled()
+  expect(open).toHaveBeenCalledExactlyOnceWith('https://github.com/fongap-labs/delta/issues', '_blank', 'noopener,noreferrer')
 }, 60_000)
 
 it('publishes one avatar load and retries it through the shared Settings refresh action', async ({ start }) => {

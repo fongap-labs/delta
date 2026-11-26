@@ -38,3 +38,7 @@ it('keeps native recovery without any diagnostic report persistence interface', 
   expect(recovery).toContain('this.operations.disablePlugins()')
   expect(recovery).toContain('this.operations.restart()')
 })
+
+it('does not restore automatic diagnostic file output', () => {
+  expect(desktop).not.toContain('DSH_DESKTOP_DIAGNOSTIC_FILE')
+})

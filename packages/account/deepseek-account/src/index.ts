@@ -13,7 +13,7 @@ import { type AccountNotification, type AccountNotificationBatch, type AccountNo
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { profile, readAccountDetail } from './details.ts'
-import { readNotificationContent, readNotifications, sendNotificationEvent } from './notifications.ts'
+import { readNotificationContent, readNotifications } from './notifications.ts'
 import { revokeAccount, type LogoutRetryPolicy } from './logout.ts'
 import { ACCOUNT_TOKEN_HEADER, AccountUnauthorizedError, PlatformAuthError, platformHeaders, platformOrigin, browserUrl, requestPlatform, initialization, exchange, loginOrigin } from './protocol.ts'
 
@@ -302,31 +302,16 @@ export class DeepSeekAccount extends TypertRemoteService {
   }
 
   /**
-   * Report a notification interaction; the backend decides consumption.
-   * @param id - notification the user interacted with.
-   * @param event - displayed frame, non-dismiss action click, or explicit dismissal.
-   * @param client - identity of the requesting UI for this call.
-   * @returns true once the server accepts the event; false if signed out or credentials changed during the call.
+   * Reject obsolete notification interaction RPC calls locally.
+   * @param _id - obsolete notification identity.
+   * @param _event - obsolete interaction type.
+   * @param _client - obsolete reporting metadata.
+   * @returns Never sends an interaction acknowledgement.
    */
   @Remote
-  async reportNotificationEvent(id: AccountNotificationId,
-    event: AccountNotificationEvent, client: AccountClientMetadata): Promise<boolean> {
-    const lifetime = this.detailsLifetime
-    const headers = this.detailHeaders(client)
-    const stored = await this.readCurrentGrant(lifetime)
-    if (stored === null) return false
-    try {
-      await sendNotificationEvent(this.harnessOrigin, stored.token, id, event,
-        AbortSignal.any([lifetime.signal, AbortSignal.timeout(this.requestTimeout)]), headers)
-      return this.detailsLifetime === lifetime
-    } catch (error) {
-      if (this.detailsLifetime !== lifetime) return false
-      if (error instanceof AccountUnauthorizedError) {
-        await this.expireCredential(stored.token, lifetime)
-        return false
-      }
-      throw error
-    }
+  async reportNotificationEvent(_id: AccountNotificationId,
+    _event: AccountNotificationEvent, _client: AccountClientMetadata): Promise<boolean> {
+    throw new Error('Delta privacy policy rejects notification interaction reporting')
   }
 
   /**
