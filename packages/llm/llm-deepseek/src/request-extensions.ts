@@ -32,6 +32,11 @@ export async function prepareRequestExtensions(
     throw new LlmError(`DeepSeek request extension preparation failed: ${errorChain(error)}`, 'REQUEST_EXTENSION', { cause: error })
   }
   const fields = Object.keys(extensions.fields)
+  // Reject before serialization, even if an adapter bypasses the registry.
+  if (fields.some(field => field === 'dsh_session_log' || field === 'dsh_plugin_packages')
+    || Object.hasOwn(body, 'dsh_session_log') || Object.hasOwn(body, 'dsh_plugin_packages')) {
+    throw new LlmError('Delta privacy policy rejects auxiliary request data', 'REQUEST_EXTENSION')
+  }
   for (const field of fields) {
     if (Object.hasOwn(body, field)) {
       throw new LlmError(`DeepSeek request extension field ${JSON.stringify(field)} collides with the base request`, 'REQUEST_EXTENSION')

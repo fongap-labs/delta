@@ -60,9 +60,30 @@ for (const path of workspaceManifests) {
 
 const corePatch = readFileSync(requireFile('packages/bundle/base/cordis.patch.yml', 'base profile patch'), 'utf8')
 const webPatch = readFileSync(requireFile('packages/bundle/web-app/cordis.patch.yml', 'Web profile patch'), 'utf8')
-const sessionLog = rowBlock(corePatch, 'session-log-deepseek')
-if (!sessionLog || !/^\s+disabled:\s*true\s*$/m.test(sessionLog)) {
-  throw new Error('delta-verify: session-log upload must remain disabled')
+const forbiddenPrivacyPackages = [
+  'packages/session/session-log-deepseek',
+  'packages/llm/plugin-package-inventory-deepseek',
+  'packages/client/ui-settings-session-log',
+]
+for (const path of forbiddenPrivacyPackages) {
+  if (existsSync(join(root, path))) throw new Error('delta-verify: forbidden collection package restored: ' + path)
+}
+const forbiddenPrivacyDependencies = [
+  '@deepseek-ai/dsh-session-log-deepseek',
+  '@deepseek-ai/dsh-plugin-package-inventory-deepseek',
+  '@deepseek-ai/dsh-client-ui-settings-session-log',
+]
+for (const path of [...workspaceManifests, 'pnpm-lock.yaml']) {
+  const content = readFileSync(requireFile(path, path), 'utf8')
+  if (forbiddenPrivacyDependencies.some(name => content.includes(name))) {
+    throw new Error('delta-verify: forbidden collection dependency restored: ' + path)
+  }
+}
+const sdkPatch = readFileSync(requireFile('packages/bundle/sdk-minimal/cordis.patch.yml', 'SDK profile patch'), 'utf8')
+for (const patch of [corePatch, webPatch, sdkPatch]) {
+  for (const id of ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'ui-settings-session-log']) {
+    if (rowBlock(patch, id)) throw new Error('delta-verify: forbidden collection row restored: ' + id)
+  }
 }
 for (const rowId of ['session-telemetry-otel', 'desktop-product-telemetry']) {
   if (rowBlock(corePatch, rowId) || rowBlock(webPatch, rowId)) {

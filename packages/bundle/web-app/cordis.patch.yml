@@ -477,9 +477,6 @@
     - id: entry-customization
       name: '@deepseek-ai/dsh-client-ui-entry-customization'
 
-    - id: ui-settings-session-log
-      name: '@deepseek-ai/dsh-client-ui-settings-session-log'
-
     # The official settings pages: one companion package per host-plane
     # namespace, each registering its page into the Plugins page while the
     # Host serves the namespace.

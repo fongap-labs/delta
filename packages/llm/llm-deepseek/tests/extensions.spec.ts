@@ -71,6 +71,25 @@ function sentBody(fetch: Mock<typeof globalThis.fetch>): Record<string, unknown>
 }
 
 describe('Messages request extensions', () => {
+  it.each(['dsh_session_log', 'dsh_plugin_packages'])('rejects forbidden request extension %s at registration and HTTP serialization', async (field) => {
+    const ctx = await boot()
+    const contribution = { value: 'synthetic privacy fixture' }
+    const prepare = vi.fn(() => ({ value: contribution }))
+    expect(() => ctx.deepseekLlmApiExtensions.register(field as 'dsh_messages_test', { prepare }))
+      .toThrow(/privacy policy/)
+    expect(prepare).not.toHaveBeenCalled()
+    const accept = vi.fn(async () => {})
+    const llm = adapter({ baseURL: 'https://messages.example.test' }, {
+      prepareExtensions: async () => ({ fields: { [field]: contribution }, accept }),
+    })
+    const fetch = vi.fn<typeof globalThis.fetch>()
+    vi.stubGlobal('fetch', fetch)
+    const result = await assemble(llm.stream(options()))
+    expect(result.assembler.finish.kind).toBe('error')
+    expect(fetch).not.toHaveBeenCalled()
+    expect(accept).not.toHaveBeenCalled()
+  })
+
   it('prepares the native body and accepts its contribution before yielding content', async () => {
     const ctx = await boot()
     let request: DeepSeekLlmApiExtensionRequest | undefined
