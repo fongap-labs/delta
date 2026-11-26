@@ -14,6 +14,7 @@ import { copyPrimaryRuntime, parsePrimaryRuntime, workspaceDependencyPaths, type
 import { acceptsNpmPlatform } from '../npm-platform.ts'
 import lock from './lock.json' with { type: 'json' }
 import { prunePrimaryRuntimePythonTests } from './prune-python-tests.ts'
+import { sanitizeRuntimeMetadata } from './sanitize-runtime-metadata.ts'
 
 /**
  * Download or reuse an archive only when its bytes match the release lock.
@@ -239,6 +240,7 @@ export async function preparePrimaryRuntime(options: PreparePrimaryRuntimeOption
       await unpackPrimaryRuntimeWheel(await downloadPrimaryRuntimeAsset(wheel.url, wheel.sha256, paths.downloads), entries.pythonPackages)
     }
     prunePrimaryRuntimePythonTests(entries.pythonPackages)
+    sanitizeRuntimeMetadata(output)
     writeFileSync(join(output, 'runtime.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
     const destination = join(paths.runtime, 'primary-runtime')
     rmSync(destination, { recursive: true, force: true })

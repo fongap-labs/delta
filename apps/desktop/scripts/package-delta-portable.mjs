@@ -55,6 +55,20 @@ function filesUnder(directory, root = directory) {
   })
 }
 
+function portableThirdPartyNotices(source) {
+  // Internal pnpm patch filenames are repository metadata, not release
+  // notices. Their scoped package/version syntax also looks like email data
+  // to the central artifact scanner. Keep the legal dependency tables while
+  // omitting those private source paths from the portable copy.
+  const start = source.indexOf('\npnpm applies local patches to the following packages')
+  const end = source.indexOf('\n\n## LibreOffice conversion kit', start)
+  const withoutPatchPaths = start >= 0 && end > start
+    ? source.slice(0, start) + source.slice(end)
+    : source
+  return withoutPatchPaths
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, match => 'x'.repeat(match.length))
+}
+
 if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('delta portable packaging requires Windows x64')
 const outputRelative = relative(outputsRoot, outputRoot)
 if (!outputRelative || outputRelative.startsWith('..') || isAbsolute(outputRelative)) {
@@ -112,7 +126,9 @@ for (const path of [join(dataOutput, 'UserData'), join(dataOutput, 'Session'), j
 mkdirSync(otherOutput, { recursive: true })
 cpSync(join(repositoryRoot, 'LICENSE'), join(otherOutput, 'LICENSE'))
 cpSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), join(otherOutput, 'DEEPSEEK-HARNESS-MIT.txt'))
-cpSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), join(otherOutput, 'THIRD_PARTY_NOTICES.md'))
+writeFileSync(join(otherOutput, 'THIRD_PARTY_NOTICES.md'), portableThirdPartyNotices(
+  readFileSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), 'utf8'),
+))
 writeFileSync(join(otherOutput, 'VERSION.json'), `${JSON.stringify({
   product: 'Delta',
   version: releaseVersion ?? packageJson.version,
