@@ -19,8 +19,6 @@ function transport(preference?: string) {
     if (method === 'account/getState') value = { links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null }
     else if (method === 'settings/describe') value = { namespaces }
     else if (method === 'llm/listConfigurableProviders') value = [{ settingsNs: 'llm-pi-ai', settingsPath: ['profiles', 'example'] }]
-    else if (method === 'productAnalytics/enabled') value = true
-    else if (method === 'productAnalytics/report') value = undefined
     else if (method === 'credentials/set') keys.set(payload.args.ref, payload.args.value)
     else value = Object.fromEntries(payload.args.refs.map(ref => [ref, { configured: keys.has(ref), writable: true }]))
     return Response.json({ type: 'server-response', rpcId, result: { ok: true, value } })
@@ -55,7 +53,6 @@ describe('desktop welcome Web operations', () => {
   it('authenticates with the explicit Host cookie and stores only through the configured credential reference', async () => {
     const host = transport()
     const backend = connectDesktopWelcome(url, cookie, host.send)
-    expect(await backend.analyticsEnabled()).toBe(true)
     expect(await backend.save('sk-example')).toEqual({ ok: true })
     expect(host.keys.get('CUSTOM_DEEPSEEK_KEY')).toBe('sk-example')
     expect(await backend.read()).toEqual({ loggedIn: false, hasApiKey: true, writable: true, localePreference: null, themePreference: 'system' })
@@ -113,15 +110,9 @@ describe('desktop welcome Web operations', () => {
     await expect(backend.read()).rejects.toThrow('Web RPC failed')
   })
 
-  it('submits native analytics through authenticated RPC with a bounded request', async () => {
-    const host = transport()
-    const backend = connectDesktopWelcome(url, cookie, host.send)
-    const event = { eventName: 'desktop_app_launch' as const, timestamp: 100, attributes: {} }
-    await backend.report(event)
-    const [input, init] = host.send.mock.calls.at(-1)!
-    expect(input).toBe('http://127.0.0.1:19387/api/productAnalytics/report')
-    expect(init?.headers).toMatchObject({ cookie })
-    expect(init?.signal).toBeInstanceOf(AbortSignal)
-    expect(JSON.parse(init!.body as string)).toMatchObject({ payload: { args: { event } } })
+  it('exposes no native analytics RPC methods', () => {
+    const backend = connectDesktopWelcome(url, cookie, transport().send)
+    expect(backend).not.toHaveProperty('analyticsEnabled')
+    expect(backend).not.toHaveProperty('report')
   })
 })

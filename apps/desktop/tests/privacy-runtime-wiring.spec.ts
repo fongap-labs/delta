@@ -20,7 +20,10 @@ it('does not submit desktop product analytics or subscribe to analytics policy',
   expect(desktop).not.toContain('welcomeBackend.analyticsEnabled')
   expect(desktop).not.toContain('welcomeBackend?.report')
   expect(desktop).not.toContain('track(')
-  expect(desktop).toContain('analyticsEnabled: () => Promise.resolve(false)')
+  for (const path of ['welcome-api.ts', 'welcome-backend.ts', 'welcome-window.ts', 'preload-welcome.ts', 'client/WelcomePage.tsx', 'account-backend.ts']) {
+    const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
+    expect(source).not.toMatch(/productAnalytics|product-analytics|analyticsEnabled|dsh-welcome:analytics|\.analytics\?\./u)
+  }
 })
 
 it('never retains raw Host stderr or operation diagnostics', () => {

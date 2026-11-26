@@ -196,9 +196,6 @@ const harness = await vi.hoisted(async () => {
     }),
   })
   let accountListener: ((state: AccountView) => void) | undefined
-  let analyticsEnabled = true
-  let analyticsEnabledListener: ((enabled: boolean) => void) | undefined
-  const analytics = vi.fn(async (_event: unknown) => {})
   const nativeTheme = new class extends EventEmitter {
     themeSource = 'system'
     systemDark = false
@@ -216,22 +213,18 @@ const harness = await vi.hoisted(async () => {
   const shellDialog = { isOpen: false, focus: vi.fn() }
   return {
     failWindow(error: Error) { windowFailure = error },
-    windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, nativeTheme, analytics,
+    windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, nativeTheme,
     trays, FakeTray, backgroundNotice, shellDialog,
     menu, popup, socketHeaders: vi.fn(), connectWelcome: vi.fn(), removeLegacyHostCookies: vi.fn(async () => {}), hostCookies: {},
     loginShell, readLoginShell, updateCheck, updateDownload, updateInstall,
     platformDispose,
     platformCloseAndWait,
 
-    get analyticsEnabled() { return analyticsEnabled },
-    set analyticsEnabled(value: boolean) { analyticsEnabled = value; analyticsEnabledListener?.(value) },
     watchAccount: (
       listener: (state: AccountView) => void, _failed: () => void, _expired: () => void,
-      onAnalyticsEnabledChanged?: (enabled: boolean) => void,
     ) => {
-      analyticsEnabledListener = onAnalyticsEnabledChanged
       accountListener = listener
-      return () => { accountListener = undefined; analyticsEnabledListener = undefined }
+      return () => { accountListener = undefined }
     },
     publishAccount(state: AccountView) { accountListener?.(state) },
     ipcOn: vi.fn<(channel: string, listener: (event: { sender: unknown; senderFrame: unknown }, ...args: unknown[]) => void) => void>(),
@@ -415,8 +408,6 @@ vi.mock('../src/welcome-backend.ts', () => ({
   connectDesktopWelcome: (...args: unknown[]) => {
     harness.connectWelcome(...args)
     return {
-      analyticsEnabled: async () => harness.analyticsEnabled,
-      report: harness.analytics,
       readLocalePreference: async () => null,
       read: async (): Promise<unknown> => (await harness.hosts.at(-1)!.fetch()).json() as Promise<unknown>,
       save: async () => ({ ok: true }),
@@ -479,7 +470,6 @@ beforeEach(() => {
   vi.stubEnv('DSH_DESKTOP_MANDATORY_UPDATE_CONFIG', undefined)
   vi.stubEnv('DSH_DESKTOP_UPDATE_JOURNAL_DIR', undefined)
   vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
-  harness.analyticsEnabled = true
 })
 
 afterEach(async () => {
@@ -733,7 +723,6 @@ describe('desktop main startup', () => {
     harness.app.isPackaged = false
     vi.stubEnv('DSH_DESKTOP_DSH_DIR', join(root, 'app.asar', 'dsh'))
     const host = await readyForUpdate()
-    expect(harness.analytics).not.toHaveBeenCalled()
     expect(host.primaryRuntime).toBe('test-primary-runtime')
     expect(existsSync(harness.app.getPath('logs'))).toBe(false)
     expect(harness.dialog.showMessageBox).not.toHaveBeenCalledWith(expect.objectContaining({ title: en.startupFailed }))
@@ -2523,14 +2512,13 @@ describe('desktop main startup', () => {
     await expect(preparing).resolves.toBe(true)
   })
 
-  it('prepares an update without submitting product analytics', async () => {
+  it('prepares an update after the user confirms', async () => {
     const host = await readyForUpdate()
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
     const preparing = harness.prepareUpdate()
     await host.stopping.promise
     host.exited.resolve()
     await expect(preparing).resolves.toBe(true)
-    expect(harness.analytics).not.toHaveBeenCalled()
   })
 
   it('reports a Platform storage cleanup failure as preparation failure without stopping the Host', async () => {
@@ -2908,7 +2896,6 @@ describe('desktop main startup', () => {
     expect(harness.hosts[0]!.environment?.DSH_CLIENT_VERSION).toBe('1.2.3')
     expect(harness.hosts[0]!.environment?.DSH_TEST_LOGIN_SHELL).toBe('login')
     expect(console.warn).toHaveBeenCalledWith('desktop login shell: /account/shell failed (timeout)')
-    expect(harness.analytics).not.toHaveBeenCalled()
     expect(harness.hosts[0]!.start).toHaveBeenCalledTimes(1)
     expect(harness.windows).toHaveLength(1)
     expect(window.urls).toEqual(['dsh-app://app/'])
@@ -3032,16 +3019,4 @@ it.each([['light', false], ['dark', true]] as const)('opens Platform authorizati
   harness.publishAccount(state)
   harness.publishAccount(state)
   expect(harness.openExternal).toHaveBeenCalledExactlyOnceWith(`https://platform.deepseek.com/dsh/authorize?state=state-1&theme=${theme}`)
-})
-
-it('disables native product events for a disabled Desktop launch', async () => {
-  harness.analyticsEnabled = false
-  await import('../src/main.ts')
-  await harness.preparing.promise
-  harness.prepared.resolve()
-  await harness.hostStarted.promise
-  harness.hosts[0]!.ready.resolve()
-  await harness.navigated.promise
-  expect(harness.analytics).not.toHaveBeenCalled()
-  harness.analyticsEnabled = true
 })
