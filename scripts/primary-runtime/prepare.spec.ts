@@ -7,6 +7,7 @@ import { zipSync } from 'fflate'
 import { expect, it } from 'vitest'
 import { downloadPrimaryRuntimeAsset, primaryRuntimePayloadDigest, prunePnpmForeignNativePackages, smokePrimaryRuntime, unpackPrimaryRuntimeWheel } from './prepare.ts'
 import lock from './lock.json' with { type: 'json' }
+import { stripStagedPackageContactEmails } from '../runtime-contact-metadata.ts'
 
 it('covers every SDK wheel target with the shared interpreter lock', () => {
   const platforms = JSON.parse(readFileSync(new URL('../../python/sdk-runtime/platforms.json', import.meta.url), 'utf8')) as Record<string, unknown>
@@ -183,5 +184,29 @@ it('names the bundled manifest whose platform field is invalid', async () => {
     await mkdir(join(root, 'dist', 'node_modules', 'invalid'), { recursive: true })
     await writeFile(join(root, 'dist', 'node_modules', 'invalid', 'package.json'), JSON.stringify({ os: 'darwin' }))
     expect(() => { prunePnpmForeignNativePackages(root, 'darwin', 'arm64') }).toThrow(/invalid.package\.json: npm platform constraints must be arrays of strings/u)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+it('cleans optional pnpm runtime manifest contact metadata without changing licenses or runtime files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'primary-runtime-contact-'))
+  try {
+    const address = ['contact', 'example.invalid'].join('@')
+    const nested = join(root, 'dist', 'node_modules', 'example')
+    await mkdir(nested, { recursive: true })
+    const rootManifest = { name: 'pnpm', version: '11.28.5', license: 'MIT', author: `Author <${address}>`, bin: { pnpm: 'bin/pnpm.mjs' } }
+    const nestedManifest = { name: 'example', version: '1.0.0', main: 'index.js', contributors: [{ name: 'Contributor', email: address }], dependencies: { runtime: '1.0.0' } }
+    const license = `Copyright Author <${address}>\nMIT\n`
+    await writeFile(join(root, 'package.json'), JSON.stringify(rootManifest))
+    await writeFile(join(nested, 'package.json'), JSON.stringify(nestedManifest))
+    await writeFile(join(nested, 'LICENSE'), license)
+    await writeFile(join(nested, 'index.js'), 'export const value = 42\n')
+    await stripStagedPackageContactEmails(root)
+    expect(JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))).toEqual({ ...rootManifest, author: 'Author' })
+    expect(JSON.parse(await readFile(join(nested, 'package.json'), 'utf8'))).toEqual({ ...nestedManifest, contributors: [{ name: 'Contributor' }] })
+    expect(await readFile(join(nested, 'LICENSE'), 'utf8')).toBe(license)
+    expect(await readFile(join(nested, 'index.js'), 'utf8')).toBe('export const value = 42\n')
+    const after = await readFile(join(root, 'package.json'), 'utf8')
+    await stripStagedPackageContactEmails(root)
+    expect(await readFile(join(root, 'package.json'), 'utf8')).toBe(after)
   } finally { await rm(root, { recursive: true, force: true }) }
 })
