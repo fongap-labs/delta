@@ -1,6 +1,7 @@
 /** Remove non-functional build and contact metadata from a release runtime. */
 
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { isUtf8 } from 'node:buffer'
 import { join } from 'node:path'
 
 const slash = String.fromCharCode(47)
@@ -84,8 +85,8 @@ function visit(directory: string, result: { files: number }): void {
     const extension = entry.name.includes('.') ? `.${entry.name.split('.').pop()!}`.toLowerCase() : ''
     const bytes = readFileSync(path)
     if (!likelyText(bytes, extension, entry.name)) continue
+    if (!isUtf8(bytes)) continue
     const source = bytes.toString('utf8')
-    if (source.includes('\uFFFD')) continue
     const sanitized = sanitizeTextFile(path, source)
     if (sanitized === source) continue
     writeFileSync(path, sanitized)

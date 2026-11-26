@@ -131,7 +131,7 @@ it('removes release metadata without rewriting native bytes', async () => {
     await mkdir(join(root, 'demo-1.0.0.dist-info'))
     await writeFile(join(root, 'metadata.txt'), `${email} ${unixHome}\n`)
     await writeFile(join(root, 'metadata.map'), `${email} ${unixHome}\n`)
-    await writeFile(join(root, 'LICENSE'), `${email}\n`)
+    await writeFile(join(root, 'LICENSE'), `\uFFFD ${email}\n`)
     await writeFile(join(root, 'PIL', 'ImageFont.py'), `font = b"""${awsLike}"""\n`)
     await writeFile(join(root, 'PIL', '__pycache__', 'ImageFont.pyc'), 'bytecode')
     await writeFile(join(root, 'demo-1.0.0.dist-info', 'DELVEWHEEL'), windowsHome)
