@@ -5,6 +5,7 @@ import { AppWebEntry, applyIndexInjections } from '@deepseek-ai/dsh-client-web'
 interface DesktopBootGlobal {
   dshDesktopBoot?: {
     failed(message: string): Promise<void>
+    workspaceMounted(): Promise<void>
     ready(): Promise<{ injections: Parameters<typeof applyIndexInjections>[0]; streamBaseUrl: string }>
   }
 }
@@ -35,6 +36,8 @@ try {
     }).catch((error: unknown) => { gate.reject(error) })
   }
   void entry.run(desktop === undefined ? undefined : reportFailure)
+    .then(() => desktop?.workspaceMounted())
+    .catch((reason: unknown) => reportFailure(reason))
 } catch (reason) {
   reportFailure(reason)
 }

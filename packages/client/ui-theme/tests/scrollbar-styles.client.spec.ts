@@ -148,6 +148,14 @@ const SURFACE_PROPERTIES = ['background', 'background-color']
 const SURFACE_TOKEN_PATTERN = /^--dsw-(?:alias-bg-|specific-)/
 /** Translucent elevated surfaces whose colors do not resolve to a palette rung. */
 const TRANSLUCENT_ELEVATED_SURFACES = new Set(['--dsw-specific-menu'])
+/**
+ * These scroll independently on the base canvas; a sibling status/error strip
+ * uses layer 2 in the same stylesheet. The stylesheet-level relation cannot
+ * infer that they are separate surfaces, so pin the exact known pairing here.
+ */
+const BASE_SCROLL_WITH_ELEVATED_SIBLING = new Map([
+  ['packages/client/ui-sidebar-terminal/src/client/terminal.module.css', '--dsw-alias-bg-layer-2'],
+])
 
 /**
  * The palette's own dark elevation ladder, resolved from `design-platform.css`:
@@ -525,6 +533,13 @@ describe('elevated surface rebinds', () => {
     // (ChatView's `.toBottom`, CodeBlock's banner). Geometry cannot make that
     // call — a floating button carries a radius, a shadow, and a fixed size.
     for (const [file, surfaces] of sheetSurfaces) {
+      const baseScrollException = [...BASE_SCROLL_WITH_ELEVATED_SIBLING]
+        .find(([path]) => file.replaceAll('\\', '/').endsWith(path))?.[1]
+      if (baseScrollException !== undefined) {
+        expect([...surfaces.elevated], `${file}: only the documented sibling strip may use an elevated fill`).toEqual([baseScrollException])
+        expect(surfaces.scrolls, `${file}: exception still needs a scroll region`).toBe(true)
+        continue
+      }
       if (!surfaces.scrolls || surfaces.rebindsElevation) continue
       expect([...surfaces.elevated], `${file} scrolls on an elevated surface without rebinding`).toEqual([])
     }

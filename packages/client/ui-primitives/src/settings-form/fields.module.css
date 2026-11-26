@@ -54,13 +54,13 @@
 }
 
 .helpButton[aria-expanded='true'] {
-  background: var(--dsw-alias-bg-layer-4);
+  background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);
 }
 
 @media (hover: hover) {
   .helpButton:hover {
-    background: var(--dsw-alias-bg-layer-4);
+    background: var(--dsw-alias-interactive-bg-hover);
     color: var(--dsw-alias-label-secondary);
   }
 }

@@ -236,7 +236,6 @@ function openEditor(provider: string): void {
 /** Open the add card from the section and switch it to the custom-API mode. */
 function openCustomMode(): void {
   fireEvent.click(screen.getByRole('button', { name: en.add }))
-  fireEvent.click(screen.getByRole('tab', { name: en.addCustom }))
 }
 
 /** Open one model row's advanced fold, where the capacities live. */

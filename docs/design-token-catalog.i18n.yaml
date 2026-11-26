@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for design-token-catalog.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/design-token-catalog.md
+/shared-design-token-catalog:
+  en: 56b5a798da859a5f
+  zh: 837ce87b39c6769d
+/shared-design-token-catalog/base-css:
+  en: f04fd1b4dee1cb41
+  zh: 800093fc1e03c97a
+/shared-design-token-catalog/delta-brand-css:
+  en: 3f0318c37e21dddb
+  zh: 9902ad991af8cd98
+/shared-design-token-catalog/design-platform-css:
+  en: 9f40373a19504fb5
+  zh: 98483c668a2f0e52
+/shared-design-token-catalog/desktop-welcome-css:
+  en: a58ceb1e638f12e8
+  zh: 15faefbca039a2d7
+/shared-design-token-catalog/gradient-shadow-text-css:
+  en: d1cdae38fa4b20d6
+  zh: e6e63f3f78cd18ab
+/shared-design-token-catalog/onboarding-css:
+  en: ab4ae8bfdf6915c2
+  zh: 328865f10eefc871

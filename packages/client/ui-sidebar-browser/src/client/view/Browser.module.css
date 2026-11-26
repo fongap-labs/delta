@@ -42,7 +42,7 @@
 }
 
 .tool:disabled {
-  color: var(--dsw-alias-label-quaternary);
+  color: var(--dsw-alias-label-caption);
   cursor: default;
 }
 

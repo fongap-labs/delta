@@ -103,8 +103,9 @@ const harness = await vi.hoisted(async () => {
       }),
     })
     readonly shown = deferred()
-    readonly show = vi.fn(() => { this.shown.resolve() })
-    readonly hide = vi.fn()
+    readonly show = vi.fn(() => { this.visible = true; this.shown.resolve() })
+    readonly showInactive = vi.fn(() => { this.visible = true; this.shown.resolve() })
+    readonly hide = vi.fn(() => { this.visible = false })
     readonly focus = vi.fn()
     readonly moveTop = vi.fn()
     readonly setAlwaysOnTop = vi.fn()
@@ -116,7 +117,7 @@ const harness = await vi.hoisted(async () => {
     readonly setVibrancy = vi.fn()
     readonly setBackgroundColor = vi.fn()
     constructor(readonly options: { show: boolean; modal?: boolean }) {
-      super(); if (windowFailure !== undefined) throw windowFailure; windows.push(this)
+      super(); if (windowFailure !== undefined) throw windowFailure; this.visible = options.show; windows.push(this)
     }
     isDestroyed() { return this.destroyed }
     fullscreen = false
@@ -124,7 +125,7 @@ const harness = await vi.hoisted(async () => {
     readonly setFullScreen = vi.fn((flag: boolean) => { this.fullscreen = flag; this.emit(flag ? 'enter-full-screen' : 'leave-full-screen') })
     minimized = false
     isMinimized() { return this.minimized }
-    visible = true
+    visible: boolean
     isVisible() { return this.visible }
     enabled = true
     isEnabled() { return this.enabled }
@@ -452,6 +453,11 @@ function invoke(channel: string, origin = channel === DESKTOP_IPC.boot ? 'app' :
     return handler({ sender, senderFrame: sender.mainFrame }, ...args)
   }
   return handler({ senderFrame: { url: `dsh-app://${origin}/index.html` } }, ...args)
+}
+
+function signalWorkspaceMounted(window: { webContents: { mainFrame: { url: string } } }): void {
+  const sender = window.webContents
+  harness.handlers.get(DESKTOP_IPC.workspaceMounted)!({ sender, senderFrame: sender.mainFrame })
 }
 
 function applicationMenuItems(): MenuItemConstructorOptions[] {
@@ -1202,19 +1208,17 @@ describe('desktop main startup', () => {
       await harness.preparing.promise
       const window = harness.windows[0]!
       expect(window.show).not.toHaveBeenCalled()
-      harness.prepared.resolve()
-      await harness.hostStarted.promise
-      const host = harness.hosts[0]!
-      host.fetch.mockResolvedValue(Response.json({ hasApiKey: true, localePreference: null, themePreference: source }))
       window.show.mockImplementation(() => {
         expect(harness.nativeTheme.themeSource).toBe(source)
         if (platform === 'win32') expect(window.setBackgroundColor).toHaveBeenLastCalledWith(color)
         else expect(window.options).toMatchObject({ backgroundColor: '#00000000', vibrancy: 'sidebar' })
       })
-      host.ready.resolve()
-      await Promise.resolve(invoke(DESKTOP_IPC.boot))
-      await vi.waitFor(() => { expect(window.show).toHaveBeenCalledOnce() })
-      expect(host.fetch).toHaveBeenCalledOnce()
+      harness.nativeTheme.themeSource = source
+      harness.nativeTheme.systemDark = systemDark
+      harness.nativeTheme.emit('updated')
+      window.webContents.mainFrame.url = 'dsh-app://app/'
+      signalWorkspaceMounted(window)
+      expect(window.show).toHaveBeenCalledOnce()
     })
   })
 
@@ -1304,6 +1308,7 @@ describe('desktop main startup', () => {
     expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#f9fafb')
     // Restoring re-requests the material and returns to the transparent base.
     window.minimized = false
+    window.visible = true
     window.emit('restore')
     expect(window.setVibrancy).toHaveBeenLastCalledWith('sidebar')
     expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#00000000')
@@ -1487,6 +1492,7 @@ describe('desktop main startup', () => {
     host.ready.resolve()
     await vi.waitFor(() => { expect(harness.windows).toHaveLength(1) })
     const mainWindow = harness.windows[0]!
+    await mountWorkspace(mainWindow)
     const registered = await Promise.resolve(invoke(DESKTOP_IPC.shortcutsGet, 'app', [
       { id: 'settings.open', defaults: { 'desktop:macos': { code: 'Comma', modifiers: ['primary'] }, 'desktop:windows': { code: 'Comma', modifiers: ['primary'] } } },
     ])) as { revision: string }
@@ -1692,6 +1698,11 @@ describe('desktop main startup', () => {
     return harness.hosts[0]!
   }
 
+  async function mountWorkspace(window: InstanceType<typeof harness.FakeWindow>): Promise<void> {
+    signalWorkspaceMounted(window)
+    await window.shown.promise
+  }
+
   it.each([
     ['win32', ['--updated'], true],
     ['win32', [], false],
@@ -1706,6 +1717,8 @@ describe('desktop main startup', () => {
     harness.prepared.resolve()
     await harness.hostStarted.promise
     harness.hosts[0]!.ready.resolve()
+    await harness.navigated.promise
+    await mountWorkspace(window)
     await window.shown.promise
     expect(window.show).toHaveBeenCalledOnce()
     expect(window.moveTop).toHaveBeenCalledTimes(raises ? 1 : 0)
@@ -1717,6 +1730,8 @@ describe('desktop main startup', () => {
     window.destroy()
     harness.app.emit('second-instance')
     const replacement = harness.windows[1]!
+    await vi.waitFor(() => { expect(replacement.urls).toEqual(['dsh-app://app/']) })
+    await mountWorkspace(replacement)
     await replacement.shown.promise
     expect(replacement.show).toHaveBeenCalledOnce()
     expect(replacement.moveTop).not.toHaveBeenCalled()
@@ -1741,6 +1756,7 @@ describe('desktop main startup', () => {
   async function readyWorkspace() {
     const host = await readyForUpdate()
     await Promise.resolve(invoke(DESKTOP_IPC.boot))
+    await mountWorkspace(harness.windows[0]!)
     return host
   }
 
@@ -2314,7 +2330,7 @@ describe('desktop main startup', () => {
   })
 
   it('downloads on the first click and opens installation confirmation only after readiness', async () => {
-    await readyForUpdate()
+    await readyWorkspace()
     harness.updateState = { phase: 'available', version: '1.0.1-nightly.1' }
     const downloading = Promise.withResolvers<DesktopUpdateState>()
     const started = Promise.withResolvers<undefined>()
@@ -3079,6 +3095,24 @@ describe('desktop main startup', () => {
     expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
+  it('keeps the workspace hidden until the client UI mounts, then replaces the Delta splash', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await harness.hostStarted.promise
+    harness.hosts[0]!.ready.resolve()
+    await harness.navigated.promise
+
+    const window = harness.windows[0]!
+    expect(window.show).not.toHaveBeenCalled()
+    const frame = window.webContents.mainFrame
+    const mounted = harness.handlers.get(DESKTOP_IPC.workspaceMounted)!
+    mounted({ sender: window.webContents, senderFrame: frame })
+
+    await window.shown.promise
+    expect(window.show).toHaveBeenCalledOnce()
+  })
+
   it('prepares an independent plugin profile for the unpackaged Host', async () => {
     harness.app.isPackaged = false
     vi.stubEnv('DSH_DESKTOP_DSH_DIR', undefined)
@@ -3171,6 +3205,8 @@ it.each(['failed', 'expired'] as const)('focuses DSH once when browser authoriza
   harness.hosts[0]!.ready.resolve()
   await Promise.resolve(invoke(DESKTOP_IPC.boot))
   const window = harness.windows[0]!
+  signalWorkspaceMounted(window)
+  await window.shown.promise
   window.focus.mockClear()
   const state: AccountView = {
     status: 'signed-out', links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' },

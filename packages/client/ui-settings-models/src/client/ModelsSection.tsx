@@ -7,25 +7,19 @@
  * configured key renders as its open setup card instead of a row, but only in
  * the first-run posture — no provider on the page can serve requests yet — and
  * only until the user closes that card. The add flow is one card behind one
- * button: a mode switch chooses between adopting a dormant directory provider
- * (the catalog select over the provider editor) and declaring a custom model
- * API (the create form). A panel mounts the first time its mode is shown and
- * stays mounted, hidden, while the card is open and its mode stays offered,
- * so switching modes discards neither draft and an unvisited mode costs
- * nothing; the switch holds still while either panel has a write or an
- * endpoint interrogation in flight, since a switch underneath one would
- * orphan the answer. Each card kind owns its own open state, so closing one
- * never discards a draft in another. Every
+ * button: the model API form, which declares an endpoint by its base URL,
+ * protocol, key, and models. Each card kind owns its own open state, so
+ * closing one never discards a draft in another. Every
  * mutation writes through the wire, while a provider removal first requires
  * confirmation; the page re-renders from pushed invalidations or the
  * post-apply reload.
  */
 
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, IconPlusOutlineRegular, Modal, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineRegular, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import type { LlmNativeAuth, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { LlmNativeAuth } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
@@ -52,12 +46,6 @@ export interface ModelsSectionInjected {
   /** Section copy. */
   t: (key: keyof typeof en) => string
 }
-
-/**
- * The two ways the add card gains a provider: adopt a directory row the
- * adapter already knows, or declare a route it does not.
- */
-type AddMode = 'catalog' | 'custom'
 
 /** The child slots this section declares and dispatches (see ./slot-contract.ts). */
 type ModelsChildSlots = 'settings.models.provider-card' | 'settings.models.footer'
@@ -98,18 +86,6 @@ interface EditorTarget extends ProviderIdentity {
   baseURLEnv?: readonly string[]
   /** The route's native authentication (see {@link ProviderEditorProps.nativeAuth}). */
   nativeAuth?: LlmNativeAuth
-}
-
-/** A dormant directory row the add card can adopt, with its registered namespace. */
-interface AddableRow {
-  row: ProviderRow
-  namespace: SettingsNamespaceView
-}
-
-/** The catalog draft the add card shows: its editor target and the namespace that takes the write. */
-interface CatalogDraft {
-  target: EditorTarget
-  namespace: SettingsNamespaceView
 }
 
 /** Values that vary around the shared provider-editor rendering. */
@@ -255,14 +231,6 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   if (state.status === 'error' && hasReadySnapshot) setHasReadySnapshot(false)
   const [editing, setEditing] = useState<EditorTarget | undefined>(undefined)
   const [addOpen, setAddOpen] = useState(false)
-  const [addMode, setAddMode] = useState<AddMode>('catalog')
-  /** The modes shown since the add card opened; each keeps its panel mounted. */
-  const [visited, setVisited] = useState<ReadonlySet<AddMode>>(() => new Set())
-  /** Whether each add panel has a write or an interrogation in flight. */
-  const [catalogBusy, setCatalogBusy] = useState(false)
-  const [customBusy, setCustomBusy] = useState(false)
-  /** Base of the add card's tab and panel ids. */
-  const addId = useId()
   const [deleteTarget, setDeleteTarget] = useState<EditorTarget | undefined>(undefined)
   const [deleting, setDeleting] = useState(false)
   const [deleteFailure, setDeleteFailure] = useState<string | undefined>(undefined)
@@ -276,18 +244,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
     void controller.load().then(() => { setSavedTarget(target) })
   }
 
-  /**
-   * Close the add card whole. The catalog target is forgotten with it, since
-   * `editing` doubles as the row editor's target once the card is closed and a
-   * refresh could otherwise open the row of a provider the draft never saved.
-   * The busy flags reset here because a panel that closes itself on success
-   * unmounts before it can report idle.
-   */
+  /** Close the add card and any row editor it replaced. */
   const closeAdd = (): void => {
     setEditing(undefined)
     setAddOpen(false)
-    setCatalogBusy(false)
-    setCustomBusy(false)
   }
 
   const closeEditor = (changed: boolean, target: ProviderIdentity): void => {
@@ -366,49 +326,14 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   // step: whether the user already has a provider to talk to.
   const anyUsable = state.rows.some(providerUsable)
   const configured = state.rows.filter(row => row.configured)
-  const configurable = state.rows.filter(row => state.namespaces.has(row.entry.settingsNs))
-  const addable: AddableRow[] = state.rows.flatMap((row) => {
-    const namespace = state.namespaces.get(row.entry.settingsNs)
-    return namespace === undefined || row.configured ? [] : [{ row, namespace }]
-  })
   // Hand-declared routes live in the pi-ai namespace, which is also the only
   // one whose schema names the protocols one may speak; without it mounted
-  // there is nothing to declare and the mode is not offered.
+  // there is nothing to declare and the add button is not offered.
   const piAi = state.namespaces.get('llm-pi-ai')
   const protocols = protocolChoices(piAi, schema)
   const reasoningLevels = reasoningLevelChoices(piAi, schema)
-  // Each mode is offered while its namespace is mounted and enabled while it
-  // has something to offer; the card shows the chosen mode where both are
-  // offered, else the only one there is. A mode's panel is mounted while it is
-  // the shown mode or has been shown since the card opened — derived, so a
-  // refresh that changes which modes are offered can never leave the card
-  // without a panel.
-  const catalogOffered = configurable.length > 0
-  const catalogEnabled = addable.length > 0
   const customOffered = piAi !== undefined
   const customEnabled = protocols.length > 0
-  const bothOffered = catalogOffered && customOffered
-  const mode: AddMode = bothOffered ? addMode : customOffered ? 'custom' : 'catalog'
-  const mounted = (candidate: AddMode): boolean => mode === candidate || visited.has(candidate)
-  const switchLocked = catalogBusy || customBusy
-  // The catalog draft: the row the user chose, kept through a refresh that
-  // adopts or withdraws it elsewhere so a typed key is never discarded, for as
-  // long as its namespace can still take the write; else the first row still
-  // addable, since the mode can be entered by a refresh as well as by the
-  // switch and the button only picks a target when it opens the card.
-  const draft = ((): CatalogDraft | undefined => {
-    if (!addOpen || !catalogOffered) return undefined
-    const kept = editing === undefined ? undefined : state.namespaces.get(editing.settingsNs)
-    if (editing !== undefined && kept !== undefined) return { target: editing, namespace: kept }
-    const first = addable[0]
-    return first === undefined ? undefined : { target: targetOf(first.row), namespace: first.namespace }
-  })()
-  // The draft's directory row, for the card extension seat. A refresh can drop
-  // the row mid-draft (the route was adopted or withdrawn elsewhere); the
-  // draft card stays while the seat simply has no row to dispatch.
-  const addRow = draft === undefined
-    ? undefined
-    : state.rows.find(row => row.entry.provider === draft.target.provider)
 
   return (
     <div className={styles['section']}>
@@ -568,147 +493,45 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
         })}
       </ul>
       <div className={styles['addBlock']}>
-        {addOpen
+        {addOpen && piAi !== undefined
           ? (
             <div className={styles['addCard']}>
               <div className={styles['addModes']}>
-                {bothOffered
-                  ? (
-                    <SegmentedControl
-                      id={addId}
-                      label={t('addMode')}
-                      value={mode}
-                      disabled={switchLocked}
-                      options={[
-                        {
-                          value: 'catalog',
-                          label: t('addCatalog'),
-                          disabled: !catalogEnabled,
-                          ...catalogEnabled ? {} : { title: t('addCatalogExhausted') },
-                        },
-                        {
-                          value: 'custom',
-                          label: t('addCustom'),
-                          disabled: !customEnabled,
-                          ...customEnabled ? {} : { title: t('addCustomUnavailable') },
-                        },
-                      ]}
-                      onChange={(next) => {
-                        setAddMode(next)
-                        setVisited(previous => new Set([...previous, next]))
-                      }}
-                    />
-                  )
-                  : (
-                    // One mode alone has no switch to name it, so the card
-                    // carries the mode as its title instead.
-                    <div className={styles['editorHeader']}>
-                      <span className={styles['editorTitle']}>{t(mode === 'catalog' ? 'addCatalog' : 'addCustom')}</span>
-                    </div>
-                  )}
-                <p className={styles['advancedHint']}>
-                  {t(mode === 'catalog' ? 'addCatalogHint' : 'addCustomHint')}
-                </p>
+                <div className={styles['editorHeader']}>
+                  <span className={styles['editorTitle']}>{t('addCustom')}</span>
+                </div>
+                <p className={styles['advancedHint']}>{t('addCustomHint')}</p>
               </div>
-              {mounted('catalog') && draft !== undefined
-                ? (
-                  <div
-                    id={`${addId}-catalog-panel`}
-                    {...bothOffered ? { role: 'tabpanel', 'aria-labelledby': `${addId}-catalog` } : {}}
-                    hidden={mode !== 'catalog'}
-                    className={styles['addPanel']}
-                  >
-                    <div className={styles['field']}>
-                      <span className={styles['fieldLabel']}>{t('provider')}</span>
-                      <select
-                        className={`${styles['input']} ${styles['selectInput']}`}
-                        value={draft.target.provider}
-                        aria-label={t('provider')}
-                        disabled={catalogBusy}
-                        onChange={(event) => {
-                          const picked = addable.find(candidate => candidate.row.entry.provider === event.target.value)
-                          /* v8 ignore next -- the select only lists addable rows */
-                          if (picked === undefined) return
-                          setEditing(targetOf(picked.row))
-                        }}
-                      >
-                        {addable.map(({ row }) => (
-                          <option key={row.entry.provider} value={row.entry.provider}>{row.entry.displayName}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <ProviderEditor
-                      key={draft.target.provider}
-                      provider={draft.target.provider}
-                      displayName={draft.target.displayName}
-                      hideTitle
-                      namespace={draft.namespace}
-                      schema={schema}
-                      settingsPath={draft.target.settingsPath}
-                      operations={operations}
-                      {...draft.target.defaultBaseURL === undefined ? {} : { defaultBaseURL: draft.target.defaultBaseURL }}
-                      {...draft.target.baseURLEnv === undefined ? {} : { baseURLEnv: draft.target.baseURLEnv }}
-                      {...draft.target.nativeAuth === undefined ? {} : { nativeAuth: draft.target.nativeAuth }}
-                      {...addRow?.credentialChecks === undefined ? {} : { credentialChecks: addRow.credentialChecks }}
-                      t={t}
-                      readOnly={!state.writable}
-                      onClose={(changed) => { closeEditor(changed, draft.target) }}
-                      onBusyChange={setCatalogBusy}
-                    />
-                    {addRow === undefined
-                      ? null
-                      : renderSlot(
-                        'settings.models.provider-card',
-                        { provider: addRow.entry, configured: addRow.configured, keyConfigured: keyConfiguredOf(addRow) },
-                        { entryKey: addRow.entry.settingsNs },
-                      )}
-                  </div>
-                )
-                : null}
-              {mounted('custom') && piAi !== undefined
-                ? (
-                  <div
-                    id={`${addId}-custom-panel`}
-                    {...bothOffered ? { role: 'tabpanel', 'aria-labelledby': `${addId}-custom` } : {}}
-                    hidden={mode !== 'custom'}
-                    className={styles['addPanel']}
-                  >
-                    <CustomProviderCard
-                      taken={state.rows.map(row => row.entry.provider)}
-                      protocols={protocols}
-                      reasoningLevels={reasoningLevels}
-                      revision={piAi.revision}
-                      operations={operations}
-                      t={t}
-                      readOnly={!state.writable}
-                      onClose={(changed) => {
-                        closeAdd()
-                        if (changed) void controller.load()
-                      }}
-                      onBusyChange={setCustomBusy}
-                    />
-                  </div>
-                )
-                : null}
+              <div className={styles['addPanel']}>
+                <CustomProviderCard
+                  taken={state.rows.map(row => row.entry.provider)}
+                  protocols={protocols}
+                  reasoningLevels={reasoningLevels}
+                  revision={piAi.revision}
+                  operations={operations}
+                  t={t}
+                  readOnly={!state.writable}
+                  onClose={(changed) => {
+                    closeAdd()
+                    if (changed) void controller.load()
+                  }}
+                />
+              </div>
             </div>
           )
-          : catalogOffered || customOffered
+          : customOffered
             ? (
-              // One entry for both ways to gain a provider; the card behind it
-              // splits them. Full width, so it lines up with the rows above.
+              // Full width, so it lines up with the rows above.
               <div className={styles['addActions']}>
                 <button
                   type="button"
                   className={styles['addButton']}
-                  disabled={!state.writable || state.status !== 'ready' || (!catalogEnabled && !customEnabled)}
+                  disabled={!state.writable || state.status !== 'ready' || !customEnabled}
+                  {...customEnabled ? {} : { title: t('addCustomUnavailable') }}
                   onClick={() => {
                     if (controller.store.getSnapshot().status !== 'ready') return
-                    const first = addable[0]
-                    const initial: AddMode = catalogEnabled ? 'catalog' : 'custom'
                     setSavedTarget(undefined)
-                    setEditing(first === undefined ? undefined : targetOf(first.row))
-                    setAddMode(initial)
-                    setVisited(new Set([initial]))
+                    setEditing(undefined)
                     setAddOpen(true)
                   }}
                 >

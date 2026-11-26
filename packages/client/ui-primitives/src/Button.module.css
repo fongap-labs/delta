@@ -34,17 +34,17 @@
 }
 
 .primary {
-  background: var(--dsw-alias-button-primary-fill);
+  background: var(--dsh-button-primary-fill, var(--dsw-alias-button-primary-fill));
   color: var(--dsw-alias-label-primary-foreground);
 }
 
 @media (hover: hover) {
   .primary:hover:not(:disabled) {
-    background: var(--dsw-alias-button-primary-hover);
+    background: var(--dsh-button-primary-hover, var(--dsw-alias-button-primary-hover));
   }
 
   .ghost:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--dsh-button-interactive-bg-hover, var(--dsw-alias-interactive-bg-hover));
   }
 }
 
@@ -61,7 +61,7 @@
 
 @media (hover: hover) {
   .outline:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--dsh-button-interactive-bg-hover, var(--dsw-alias-interactive-bg-hover));
   }
 }
 

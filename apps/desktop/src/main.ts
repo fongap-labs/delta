@@ -436,6 +436,8 @@ async function main(): Promise<void> {
     if (failure?.status === 'rejected') throw failure.reason
   }
   let enteredWorkspace = false
+  let workspaceUiMounted = false
+  let activateWorkspaceWhenReady = true
   // NSIS passes --updated when it launches the application after installation.
   let raiseAfterUpdate = process.platform === 'win32' && process.argv.includes('--updated')
   let shellInstallerOwnsQuit = false
@@ -837,6 +839,33 @@ async function main(): Promise<void> {
     await startup
     if (backend.host === undefined || hostUrl === undefined) throw new Error('Desktop Host is unavailable')
     return { injections, streamBaseUrl: new URL(hostUrl).origin }
+  })
+
+  const revealWorkspace = (): void => {
+    if (!workspaceUiMounted) return
+    const window = mainWindow
+    if (window === undefined || window.isDestroyed()) return
+    if (activateWorkspaceWhenReady) window.show()
+    else window.showInactive()
+    if (raiseAfterUpdate) {
+      raiseAfterUpdate = false
+      window.moveTop()
+      window.focus()
+    }
+    if (activateWorkspaceWhenReady && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
+      window.webContents.openDevTools({ mode: 'detach' })
+    }
+    if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
+    splashWindow = undefined
+  }
+
+  ipcMain.handle(DESKTOP_IPC.workspaceMounted, (event) => {
+    assertDesktopSender(event, ['app'])
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) {
+      throw new Error('dsh desktop: rejected workspace-ready signal from a non-primary frame')
+    }
+    workspaceUiMounted = true
+    revealWorkspace()
   })
 
   ipcMain.handle(DESKTOP_IPC.bootFailed, (event, message: unknown) => {
@@ -1335,6 +1364,7 @@ async function main(): Promise<void> {
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
+    workspaceUiMounted = false
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     window.on('focus', automaticCheck)
@@ -1383,29 +1413,20 @@ async function main(): Promise<void> {
   const enterWorkspace = async ({ activate = true }: { activate?: boolean } = {}): Promise<void> => {
     if (quitting) return
     const window = mainWindow ?? createMainWindow()
+    activateWorkspaceWhenReady = activate
+    if (window.isVisible()) window.hide()
     await navigateMain(applicationUrl)
     if (isQuitting() || recovery.active || window.isDestroyed()) return
     if (process.platform === 'win32') window.setBackgroundColor(chromeFallbackFill())
-    if (activate) window.show()
-    else window.showInactive()
-    if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
-    splashWindow = undefined
     const wasInWorkspace = enteredWorkspace
     enteredWorkspace = true
+    revealWorkspace()
     if (!wasInWorkspace) refreshApplicationMenu()
     if (welcomeWindow !== undefined) {
       welcomeWindow.close()
       window.webContents.send(DESKTOP_IPC.enterWorkspace)
     }
     welcomeWindow = undefined
-    if (raiseAfterUpdate) {
-      raiseAfterUpdate = false
-      window.moveTop()
-      window.focus()
-    }
-    if (activate && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
-      window.webContents.openDevTools({ mode: 'detach' })
-    }
   }
   let openingWelcome: Promise<void> | undefined
   const showWelcome = (): Promise<void> => {
@@ -1492,7 +1513,7 @@ async function main(): Promise<void> {
       return
     }
     // Startup and sign-out select the visible window before activation may reveal the workspace.
-    if (window === mainWindow && !enteredWorkspace) return
+    if (window === mainWindow && !workspaceUiMounted) return
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()

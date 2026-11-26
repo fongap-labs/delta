@@ -53,6 +53,8 @@ function colorViolations(css: string): string[] {
 const scanned = packageFiles(name => name === 'package.json' || name.endsWith('.css') || /\.tsx?$/.test(name))
 const stylesheets = scanned.filter(file => file.endsWith('.css'))
 const scripts = scanned.filter(file => /\.tsx?$/.test(file))
+const deltaBrandStyles = readFileSync(new URL('../src/styles/delta-brand.css', import.meta.url), 'utf8')
+const platformStyles = readFileSync(new URL('../src/styles/design-platform.css', import.meta.url), 'utf8')
 
 /** Package roots outside packages/client whose manifest declares `dsh.client`. */
 const roots = scanned.filter(file => file.endsWith('/package.json')).flatMap((file) => {
@@ -110,4 +112,12 @@ it('keeps static palette steps out of feature scripts', () => {
 
 it('names an existing file for every exemption', () => {
   for (const suffix of Object.keys(EXEMPT_FILES)) expect(scanned.some(file => file.endsWith(suffix)), suffix).toBe(true)
+})
+
+it('applies the Delta palette to product accents in both color schemes', () => {
+  expect(deltaBrandStyles).toContain('--dsw-static-delta-brand: #286f78')
+  expect(deltaBrandStyles).toContain('--dsw-static-delta-brand: #60b4bf')
+  expect(platformStyles).toContain('--dsw-alias-brand-primary: var(--dsw-static-delta-brand)')
+  expect(platformStyles).toContain('--dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary)')
+  expect(deltaBrandStyles).toContain('--dsw-focus-ring-color: var(--dsw-static-delta-brand)')
 })

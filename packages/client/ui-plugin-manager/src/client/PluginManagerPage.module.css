@@ -652,7 +652,7 @@
 .danger {
   color: var(--dsw-alias-state-error-primary);
   --dsh-button-outline-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent);
-  --dsw-alias-interactive-bg-hover: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
+  --dsh-button-interactive-bg-hover: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
 }
 
 /* Retry, uninstall, and the switch at the end of the page's head. */
@@ -1409,8 +1409,8 @@ label.registryOption {
 }
 
 .dangerButton {
-  --dsw-alias-button-primary-fill: var(--dsw-alias-state-error-primary);
-  --dsw-alias-button-primary-hover: var(--dsw-alias-state-error-primary);
+  --dsh-button-primary-fill: var(--dsw-alias-state-error-primary);
+  --dsh-button-primary-hover: var(--dsw-alias-state-error-primary);
 }
 
 .detail {

@@ -109,7 +109,7 @@
 
 @media (hover: hover) {
   .model:hover {
-    background: var(--dsw-alias-bg-layer-4);
+    background: var(--dsw-alias-interactive-bg-hover);
   }
 }
 

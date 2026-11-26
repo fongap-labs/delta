@@ -1,0 +1,17 @@
+/* Delta brand layer. Keep neutral surfaces and semantic success/error colors
+ * owned by the base palette; only product accents use the Delta palette. */
+body {
+  --dsw-static-delta-brand: #286f78;
+  --dsw-static-delta-brand-hover: #205b63;
+  --dsw-static-delta-brand-soft: rgb(40 111 120 / 10%);
+
+  --dsw-focus-ring-color: var(--dsw-static-delta-brand);
+}
+
+body[data-ds-dark-theme] {
+  --dsw-static-delta-brand: #60b4bf;
+  --dsw-static-delta-brand-hover: #79c3cc;
+  --dsw-static-delta-brand-soft: rgb(96 180 191 / 18%);
+
+  --dsw-focus-ring-color: var(--dsw-static-delta-brand);
+}

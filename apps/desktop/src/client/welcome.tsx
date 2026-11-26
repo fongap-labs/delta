@@ -1,5 +1,8 @@
 /** Mount the local React renderer before Electron reveals the welcome window. */
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/base.css'
 import '@deepseek-ai/dsh-client-ui-theme/src/styles/design-platform.css'
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/delta-brand.css'
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/desktop-welcome.css'
 import '@deepseek-ai/dsh-client-ui-theme/src/styles/gradient-shadow-text.css'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'

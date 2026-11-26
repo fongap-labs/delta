@@ -11,7 +11,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 Web 侧栏的**插件**入口管理 profile 已安装的组合包，以及安装随附、默认关闭的官方组合包。可以启停组合包及其行、在 Host 读出 spec 指向什么之后安装组合包、查看 pnpm 输出、停止一次运行，并启用它新增的包。卸载会要求确认。注册了配置页的插件在这里、在它自己的页面上编辑；「设置 → 插件管理」打开本页。
+使用 Web 侧栏的**插件管理**入口管理 profile 已安装的组合包，以及安装随附、默认关闭的官方组合包。可以启停组合包及其行、在 Host 读出 spec 指向什么之后安装组合包、查看 pnpm 输出、停止一次运行，并启用它新增的包。卸载会要求确认。注册了配置页的插件在这里、在它自己的页面上编辑；「设置 → 内置插件」打开本页。
 
 ## 目录
 
@@ -101,7 +101,7 @@ ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
 
 组合包的 patch 必须以该 id 声明这一行；注册只在组合包开启期间存在，因此关闭的组合包不显示配置控件。
 
-插件自己的设置页面是一个 `settings.section` 条目，其类型位于 [ui-settings](../ui-settings/README.zh.md#filling-the-settings-slots)；设置列出全部条目，本页也在已列出的组合包认领某个条目时，经同一个 `settings.section.view` Component Factory 渲染它。模块名等于注册该条目的包、且没有 `plugins.row.config` 条目的已列出组合包行认领该条目：该行多出一个**配置**控件，行页面渲染该条目，并传入返回组合包页面的 `close` prop。注册包是某个已列出组合包自身的包名、没有已列出的行使用该模块、且该组合包没有 `plugins.bundle.config` 条目时，组合包页面渲染该条目，其 `close` 返回打开该组合包页面的视图。没有已列出的行或组合包认领、或注册包未知的条目只出现在设置中。设置中的**插件管理**条目是 id 为 `plugins`、order 为 15 的 `settings.section` 注册，选择它会关闭设置并打开本页主列表。
+插件自己的设置页面是一个 `settings.section` 条目，其类型位于 [ui-settings](../ui-settings/README.zh.md#filling-the-settings-slots)；设置列出全部条目，本页也在已列出的组合包认领某个条目时，经同一个 `settings.section.view` Component Factory 渲染它。模块名等于注册该条目的包、且没有 `plugins.row.config` 条目的已列出组合包行认领该条目：该行多出一个**配置**控件，行页面渲染该条目，并传入返回组合包页面的 `close` prop。注册包是某个已列出组合包自身的包名、没有已列出的行使用该模块、且该组合包没有 `plugins.bundle.config` 条目时，组合包页面渲染该条目，其 `close` 返回打开该组合包页面的视图。没有已列出的行或组合包认领、或注册包未知的条目只出现在设置中。设置中的**内置插件**条目是 id 为 `plugins`、order 为 15 的 `settings.section` 注册，选择它会关闭设置并打开本页主列表；侧栏中的**插件管理**入口保留用于打开同一页面的常驻导航。
 
 ### 详情页扩展点
 

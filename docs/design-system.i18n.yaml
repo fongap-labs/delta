@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for design-system.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/design-system.md
+/delta-design-resources:
+  en: ac4b23538f587790
+  zh: 94c64c95b469d014
+/delta-design-resources/sources-of-truth:
+  en: 51d0ff76fd5a7d12
+  zh: b2e382109fb13865
+/delta-design-resources/token-layers:
+  en: 35be4c1818714c0e
+  zh: 3f0f038e4ff98620
+/delta-design-resources/copy-and-terminology:
+  en: 92eb1b579c66dfca
+  zh: ed3e2b2008f0e48f
+/delta-design-resources/components-and-plugins:
+  en: 792659054b9ff999
+  zh: a3e8df3d137cf8f0
+/delta-design-resources/governance-and-scope:
+  en: 72ac3931437508be
+  zh: 87f9abba1797534e
