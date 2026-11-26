@@ -1,8 +1,7 @@
 /** Scrub textual release metadata from the Electron application archive. */
 import { createRequire } from 'node:module'
 import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { sanitizeRuntimeMetadata } from './sanitize-runtime-metadata.ts'
 
 const repositoryRoot = resolve(import.meta.dirname, '..', '..')
@@ -16,7 +15,7 @@ const archiveArgument = process.argv[2]
 if (!archiveArgument) throw new Error('electron asar sanitizer: archive path is required')
 const archive = resolve(archiveArgument)
 
-const temporaryRoot = mkdtempSync(join(tmpdir(), 'delta-asar-sanitize-'))
+const temporaryRoot = mkdtempSync(join(dirname(archive), '.delta-asar-sanitize-'))
 const extracted = join(temporaryRoot, 'app')
 const rebuilt = join(temporaryRoot, 'app.asar')
 try {
