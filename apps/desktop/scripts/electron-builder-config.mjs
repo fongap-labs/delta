@@ -150,6 +150,7 @@ export function createElectronBuilderConfig(
       'lib/preload-welcome.cjs',
       'renderer/**/*',
       'package.json',
+      '!node_modules/zod/src/v4/classic/tests/**',
       '!node_modules/**/*.{js,cjs,mjs,ts,cts,mts,css}.map',
       '!node_modules/**/*.tsbuildinfo',
       { from: buildPaths.dsh, to: 'dsh', filter: ['**/*'] },
