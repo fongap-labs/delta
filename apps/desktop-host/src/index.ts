@@ -14,7 +14,6 @@ import { localDragResource } from './file-drag.ts'
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
-import { installOperationDiagnostics } from './operation-diagnostics.ts'
 import { DesktopAuthenticationEnd, receiveDesktopSecret } from './authentication.ts'
 import * as DesktopAuthentication from '@deepseek-ai/dsh-host-authentication-desktop'
 
@@ -150,7 +149,6 @@ async function main(): Promise<void> {
     authentication.signal.removeEventListener('abort', onAuthenticationEnd)
     authentication.dispose()
   }, 'desktop-host: authentication channel')
-  installOperationDiagnostics(ctx, record => send({ type: 'plugin-operation', record }), 32, runId)
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   control.quitInspection = installDesktopQuitInspection(ctx)
   installPlatformSessionPublisher(ctx, (session) => {

@@ -95,8 +95,28 @@ for (const path of [
   'apps/desktop/src/operation-report.ts',
   'apps/desktop/src/operation-report-job.ts',
   'apps/desktop/src/operation-report-worker.ts',
+  'apps/desktop-host/src/operation-diagnostics.ts',
 ]) {
   if (existsSync(join(root, path))) throw new Error('delta-verify: deleted privacy collection module restored: ' + path)
+}
+
+for (const path of [
+  'apps/desktop/src/welcome-api.ts',
+  'apps/desktop/src/preload-welcome.ts',
+  'apps/desktop/src/welcome-window.ts',
+  'apps/desktop/src/welcome-backend.ts',
+  'apps/desktop/src/account-backend.ts',
+  'apps/desktop/src/client/WelcomePage.tsx',
+  'apps/desktop/src/host-process.ts',
+  'apps/desktop-host/src/index.ts',
+  'apps/desktop/tsdown.config.ts',
+  'apps/desktop/delta-electron-builder.config.mjs',
+  'apps/desktop/scripts/electron-builder-config.mjs',
+]) {
+  const content = readFileSync(requireFile(path, path), 'utf8')
+  if (/productAnalytics|dsh-welcome:analytics|\banalyticsEnabled\b|\binstallOperationDiagnostics\b|\bonPluginOperation\b|operation-report-worker\.js|\bplugin-operation\b/u.test(content)) {
+    throw new Error('delta-verify: deleted native collection path restored: ' + path)
+  }
 }
 
 for (const path of [

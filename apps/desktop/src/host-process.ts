@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
-import { parsePluginOperationRecord, type PluginOperationRecord, type PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
+import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 
 interface ReadyEvent {
   readonly type: 'ready'
@@ -150,7 +150,7 @@ export class DesktopHostUncleanExitError extends Error {}
 /**
  * A Host failure reported over IPC before the process exited. `message` is what
  * the Host chose to show; `diagnostic` is its complete inspected error, kept
- * separately so a crash report can print it verbatim instead of a string escaped
+ * separately so the recovery UI can present the diagnostic without a string escaped
  * inside another error's properties.
  */
 export class DesktopHostFatalError extends Error {
@@ -201,7 +201,6 @@ export class DesktopHostProcess {
    * @param primaryRuntime - Optional bundled dependency payload; the Host exposes it to its profile as `DSH_PRIMARY_RUNTIME`.
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
-   * @param onPluginOperation - Optional diagnostic sink; malformed records are ignored without failing the Host.
    */
   constructor(
     private readonly node: string,
@@ -214,7 +213,6 @@ export class DesktopHostProcess {
     private readonly packageManager?: { readonly pnpm: string; readonly nodeBin: string },
 
     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
-    private readonly onPluginOperation?: (record: PluginOperationRecord) => void,
   ) {}
 
   /**
@@ -243,17 +241,6 @@ export class DesktopHostProcess {
     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
-      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'plugin-operation') {
-        const record = 'record' in message ? parsePluginOperationRecord(message.record) : undefined
-        if (record !== undefined && record.runId === this.runId) {
-          try { this.onPluginOperation?.(record) }
-          catch (_error) {
-            // Diagnostic persistence cannot invalidate the Host's business IPC channel.
-            console.error('desktop plugin operation diagnostic sink failed')
-          }
-        }
-        return
-      }
       if (!isDesktopHostEvent(message)) {
         this.fail(new Error('dsh desktop host sent an invalid IPC event'))
         child.kill('SIGTERM')
