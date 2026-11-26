@@ -1,4 +1,3 @@
-import { parsePluginOperationRecord } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 import type { DesktopHostProcess } from '../src/host-process.ts'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
@@ -747,7 +746,7 @@ describe('desktop main startup', () => {
     harness.app.isPackaged = false
     vi.stubEnv('DSH_DESKTOP_DSH_DIR', join(root, 'app.asar', 'dsh'))
     const host = await readyForUpdate()
-    await vi.waitFor(() => { expect(harness.analytics.mock.calls.some(([event]) => (event as { eventName: string }).eventName === 'desktop_app_launch')).toBe(true) })
+    expect(harness.analytics).not.toHaveBeenCalled()
     expect(host.primaryRuntime).toBe('test-primary-runtime')
     expect(existsSync(harness.app.getPath('logs'))).toBe(false)
     expect(writeCrashReport).not.toHaveBeenCalled()
@@ -1383,7 +1382,7 @@ describe('desktop main startup', () => {
     await host.stopping.promise
     host.exited.resolve()
     await harness.dialogShown.promise
-    expect(vi.mocked(writeCrashReport).mock.calls[0]![1].app.locale).toBe('zh-CN')
+    expect(writeCrashReport).not.toHaveBeenCalled()
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).message).toBe(zh.fatalSummary)
   })
 
@@ -2539,19 +2538,13 @@ describe('desktop main startup', () => {
     await expect(preparing).resolves.toBe(true)
   })
 
-  it.each(['accepted', 'failed'] as const)('settles analytics intake before locking API admission and continues after intake failure: %s', async (outcome) => {
+  it('locks API admission for updates without sending native product events', async () => {
     const host = await readyForUpdate()
-    await vi.waitFor(() => { expect(harness.analytics).toHaveBeenCalledWith(expect.objectContaining({ eventName: 'desktop_app_launch' })) })
-    const intake = Promise.withResolvers<undefined>()
-    harness.analytics.mockImplementationOnce(() => intake.promise)
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
     const preparing = harness.prepareUpdate()
-    await vi.waitFor(() => { expect(harness.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ eventName: 'desktop_upgrade_install_restart_click' })) })
-    expect(host.updateTasks.mock.calls).toEqual([['inspect']])
-    expect(host.stop).not.toHaveBeenCalled()
-    if (outcome === 'accepted') intake.resolve(undefined)
-    else intake.reject(new Error('local analytics intake timed out'))
     await host.stopping.promise
+    expect(host.updateTasks.mock.calls).toEqual([['inspect'], ['lock']])
+    expect(harness.analytics).not.toHaveBeenCalled()
     host.exited.resolve()
     await expect(preparing).resolves.toBe(true)
   })
@@ -2782,8 +2775,8 @@ describe('desktop main startup', () => {
     handler(event, 'client mount failed')
     await harness.dialogShown.promise
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('client mount failed')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain(join(harness.app.getPath('logs'), 'crash-test.log'))
-    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'web-boot', phase: 'startup' }))
+    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).not.toContain(en.getDiagnosticReport)
+    expect(writeCrashReport).not.toHaveBeenCalled()
     expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
@@ -2797,7 +2790,7 @@ describe('desktop main startup', () => {
     window.webContents.emit('did-fail-load', {}, -2, 'failed', 'dsh-app://app/', true)
     await harness.dialogShown.promise
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('Desktop page failed to load')
-    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'renderer' }))
+    expect(writeCrashReport).not.toHaveBeenCalled()
   })
 
   it('offers all recovery choices when resources fail before the Host starts', async () => {
@@ -2806,7 +2799,7 @@ describe('desktop main startup', () => {
     harness.prepared.reject(new Error('runtime resources missing'))
     await harness.dialogShown.promise
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('runtime resources missing')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).toEqual(['Exit', 'Restart', 'Disable third-party plugins, back up profile patch, and restart', 'Get diagnostic report'])
+    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).toEqual(['Exit', 'Restart', 'Disable third-party plugins, back up profile patch, and restart'])
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
   })
 
@@ -2846,21 +2839,17 @@ describe('desktop main startup', () => {
     expect(harness.hosts).toHaveLength(0)
   })
 
-  it('writes operation history under the instance userData instead of the shared logs directory', async () => {
+  it('does not register a plugin operation history sink', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     harness.prepared.resolve()
     await harness.hostStarted.promise
-    const record = parsePluginOperationRecord({ runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8', transportDropped: 0,
-      operation: { id: 'c254ab28-97c9-4382-95e6-2db9c66f98c9', time: '2026-10-20T00:00:00.000Z',
-        reason: 'bundle', phase: 'started', target: 'test', stage: 'enable' } })!
-    harness.hosts[0]!.onPluginOperation!(record)
-    const file = join(harness.app.getPath('userData'), 'plugin-operations', 'operations.jsonl')
-    await vi.waitFor(() => { expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(record) })
+    expect(harness.hosts[0]!.onPluginOperation).toBeUndefined()
+    expect(existsSync(join(harness.app.getPath('userData'), 'plugin-operations'))).toBe(false)
     expect(existsSync(join(harness.app.getPath('logs'), 'plugin-operations'))).toBe(false)
   })
 
-  it('writes the Host\'s own diagnostic into a startup-phase crash report when the Host reports a fatal error before ready', async () => {
+  it('does not persist the Host diagnostic when startup fails', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     harness.prepared.resolve()
@@ -2874,20 +2863,12 @@ describe('desktop main startup', () => {
     await host.stopping.promise
     host.exited.resolve()
     await harness.dialogShown.promise
-    const [directory, report] = vi.mocked(writeCrashReport).mock.calls[0]!
-    expect(directory).toBe(harness.app.getPath('logs'))
-    expect(report.source).toBe('host')
-    expect(report.phase).toBe('startup')
-    expect(report.error).toBeInstanceOf(DesktopHostFatalError)
-    expect(report.hostDiagnostic).toBe(diagnostic)
-    expect(runOperationReportJob).toHaveBeenCalledWith({
-      reportPath: join(harness.app.getPath('logs'), 'crash-test.log'), directory: join(harness.app.getPath('userData'), 'plugin-operations'),
-      limits: { bytes: 65536, recordBytes: 4096, records: 100, outputBytes: 65536 }, journal: null,
-    }, { timeoutMs: 500, cancellationGraceMs: 100 }, expect.any(AbortSignal))
+    expect(writeCrashReport).not.toHaveBeenCalled()
+    expect(runOperationReportJob).not.toHaveBeenCalled()
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('profile has no cordis.yml')
   })
 
-  it('attaches the primary window\'s error-level console output to a running-phase Host crash report', async () => {
+  it('does not persist renderer console output after a running-phase Host failure', async () => {
     harness.dialog.showMessageBox.mockResolvedValue({ response: 0, checkboxChecked: false })
     await import('../src/main.ts')
     await harness.preparing.promise
@@ -2904,40 +2885,19 @@ describe('desktop main startup', () => {
     })
     host.onFailure!(new Error('dsh desktop host exited with 1: fatal uncaught exception: ENOENT'))
     await host.stopping.promise
-    expect(writeCrashReport).toHaveBeenCalledOnce()
-    const [directory, report] = vi.mocked(writeCrashReport).mock.calls[0]!
-    expect(directory).toBe(harness.app.getPath('logs'))
-    expect(report.source).toBe('host')
-    expect(report.phase).toBe('running')
-    expect(report.error).toBeInstanceOf(Error)
-    expect((report.error as Error).message).toContain('fatal uncaught exception: ENOENT')
-    expect(report.rendererConsole).toEqual(['dsh-app://app/assets/entry.js:12 client-modules: bundle script plugins/??a/client.js&rev=1 failed to load'])
-    expect(report.app).toMatchObject({ name: 'Desktop test', version: '1.0.0', platform: process.platform, locale: 'en' })
-    expect(report.time).toBeInstanceOf(Date)
+    expect(writeCrashReport).not.toHaveBeenCalled()
+    expect(runOperationReportJob).not.toHaveBeenCalled()
     host.exited.resolve()
     await harness.quitCompleted.promise
   })
 
-  it.each([{ rejectCleanup: false, stuck: false }, { rejectCleanup: true, stuck: false },
-    { rejectCleanup: true, stuck: true }])('waits for the diagnostic Worker (policy rejects=$rejectCleanup, stuck=$stuck)', async ({ rejectCleanup, stuck }) => {
+  it.each([false, true])('waits for policy cleanup without starting diagnostic workers (rejects=%s)', async (rejectCleanup) => {
     harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
       allowedAuthOrigins: ['https://login.example.com'], allowedPageOrigins: ['https://downloads.example.com'] }
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async () =>
       Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 })))
-    let finishReport!: () => void
-    let reportSignal: AbortSignal | undefined
-    let workerExited = false
-    const report = new Promise<{ appended: boolean; timedOut: boolean; cancelled: boolean }>((resolve) => {
-      finishReport = () => { workerExited = true; resolve({ appended: false, timedOut: false, cancelled: true }) }
-    })
-    vi.mocked(runOperationReportJob).mockImplementationOnce((_input, _options, signal) => {
-      reportSignal = signal
-      return report
-    })
-    let finishPolicy!: () => void
-    let failPolicy!: (error: Error) => void
-    const policy = new Promise<void>((resolve, reject) => { finishPolicy = resolve; failPolicy = reject })
-    testAuth.dispose.mockImplementationOnce(() => policy)
+    const policy = Promise.withResolvers<void>()
+    testAuth.dispose.mockImplementationOnce(() => policy.promise)
     const failure = new Error('policy Session storage cleanup failed')
     const host = await readyForUpdate()
     let quitCompleted = false
@@ -2946,48 +2906,28 @@ describe('desktop main startup', () => {
       const window = harness.windows[0]!
       window.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
       await harness.dialogShown.promise
-      expect(runOperationReportJob).toHaveBeenCalledOnce()
+      expect(writeCrashReport).not.toHaveBeenCalled()
+      expect(runOperationReportJob).not.toHaveBeenCalled()
       host.exited.resolve()
       window.emit('session-end', { reasons: ['shutdown'] })
       harness.app.quit()
       await vi.advanceTimersByTimeAsync(0)
       expect(testAuth.dispose).toHaveBeenCalledOnce()
-      expect(reportSignal?.aborted).toBe(true)
       expect(quitCompleted).toBe(false)
-      if (rejectCleanup) failPolicy(failure)
-      else finishPolicy()
+      if (rejectCleanup) policy.reject(failure)
+      else policy.resolve()
       await vi.advanceTimersByTimeAsync(0)
       if (rejectCleanup) expect(console.error).toHaveBeenCalledWith(failure)
-      expect(workerExited).toBe(false)
-      expect(quitCompleted).toBe(false)
-      if (stuck) {
-        await vi.advanceTimersByTimeAsync(499)
-        expect(quitCompleted).toBe(false)
-        await vi.advanceTimersByTimeAsync(1)
-        expect(workerExited).toBe(false)
-        expect(console.error).toHaveBeenCalledWith('dsh desktop: operation report Worker has not exited; continuing shutdown')
-      } else {
-        finishReport()
-        await vi.advanceTimersByTimeAsync(0)
-      }
       expect(quitCompleted).toBe(true)
     } finally {
-      finishPolicy()
-      finishReport()
+      policy.resolve()
       host.exited.resolve()
       await vi.advanceTimersByTimeAsync(0)
       await harness.quitCompleted.promise
     }
   })
 
-  it.each([{ response: 0, stuck: false }, { response: 1, stuck: false }, { response: 2, stuck: false },
-    { response: 0, stuck: true }])('waits for Host exit and bounds Worker cleanup for recovery $response (stuck=$stuck)', async ({ response, stuck }) => {
-    let finishReport!: (result: { appended: boolean; timedOut: boolean; cancelled: boolean }) => void
-    let reportSignal: AbortSignal | undefined
-    vi.mocked(runOperationReportJob).mockImplementationOnce(async (_input, _options, signal) => {
-      reportSignal = signal
-      return new Promise((resolve) => { finishReport = resolve })
-    })
+  it.each([0, 1, 2])('waits for Host exit without collecting diagnostic reports for recovery %s', async (response) => {
     harness.dialog.showMessageBox.mockResolvedValue({ response, checkboxChecked: false })
     await import('../src/main.ts')
     await harness.preparing.promise
@@ -3000,17 +2940,10 @@ describe('desktop main startup', () => {
     await host.stopping.promise
     expect(harness.app.relaunch).not.toHaveBeenCalled()
     expect(harness.disableAllPlugins).not.toHaveBeenCalled()
+    expect(writeCrashReport).not.toHaveBeenCalled()
+    expect(runOperationReportJob).not.toHaveBeenCalled()
     host.exited.resolve()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(reportSignal?.aborted).toBe(true)
-    expect(harness.app.quit).not.toHaveBeenCalled()
-    if (stuck) await vi.advanceTimersByTimeAsync(500)
-    else finishReport({ appended: false, timedOut: false, cancelled: true })
     await harness.quitCompleted.promise
-    if (stuck) {
-      expect(console.error).toHaveBeenCalledWith('dsh desktop: operation report Worker has not exited; continuing shutdown')
-      finishReport({ appended: false, timedOut: false, cancelled: true })
-    }
     expect(harness.app.relaunch).toHaveBeenCalledTimes(response === 0 ? 0 : 1)
     expect(harness.disableAllPlugins).toHaveBeenCalledTimes(response === 2 ? 1 : 0)
     if (response === 2) {
@@ -3073,7 +3006,7 @@ describe('desktop main startup', () => {
     expect(harness.hosts[0]!.environment?.DSH_CLIENT_VERSION).toBe('1.2.3')
     expect(harness.hosts[0]!.environment?.DSH_TEST_LOGIN_SHELL).toBe('login')
     expect(console.warn).toHaveBeenCalledWith('desktop login shell: /account/shell failed (timeout)')
-    expect(harness.analytics).toHaveBeenCalledExactlyOnceWith({ eventName: 'desktop_app_launch', timestamp: Date.now(), attributes: {} })
+    expect(harness.analytics).not.toHaveBeenCalled()
     expect(harness.hosts[0]!.start).toHaveBeenCalledTimes(1)
     expect(harness.windows).toHaveLength(1)
     expect(window.urls).toEqual(['dsh-app://app/'])
@@ -3199,14 +3132,15 @@ it.each([['light', false], ['dark', true]] as const)('opens Platform authorizati
   expect(harness.openExternal).toHaveBeenCalledExactlyOnceWith(`https://platform.deepseek.com/dsh/authorize?state=state-1&theme=${theme}`)
 })
 
-it('disables native product events for a disabled Desktop launch', async () => {
-  harness.analyticsEnabled = false
+it.each([true, false])('never sends native product events even when the Host policy is %s', async (enabled) => {
+  harness.analyticsEnabled = enabled
   await import('../src/main.ts')
   await harness.preparing.promise
   harness.prepared.resolve()
   await harness.hostStarted.promise
   harness.hosts[0]!.ready.resolve()
   await harness.navigated.promise
+  harness.analyticsEnabled = !enabled
+  await vi.advanceTimersByTimeAsync(0)
   expect(harness.analytics).not.toHaveBeenCalled()
-  harness.analyticsEnabled = true
 })
