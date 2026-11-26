@@ -58,8 +58,10 @@ describe('Messages request extensions', () => {
     })
     const fetch = vi.fn<typeof globalThis.fetch>()
     vi.stubGlobal('fetch', fetch)
-    const result = await assemble(llm.stream(options()))
-    expect(result.assembler.finish.kind).toBe('error')
+    await expect(assemble(llm.stream(options()))).rejects.toMatchObject({
+      code: 'REQUEST_EXTENSION',
+      message: 'Delta privacy policy rejects auxiliary request data',
+    })
     expect(fetch).not.toHaveBeenCalled()
     expect(accept).not.toHaveBeenCalled()
   })
