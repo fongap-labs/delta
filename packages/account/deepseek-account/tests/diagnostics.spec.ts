@@ -1,6 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { browserUrl, logoutAccount, requestAccount, requestNotificationEvent, requestPlatform, requestNotifications } from '../src/protocol.ts'
-import type { AccountNotificationId } from '@deepseek-ai/dsh-deepseek-account/types'
+import { browserUrl, logoutAccount, requestAccount, requestPlatform, requestNotifications } from '../src/protocol.ts'
 import { readAccountDetail } from '../src/details.ts'
 import { readNotifications } from '../src/notifications.ts'
 
@@ -135,7 +134,6 @@ it('keeps successful authorization, account, bonus and logout requests silent', 
       await requestAccount(origin, path, 'private-token', signal, {})
     }
     await requestNotifications(origin, 'private-token', signal, {})
-    await requestNotificationEvent(origin, 'private-token', 'fixture-order' as AccountNotificationId, 'displayed', signal, {})
     await logoutAccount(origin, 'private-token', signal, {})
     fetcher.mockResolvedValueOnce(new Response(JSON.stringify({
       code: 0, data: { biz_code: 0, biz_data: { email: 'private-email' } },

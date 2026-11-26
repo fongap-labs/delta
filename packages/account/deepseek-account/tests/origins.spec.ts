@@ -30,7 +30,7 @@ async function fixture(issuer: string, config: Config = {}) {
   return ctx.deepseekAccount
 }
 
-it('routes only notification APIs to Harness while account APIs and pages stay on Platform', async () => {
+it('routes read-only notification APIs to Harness while account APIs and pages stay on Platform', async () => {
   const account = await fixture('https://platform.deepseek.com')
   expect(await account.getState()).toMatchObject({ status: 'credential-stored', links: {
     usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up',
@@ -47,7 +47,8 @@ it('routes only notification APIs to Harness while account APIs and pages stay o
     const payload = path === '/auth-api/v0/users/current' ? { id: 'account', email: '' }
       : path === '/api/v0/users/get_user_summary' ? { normal_wallets: [], bonus_wallets: [] }
         : path.endsWith('/list') ? { notifications: [content], next_poll_after: 600 }
-          : path.endsWith('/content') ? content : { acked: true }
+          : path.endsWith('/content') ? content : null
+    if (payload === null) throw new Error('unexpected network request')
     return new Response(JSON.stringify({ code: 0, data: { biz_code: 0, biz_data: payload } }))
   })
   const client = { version: 'test', locale: 'en', timezoneOffsetSeconds: 0 }
@@ -55,13 +56,12 @@ it('routes only notification APIs to Harness while account APIs and pages stay o
   expect(await account.getBalance(client)).toMatchObject({ status: 'ready' })
   expect((await account.getNotifications(client))?.notifications[0]?.id).toBe(id)
   expect((await account.getNotificationContent(id, client))?.id).toBe(id)
-  expect(await account.reportNotificationEvent(id, 'dismissed', client)).toBe(true)
+  await expect(account.reportNotificationEvent(id, 'dismissed', client)).rejects.toThrow('Delta privacy policy')
   expect(requests).toEqual([
     'https://platform.deepseek.com/auth-api/v0/users/current',
     'https://platform.deepseek.com/api/v0/users/get_user_summary',
     'https://harness.deepseek.com/api/v0/users/notifications/list',
     `https://harness.deepseek.com/api/v0/users/notifications/content?id=${id}`,
-    'https://harness.deepseek.com/api/v0/users/notifications/events',
   ])
 })
 
