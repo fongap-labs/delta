@@ -144,7 +144,6 @@
     { "path": "./packages/client/ui-plan" },
     { "path": "./packages/client/ui-settings-shell" },
     { "path": "./packages/client/ui-settings-agent-loop" },
-    { "path": "./packages/client/ui-settings-session-log" },
     { "path": "./packages/client/ui-settings-subagent" },
     { "path": "./packages/client/ui-settings-web-search" },
     { "path": "./packages/client/ui-user-questions" },

@@ -68,6 +68,12 @@ const forbiddenPrivacyPackages = [
 for (const path of forbiddenPrivacyPackages) {
   if (existsSync(join(root, path))) throw new Error('delta-verify: forbidden collection package restored: ' + path)
 }
+for (const path of ['tsconfig.host.json', 'tsconfig.client.json']) {
+  const content = readFileSync(requireFile(path, path), 'utf8')
+  if (forbiddenPrivacyPackages.some(name => content.includes(name))) {
+    throw new Error('delta-verify: forbidden collection project reference restored: ' + path)
+  }
+}
 const forbiddenPrivacyDependencies = [
   '@deepseek-ai/dsh-session-log-deepseek',
   '@deepseek-ai/dsh-plugin-package-inventory-deepseek',
