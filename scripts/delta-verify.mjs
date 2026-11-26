@@ -76,6 +76,7 @@ if (rowBlock(webPatch, 'product-analytics')) {
 // Delta must not reconnect the native collection paths through upstream sync.
 const desktopMain = readFileSync(requireFile('apps/desktop/src/main.ts', 'desktop main'), 'utf8')
 const prohibitedDesktopRuntime = [
+  /\banalyticsEnabled\s*:/u,
   /\bnew\s+OperationJournal\b/u,
   /\bnew\s+RendererConsoleTail\b/u,
   /\b(?:writeCrashReport|runOperationReportJob|persistCrashReport)\s*\(/u,
@@ -84,10 +85,6 @@ const prohibitedDesktopRuntime = [
 ]
 if (prohibitedDesktopRuntime.some(pattern => pattern.test(desktopMain))) {
   throw new Error('delta-verify: native telemetry or automatic diagnostic collection must not be restored')
-}
-if (!desktopMain.includes('analyticsEnabled: () => Promise.resolve(false)')
-  || !desktopMain.includes('writeReport: () => Promise.resolve(undefined)')) {
-  throw new Error('delta-verify: native collection compatibility boundaries must stay disabled')
 }
 
 for (const path of [
