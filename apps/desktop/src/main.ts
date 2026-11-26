@@ -436,8 +436,8 @@ async function main(): Promise<void> {
     if (failure?.status === 'rejected') throw failure.reason
   }
   let enteredWorkspace = false
-  let workspaceUiMounted = false
-  let activateWorkspaceWhenReady = true
+  let isWorkspaceUiMounted = false
+  let shouldActivateWorkspaceWhenReady = true
   // NSIS passes --updated when it launches the application after installation.
   let raiseAfterUpdate = process.platform === 'win32' && process.argv.includes('--updated')
   let shellInstallerOwnsQuit = false
@@ -842,17 +842,17 @@ async function main(): Promise<void> {
   })
 
   const revealWorkspace = (): void => {
-    if (!workspaceUiMounted) return
+    if (!isWorkspaceUiMounted) return
     const window = mainWindow
     if (window === undefined || window.isDestroyed()) return
-    if (activateWorkspaceWhenReady) window.show()
+    if (shouldActivateWorkspaceWhenReady) window.show()
     else window.showInactive()
     if (raiseAfterUpdate) {
       raiseAfterUpdate = false
       window.moveTop()
       window.focus()
     }
-    if (activateWorkspaceWhenReady && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
+    if (shouldActivateWorkspaceWhenReady && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
       window.webContents.openDevTools({ mode: 'detach' })
     }
     if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
@@ -864,7 +864,7 @@ async function main(): Promise<void> {
     if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) {
       throw new Error('dsh desktop: rejected workspace-ready signal from a non-primary frame')
     }
-    workspaceUiMounted = true
+    isWorkspaceUiMounted = true
     revealWorkspace()
   })
 
@@ -1364,7 +1364,7 @@ async function main(): Promise<void> {
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
-    workspaceUiMounted = false
+    isWorkspaceUiMounted = false
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     window.on('focus', automaticCheck)
@@ -1413,7 +1413,7 @@ async function main(): Promise<void> {
   const enterWorkspace = async ({ activate = true }: { activate?: boolean } = {}): Promise<void> => {
     if (quitting) return
     const window = mainWindow ?? createMainWindow()
-    activateWorkspaceWhenReady = activate
+    shouldActivateWorkspaceWhenReady = activate
     if (window.isVisible()) window.hide()
     await navigateMain(applicationUrl)
     if (isQuitting() || recovery.active || window.isDestroyed()) return
@@ -1513,7 +1513,7 @@ async function main(): Promise<void> {
       return
     }
     // Startup and sign-out select the visible window before activation may reveal the workspace.
-    if (window === mainWindow && !workspaceUiMounted) return
+    if (window === mainWindow && !isWorkspaceUiMounted) return
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()

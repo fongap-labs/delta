@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { designTokenProblems } from './verify-design-token-contract.ts'
+import { designTokenProblems } from './design-token-contract.ts'
 
 describe('shared design token contract', () => {
   it('allows centrally owned light and dark definitions and local elevation rebinding', () => {
