@@ -22,7 +22,7 @@ export type HeaderLeadingControlsProps =
  * @returns the sidebar toggle, plus New Session on Desktop while access allows `session/create`.
  */
 export function HeaderLeadingControls({
-  toggleSidebar, startSession, trackEntryClick, useRemoteAccess, useShortcuts, t,
+  toggleSidebar, startSession, useRemoteAccess, useShortcuts, t,
 }: HeaderLeadingControlsProps) {
   // A page whose access snapshot excludes starting a Session keeps only the sidebar toggle here.
   const canStartSession = useRemoteAccess('session/create')
@@ -51,7 +51,6 @@ export function HeaderLeadingControls({
             aria-label={t('session.new.label')}
             aria-keyshortcuts={newShortcut?.aria}
             onClick={() => {
-              trackEntryClick({ menu_name: 'new_session', position: 'titlebar' })
               startSession()
             }}
           >

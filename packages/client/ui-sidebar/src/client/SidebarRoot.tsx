@@ -42,19 +42,13 @@ type PanelRowProps =
   Pick<SidebarPanelMetadata, 'id' | 'label'>
   & Pick<SidebarSectionOwnerProps, 'wide'>
   & Pick<PropsRuntime<'sidebar'>, 'usePanelInfo'>
-  & Pick<InjectFace<SidebarRootInjected>, 'selectPanel' | 'trackEntryClick' | 'setPinned'>
+  & Pick<InjectFace<SidebarRootInjected>, 'selectPanel' | 'setPinned'>
   & { readonly unpinLabel: string; readonly unpinTooltip: string; readonly canUnpin: boolean }
   & PropsRenderFactories
 
-/** Analytics category of an official panel; other panels are never reported. */
-function officialEntry(id: string): 'plugin' | 'cron' | undefined {
-  if (id === 'plugins') return 'plugin'
-  return id === 'schedules' ? 'cron' : undefined
-}
-
 /** Each panel row subscribes only to its own selection state. */
 function PanelRow({
-  id, label, wide, unpinLabel, unpinTooltip, canUnpin, usePanelInfo, selectPanel, setPinned, trackEntryClick, renderFactorySlot,
+  id, label, wide, unpinLabel, unpinTooltip, canUnpin, usePanelInfo, selectPanel, setPinned, renderFactorySlot,
 }: PanelRowProps) {
   const active = usePanelInfo(info => info.activePanelId === id)
   const trailing = useId()
@@ -68,8 +62,6 @@ function PanelRow({
           aria-describedby={trailing}
           aria-current={active ? 'page' : undefined}
           onClick={() => {
-            const entry = officialEntry(id)
-            if (entry !== undefined) trackEntryClick({ menu_name: entry, position: 'sidebar' })
             selectPanel(id)
           }}
         >
@@ -103,11 +95,10 @@ type PanelMoreMenuProps =
   Pick<SidebarSectionOwnerProps, 'wide'>
   & Omit<SidebarPanelActionsOwnerProps, 'onDismiss'>
   & PropsRenderSlots<'sidebar.panellist.actions'>
-  & Pick<InjectFace<SidebarRootInjected>, 'trackEntryClick'>
   & { readonly label: string }
 
 /** The panel list's More launcher: a panel-row button whose menu rows come from `sidebar.panellist.actions`. */
-function PanelMoreMenu({ wide, label, entries, onOpen, onPinnedChange, trackEntryClick, renderSlot }: PanelMoreMenuProps) {
+function PanelMoreMenu({ wide, label, entries, onOpen, onPinnedChange, renderSlot }: PanelMoreMenuProps) {
   const [open, setOpen] = useState(false)
   const onDismiss = (): void => { setOpen(false) }
   return (
@@ -116,7 +107,6 @@ function PanelMoreMenu({ wide, label, entries, onOpen, onPinnedChange, trackEntr
         <Tooltip label={label} delayMs={500} disabled={wide}>
           <button type="button" className={css.panelRow} aria-label={label} aria-haspopup="menu" aria-expanded={open}
             onClick={() => {
-              trackEntryClick({ menu_name: 'more', position: 'sidebar' })
               setOpen(value => !value)
             }}>
             <span className={css.panelGlyph} aria-hidden="true"><IconAppsAddOutlineRegular size={wide ? 16 : 18} /></span>
@@ -142,7 +132,6 @@ export function SidebarRoot({
   toggleSidebar,
   selectPanel,
   setPinned,
-  trackEntryClick,
   useRemoteAccess,
   usePanels,
   useEntryPins,
@@ -179,7 +168,6 @@ export function SidebarRoot({
   )
   // The Windows titlebar hosts the New Session controls while the sidebar is collapsed.
   const openNewSession = (): void => {
-    trackEntryClick({ menu_name: 'new_session', position: windowsTitlebar && collapsed ? 'titlebar' : 'sidebar' })
     startSession()
   }
   // The Windows caption menus occupy the strip to the right of these controls
@@ -294,7 +282,6 @@ export function SidebarRoot({
                 setPinned={setPinned}
                 usePanelInfo={usePanelInfo}
                 selectPanel={selectPanel}
-                trackEntryClick={trackEntryClick}
                 renderFactorySlot={renderFactorySlot}
               />
             ))}
@@ -305,13 +292,10 @@ export function SidebarRoot({
                 entries={panels.filter(({ id }) => id !== FIXED_PANEL_ID)
                   .map(({ id, label }) => ({ id, label, pinned: !unpinned.includes(id), active: id === activePanelId }))}
                 onOpen={(id) => {
-                  const entry = officialEntry(id)
-                  if (entry !== undefined) trackEntryClick({ menu_name: entry, position: 'sidebar_more' })
                   const panel = panels.find(candidate => candidate.id === id)
                   if (panel !== undefined) selectPanel(panel.id)
                 }}
                 onPinnedChange={setPinned}
-                trackEntryClick={trackEntryClick}
                 renderSlot={renderSlot}
               />
             )}
