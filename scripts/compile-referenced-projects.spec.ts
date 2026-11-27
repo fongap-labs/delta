@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects } from './compile-referenced-projects.ts'
+import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects, referencedProjectsCompilerArgs } from './compile-referenced-projects.ts'
 import { runCiBench } from './run-ci-bench.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 import { setPublishedFiles, writeTypertWorkspace } from './typert-workspace.fixture.ts'
@@ -358,9 +358,30 @@ describe('package project compilation', () => {
 
   it.each([undefined, []])('rejects an aggregate with missing or empty references: %j', (references) => {
     const { root } = fixture()
-    writeFileSync(join(root, 'tsconfig.host.json'), JSON.stringify({ files: [], references }))
+    writeFileSync(join(root, 'tsconfig.host.json'), JSON.stringify({ include: ['aggregate.ts'], references }))
 
     expect(() => { compileReferencedProjects(root, 'host') }).toThrow('requires non-empty project references')
+  })
+
+  it('resolves inherited noEmit and JSONC references through the compiler CLI', () => {
+    const { root, leaf } = fixture()
+    writeFileSync(join(root, 'tsconfig.base.json'), JSON.stringify({
+      compilerOptions: { noEmit: true },
+    }))
+    writeFileSync(join(root, 'tsconfig.host.json'), [
+      '{',
+      '  // Resolve inherited compiler options and preserve paths with spaces.',
+      '  "extends": "./tsconfig.base.json",',
+      '  "include": ["aggregate.ts"],',
+      '  "references": [{ "path": "./leaf package" }],',
+      '}',
+    ].join('\n'))
+
+    const args = referencedProjectsCompilerArgs(root, 'host')
+    expect(args).toEqual(['--max-old-space-size=8192', compiler, '-b', relative(root, leaf)])
+    expect(referencedProjectsCompilerArgs(root, 'host', 'benchmark-emit'))
+      .toEqual(['--max-old-space-size=8192', compiler, '-b', '--noCheck', relative(root, leaf)])
+    expect(existsSync(join(leaf, 'lib'))).toBe(false)
   })
 
   it('rejects a missing referenced project', () => {
