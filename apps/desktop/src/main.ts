@@ -33,7 +33,7 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
-import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+import { DESKTOP_IPC, MANDATORY_OVERLAY_ARG, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import type { DesktopMessages } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
@@ -75,6 +75,7 @@ const portableSmoke = app.isPackaged && process.env.DELTA_PORTABLE === '1'
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = (): Promise<void> => Promise.resolve()
 let shuttingDown = false
+let smokeFatal = false
 let splashWindow: BrowserWindow | undefined
 /**
  * Set by quit entries that must not ask: crash recovery exit and restart, and the
@@ -116,6 +117,13 @@ function reportFatal(error: unknown, source: DesktopFailureSource): void {
   console.error('Delta desktop fatal failure:', source)
   if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
   splashWindow = undefined
+  if (portableSmoke) {
+    if (smokeFatal) return
+    smokeFatal = true
+    shuttingDown = true
+    void stopForRecovery().catch(() => undefined).finally(() => { app.exit(1) })
+    return
+  }
   if (shuttingDown) return
   void recovery.report(error).catch(() => {
     console.error('Delta desktop recovery failed')
@@ -199,7 +207,7 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
-function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+function createWindow(preload: string, show = false, primary = false, mandatoryOverlayEnabled = false): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -230,6 +238,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       sandbox: true,
       webSecurity: true,
       webviewTag: primary,
+      additionalArguments: mandatoryOverlayEnabled ? [MANDATORY_OVERLAY_ARG] : [],
       devTools: true,
     },
   })
@@ -381,6 +390,8 @@ async function main(): Promise<void> {
   let locale = windowsLanguage === undefined
     ? resolveDesktopStartupLocale(null, systemLanguages) : resolveDesktopLocale(windowsLanguage)
   windowsLanguage = locale.id
+  let mandatoryOverlayEnabled = false
+  const rendererMounted = Promise.withResolvers<void>()
   let mandatoryPolicy: DesktopMandatoryUpdatePolicy | undefined
   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
   let policyAuth: DesktopPolicyTestAuth | undefined
@@ -738,6 +749,11 @@ async function main(): Promise<void> {
     await startup
     if (backend.host === undefined || hostUrl === undefined) throw new Error('Desktop Host is unavailable')
     return { injections, streamBaseUrl: new URL(hostUrl).origin }
+  })
+
+  ipcMain.handle(DESKTOP_IPC.bootMounted, (event) => {
+    assertProductSender(event)
+    if (portableSmoke) rendererMounted.resolve()
   })
 
   ipcMain.handle(DESKTOP_IPC.bootFailed, (event, message: unknown) => {
@@ -1234,7 +1250,7 @@ async function main(): Promise<void> {
     }
   }
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload, false, true)
+    const window = createWindow(appPreload, false, true, mandatoryOverlayEnabled)
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
@@ -1451,13 +1467,14 @@ async function main(): Promise<void> {
     }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 
-  mainWindow = createMainWindow()
   if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
   const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
   const policyInput: unknown = process.env.DELTA_PORTABLE === '1' ? undefined : app.isPackaged
     ? ('dshMandatoryUpdatePolicy' in manifest ? manifest.dshMandatoryUpdatePolicy : undefined)
     : developmentPolicy === undefined ? undefined : JSON.parse(developmentPolicy) as unknown
   const policyConfig = resolveDesktopPolicyConfig(policyInput, !app.isPackaged)
+  mandatoryOverlayEnabled = policyConfig !== undefined
+  mainWindow = createMainWindow()
   if (policyConfig !== undefined) {
     if (policyConfig.authentication === 'feishu-test') {
       policyAuth = new DesktopPolicyTestAuth(policyConfig.origin, policyConfig.allowedAuthOrigins, locale,
@@ -1501,13 +1518,17 @@ async function main(): Promise<void> {
   }
   if (portableSmoke) {
     await reconcileBackend()
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => { reject(new Error('Delta portable smoke: renderer mount timed out')) }, 60000)
+      void rendererMounted.promise.then(() => { clearTimeout(timer); resolve() })
+    })
     const window = currentMainWindow()
-    if (!backendReady || !enteredWorkspace || recovery.active || isQuitting()
+    if (smokeFatal || !backendReady || !enteredWorkspace || recovery.active || isQuitting()
       || window === undefined || window.isDestroyed() || !window.isVisible()) {
       throw new Error('Delta portable smoke: desktop workspace did not become ready')
     }
     await writeFile(join(app.getPath('temp'), 'delta-startup-verified.json'),
-      JSON.stringify({ version: app.getVersion(), workspaceReady: true, backendReady: true }), { flag: 'wx' })
+      JSON.stringify({ version: app.getVersion(), workspaceReady: true, backendReady: true, rendererReady: true }), { flag: 'wx' })
     quitWithoutConfirmation()
     return
   }

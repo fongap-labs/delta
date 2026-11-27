@@ -60,10 +60,10 @@ try {
     cwd: join(directory, 'App'), env: desktopEnvironment, timeout: 180000,
   })
   const startup = JSON.parse(readFileSync(join(directory, 'Data', 'Temp', 'delta-startup-verified.json'), 'utf8'))
-  if (startup.version !== values.version || startup.workspaceReady !== true || startup.backendReady !== true) {
+  if (startup.version !== values.version || startup.workspaceReady !== true || startup.backendReady !== true || startup.rendererReady !== true) {
     throw new Error('Portable desktop startup did not verify the requested version and workspace')
   }
-  console.log('Delta portable release archive, version, checksums, CLI and desktop workspace startup verified.')
+  console.log('Delta portable release archive, version, checksums, CLI and desktop renderer and workspace startup verified.')
 } finally {
   rmSync(directory, { recursive: true, force: true })
 }
