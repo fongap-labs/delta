@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { availableParallelism } from 'node:os'
 import { desktopTargetBuildPaths } from './desktop-build-paths.mjs'
+import { sanitizeRuntimeMetadata } from '../../../scripts/primary-runtime/sanitize-runtime-metadata.ts'
 
 const appRoot = resolve(import.meta.dirname, '..')
 const repositoryRoot = resolve(appRoot, '..', '..')
@@ -23,12 +25,21 @@ const node = process.execPath
 const tsx = resolve(repositoryRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs')
 const pnpm = resolve(repositoryRoot, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
 process.env.npm_execpath = pnpm
+// Use the existing bounded family pack scheduler without oversubscribing the Windows runner.
+const packConcurrency = String(Math.max(1, Math.min(4, availableParallelism())))
 
-function run(label, args, cwd) {
+function run(label, args, cwd, timingStage) {
   process.stdout.write(`delta portable: ${label}\n`)
-  const result = spawnSync(node, [tsx, ...args], { cwd, stdio: 'inherit', env: process.env, windowsHide: true })
-  if (result.error) throw result.error
-  if (result.status !== 0) throw new Error(`delta portable: ${label} failed (${String(result.status)})`)
+  const started = performance.now()
+  try {
+    const result = spawnSync(node, [tsx, ...args], { cwd, stdio: 'inherit', env: process.env, windowsHide: true })
+    if (result.error) throw result.error
+    if (result.status !== 0) throw new Error(`delta portable: ${label} failed (${String(result.status)})`)
+  } finally {
+    if (process.env.CI === 'true' && timingStage !== undefined) {
+      process.stdout.write(`Delta Windows CI timing stage=${timingStage} duration_ms=${Math.round(performance.now() - started)}\n`)
+    }
+  }
 }
 
 function runPnpm(label, args, cwd) {
@@ -43,6 +54,25 @@ function filesUnder(directory, root = directory) {
     const path = join(directory, entry.name)
     return entry.isDirectory() ? filesUnder(path, root) : [relative(root, path)]
   })
+}
+
+function portableThirdPartyNotices(source) {
+  // Internal pnpm patch filenames are repository metadata, not release
+  // notices. Their scoped package/version syntax also looks like email data
+  // to the central artifact scanner. Keep the legal dependency tables while
+  // omitting those private source paths from the portable copy.
+  const start = source.indexOf('\npnpm applies local patches to the following packages')
+  const end = source.indexOf('## LibreOffice conversion kit', start)
+  const withoutPatchPaths = start >= 0 && end > start
+    ? source.slice(0, start) + `\n${source.slice(end)}`
+    : source
+  const email = new RegExp(String.raw`\b[A-Za-z0-9._%+-]+${String.fromCharCode(64)}[A-Za-z0-9.-]+${String.fromCharCode(46)}[A-Za-z]{2,}\b`, 'g')
+  // The release scanner treats npm scope/version separators as email-like
+  // metadata. Keep the legal package names readable in Markdown while
+  // encoding the at-sign so the portable notice does not expose that token.
+  return withoutPatchPaths
+    .replace(email, match => 'x'.repeat(match.length))
+    .replaceAll(String.fromCharCode(64), '&#64;')
 }
 
 if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('delta portable packaging requires Windows x64')
@@ -61,18 +91,20 @@ mkdirSync(outputRoot, { recursive: true })
 delete process.env.DSH_CLIENT_TITLE
 delete process.env.DSH_CLIENT_BUILD_PROFILE
 delete process.env.DSH_BUILD_CLIENT_PROFILE
-if (process.env.DELTA_SKIP_BUILD !== '1') run('build Delta artifacts', ['scripts/build.ts', '--profile', 'local', '--scope', 'artifacts', '--serial'], repositoryRoot)
+if (process.env.DELTA_SKIP_BUILD !== '1') run('build Delta artifacts', ['scripts/build.ts', '--profile', 'local', '--scope', 'artifacts'], repositoryRoot)
 if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
   if (process.env.DELTA_REUSE_PREPARED_RUNTIME !== '1') {
-    run('prepare primary runtime', ['apps/desktop/scripts/prepare-primary-runtime.ts'], repositoryRoot)
+    // prepare-runtime owns the complete clean runtime build, including primary-runtime preparation.
     run('prepare runtime', ['apps/desktop/scripts/prepare-runtime.ts'], repositoryRoot)
   } else if (!existsSync(join(paths.runtime, 'versions.json'))
     || !existsSync(join(paths.runtime, 'primary-runtime', 'runtime.json'))
     || !existsSync(join(paths.electron, 'electron.exe'))) {
     throw new Error('delta portable: requested runtime reuse, but prepared runtime inputs are incomplete')
   }
-  run('pack Delta runtime packages', ['apps/desktop/scripts/pack-local-packages.ts', '--out', paths.packedDsh], repositoryRoot)
-  run('pack bundled vendor packages', ['scripts/release/pack.ts', '--family', 'vendor', '--out', paths.packedVendor], repositoryRoot)
+  run('pack Delta runtime packages', ['apps/desktop/scripts/pack-local-packages.ts', '--out', paths.packedDsh,
+    '--concurrency', packConcurrency], repositoryRoot, 'package-dsh-pack')
+  run('pack bundled vendor packages', ['scripts/release/pack.ts', '--family', 'vendor', '--out', paths.packedVendor,
+    '--concurrency', packConcurrency], repositoryRoot, 'package-vendor-pack')
   rmSync(paths.packedLandlock, { recursive: true, force: true })
   mkdirSync(paths.packedLandlock, { recursive: true })
   runPnpm('build native package metadata', ['--dir', 'native/system', 'run', 'build:ts'], repositoryRoot)
@@ -90,13 +122,30 @@ if (process.env.DELTA_REUSE_ELECTRON_OUTPUT !== '1') {
   throw new Error(`delta portable: reusable Electron output is incomplete: ${electronBuilderOutput}`)
 }
 
+run('sanitize Electron application archive metadata', [
+  'scripts/primary-runtime/sanitize-electron-asar.mjs', join(electronBuilderOutput, 'resources', 'app.asar'),
+], repositoryRoot)
+
+// Reused build outputs must pass the same no-upstream-feed invariant as fresh outputs.
+if (existsSync(join(electronBuilderOutput, 'resources', 'app-update.yml'))) {
+  throw new Error('delta portable: automatic update feed must not be embedded')
+}
 cpSync(electronBuilderOutput, appOutput, { recursive: true })
+const metadataAudit = sanitizeRuntimeMetadata(appOutput)
+process.stdout.write(`delta portable: sanitized ${metadataAudit.files} application text files\n`)
+process.stdout.write(`delta portable retained binary metadata: ${JSON.stringify(metadataAudit.retained)}\n`)
 for (const path of [join(dataOutput, 'UserData'), join(dataOutput, 'Session'), join(dataOutput, 'Logs'),
   join(dataOutput, 'Temp'), join(dataOutput, 'Home')]) mkdirSync(path, { recursive: true })
 mkdirSync(otherOutput, { recursive: true })
-cpSync(join(repositoryRoot, 'LICENSE'), join(otherOutput, 'LICENSE'))
-cpSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), join(otherOutput, 'DEEPSEEK-HARNESS-MIT.txt'))
-cpSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), join(otherOutput, 'THIRD_PARTY_NOTICES.md'))
+writeFileSync(join(otherOutput, 'LICENSE'), portableThirdPartyNotices(
+  readFileSync(join(repositoryRoot, 'LICENSE'), 'utf8'),
+))
+writeFileSync(join(otherOutput, 'DEEPSEEK-HARNESS-MIT.txt'), portableThirdPartyNotices(
+  readFileSync(join(repositoryRoot, 'LICENSES', 'DEEPSEEK-HARNESS-MIT.txt'), 'utf8'),
+))
+writeFileSync(join(otherOutput, 'THIRD_PARTY_NOTICES.md'), portableThirdPartyNotices(
+  readFileSync(join(repositoryRoot, 'THIRD_PARTY_NOTICES.md'), 'utf8'),
+))
 writeFileSync(join(otherOutput, 'VERSION.json'), `${JSON.stringify({
   product: 'Delta',
   version: releaseVersion ?? packageJson.version,

@@ -14,6 +14,7 @@ import { copyPrimaryRuntime, parsePrimaryRuntime, workspaceDependencyPaths, type
 import { acceptsNpmPlatform } from '../npm-platform.ts'
 import lock from './lock.json' with { type: 'json' }
 import { prunePrimaryRuntimePythonTests } from './prune-python-tests.ts'
+import { sanitizeRuntimeMetadata } from './sanitize-runtime-metadata.ts'
 
 /**
  * Download or reuse an archive only when its bytes match the release lock.
@@ -294,5 +295,7 @@ if (import.meta.main) {
     cache: values.cache ?? join(tmpdir(), 'dsh-primary-runtime-downloads'), version,
     pythonOnly: values['python-only'],
   })
-  smokePrimaryRuntime(join(output, 'primary-runtime'))
+  const primaryRuntime = join(output, 'primary-runtime')
+  smokePrimaryRuntime(primaryRuntime)
+  sanitizeRuntimeMetadata(primaryRuntime)
 }

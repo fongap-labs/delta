@@ -23,7 +23,7 @@ export function desktopClientMetadata(locale: string): AccountClientMetadata {
   return {
     version: desktopClientVersion(),
     locale,
-    // Date.getTimezoneOffset reports minutes west of UTC; Platform wants seconds east.
-    timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60,
+    // Neutral offset preserves the protocol without sampling local timezone.
+    timezoneOffsetSeconds: 0,
   }
 }

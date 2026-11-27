@@ -15,9 +15,8 @@ it('shows retained cards inside the menu and opens account settings without dism
   ] })]
   const openAccount = vi.fn()
   const dismiss = vi.fn()
-  const ctaClicked = vi.fn()
   const props: AccountNotificationsProps = {
-    ...({} as GlobalStandardProps), active: false, openAccount, ctaClicked, dismiss, shown: vi.fn(),
+    ...({} as GlobalStandardProps), active: false, openAccount, dismiss, shown: vi.fn(),
     useNotices: select => select(notices), t: () => 'Close',
   }
   const view = render(<AccountNotifications {...props} />)
@@ -25,7 +24,6 @@ it('shows retained cards inside the menu and opens account settings without dism
   view.rerender(<AccountNotifications {...props} active />)
   fireEvent.click(screen.getByRole('button', { name: 'View account' }))
   expect(openAccount).toHaveBeenCalledOnce()
-  expect(ctaClicked).toHaveBeenCalledExactlyOnceWith('notice')
   expect(screen.getByRole('status')).toBeTruthy()
   expect(dismiss).not.toHaveBeenCalled()
   view.rerender(<AccountNotifications {...props} active={false} />)

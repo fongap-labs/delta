@@ -41,7 +41,7 @@ export function platformClientHeaders(platform: 'darwin' | 'win32' | null, clien
     ...desktopClientHeaders(platform),
     'x-client-version': client.version,
     'x-client-locale': platformWireLocale(client.locale),
-    'x-client-timezone-offset': String(client.timezoneOffsetSeconds),
+    'x-client-timezone-offset': '0',
   }
 }
 

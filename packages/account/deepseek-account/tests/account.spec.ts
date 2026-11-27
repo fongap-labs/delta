@@ -1108,7 +1108,7 @@ it.each([
   expect(paths.slice(-1)).toEqual(['/auth-api/v0/users/logout'])
   expect(f.receivedHeaders.map(item => item.clientPlatform)).toEqual(f.receivedHeaders.map(() => expected))
   for (const header of f.receivedHeaders) {
-    expect(header).toMatchObject({ bundleId: '', version: '1.2.3', locale: 'en_US', timezoneOffset: '28800' })
+    expect(header).toMatchObject({ bundleId: '', version: '1.2.3', locale: 'en_US', timezoneOffset: '0' })
   }
 })
 
@@ -1129,10 +1129,10 @@ it('keeps one login attempt on the identity captured by its own initiating call'
   expect(f.receivedHeaders.map(header => [
     header.path, header.bundleId, header.clientPlatform, header.version, header.locale, header.timezoneOffset,
   ])).toEqual([
-    ['/auth-api/v0/dsh/auth_init', '', 'web', '1.0.0', 'zh_CN', '28800'],
-    ['/auth-api/v0/dsh/auth_cancel', '', 'web', '1.0.0', 'zh_CN', '28800'],
-    ['/auth-api/v0/dsh/auth_init', '', 'web', '9.9.9', 'en_US', '-18000'],
-    ['/auth-api/v0/dsh/auth_exchange', '', 'web', '9.9.9', 'en_US', '-18000'],
+    ['/auth-api/v0/dsh/auth_init', '', 'web', '1.0.0', 'zh_CN', '0'],
+    ['/auth-api/v0/dsh/auth_cancel', '', 'web', '1.0.0', 'zh_CN', '0'],
+    ['/auth-api/v0/dsh/auth_init', '', 'web', '9.9.9', 'en_US', '0'],
+    ['/auth-api/v0/dsh/auth_exchange', '', 'web', '9.9.9', 'en_US', '0'],
   ])
 })
 
@@ -1146,9 +1146,9 @@ it('derives the client headers independently for profile, balance, and logout ca
   expect(f.receivedHeaders.map(header => [
     header.path, header.bundleId, header.clientPlatform, header.version, header.locale, header.timezoneOffset,
   ])).toEqual([
-    ['/auth-api/v0/users/current', '', 'web', '9.9.9', 'en_US', '-18000'],
-    ['/api/v0/users/get_user_summary', '', 'web', '1.0.0', 'zh_CN', '28800'],
-    ['/auth-api/v0/users/logout', '', 'web', '2.0.0', 'en_US', '3600'],
+    ['/auth-api/v0/users/current', '', 'web', '9.9.9', 'en_US', '0'],
+    ['/api/v0/users/get_user_summary', '', 'web', '1.0.0', 'zh_CN', '0'],
+    ['/auth-api/v0/users/logout', '', 'web', '2.0.0', 'en_US', '0'],
   ])
 })
 
@@ -1878,18 +1878,7 @@ it('clears a completed login from snapshots while credential deletion is still s
 })
 
 
-it('reads credential-free device identity without minting a device', async () => {
+it('does not expose a machine identity reader', async () => {
   const f = await fixture()
-  expect(await f.account.getDeviceIdentity()).toEqual({ osVersion: expect.any(String) as string })
-  const key = credentialKey('deepseek-account-platform', 'device')
-  expect(await f.ctx.credentials.readRecord(key)).toBeUndefined()
-  await f.ctx.credentials.modifyRecord(key, async () => ({ kind: 'grant', payload: { id: 'invalid' } }))
-  expect(await f.account.getDeviceIdentity()).not.toHaveProperty('deviceId')
-  await f.ctx.credentials.modifyRecord(key, async () => ({ kind: 'api-key', key: 'private' }))
-  expect(await f.account.getDeviceIdentity()).not.toHaveProperty('deviceId')
-  const deviceId = '01990000-0000-4000-8000-000000000001'
-  await f.ctx.credentials.modifyRecord(key, async () => ({ kind: 'grant', payload: { id: deviceId } }))
-  await storeAccount(f)
-  await f.account.getProfile(clientMetadata())
-  expect(await f.account.getDeviceIdentity()).toEqual({ deviceId, userId: 'test-user', osVersion: expect.any(String) as string })
+  expect(f.account).not.toHaveProperty('getDeviceIdentity')
 })

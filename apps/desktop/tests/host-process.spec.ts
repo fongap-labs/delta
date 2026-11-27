@@ -2,11 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync
 import * as childProcess from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError, QUIT_INSPECTION_DEADLINE_MS } from '../src/host-process.ts'
-import { OperationJournal } from '../src/operation-journal.ts'
-import { readOperationHistory } from '../src/operation-history.ts'
-import { renderCrashReport } from '../src/crash-report.ts'
 
 vi.mock('node:child_process', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:child_process')>()
@@ -116,7 +113,7 @@ describe('desktop host process', () => {
     const runtime = projectWithHost(`
 process.once('message', message => {
   if (message.type !== 'desktop-auth') throw new Error('expected authentication')
-  process.send({ type: 'fatal', message: 'profile startup failed', diagnostic: 'required plugin failed' }, () => process.disconnect())
+  process.send({ type: 'fatal', message: 'profile startup failed' }, () => process.disconnect())
 })
 process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
 `)
@@ -131,7 +128,7 @@ process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }
     ['exception', 'queueMicrotask(() => { throw new Error("qualification-exception", { cause: new Error("qualification-runtime-cause") }) })'],
     ['rejection', 'Promise.reject(new Error("qualification-rejection"))'],
     ['exit', 'process.stderr.write("qualification-exit", () => process.exit(7))'],
-  ])('retains real child %s evidence in the final report after readiness', async (kind, trigger) => {
+  ])('does not retain private stderr after real child %s failure', async (kind, trigger) => {
     const failed = Promise.withResolvers<Error>()
     const runtime = projectWithHost(`
 process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
@@ -144,57 +141,25 @@ process.once('message', message => {
     await host.start()
     const failure = await failed.promise
     await host.stop()
-    const report = renderCrashReport({ source: 'host', phase: 'running', error: failure,
-      rendererConsole: [], operationHistoryPlanned: true, time: new Date('2026-10-19T00:00:00Z'),
-      app: { name: 'qualification', version: 'test', platform: process.platform, arch: process.arch,
-        electron: 'not-running', node: process.version, locale: 'zh-CN' },
-    })
-    expect(report).toContain(`qualification-${kind}`)
-    expect(report).toContain('phase: running')
-    expect(report).toContain("hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8'")
-    if (kind === 'exception') expect(report).toContain('qualification-runtime-cause')
-    if (kind === 'exit') expect(report).toContain('7')
+    expect(failure.message).toMatch(/^dsh desktop host exited with \d+$/u)
+    expect(failure.message).not.toContain(`qualification-${kind}`)
+    expect(failure.message).not.toContain('qualification-runtime-cause')
+    expect(failure).toHaveProperty('hostRunId', 'c254ab28-97c9-4382-95e6-2db9c66f98c8')
+    if (kind === 'exit') expect(failure.message).toContain('7')
   })
 
-  it('persists validated operation IPC across Host lifetimes and isolates a failing diagnostic sink', async () => {
-    const record = {
-      runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8', transportDropped: 0,
-      operation: { id: 'c254ab28-97c9-4382-95e6-2db9c66f98c9', time: '2026-10-19T00:00:00.000Z',
-        reason: 'bundle', phase: 'started', target: 'test-bundle', stage: 'enable' },
-      secret: 'not-persisted',
-    }
+  it('discards obsolete operation IPC while preserving normal Host control', async () => {
     const runtime = projectWithHost(`
-process.send({ type: 'starting', runId: ${JSON.stringify(record.runId)} })
+process.send({ type: 'plugin-operation', record: { secret: 'not-persisted' } })
 process.send({ type: 'plugin-operation', record: { invalid: true } })
-process.send({ type: 'plugin-operation', record: { ...${JSON.stringify(record)}, runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c0' } })
-process.send({ type: 'plugin-operation', record: ${JSON.stringify(record)} })
 ${HTTP_HOST}`)
-    const directory = join(runtime, 'operation-history')
-    const journal = new OperationJournal(directory, { recordBytes: 4096, segmentBytes: 8192, queuedBytes: 8192 })
-    onTestFinished(async () => { await journal.close() })
-    const sink = vi.fn(value => journal.enqueue(JSON.stringify(value)))
-    const first = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env,
-      undefined, undefined, undefined, undefined, sink)
-    hosts.push(first)
-    await first.start()
-    await first.stop()
-    await journal.close()
-    expect(sink).toHaveBeenCalledTimes(1)
-    const saved = await readOperationHistory(directory, { bytes: 8192, recordBytes: 4096, records: 10 }, new AbortController().signal)
-    expect(saved.records).toEqual([{ runId: record.runId, transportDropped: 0, operation: record.operation }])
-
-    const warning = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const failure = vi.fn()
-      const second = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env,
-        failure, undefined, undefined, undefined, () => { throw new Error('sink unavailable') })
-      hosts.push(second)
-      await second.start()
-      expect(await second.updateTasks('inspect')).toBe(false)
-      await second.stop()
-      expect(failure).not.toHaveBeenCalled()
-      expect(warning).toHaveBeenCalledWith('desktop plugin operation diagnostic sink failed')
-    } finally { warning.mockRestore() }
+    const failure = vi.fn()
+    const host = hostProcess(runtime, runtime, failure)
+    await host.start()
+    expect(await host.updateTasks('inspect')).toBe(false)
+    await host.stop()
+    expect(failure).not.toHaveBeenCalled()
+    expect(existsSync(join(runtime, 'operation-history'))).toBe(false)
   })
 
   it('correlates authorized file resources and rejects Host denial over private IPC', async () => {
@@ -381,24 +346,24 @@ process.send({ type: 'starting', runId: randomUUID() })
     expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: 'plugin unavailable', hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }))
   })
 
-  it('reports a child crash after readiness with its stderr diagnostic', async () => {
+  it('reports a child crash after readiness without its stderr diagnostic', async () => {
     const runtime = projectWithHost()
     const failure = vi.fn()
     const host = hostProcess(runtime, runtime, failure)
     const { url } = await host.start()
     await fetch(new URL('/crash', url))
     await expect.poll(() => failure.mock.calls.length).toBe(1)
-    expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: 'dsh desktop host exited with 7: plugin crashed', hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }))
+    expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: 'dsh desktop host exited with 7', hostRunId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' }))
   })
 
-  it('retains only recent diagnostics from a noisy child', async () => {
+  it('does not retain any diagnostics from a noisy child', async () => {
     const runtime = projectWithHost('process.stderr.write(\'discarded-prefix\' + \'x\'.repeat(70_000) + \'recent-failure\', () => { process.exitCode = 7; process.disconnect() })')
     const failure = await hostProcess(runtime).start().catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(Error)
     const message = (failure as Error).message
     expect(message).not.toContain('discarded-prefix')
-    expect(message.endsWith('recent-failure')).toBe(true)
-    expect(message.length).toBeLessThan(66_000)
+    expect(message).not.toContain('recent-failure')
+    expect(message).toBe('dsh desktop host exited with 7')
   })
 
   it('settles teardown when the executable cannot be spawned', async () => {
@@ -431,17 +396,16 @@ process.send({ type: 'starting', runId: randomUUID() })
     await expect(host.start()).rejects.toThrow(message)
   })
 
-  it('keeps the Host\'s inspected error separate from the message it reports', async () => {
-    const diagnostic = "Error: startup failed\\n    at boot (lib/index.js:3:9) {\\n  code: 'ENOENT',\\n  path: '/profile/cordis.yml'\\n}"
-    const failures: Error[] = []
+  it('rejects an obsolete inspected error field without exposing its contents', async () => {
+    const diagnostic = 'private diagnostic fixture'
     const host = hostProcess(projectWithHost(
       `process.send({ type: 'fatal', message: 'startup failed', diagnostic: ${JSON.stringify(diagnostic)} }); process.disconnect()`,
-    ), undefined, (error) => { failures.push(error) })
-    await expect(host.start()).rejects.toThrow('startup failed')
-    const [failure] = failures
-    expect(failure).toBeInstanceOf(DesktopHostFatalError)
-    expect((failure as DesktopHostFatalError).diagnostic).toBe(diagnostic)
-    expect(Object.keys(failure!)).not.toContain('diagnostic')
+    ))
+    const failure = await host.start().catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).message).toContain('invalid IPC event')
+    expect((failure as Error).message).not.toContain(diagnostic)
+    expect(failure).not.toHaveProperty('diagnostic')
   })
 })
 

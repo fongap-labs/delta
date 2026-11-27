@@ -25,6 +25,9 @@ it('omits development artifacts while preserving executable modules, assets and 
     'node-pty/prebuilds/win32-arm64/conpty.node',
     'node-pty/prebuilds/linux-x64/pty.node', 'node-pty/prebuilds/darwin-x64/pty.node',
     'node-pty/prebuilds/win32-x64/conpty.pdb',
+    'bare-fs/prebuilds/win32-x64/bare-fs.bare',
+    'bare-fs/prebuilds/win32-arm64/bare-fs.bare',
+    'bare-fs/prebuilds/linux-x64/bare-fs.bare',
     '@koromix/koffi-win32-x64/win32_x64/koffi.lib',
     '@mixmark-io/domino/test/entities.html',
     '@mixmark-io/domino/.yarn/plugins/@yarnpkg/plugin-version.cjs',
@@ -39,6 +42,7 @@ it('omits development artifacts while preserving executable modules, assets and 
     'example/locale.json', 'example/data.map', 'example/module.wasm',
     'example/package.json', 'example/LICENSE', 'example/NOTICE', 'example/README.md',
     'example/native.lib', 'example/native.obj', 'example/symbols.pdb',
+    'bare-fs/index.js', 'bare-fs/binding.js', 'bare-fs/LICENSE', 'bare-fs/package.json',
     'fs-ext/build/Release/fs_ext.node', 'fs-ext/build/Release/runtime.dll',
     'node-pty/prebuilds/win32-x64/conpty.node',
     'node-pty/prebuilds/win32-x64/conpty_console_list.node',
@@ -87,6 +91,7 @@ it('applies package-specific rules inside scoped and nested dependency container
   expect(desktopRuntimeFileExclusion('@mixmark-io/domino/.yarn', windows, 'win32-x64')).toBeDefined()
   expect(desktopRuntimeFileExclusion('outer\\node_modules\\node-pty\\prebuilds\\win32-arm64\\conpty.node', windows, 'win32-x64')).toBeDefined()
   expect(desktopRuntimeFileExclusion('outer/node_modules/unrelated/test/data.html', windows, 'win32-x64')).toBeUndefined()
+  expect(desktopRuntimeFileExclusion('outer/node_modules/bare-fs/prebuilds/win32-x64/bare-fs.bare', windows, 'win32-x64')).toBeDefined()
   expect(desktopRuntimeFileExclusion('outer/fs-ext/build/Release/fs_ext.lib', windows, 'win32-x64')).toBeUndefined()
 })
 

@@ -2,6 +2,7 @@
 import { APP_IDENTITY, attributionHeaders, LlmError } from '@deepseek-ai/dsh-llm'
 import type { LlmModelBadge, LlmModelBadgeTone, ModelModality } from '@deepseek-ai/dsh-llm'
 import { timeoutOf } from '@deepseek-ai/dsh-timeout'
+import { approvedDeepSeekAuthHeaders } from './auth-headers.ts'
 
 const LISTED_MODALITIES = ['text', 'image'] as const satisfies readonly ModelModality[]
 const BADGE_TONES = ['neutral', 'info', 'success', 'warning'] as const satisfies readonly LlmModelBadgeTone[]
@@ -246,7 +247,7 @@ export async function requestModelListing(
   try {
     response = await fetch(url, {
       method: 'GET', redirect: 'error', signal,
-      headers: { ...attributionHeaders(), accept: 'application/json', ...headers },
+      headers: { ...attributionHeaders(), accept: 'application/json', ...approvedDeepSeekAuthHeaders(headers) },
     })
     text = await response.text()
   } catch (error) {

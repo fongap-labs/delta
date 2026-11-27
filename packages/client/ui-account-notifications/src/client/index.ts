@@ -38,12 +38,6 @@ export function apply(ctx: Context, config: SyncedConfig<AccountNotificationsCon
       if (!result.ok) throw new Error('account notification content read failed')
       return result.value
     },
-    reportEvent: async (id, event) => {
-      const result = await ctx.remote.account.reportNotificationEvent(id, event,
-        ctx.accountUi.clientMetadata(ctx.locale.getSnapshot().active))
-      if (!result.ok) throw new Error('account notification event report failed')
-      return result.value
-    },
     publish: (notices) => { snapshot = notices; for (const listener of listeners) listener() },
   })
   const update = (state: AccountUiState, reset: boolean): void => {
@@ -63,7 +57,6 @@ export function apply(ctx: Context, config: SyncedConfig<AccountNotificationsCon
   const injected: AccountNotificationsInjected = {
     hooks: { notices: state },
     shown: (id) => { controller.shown(id) },
-    ctaClicked: (id) => { controller.ctaClicked(id) },
     dismiss: (id) => { controller.dismiss(id) },
   }
   ctx.slots.inject('settings.launcher.notifications', () => ctx.slots.register({

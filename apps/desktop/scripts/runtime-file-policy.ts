@@ -33,8 +33,14 @@ export function desktopRuntimeFileExclusion(
   if (name === 'fs-ext' && /^build\/(?:binding\.sln|config\.gypi|fs_ext\.vcxproj(?:\.filters)?)$/u.test(entry)) {
     return 'fs-ext build configuration'
   }
+  if (name === 'zod' && entry.startsWith('src/v4/classic/tests/')) return 'Zod test fixtures'
   if (name === '@mixmark-io/domino' && (entry === 'test' || entry.startsWith('test/'))) return 'Domino test fixtures'
   if (name === '@mixmark-io/domino' && (entry === '.yarn' || entry.startsWith('.yarn/'))) return 'Domino development tooling'
+  // tar-fs/tar-stream select Node's built-in fs in Electron/Node. These
+  // addons are only selected by the separate Bare runtime (require.addon).
+  if (name === 'bare-fs' && (entry === 'prebuilds' || entry.startsWith('prebuilds/'))) {
+    return 'Bare runtime native addon'
+  }
   if (name === 'node-pty' && target.platform !== 'win32' && /^third_party\/conpty(?:\/|$)/u.test(entry)) {
     return 'node-pty Windows ConPTY sources'
   }

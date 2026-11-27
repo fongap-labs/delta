@@ -3,7 +3,6 @@
 import { delimiter, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
-import { formatFatalDiagnostic } from './fatal-diagnostic.ts'
 import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -14,7 +13,6 @@ import { localDragResource } from './file-drag.ts'
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
-import { installOperationDiagnostics } from './operation-diagnostics.ts'
 import { DesktopAuthenticationEnd, receiveDesktopSecret } from './authentication.ts'
 import * as DesktopAuthentication from '@deepseek-ai/dsh-host-authentication-desktop'
 
@@ -150,7 +148,6 @@ async function main(): Promise<void> {
     authentication.signal.removeEventListener('abort', onAuthenticationEnd)
     authentication.dispose()
   }, 'desktop-host: authentication channel')
-  installOperationDiagnostics(ctx, record => send({ type: 'plugin-operation', record }), 32, runId)
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   control.quitInspection = installDesktopQuitInspection(ctx)
   installPlatformSessionPublisher(ctx, (session) => {
@@ -171,12 +168,9 @@ async function main(): Promise<void> {
 if (import.meta.main) {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
-    // The shell receives the complete inspected error here, not through stderr:
-    // stderr bytes and this IPC message race, and the shell reports the first
-    // failure it sees.
-    const diagnostic = formatFatalDiagnostic(error)
-    if (process.connected) process.send?.({ type: 'fatal', message, diagnostic }, (error) => { if (error !== null) console.error(error) })
-    console.error(error)
+    // Send only the recovery message, never the inspected exception or configuration snapshot.
+    if (process.connected) process.send?.({ type: 'fatal', message }, (error) => { if (error !== null) console.error('Delta host recovery notification failed') })
+    console.error('Delta host startup failed')
     process.exitCode = 1
     if (process.connected) process.disconnect()
   })

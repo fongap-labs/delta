@@ -1,6 +1,7 @@
 /** User-authorized downloads and separate installation of one version-bound Desktop release. */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { load } from 'js-yaml'
 import { join } from 'node:path'
 import { app } from 'electron'
 import electronUpdater, { type AppUpdater, type ProgressInfo, type UpdateInfo, type UpdateCheckResult } from 'electron-updater'
@@ -13,6 +14,25 @@ import { selectUpdateChannel } from './updates/electron-updater/channel.ts'
 import { discardDesktopUpdate } from './updates/electron-updater/discard.ts'
 
 const { autoUpdater } = electronUpdater
+
+/** Permit only an explicitly packaged generic HTTPS qualification feed, never inherited upstream feeds. */
+export function isDeltaUpdateFeed(input: unknown): boolean {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return false
+  const feed = input as Record<string, unknown>
+  if (feed.provider !== 'generic' || typeof feed.url !== 'string') return false
+  try {
+    const url = new URL(feed.url)
+    const hostname = url.hostname.replace(/\.$/u, '')
+    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
+      && hostname !== 'deepseek.com' && !hostname.endsWith('.deepseek.com')
+      && /^\/dsh-desk\/[a-f0-9]{32}\/feeds\/(?:mac-arm64|mac-x64|win-x64)\/$/u.test(url.pathname)
+  } catch { return false }
+}
+
+function hasDeltaUpdateFeed(): boolean {
+  try { return isDeltaUpdateFeed(load(readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8'))) }
+  catch { return false }
+}
 
 /** Owns one updater target until its download and installation settle. */
 export class DesktopUpdateCoordinator {
@@ -61,7 +81,7 @@ export class DesktopUpdateCoordinator {
     private readonly publish: (state: DesktopUpdateState) => DesktopUpdateState,
     private readonly beforeRestart: () => Promise<boolean>,
     private readonly updater: AppUpdater = autoUpdater,
-    private readonly enabled: () => boolean = () => app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml')),
+    private readonly enabled: () => boolean = () => app.isPackaged && process.env.DELTA_PORTABLE !== '1' && existsSync(join(process.resourcesPath, 'app-update.yml')) && hasDeltaUpdateFeed(),
     private readonly currentVersion: () => string = () => app.getVersion(),
     private readonly downloadResult?: (success: boolean, reason?: string) => void,
     private channel: DesktopUpdateChannel = 'nightly',

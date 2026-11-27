@@ -9,6 +9,17 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 import { generationLogPath } from '../src/format.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
+// Historical on-disk records only: preserve local read compatibility without a collection service.
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    'session-log-deepseek/delivery-accepted': {
+      sessionId: SessionId
+      sessionFormatVersion: 4
+      throughSeq: SessionSeq
+    }
+  }
+}
+
 async function fixture(compression: 'none' | 'zstd') {
   const root = await mkdtemp(join(tmpdir(), 'dsh-fork-delivery-'))
   const ctx = new Context()

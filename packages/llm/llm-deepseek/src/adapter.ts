@@ -10,6 +10,7 @@ import { DeepSeekFileStore } from './file-store.ts'
 import { MESSAGES_FILES_BETA, MESSAGES_TOOL_CHANGES_BETA, messagesApiRoot } from './messages-api.ts'
 import { FileResolutionFailure, RequestFiles } from './request-files.ts'
 import { prepareRequestExtensions } from './request-extensions.ts'
+import { approvedDeepSeekAuthHeaders } from './auth-headers.ts'
 import { imagePricing, inlineImages, prepareFileIds, prepareImages } from './images.ts'
 import { serialize } from './serialize.ts'
 import { parseSse } from './sse.ts'
@@ -102,11 +103,12 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
     )
     const auth = await this.dependencies.resolveAuth(connection, connection.baseURL)
     if (auth === undefined) throw this.missingCredential(connection, options.provider)
+    const authHeaders = approvedDeepSeekAuthHeaders(auth.headers)
     // The request ends with its credential: a withdrawal closes the upstream response as the caller's cancellation does.
     const live = auth.revoked === undefined ? signal : AbortSignal.any([signal, auth.revoked])
     try {
       const files = new RequestFiles(this.files, {
-        baseURL: connection.baseURL, headers: auth.headers,
+        baseURL: connection.baseURL, headers: authHeaders,
       },
       connection.filePolicy, live, activity)
       let inline = false
@@ -152,7 +154,7 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
           headers: {
             ...attributionHeaders(),
             'content-type': 'application/json', 'accept': 'text/event-stream',
-            ...auth.headers,
+            ...authHeaders,
             'anthropic-version': '2023-06-01',
             ...betas.length === 0 ? {} : { 'anthropic-beta': betas.join(',') },
             ...requestIdentity.purpose === 'compaction' ? { 'x-deepseek-harness-compact': '1' } : {},

@@ -9,7 +9,6 @@ import { makeTranslate, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-run
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import type { TrackProductEvent } from '@deepseek-ai/dsh-client-product-analytics/client'
 import { EntryMenuContent } from '../src/client/EntryMenuContent.tsx'
 import { en } from '../src/client/locales.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -151,11 +150,11 @@ function Frame({ renderSlot }: PropsRenderSlots<Seats>) {
 
 async function bench(
   language: 'en' | 'zh' = 'en',
-  { analytics = true, navigation = true }: { analytics?: boolean; navigation?: boolean } = {},
+  { navigation = true }: { navigation?: boolean } = {},
 ) {
   const runtime = await SlotTestRuntime.create()
   runtimes.add(runtime)
-  const openList = vi.fn(), startSession = vi.fn(), track = vi.fn<TrackProductEvent>()
+  const openList = vi.fn(), startSession = vi.fn()
   await runtime.mount({
     inject: ['slots'],
     apply(ctx: Context) {
@@ -165,7 +164,6 @@ async function bench(
       ctx.slots.installLocale(locale)
       if (navigation) ctx.provide('pluginNavigation', { openList } as never)
       ctx.provide('uiWorkspace', { startSession } as never)
-      if (analytics) ctx.provide('productAnalytics', { track } as never)
     },
   })
   await runtime.root.declare({
@@ -175,7 +173,7 @@ async function bench(
   }, Frame)
   const plugin = await runtime.mount({ inject: [...inject], apply })
   const view = runtime.renderRoot()
-  return { runtime, openList, startSession, track, plugin, view }
+  return { runtime, openList, startSession, plugin, view }
 }
 
 describe('More menu registrations', () => {
@@ -238,25 +236,21 @@ describe('More menu registrations', () => {
     ['sidebar.panellist.actions', 'sidebar'],
     ['conversation.session.header.views.actions', 'conversation'],
     ['sidebar.right.tab.guide.actions', 'rightbar'],
-  ] as const)('reports both footer actions of %s as the %s region before acting', async (seat, region) => {
+  ] as const)('runs both footer actions of %s (%s)', async (seat, _region) => {
     const b = await bench()
     const menu = within(b.view.getByRole('menu', { name: seat }))
     fireEvent.click(menu.getByRole('menuitem', { name: 'Browse other plugins' }))
-    expect(b.track).toHaveBeenCalledExactlyOnceWith('more_menu_item_click', { region, action: 'browse_plugins' })
-    expect(b.track.mock.invocationCallOrder[0]).toBeLessThan(b.openList.mock.invocationCallOrder[0]!)
+    expect(b.openList).toHaveBeenCalledExactlyOnceWith()
     fireEvent.click(menu.getByRole('menuitem', { name: 'Create your plugin' }))
-    expect(b.track).toHaveBeenLastCalledWith('more_menu_item_click', { region, action: 'create_plugin' })
-    expect(b.track.mock.invocationCallOrder[1]).toBeLessThan(b.startSession.mock.invocationCallOrder[0]!)
-    expect(b.track).toHaveBeenCalledTimes(2)
+    expect(b.startSession).toHaveBeenCalledOnce()
   })
 
   it('keeps both footer actions working without the analytics service', async () => {
-    const b = await bench('en', { analytics: false })
+    const b = await bench('en')
     const menu = within(b.view.getByRole('menu', { name: 'sidebar.right.tab.guide.actions' }))
     fireEvent.click(menu.getByRole('menuitem', { name: 'Browse other plugins' }))
     fireEvent.click(menu.getByRole('menuitem', { name: 'Create your plugin' }))
     expect(b.openList).toHaveBeenCalledExactlyOnceWith()
     expect(b.startSession).toHaveBeenCalledOnce()
-    expect(b.track).not.toHaveBeenCalled()
   })
 })

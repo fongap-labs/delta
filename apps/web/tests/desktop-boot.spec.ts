@@ -42,7 +42,23 @@ it('rejects the shared boot wait when the Desktop Host cannot start', async () =
   await import('../src/main.ts')
   await rejected
   expect(boot.applyIndexInjections).not.toHaveBeenCalled()
-  expect(boot.run).toHaveBeenCalledWith(expect.any(Function))
+  expect(boot.run).toHaveBeenCalledWith(expect.any(Function), expect.any(Function))
+})
+
+it('acknowledges a successful client mount only when the boot kernel reports it', async () => {
+  document.body.innerHTML = '<div id="root"></div>'
+  const gate = Promise.withResolvers<undefined>()
+  const mounted = vi.fn(async () => {})
+  const failed = vi.fn(async () => {})
+  vi.stubGlobal('__DSH_BOOT_READY__', gate)
+  vi.stubGlobal('dshDesktopBoot', { ready: async () => ({ injections: [], streamBaseUrl: 'http://127.0.0.1:3080' }), mounted, failed })
+  await import('../src/main.ts')
+  await gate.promise
+  expect(mounted).not.toHaveBeenCalled()
+  const reportMounted = boot.run.mock.calls[0]![1] as () => Promise<void>
+  await reportMounted()
+  expect(mounted).toHaveBeenCalledExactlyOnceWith()
+  expect(failed).not.toHaveBeenCalled()
 })
 
 it('leaves browser failure presentation with the Web boot kernel', async () => {

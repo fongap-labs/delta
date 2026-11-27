@@ -44,7 +44,6 @@ import { AgentPresetSeatController, type AgentPresetStage } from './seat-store.t
 import { AgentPresetSectionController } from './section-store.ts'
 import { en, ja, es, fr, de, ru, pt, zh, type AgentPresetSettingsKey } from './locales.ts'
 import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController } from './settings-store.ts'
-import { analyticsMode } from './analytics.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -189,18 +188,7 @@ export function apply(ctx: ClientContext): void {
         hooks: { agentPresetSeat: seat.store, developerTools: ctx.configForms.developerTools.enabled },
         load: () => seat.load(),
         select: async (id: string) => {
-          const state = seat.store.getSnapshot()
-          const from = analyticsMode(state.current)
-          const to = analyticsMode(id)
-          const enabled = toolsSettings.getSnapshot().value?.enabled
           const outcome = await seat.select(id)
-          // A bound pick counts once the Host applies it; an unbound pick counts when staged for the next Session.
-          const accepted = outcome.kind === 'applied' || (outcome.kind === 'staged' && sessionId === undefined)
-          if (accepted && from !== undefined && to !== undefined && to !== 'other' && from !== to && enabled !== undefined) {
-            ctx.get('productAnalytics')?.track('agent_preset_switch', {
-              switch_from: from, switch_to: to, code_work_view_enabled: enabled,
-            })
-          }
           return outcome.kind === 'refused' ? outcome.reason : undefined
         },
         dismissRefusal: (error) => { seat.dismissRefusal(error) },
