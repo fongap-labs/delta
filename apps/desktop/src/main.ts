@@ -75,7 +75,7 @@ const portableSmoke = app.isPackaged && process.env.DELTA_PORTABLE === '1'
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = (): Promise<void> => Promise.resolve()
 let shuttingDown = false
-let smokeFatal = false
+let hasSmokeFatal = false
 let splashWindow: BrowserWindow | undefined
 /**
  * Set by quit entries that must not ask: crash recovery exit and restart, and the
@@ -118,8 +118,8 @@ function reportFatal(error: unknown, source: DesktopFailureSource): void {
   if (splashWindow !== undefined && !splashWindow.isDestroyed()) splashWindow.close()
   splashWindow = undefined
   if (portableSmoke) {
-    if (smokeFatal) return
-    smokeFatal = true
+    if (hasSmokeFatal) return
+    hasSmokeFatal = true
     shuttingDown = true
     void stopForRecovery().catch(() => undefined).finally(() => { app.exit(1) })
     return
@@ -207,7 +207,7 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
-function createWindow(preload: string, show = false, primary = false, mandatoryOverlayEnabled = false): BrowserWindow {
+function createWindow(preload: string, show = false, primary = false, isMandatoryOverlayEnabled = false): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -238,7 +238,7 @@ function createWindow(preload: string, show = false, primary = false, mandatoryO
       sandbox: true,
       webSecurity: true,
       webviewTag: primary,
-      additionalArguments: mandatoryOverlayEnabled ? [MANDATORY_OVERLAY_ARG] : [],
+      additionalArguments: isMandatoryOverlayEnabled ? [MANDATORY_OVERLAY_ARG] : [],
       devTools: true,
     },
   })
@@ -390,7 +390,7 @@ async function main(): Promise<void> {
   let locale = windowsLanguage === undefined
     ? resolveDesktopStartupLocale(null, systemLanguages) : resolveDesktopLocale(windowsLanguage)
   windowsLanguage = locale.id
-  let mandatoryOverlayEnabled = false
+  let isMandatoryOverlayEnabled = false
   const rendererMounted = Promise.withResolvers<void>()
   let mandatoryPolicy: DesktopMandatoryUpdatePolicy | undefined
   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
@@ -1250,7 +1250,7 @@ async function main(): Promise<void> {
     }
   }
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload, false, true, mandatoryOverlayEnabled)
+    const window = createWindow(appPreload, false, true, isMandatoryOverlayEnabled)
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
@@ -1473,7 +1473,7 @@ async function main(): Promise<void> {
     ? ('dshMandatoryUpdatePolicy' in manifest ? manifest.dshMandatoryUpdatePolicy : undefined)
     : developmentPolicy === undefined ? undefined : JSON.parse(developmentPolicy) as unknown
   const policyConfig = resolveDesktopPolicyConfig(policyInput, !app.isPackaged)
-  mandatoryOverlayEnabled = policyConfig !== undefined
+  isMandatoryOverlayEnabled = policyConfig !== undefined
   mainWindow = createMainWindow()
   if (policyConfig !== undefined) {
     if (policyConfig.authentication === 'feishu-test') {
@@ -1523,7 +1523,7 @@ async function main(): Promise<void> {
       void rendererMounted.promise.then(() => { clearTimeout(timer); resolve() })
     })
     const window = currentMainWindow()
-    if (smokeFatal || !backendReady || !enteredWorkspace || recovery.active || isQuitting()
+    if (hasSmokeFatal || !backendReady || !enteredWorkspace || recovery.active || isQuitting()
       || window === undefined || window.isDestroyed() || !window.isVisible()) {
       throw new Error('Delta portable smoke: desktop workspace did not become ready')
     }
