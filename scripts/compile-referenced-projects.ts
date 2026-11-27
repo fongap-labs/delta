@@ -7,7 +7,6 @@ import { spawn, spawnSync } from 'node:child_process'
 import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import ts from 'typescript'
 import { pnpmCommand } from './release/process.ts'
 
 type CompilationMode = 'checked' | 'benchmark-emit'
@@ -57,32 +56,41 @@ export function referencedProjectsCompilerArgs(
   mode: CompilationMode = 'checked',
 ): string[] {
   const configPath = resolve(root, `tsconfig.${face}.json`)
-  const config = ts.getParsedCommandLineOfConfigFile(configPath, {}, {
-    ...ts.sys,
-    onUnRecoverableConfigFileDiagnostic(diagnostic) {
-      throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
-    },
-  })
-  if (config === undefined) throw new Error(`compile-referenced-projects: cannot read ${configPath}`)
-  const references = config.projectReferences
-  if (references === undefined || references.length === 0) {
+  const compiler = fileURLToPath(import.meta.resolve('typescript/bin/tsc'))
+  // Resolve the effective config with the same compiler used for the build.
+  // The native TypeScript compiler does not expose the old JavaScript config API.
+  const result = spawnSync(process.execPath, [
+    ...hostHeapArgs(face), compiler, '--showConfig', '--pretty', 'false', '-p', configPath,
+  ], { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  if (result.error !== undefined) throw result.error
+  if (result.status !== 0) {
+    const diagnostics = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
+    throw new Error(`compile-referenced-projects: cannot read ${configPath}: ${diagnostics || String(result.status ?? result.signal)}`)
+  }
+  const config: unknown = JSON.parse(result.stdout)
+  if (typeof config !== 'object' || config === null || !('references' in config)
+      || !Array.isArray(config.references) || config.references.length === 0) {
     throw new Error(`compile-referenced-projects: ${configPath} requires non-empty project references`)
   }
-  if (config.errors.length > 0) {
-    throw new Error(config.errors
-      .map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
-      .join('\n'))
-  }
-  if (config.options.noEmit !== true) {
+  const references: string[] = config.references.map((reference: unknown) => {
+    if (typeof reference !== 'object' || reference === null || !('path' in reference)
+        || typeof reference.path !== 'string' || reference.path.length === 0) {
+      throw new Error(`compile-referenced-projects: invalid project reference in ${configPath}`)
+    }
+    return relative(root, resolve(root, reference.path))
+  })
+  if (!('compilerOptions' in config) || typeof config.compilerOptions !== 'object'
+      || config.compilerOptions === null || !('noEmit' in config.compilerOptions)
+      || config.compilerOptions.noEmit !== true) {
     throw new Error(`compile-referenced-projects: ${configPath} requires noEmit: true to exclude its aggregate program`)
   }
   return [
     ...hostHeapArgs(face),
-    fileURLToPath(import.meta.resolve('typescript/bin/tsc')),
+    compiler,
     '-b',
     ...mode === 'benchmark-emit' ? ['--noCheck'] : [],
     // Relative arguments keep the complete workspace graph below Windows' command-line limit.
-    ...references.map(reference => relative(root, reference.path)),
+    ...references,
   ]
 }
 
