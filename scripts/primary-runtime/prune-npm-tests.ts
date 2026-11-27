@@ -40,7 +40,7 @@ function collect(root: string, directory: string, candidate: string | undefined,
   }
 }
 
-function prunePackage(root: string, prefix: string, removed: string[], dryRun: boolean): void {
+function prunePackage(root: string, prefix: string, removed: string[], isDryRun: boolean): void {
   const files: PackageFile[] = []
   const candidates = new Set<string>()
   collect(root, '', undefined, files, candidates)
@@ -63,9 +63,9 @@ function prunePackage(root: string, prefix: string, removed: string[], dryRun: b
   // A non-runtime directory only counts as a referrer once runtime code keeps it.
   const kept = new Set<string>()
   const patterns = new Map<string, RegExp>()
-  let changed = true
-  while (changed) {
-    changed = false
+  let hasChanged = true
+  while (hasChanged) {
+    hasChanged = false
     const sources = [...runtimeSources, ...[...kept].flatMap(candidate => candidateSources.get(candidate) ?? [])]
     for (const candidate of candidates) {
       if (kept.has(candidate)) continue
@@ -74,46 +74,46 @@ function prunePackage(root: string, prefix: string, removed: string[], dryRun: b
       patterns.set(name, pattern)
       if (sources.some(source => pattern.test(source))) {
         kept.add(candidate)
-        changed = true
+        hasChanged = true
       }
     }
   }
   for (const candidate of [...candidates].sort()) {
     if (kept.has(candidate)) continue
-    if (!dryRun) rmSync(join(root, candidate), { recursive: true })
+    if (!isDryRun) rmSync(join(root, candidate), { recursive: true })
     removed.push(`${prefix}${candidate}`)
   }
 }
 
-function visitContainer(container: string, prefix: string, removed: string[], dryRun: boolean): void {
+function visitContainer(container: string, prefix: string, removed: string[], isDryRun: boolean): void {
   for (const entry of readdirSync(container, { withFileTypes: true })) {
     if (!entry.isDirectory() || PACKAGE_MANAGER_ENTRIES.has(entry.name)) continue
     if (entry.name.startsWith('@')) {
       for (const scoped of readdirSync(join(container, entry.name), { withFileTypes: true })) {
-        if (scoped.isDirectory()) visitPackage(join(container, entry.name, scoped.name), `${prefix}${entry.name}/${scoped.name}/`, removed, dryRun)
+        if (scoped.isDirectory()) visitPackage(join(container, entry.name, scoped.name), `${prefix}${entry.name}/${scoped.name}/`, removed, isDryRun)
       }
     } else {
-      visitPackage(join(container, entry.name), `${prefix}${entry.name}/`, removed, dryRun)
+      visitPackage(join(container, entry.name), `${prefix}${entry.name}/`, removed, isDryRun)
     }
   }
 }
 
-function visitPackage(directory: string, prefix: string, removed: string[], dryRun: boolean): void {
+function visitPackage(directory: string, prefix: string, removed: string[], isDryRun: boolean): void {
   if (!existsSync(join(directory, 'package.json'))) {
-    visitTree(directory, prefix, removed, dryRun)
+    visitTree(directory, prefix, removed, isDryRun)
     return
   }
-  prunePackage(directory, prefix, removed, dryRun)
+  prunePackage(directory, prefix, removed, isDryRun)
   const nested = join(directory, 'node_modules')
-  if (existsSync(nested)) visitContainer(nested, `${prefix}node_modules/`, removed, dryRun)
+  if (existsSync(nested)) visitContainer(nested, `${prefix}node_modules/`, removed, isDryRun)
 }
 
-function visitTree(directory: string, prefix: string, removed: string[], dryRun: boolean): void {
+function visitTree(directory: string, prefix: string, removed: string[], isDryRun: boolean): void {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const path = join(directory, entry.name)
-    if (entry.name === 'node_modules') visitContainer(path, `${prefix}node_modules/`, removed, dryRun)
-    else visitTree(path, `${prefix}${entry.name}/`, removed, dryRun)
+    if (entry.name === 'node_modules') visitContainer(path, `${prefix}node_modules/`, removed, isDryRun)
+    else visitTree(path, `${prefix}${entry.name}/`, removed, isDryRun)
   }
 }
 
@@ -124,11 +124,11 @@ function visitTree(directory: string, prefix: string, removed: string[], dryRun:
  * directory count only when that directory is itself retained. Referenced
  * directories (for example runtime modules kept under `lib/emoji/test/`) stay.
  * @param root - Directory containing one or more `node_modules` trees.
- * @param options - Set `dryRun` to report removable directories without deleting them.
+ * @param options - Set `isDryRun` to report removable directories without deleting them.
  * @returns Removed directories relative to `root`, using `/` separators.
  */
-export function pruneUnreferencedNpmTests(root: string, options: { dryRun?: boolean } = {}): string[] {
+export function pruneUnreferencedNpmTests(root: string, options: { isDryRun?: boolean } = {}): string[] {
   const removed: string[] = []
-  visitTree(root, '', removed, options.dryRun === true)
+  visitTree(root, '', removed, options.isDryRun === true)
   return removed.sort()
 }

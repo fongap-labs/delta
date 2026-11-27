@@ -58,7 +58,7 @@ it('removes only test directories that runtime sources and entry points never re
       'node_modules/plain/node_modules/nested/index.js',
     ]
 
-    expect(pruneUnreferencedNpmTests(root, { dryRun: true })).toEqual(expected)
+    expect(pruneUnreferencedNpmTests(root, { isDryRun: true })).toEqual(expected)
     for (const path of expected) expect(await exists(join(root, path))).toBe(true)
 
     expect(pruneUnreferencedNpmTests(root)).toEqual(expected)
