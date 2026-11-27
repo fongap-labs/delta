@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
-import { parsePluginOperationRecord, type PluginOperationRecord, type PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
+import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 
 interface ReadyEvent {
   readonly type: 'ready'
@@ -17,8 +17,6 @@ interface ReadyEvent {
 interface FatalEvent {
   readonly type: 'fatal'
   readonly message: string
-  /** The Host's complete inspected error: stack, enumerable properties, cause chain. */
-  readonly diagnostic?: string
 }
 
 interface PlatformSessionEvent {
@@ -59,7 +57,6 @@ export interface DesktopQuitInspection {
 /** Quit inspection deadline; a slower Host counts as unknown work and the shell asks before quitting. */
 export const QUIT_INSPECTION_DEADLINE_MS = 2_000
 
-const MAX_HOST_DIAGNOSTIC_CHARS = 64 * 1024
 const runIdSchema = z.uuid()
 
 function isOwnedHostUrl(value: unknown): value is string {
@@ -104,7 +101,7 @@ function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
       } catch { return false }
     }
     case 'fatal':
-      return typeof candidate.message === 'string' && (candidate.diagnostic === undefined || typeof candidate.diagnostic === 'string')
+      return typeof candidate.message === 'string' && !('diagnostic' in candidate)
     case 'update-tasks':
       return Number.isSafeInteger(candidate.requestId) && typeof candidate.active === 'boolean'
         && (candidate.error === undefined || typeof candidate.error === 'string')
@@ -147,27 +144,8 @@ export interface DesktopHostReady {
 /** The child has exited, but task teardown did not finish successfully. */
 export class DesktopHostUncleanExitError extends Error {}
 
-/**
- * A Host failure reported over IPC before the process exited. `message` is what
- * the Host chose to show; `diagnostic` is its complete inspected error, kept
- * separately so a crash report can print it verbatim instead of a string escaped
- * inside another error's properties.
- */
-export class DesktopHostFatalError extends Error {
-  readonly #diagnostic: string | undefined
-
-  /**
-   * @param message - The Host's failure message.
-   * @param diagnostic - The Host's inspected error, when the Host supplied one.
-   */
-  constructor(message: string, diagnostic: string | undefined) {
-    super(message)
-    this.#diagnostic = diagnostic
-  }
-
-  /** The Host's inspected error; a getter so `util.inspect` of this error does not repeat it as an escaped property. */
-  get diagnostic(): string | undefined { return this.#diagnostic }
-}
+/** A Host failure reported over IPC without an inspected error payload. */
+export class DesktopHostFatalError extends Error {}
 
 /** One Web backend running under the Electron executable in Node mode. */
 export class DesktopHostProcess {
@@ -181,7 +159,6 @@ export class DesktopHostProcess {
     this.readyReject = reject
   })
   private exitPromise: Promise<void> | undefined
-  private stderr = ''
   private failureReported = false
   private stopping = false
   private shutdownCompleted = false
@@ -201,7 +178,6 @@ export class DesktopHostProcess {
    * @param primaryRuntime - Optional bundled dependency payload; the Host exposes it to its profile as `DSH_PRIMARY_RUNTIME`.
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
-   * @param onPluginOperation - Optional diagnostic sink; malformed records are ignored without failing the Host.
    */
   constructor(
     private readonly node: string,
@@ -214,7 +190,6 @@ export class DesktopHostProcess {
     private readonly packageManager?: { readonly pnpm: string; readonly nodeBin: string },
 
     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
-    private readonly onPluginOperation?: (record: PluginOperationRecord) => void,
   ) {}
 
   /**
@@ -239,21 +214,12 @@ export class DesktopHostProcess {
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     this.child = child
-    child.stderr?.setEncoding('utf8')
-    child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
+    // Drain stderr without retaining or attaching potentially sensitive plugin output.
+    child.stderr?.resume()
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
-      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'plugin-operation') {
-        const record = 'record' in message ? parsePluginOperationRecord(message.record) : undefined
-        if (record !== undefined && record.runId === this.runId) {
-          try { this.onPluginOperation?.(record) }
-          catch (_error) {
-            // Diagnostic persistence cannot invalidate the Host's business IPC channel.
-            console.error('desktop plugin operation diagnostic sink failed')
-          }
-        }
-        return
-      }
+      // Discard obsolete operation diagnostics without inspecting or persisting their payload.
+      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'plugin-operation') return
       if (!isDesktopHostEvent(message)) {
         this.fail(new Error('dsh desktop host sent an invalid IPC event'))
         child.kill('SIGTERM')
@@ -282,7 +248,7 @@ export class DesktopHostProcess {
         if (this.stopping) this.shutdownCompleted = true
         else this.fail(new Error('dsh desktop host acknowledged an unrequested shutdown'))
       }
-      else if (message.type === 'fatal') this.fail(new DesktopHostFatalError(message.message, message.diagnostic))
+      else if (message.type === 'fatal') this.fail(new DesktopHostFatalError(message.message))
       else {
         const request = this.controlRequests.get(message.requestId)
         if (message.error === undefined) request?.resolve(message)
@@ -292,9 +258,8 @@ export class DesktopHostProcess {
     child.once('error', (error) => { this.fail(error) })
     this.exitPromise = new Promise<void>((resolve) => {
       child.once('close', (code) => {
-        const suffix = this.stderr.trim() === '' ? '' : `: ${this.stderr.trim()}`
-        if (code !== 0 && code !== null) this.fail(new Error(`dsh desktop host exited with ${String(code)}${suffix}`))
-        else this.fail(new Error(`dsh desktop host stopped${suffix}`))
+        if (code !== 0 && code !== null) this.fail(new Error(`dsh desktop host exited with ${String(code)}`))
+        else this.fail(new Error('dsh desktop host stopped'))
         resolve()
       })
     })

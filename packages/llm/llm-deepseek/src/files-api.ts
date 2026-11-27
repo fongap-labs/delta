@@ -7,6 +7,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { retryAfterMs } from './transport.ts'
 import type { DeepSeekFileId as DeepSeekFileIdType } from './file-id.ts'
 import { messagesApiRoot, MESSAGES_FILES_BETA } from './messages-api.ts'
+import { approvedDeepSeekAuthHeaders } from './auth-headers.ts'
 
 /** Minimum provider-supported file lifetime. */
 export const MIN_FILE_EXPIRY_SECONDS = 3_600
@@ -179,7 +180,7 @@ export class DeepSeekFilesClient {
    * @param options - endpoint, authentication headers, and optional test transport.
    */
   constructor(options: FilesApiOptions) {
-    this.authHeaders = options.headers
+    this.authHeaders = approvedDeepSeekAuthHeaders(options.headers)
     this.fetchImpl = options.fetch ?? globalThis.fetch
     this.baseURL = messagesApiRoot(options.baseURL)
   }

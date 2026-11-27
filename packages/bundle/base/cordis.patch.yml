@@ -40,11 +40,6 @@
     - id: session
       name: '@deepseek-ai/dsh-session'
 
-    - id: session-log-deepseek
-      name: '@deepseek-ai/dsh-session-log-deepseek'
-      # Delta never attaches Session history or feedback to model requests.
-      disabled: true
-
     - id: typert
       name: '@deepseek-ai/dsh-typert-registry'
 
@@ -83,9 +78,6 @@
 
     - id: agent
       name: '@deepseek-ai/dsh-agent'
-
-    - id: plugin-package-inventory-deepseek
-      name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
 
     # The transport-independent default for Agents created by entry points.
     # Settings may supply a saved selection; consumers read it at creation time.

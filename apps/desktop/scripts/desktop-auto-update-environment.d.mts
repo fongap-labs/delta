@@ -7,20 +7,6 @@ export type DesktopAutoUpdateEnvironment = 'test' | 'production'
 /** Directory name of one supported Desktop release target. */
 export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
 
-/**
- * Name the fixed installer object shared by uploading and cache refresh.
- * @param target Supported Desktop target.
- * @returns Fixed download filename.
- */
-export function desktopLatestInstallerFilename(target: DesktopAutoUpdateTarget): string
-
-/**
- * Resolve the production website installer URL shared by approval, upload and purge.
- * @param target Supported Desktop target.
- * @returns Fixed production download URL.
- */
-export function desktopWebsiteInstallerUrl(target: DesktopAutoUpdateTarget): string
-
 /** Public updater URL and object prefixes for one release target. */
 export interface DesktopAutoUpdateConfig {
   readonly environment: DesktopAutoUpdateEnvironment
@@ -30,13 +16,6 @@ export interface DesktopAutoUpdateConfig {
   readonly publicUrl: string
   readonly keyPrefix: string
   readonly binaryKeyPrefix: string
-}
-
-/** Public updater URL and private COS destination for one upload target. */
-export interface DesktopUploadConfig extends DesktopAutoUpdateConfig {
-  readonly bucket: string
-  readonly secretIdEnvName: string
-  readonly secretKeyEnvName: string
 }
 
 /**
@@ -91,20 +70,6 @@ export function resolveDesktopAutoUpdateConfig(
   platform: NodeJS.Platform,
   arch: string,
 ): DesktopAutoUpdateConfig
-
-/**
- * Resolve the public updater URL and private COS destination for one upload target.
- * @param env - Upload environment.
- * @param platform - Target Node.js platform.
- * @param arch - Target Node.js architecture.
- * @returns Resolved upload configuration.
- * @throws When the selected deployment lacks a bucket or valid updater configuration.
- */
-export function resolveDesktopUploadConfig(
-  env: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform,
-  arch: string,
-): DesktopUploadConfig
 
 /**
  * Resolve the packaged update channel, defaulting omitted local settings to nightly.

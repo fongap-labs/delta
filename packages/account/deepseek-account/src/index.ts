@@ -2,18 +2,17 @@
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto'
 import type { ServerResponse } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { arch, platform, release } from 'node:os'
 import { promises as streamPromises } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 import { mergePlatformCookies, platformClientHeaders, platformWireLocale } from './client-metadata.ts'
-import { type AccountNotification, type AccountNotificationBatch, type AccountNotificationEvent, type AccountNotificationId, type AccountClientMetadata, type AccountDetails, type AccountRequestCredential, type AccountUserId, type AccountView, type AccountUpdate, type PlatformSession, type SignInAttemptId, type SignInAttemptView } from './types.ts'
+import { type AccountNotification, type AccountNotificationBatch, type AccountNotificationId, type AccountClientMetadata, type AccountDetails, type AccountRequestCredential, type AccountView, type AccountUpdate, type PlatformSession, type SignInAttemptId, type SignInAttemptView } from './types.ts'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { profile, readAccountDetail } from './details.ts'
-import { readNotificationContent, readNotifications, sendNotificationEvent } from './notifications.ts'
+import { readNotificationContent, readNotifications } from './notifications.ts'
 import { revokeAccount, type LogoutRetryPolicy } from './logout.ts'
 import { ACCOUNT_TOKEN_HEADER, AccountUnauthorizedError, PlatformAuthError, platformHeaders, platformOrigin, browserUrl, requestPlatform, initialization, exchange, loginOrigin } from './protocol.ts'
 
@@ -301,33 +300,6 @@ export class DeepSeekAccount extends TypertRemoteService {
     }
   }
 
-  /**
-   * Report a notification interaction; the backend decides consumption.
-   * @param id - notification the user interacted with.
-   * @param event - displayed frame, non-dismiss action click, or explicit dismissal.
-   * @param client - identity of the requesting UI for this call.
-   * @returns true once the server accepts the event; false if signed out or credentials changed during the call.
-   */
-  @Remote
-  async reportNotificationEvent(id: AccountNotificationId,
-    event: AccountNotificationEvent, client: AccountClientMetadata): Promise<boolean> {
-    const lifetime = this.detailsLifetime
-    const headers = this.detailHeaders(client)
-    const stored = await this.readCurrentGrant(lifetime)
-    if (stored === null) return false
-    try {
-      await sendNotificationEvent(this.harnessOrigin, stored.token, id, event,
-        AbortSignal.any([lifetime.signal, AbortSignal.timeout(this.requestTimeout)]), headers)
-      return this.detailsLifetime === lifetime
-    } catch (error) {
-      if (this.detailsLifetime !== lifetime) return false
-      if (error instanceof AccountUnauthorizedError) {
-        await this.expireCredential(stored.token, lifetime)
-        return false
-      }
-      throw error
-    }
-  }
 
   /**
    * Cache one ready profile against the grant token it was read with, so identity reuse cannot cross
@@ -399,22 +371,6 @@ export class DeepSeekAccount extends TypertRemoteService {
     await this.removing
   }
 
-  /**
-   * Read existing login identity without creating a device or returning credentials.
-   * @returns optional device/account identifiers and the provider's OS version string.
-   */
-  async getDeviceIdentity(): Promise<{ deviceId?: string; userId?: AccountUserId; osVersion: string }> {
-    const [record, session] = await Promise.all([
-      this.ctx.credentials.readRecord(DEVICE),
-      this.getPlatformSession(),
-    ])
-    const parsed = record?.kind === 'grant' ? device.safeParse(record.payload) : undefined
-    return {
-      ...parsed?.success ? { deviceId: parsed.data.id } : {},
-      ...session?.userId == null ? {} : { userId: session.userId },
-      osVersion: deviceOsVersion(),
-    }
-  }
 
   /**
    * Read credentials for the configured embedded-page origin, bound to their account environment, and
@@ -798,7 +754,8 @@ export class DeepSeekAccount extends TypertRemoteService {
       const identity = device.parse(deviceRecord.payload)
       const result = exchange.safeParse(await this.request('auth_exchange', {
         code: receivedCode, code_verifier: verifier, redirect_uri: redirectUri,
-        device_id: identity.id, device_model: `${platform()}-${arch()}`, os_version: deviceOsVersion(),
+        // Preserve the authentication protocol without reporting actual machine characteristics.
+        device_id: identity.id, device_model: 'Delta', os_version: 'unspecified',
       }, signal, attempt.clientHeaders), { reportInput: true })
       if (!result.success) this.rejectPayload('auth_exchange', result.error)
       const completionUrl = new URL(browserUrl(result.data.authorized_url, this.origin, '/dsh/authorized', this.rewriteBrowserOrigin))
@@ -870,7 +827,3 @@ export class DeepSeekAccount extends TypertRemoteService {
 }
 export default DeepSeekAccount
 
-/** OS identification shared by login and credential-free identity reads. */
-function deviceOsVersion(): string {
-  return `${platform()} ${release()}`
-}

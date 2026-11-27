@@ -44,11 +44,6 @@ const state = vi.hoisted(() => ({
   nativeTheme: { themeSource: 'system', shouldUseDarkColors: false, on: vi.fn(), removeListener: vi.fn() },
 }))
 
-vi.mock('../src/crash-report.ts', async importOriginal => ({
-  ...await importOriginal<typeof import('../src/crash-report.ts')>(),
-  writeCrashReport: vi.fn(async () => undefined),
-  pruneCrashReports: vi.fn(async () => {}),
-}))
 vi.mock('electron', () => ({
   clipboard: { writeText: state.copy },
   app: {
@@ -129,7 +124,6 @@ vi.mock('../src/host-process.ts', () => ({
 }))
 vi.mock('../src/welcome-backend.ts', () => ({
   connectDesktopWelcome: () => ({
-    analyticsEnabled: async () => false,
     readLocalePreference: async () => state.preference,
     read: async () => {
       await state.beforeRead()

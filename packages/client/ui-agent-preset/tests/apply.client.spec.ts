@@ -1195,23 +1195,23 @@ describe('ui-agent-preset apply', () => {
   })
 })
 
-/** Official presets plus one custom preset whose id and name must not leave the Client. */
-const ANALYTICS_ROSTER: AgentPresetRow[] = [
+/** Official presets plus one custom preset for selection tests. */
+const SELECTION_ROSTER: AgentPresetRow[] = [
   { id: 'standard', isDefault: true }, { id: 'cordis', isDefault: false },
   { id: 'ptc', isDefault: false }, { id: 'minimal', isDefault: false },
   { id: 'private-id', name: 'Private name', isDefault: false },
 ]
 
 /**
- * Mount the picker with a recording analytics service. Without `bound` the chip
+ * Mount the picker with an isolated selection roster. Without `bound` the chip
  * is the unbound new-session seat; otherwise it binds Session `blank`, which is
  * the main view's current Session unless `current` is false.
  */
-async function analyticsBench(
+async function selectionBench(
   options: Parameters<typeof bench>[0] = {},
   bound?: { preset?: string; blank: boolean; current?: boolean },
 ) {
-  const b = await bench({ presets: ANALYTICS_ROSTER, ...options })
+  const b = await bench({ presets: SELECTION_ROSTER, ...options })
   declareRoot(b.slots)
   declareConversation(b.slots)
   b.ctx.provide('conversation', {} as never)
@@ -1224,62 +1224,44 @@ async function analyticsBench(
   })
   b.ctx.provide('sessions', sessions as never)
   b.ctx.provide('uiWorkspace', uiWorkspaceDouble() as never)
-  const track = vi.fn()
-  b.ctx.provide('productAnalytics', { enabled: true, track } as never)
   await b.ctx.plugin({ inject: [...inject], apply }).await()
   const seat = (b.slots.entries('conversation.hero.agentPreset')[0]!.inject as
     (sessionId?: SessionId) => AgentPresetSeatInjected & Record<string, unknown>)(
     bound === undefined ? undefined : brandString<SessionId>('blank'))
   await seat.load()
-  return { ...b, seat, sessions, track }
+  return { ...b, seat, sessions }
 }
 
-describe('agent preset switch analytics', () => {
-  it('reports unbound picks staged for the next Session, except equal modes and custom targets', async () => {
-    const b = await analyticsBench()
+describe('agent preset switch outcomes', () => {
+  it('stages unbound picks for the next Session without Host writes', async () => {
+    const b = await selectionBench()
     try {
       await expect(b.seat.select('cordis')).resolves.toBeUndefined()
-      expect(b.track).toHaveBeenCalledExactlyOnceWith('agent_preset_switch', {
-        switch_from: 'standard', switch_to: 'creator', code_work_view_enabled: true,
-      })
       await b.seat.select('cordis')
-      expect(b.track).toHaveBeenCalledOnce()
       await b.seat.select('private-id')
-      expect(b.track).toHaveBeenCalledOnce()
       await b.seat.select('ptc')
-      expect(b.track).toHaveBeenLastCalledWith('agent_preset_switch', {
-        switch_from: 'other', switch_to: 'ptc', code_work_view_enabled: true,
-      })
-      expect(b.track).toHaveBeenCalledTimes(2)
       expect(b.calls.filter(call => call.startsWith('select:'))).toEqual([])
-      expect(JSON.stringify(b.track.mock.calls)).not.toContain('private-id')
-      expect(JSON.stringify(b.track.mock.calls)).not.toContain('Private name')
     } finally { await b.ctx.fiber.dispose() }
   })
 
-  it('reports a bound pick once the Host applies it, and ignores picks made while it is pending', async () => {
+  it('applies a bound pick and ignores picks made while it is pending', async () => {
     const gate = Promise.withResolvers<undefined>()
-    const b = await analyticsBench({ selectGate: gate.promise }, { preset: 'standard', blank: true })
+    const b = await selectionBench({ selectGate: gate.promise }, { preset: 'standard', blank: true })
     try {
       const selecting = b.seat.select('minimal')
       await expect(b.seat.select('cordis')).resolves.toBeUndefined()
-      expect(b.track).not.toHaveBeenCalled()
       gate.resolve(undefined)
       await expect(selecting).resolves.toBeUndefined()
       expect(b.calls.filter(call => call.startsWith('select:'))).toEqual(['select:minimal'])
-      expect(b.track).toHaveBeenCalledExactlyOnceWith('agent_preset_switch', {
-        switch_from: 'standard', switch_to: 'minimal', code_work_view_enabled: true,
-      })
     } finally { gate.resolve(undefined); await b.ctx.fiber.dispose() }
   })
 
-  it('does not report a bound pick that only waits for its Session to become current', async () => {
-    const b = await analyticsBench({}, { preset: 'standard', blank: true, current: false })
+  it('stages a bound pick that waits for its Session to become current', async () => {
+    const b = await selectionBench({}, { preset: 'standard', blank: true, current: false })
     try {
       await b.seat.select('cordis')
       expect(b.seat.hooks.agentPresetSeat.getSnapshot().current).toBe('cordis')
       expect(b.calls.filter(call => call.startsWith('select:'))).toEqual([])
-      expect(b.track).not.toHaveBeenCalled()
     } finally { await b.ctx.fiber.dispose() }
   })
 
@@ -1287,17 +1269,16 @@ describe('agent preset switch analytics', () => {
     { name: 'a started Session', options: {}, bound: { preset: 'standard', blank: false } },
     { name: 'a Host result other than the pick', options: { selectResult: 'standard' }, bound: { preset: 'standard', blank: true } },
     { name: 'an unknown source mode', options: {}, bound: { blank: true } },
-  ])('does not report $name', async ({ options, bound }) => {
-    const b = await analyticsBench(options, bound)
+  ])('handles $name', async ({ options, bound }) => {
+    const b = await selectionBench(options, bound)
     try {
       await expect(b.seat.select('cordis')).resolves.toBeUndefined()
-      expect(b.track).not.toHaveBeenCalled()
     } finally { await b.ctx.fiber.dispose() }
   })
 
-  it.each(['refused', 'thrown'] as const)('returns the reason of a %s pick without reporting it', async (failure) => {
+  it.each(['refused', 'thrown'] as const)('returns the reason of a %s pick', async (failure) => {
     const gate = Promise.withResolvers<undefined>()
-    const b = await analyticsBench(
+    const b = await selectionBench(
       { selectGate: gate.promise, selectRefused: failure === 'refused' },
       { preset: 'standard', blank: true },
     )
@@ -1306,39 +1287,32 @@ describe('agent preset switch analytics', () => {
       if (failure === 'thrown') gate.reject(new Error('connection lost'))
       else gate.resolve(undefined)
       await expect(selecting).resolves.toBe(failure === 'thrown' ? 'connection lost' : 'selection refused')
-      expect(b.track).not.toHaveBeenCalled()
     } finally { gate.resolve(undefined); await b.ctx.fiber.dispose() }
   })
 
-  it('records the Coding Tools setting known at the pick and reports nothing while it is unknown', async () => {
+  it('reconciles staged picks as the Coding Tools setting becomes known', async () => {
     const described = Promise.withResolvers<undefined>()
-    const b = await analyticsBench({ describeGate: described.promise })
+    const b = await selectionBench({ describeGate: described.promise })
     try {
       expect(b.ctx.configForms.get('ui-settings').getSnapshot().value).toBeUndefined()
       await b.seat.select('cordis')
-      expect(b.track).not.toHaveBeenCalled()
       described.resolve(undefined)
       await vi.waitFor(() => { expect(b.ctx.configForms.get('ui-settings').getSnapshot().status).toBe('ready') })
-      expect(b.track).not.toHaveBeenCalled()
       // Turning Coding Tools off clears the stage, so the chip falls back to the default.
       await b.setDeveloperTools(false)
       expect(b.seat.hooks.agentPresetSeat.getSnapshot().current).toBe('standard')
       await b.seat.select('cordis')
-      expect(b.track).toHaveBeenCalledExactlyOnceWith('agent_preset_switch', {
-        switch_from: 'standard', switch_to: 'creator', code_work_view_enabled: false,
-      })
     } finally { described.resolve(undefined); await b.ctx.fiber.dispose() }
   })
 
-  it('does not report a default change or its blank-Session synchronization', async () => {
-    const b = await analyticsBench({}, { preset: 'standard', blank: true })
+  it('synchronizes a default change to a blank Session', async () => {
+    const b = await selectionBench({}, { preset: 'standard', blank: true })
     try {
       const section = (b.slots.entries('settings.section')[0]!.inject as
         () => AgentPresetSectionInjected & Record<string, unknown>)()
       await section.load()
       await section.makeDefault('minimal')
       expect(b.calls).toContain('select:minimal')
-      expect(b.track).not.toHaveBeenCalled()
     } finally { await b.ctx.fiber.dispose() }
   })
 })

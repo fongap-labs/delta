@@ -304,7 +304,7 @@
     .runningWhaleAnimated {
       display: block;
       background: currentColor;
-      mask: url('../assets/running-whale@2x.png') center / 100% 100% no-repeat;
+      mask: url('../assets/running-whale-2x.png') center / 100% 100% no-repeat;
       mask-mode: alpha;
       /* Keep animated-mask repaints on an icon-sized composited layer. */
       will-change: transform;

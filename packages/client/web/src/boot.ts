@@ -46,9 +46,10 @@ export class AppWebEntry {
    * on the boot page; optional-entry failures are reported to the console and
    * the application mounts without them.
    * @param onFailure - Optional carrier-owned fatal presentation; keeps the boot page visible.
+   * @param onMounted - Optional carrier acknowledgment, only after successful client activation and mount.
    * @returns Resolves after application mount or failure reporting.
    */
-  async run(onFailure?: (reason: unknown) => void): Promise<void> {
+  async run(onFailure?: (reason: unknown) => void, onMounted?: () => Promise<void>): Promise<void> {
     try {
       // Boot-readiness gate: whichever bootstrap applies the injection table
       // settles this deferred once every row has taken effect — the served
@@ -100,6 +101,7 @@ export class AppWebEntry {
       // renderer draws is the one the first frame measures.
       this.stopDragRecall = installWindowDragRecall({ document: this.container.ownerDocument })
       await mountClient(ctx, this.container)
+      await onMounted?.()
     } catch (reason) {
       console.error(reason)
       if (onFailure !== undefined) onFailure(reason)

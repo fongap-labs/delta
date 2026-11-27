@@ -1,4 +1,4 @@
-/** Resolve the Desktop auto-update channel and its Tencent COS destination. */
+/** Resolve explicit test updater metadata for local qualification. */
 
 import { valid } from 'semver'
 
@@ -16,44 +16,7 @@ export function resolveDesktopUpdateChannel(env) {
   return channel
 }
 
-const UPDATE_ENVIRONMENTS = {
-  test: {
-    originEnvName: 'DOWNLOAD_TEST_ORIGIN',
-    fixedOrigin: undefined,
-    bucketEnvName: 'DOWNLOAD_TEST_COS_BUCKET',
-    secretIdEnvName: 'DOWNLOAD_TEST_COS_SECRET_ID',
-    secretKeyEnvName: 'DOWNLOAD_TEST_COS_SECRET_KEY',
-  },
-  production: {
-    originEnvName: undefined,
-    fixedOrigin: 'https://download.deepseek.com',
-    bucketEnvName: 'DOWNLOAD_PROD_COS_BUCKET',
-    secretIdEnvName: 'DOWNLOAD_PROD_COS_SECRET_ID',
-    secretKeyEnvName: 'DOWNLOAD_PROD_COS_SECRET_KEY',
-  },
-}
-
 const UPDATE_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
-
-/**
- * Name the fixed installer object shared by uploading and cache refresh.
- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target Supported Desktop target.
- * @returns {string} Fixed download filename.
- */
-export function desktopLatestInstallerFilename(target) {
-  if (!UPDATE_TARGETS.has(target)) throw new Error(`desktop upload: unsupported target ${target}`)
-  const windows = target === 'win-x64'
-  return `dsh-latest-${windows ? 'windows' : 'macos'}-${target === 'mac-arm64' ? 'arm64' : 'x64'}.${windows ? 'exe' : 'dmg'}`
-}
-
-/**
- * Resolve the production website installer URL shared by approval, upload and purge.
- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target Supported Desktop target.
- * @returns {string} Fixed production download URL.
- */
-export function desktopWebsiteInstallerUrl(target) {
-  return `${UPDATE_ENVIRONMENTS.production.fixedOrigin}/desktop/${desktopLatestInstallerFilename(target)}`
-}
 
 /**
  * Resolve the update deployment, defaulting local release work to test.
@@ -149,6 +112,10 @@ function httpsOrigin(value, name) {
     || parsed.hash !== '') {
     throw new Error(`desktop auto-update: ${name} must be an absolute HTTPS origin without a path, credentials, query, or fragment`)
   }
+  const hostname = parsed.hostname.replace(/\.$/u, '')
+  if (hostname === 'deepseek.com' || hostname.endsWith('.deepseek.com')) {
+    throw new Error('Delta update: upstream service origins are not supported')
+  }
   return parsed.origin
 }
 
@@ -164,13 +131,8 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const channel = resolveDesktopUpdateChannel(env)
   const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
-  const deployment = UPDATE_ENVIRONMENTS[environment]
-  let origin = deployment.fixedOrigin
-  if (origin === undefined) {
-    const { originEnvName } = deployment
-    if (originEnvName === undefined) throw new Error('desktop auto-update: selected deployment has no origin')
-    origin = httpsOrigin(requiredEnvironmentValue(env, originEnvName), originEnvName)
-  }
+  if (environment !== 'test') throw new Error('desktop auto-update: no production feed is configured in Delta')
+  const origin = httpsOrigin(requiredEnvironmentValue(env, 'DOWNLOAD_TEST_ORIGIN'), 'DOWNLOAD_TEST_ORIGIN')
   let releasePrefix = 'dsh-desk'
   if (environment === 'test') {
     const releaseId = requiredEnvironmentValue(env, 'DOWNLOAD_TEST_RELEASE_ID')
@@ -188,24 +150,5 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
     keyPrefix,
     binaryKeyPrefix: `${releasePrefix}/bin/${target}${channel === 'stable' ? '/stable' : ''}`,
     publicUrl: `${origin}/${keyPrefix}/`,
-  }
-}
-
-/**
- * Resolve the public updater URL and private COS destination for one upload target.
- * @param {NodeJS.ProcessEnv} env - Upload environment.
- * @param {NodeJS.Platform} platform - Target Node.js platform.
- * @param {string} arch - Target Node.js architecture.
- * @returns {{ environment: 'test' | 'production', channel: 'nightly' | 'stable', target: 'mac-arm64' | 'mac-x64' | 'win-x64', origin: string, publicUrl: string, keyPrefix: string, binaryKeyPrefix: string, bucket: string, secretIdEnvName: string, secretKeyEnvName: string }} Resolved upload configuration.
- * @throws {Error} When the selected deployment lacks a bucket or valid updater configuration.
- */
-export function resolveDesktopUploadConfig(env, platform, arch) {
-  const update = resolveDesktopAutoUpdateConfig(env, platform, arch)
-  const deployment = UPDATE_ENVIRONMENTS[update.environment]
-  return {
-    ...update,
-    bucket: requiredEnvironmentValue(env, deployment.bucketEnvName),
-    secretIdEnvName: deployment.secretIdEnvName,
-    secretKeyEnvName: deployment.secretKeyEnvName,
   }
 }

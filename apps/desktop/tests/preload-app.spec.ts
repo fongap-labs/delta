@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMandatoryUpdateOverlay } from '../src/preload-mandatory-overlay.ts'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
-import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
+import { DESKTOP_IPC, MANDATORY_OVERLAY_ARG, type DshDesktopProductApi } from '../src/ipc.ts'
 
 const electron = vi.hoisted(() => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
@@ -94,8 +94,10 @@ it('exposes the application API only to the trusted main frame', async () => {
 it('exposes asynchronous boot only to the local application document', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/'))
   await import('../src/preload-app.ts')
-  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktopBoot')?.[1] as { ready(): Promise<unknown>; failed(message: string): Promise<void> }
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktopBoot')?.[1] as { ready(): Promise<unknown>; mounted(): Promise<void>; failed(message: string): Promise<void> }
   await api.ready()
+  await api.mounted()
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.bootMounted)
   await api.failed('client mount failed')
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.bootFailed, 'client mount failed')
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.boot)
@@ -168,7 +170,7 @@ it('moves welcome-entry focus to the document without changing keyboard tab orde
 })
 
 it.each(['win32', 'darwin'] as const)('installs the embedded mandatory UI only in the Windows app document (%s)', async (platform) => {
-  vi.stubGlobal('process', { ...process, platform })
+  vi.stubGlobal('process', { ...process, platform, argv: [...process.argv, MANDATORY_OVERLAY_ARG] })
   for (const url of ['dsh-app://app/', 'dsh-app://shell/mandatory-update.html', 'https://example.com/']) {
     vi.resetModules()
     vi.mocked(installMandatoryUpdateOverlay).mockClear()
@@ -176,6 +178,13 @@ it.each(['win32', 'darwin'] as const)('installs the embedded mandatory UI only i
     await import('../src/preload-app.ts')
     expect(installMandatoryUpdateOverlay).toHaveBeenCalledTimes(platform === 'win32' && url === 'dsh-app://app/' ? 1 : 0)
   }
+})
+
+it('does not mount mandatory UI when the Windows host has no configured policy', async () => {
+  vi.stubGlobal('process', { ...process, platform: 'win32', argv: process.argv.filter(arg => arg !== MANDATORY_OVERLAY_ARG) })
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  expect(installMandatoryUpdateOverlay).not.toHaveBeenCalled()
 })
 
 it('exposes constrained shortcut operations and releases configuration subscriptions', async () => {
