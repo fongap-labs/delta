@@ -77,7 +77,7 @@ function sanitizeTextFile(path: string, source: string): string {
   // Split the scanner token with a Python escape so the decoded font bytes are
   // unchanged while the source no longer contains an AWS-key-shaped sequence.
   const withEncodedFontToken = path.replaceAll('\\', '/').endsWith('/PIL/ImageFont.py')
-    ? source.replace(AWS_KEY, match => `A\\x${match.codePointAt(1)!.toString(16).padStart(2, '0')}${match.slice(2)}`)
+    ? source.replace(AWS_KEY, match => `A\\x${(match.codePointAt(1) ?? 0).toString(16).padStart(2, '0')}${match.slice(2)}`)
     : source
   return sanitizeRuntimeText(withEncodedFontToken)
 }
@@ -85,6 +85,8 @@ function sanitizeTextFile(path: string, source: string): string {
 function likelyText(bytes: Buffer, extension: string, name: string): boolean {
   if (TEXT_EXTENSIONS.has(extension) || TEXT_NAMES.has(name.toUpperCase())) return true
   if (bytes.includes(0)) return false
+  // Valid UTF-8 without NUL bytes is text in any script, whatever its extension.
+  if (bytes.length > 0 && isUtf8(bytes)) return true
   let printable = 0
   for (const byte of bytes) if (byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte <= 126)) printable += 1
   return bytes.length > 0 && printable / bytes.length >= 0.95
@@ -110,7 +112,7 @@ function visit(directory: string, result: { files: number; retained: Record<stri
       rmSync(path)
       continue
     }
-    const extension = entry.name.includes('.') ? `.${entry.name.split('.').pop()!}`.toLowerCase() : ''
+    const extension = entry.name.includes('.') ? `.${entry.name.split('.').pop() ?? ''}`.toLowerCase() : ''
     const bytes = readFileSync(path)
     const text = likelyText(bytes, extension, entry.name)
     const utf8 = isUtf8(bytes)

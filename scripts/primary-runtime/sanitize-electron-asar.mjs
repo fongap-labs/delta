@@ -2,6 +2,7 @@
 import { createRequire } from 'node:module'
 import { cpSync, createReadStream, existsSync, lstatSync, mkdtempSync, readdirSync, readlinkSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { pruneUnreferencedNpmTests } from './prune-npm-tests.ts'
 import { sanitizeRuntimeMetadata } from './sanitize-runtime-metadata.ts'
 
 const repositoryRoot = resolve(import.meta.dirname, '..', '..')
@@ -31,9 +32,13 @@ try {
   }
   collect(getRawHeader(archive).header)
   extractAll(archive, extracted)
+  const pruned = pruneUnreferencedNpmTests(extracted)
+  const isPruned = path => pruned.some(directory => path === directory || path.startsWith(`${directory}/`))
+  for (const directory of pruned) rmSync(join(`${archive}.unpacked`, directory), { recursive: true, force: true })
+  const retainedUnpacked = unpacked.filter(path => !isPruned(path))
   const audit = sanitizeRuntimeMetadata(extracted)
-  process.stdout.write(`delta ASAR metadata audit: ${JSON.stringify(audit)}\n`)
-  const outsidePaths = new Set(unpacked)
+  process.stdout.write(`delta ASAR metadata audit: ${JSON.stringify({ ...audit, prunedTestDirectories: pruned.length })}\n`)
+  const outsidePaths = new Set(retainedUnpacked)
   const streams = []
   function stage(directory, prefix = '') {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -54,7 +59,7 @@ try {
   await createPackageFromStreams(rebuilt, streams)
   const rebuiltUnpacked = []
   collect(getRawHeader(rebuilt).header, '', false, rebuiltUnpacked)
-  if (JSON.stringify(unpacked.sort()) !== JSON.stringify(rebuiltUnpacked.sort())) {
+  if (JSON.stringify(retainedUnpacked.sort()) !== JSON.stringify(rebuiltUnpacked.sort())) {
     throw new Error('electron asar sanitizer: native resource placement changed')
   }
   if (existsSync(`${rebuilt}.unpacked`)) cpSync(`${rebuilt}.unpacked`, `${archive}.unpacked`, { recursive: true })

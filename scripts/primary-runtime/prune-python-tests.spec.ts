@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { zipSync } from 'fflate'
@@ -31,6 +31,12 @@ it('preserves native ASAR placement beyond the glob pattern size limit', async (
     const email = `owner${String.fromCharCode(64)}example.invalid`
     await writeFile(join(source, 'LICENSE'), email)
     await writeFile(join(source, 'main.js'), 'module.exports = 42;')
+    const demo = join(source, 'node_modules/demo')
+    await mkdir(join(demo, 'test'), { recursive: true })
+    await writeFile(join(demo, 'package.json'), JSON.stringify({ name: 'demo', main: 'index.js' }))
+    await writeFile(join(demo, 'index.js'), 'module.exports = 7;')
+    await writeFile(join(demo, 'test', 'probe.node'), native)
+    await writeFile(join(demo, 'test', 'probe.js'), "require('../index.js')")
     const archive = join(root, 'app.asar')
     await asar.createPackageWithOptions(source, archive, { unpack: '**/*.node' })
     const result = spawnSync(process.execPath, ['--import', 'tsx',
@@ -44,6 +50,10 @@ it('preserves native ASAR placement beyond the glob pattern size limit', async (
     }
     expect(asar.extractFile(archive, 'LICENSE').toString()).not.toContain(email)
     expect(asar.extractFile(archive, 'main.js').toString()).toBe('module.exports = 42;')
+    expect(asar.extractFile(archive, 'node_modules/demo/index.js').toString()).toBe('module.exports = 7;')
+    expect(() => asar.statFile(archive, 'node_modules/demo/test/probe.js')).toThrow()
+    expect(() => asar.statFile(archive, 'node_modules/demo/test/probe.node')).toThrow()
+    await expect(stat(join(`${archive}.unpacked`, 'node_modules/demo/test'))).rejects.toMatchObject({ code: 'ENOENT' })
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -163,6 +173,30 @@ it('removes release metadata without rewriting native bytes', async () => {
     await expect(readFile(join(root, 'PIL', '__pycache__', 'ImageFont.pyc'))).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(join(root, 'demo-1.0.0.dist-info', 'DELVEWHEEL'))).rejects.toMatchObject({ code: 'ENOENT' })
     expect(await readFile(join(root, 'native.node'))).toEqual(native)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+it('sanitizes UTF-8 text in any script whatever its extension and leaves NUL-bearing data untouched', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'primary-runtime-utf8-'))
+  const email = `author${String.fromCharCode(64)}example.com`
+  const words = '\u0936\u0942\u0928\u094d\u092f \u090f\u0915 \u0926\u094b\u0928'
+  try {
+    const text = `${words} ${email}\n`
+    await writeFile(join(root, 'numbers.sor'), text)
+    const binary = Buffer.concat([Buffer.from([0]), Buffer.from(` ${email} `), Buffer.from([0])])
+    await writeFile(join(root, 'table.sor'), binary)
+
+    const audit = sanitizeRuntimeMetadata(root)
+
+    const sanitized = await readFile(join(root, 'numbers.sor'))
+    expect(sanitized.toString('utf8')).not.toContain(String.fromCharCode(64))
+    expect(sanitized.toString('utf8')).toContain(words)
+    expect(sanitized.length).toBe(Buffer.byteLength(text))
+    expect(await readFile(join(root, 'table.sor'))).toEqual(binary)
+    expect(audit.files).toBe(1)
+    expect(audit.retained['other-binary']).toBe(1)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
