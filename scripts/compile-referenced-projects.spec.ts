@@ -412,7 +412,7 @@ describe('package project compilation', () => {
     const { root } = fixture()
     rmSync(join(root, 'tsconfig.host.json'))
 
-    expect(() => { compileReferencedProjects(root, 'host') }).toThrow('Cannot read file')
+    expect(() => { compileReferencedProjects(root, 'host') }).toThrow(`cannot read ${join(root, 'tsconfig.host.json')}`)
   })
 
   it('rejects invalid compiler options', () => {
