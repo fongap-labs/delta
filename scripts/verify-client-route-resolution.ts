@@ -29,7 +29,7 @@
 
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 import { faceConfigs } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')

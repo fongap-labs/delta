@@ -23,7 +23,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 import { collectPluginRecords } from './plugin-record-catalog.ts'
 import { faceConfigs } from './ts-project.ts'
 

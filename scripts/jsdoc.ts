@@ -3,7 +3,7 @@
  * and config catalogs and the exported-API gate.
  */
 
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 
 /** Repo-relative source pointer `file:line` for a node's first character. */
 export function pointer(rel: string, sf: ts.SourceFile, node: ts.Node): string {

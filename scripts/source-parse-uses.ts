@@ -2,7 +2,7 @@
 import { globSync, readFileSync } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import { resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 import type { PackageDependencyManifest, WorkspacePackageManifest } from './verify-package-dependencies.ts'
 
 export type DependencySection = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
