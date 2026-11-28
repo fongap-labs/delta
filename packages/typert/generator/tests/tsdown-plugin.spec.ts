@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import compilerApi, { assertTypertCompilerApi } from '../src/compiler-api.ts'
 import type { WorkspaceEmitResult } from '../src/workspace.ts'
 
 const generated = vi.hoisted(() => vi.fn<() => WorkspaceEmitResult[]>(() => [
@@ -73,6 +74,24 @@ afterEach(() => {
   generatorRoots.splice(0)
   workers.splice(0)
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+describe('Typert compiler API boundary', () => {
+  it('accepts the installed package-local programmatic compiler API', () => {
+    expect(() => { assertTypertCompilerApi(compilerApi) }).not.toThrow()
+    expect(typeof compilerApi.createProgram).toBe('function')
+    expect(typeof compilerApi.transpileModule).toBe('function')
+  })
+
+  it('rejects a CLI-only compiler before any semantic analysis runs', () => {
+    expect(() => { assertTypertCompilerApi({ versionMajorMinor: '7.0' }) })
+      .toThrow('TypeScript 6 compiler API is required')
+  })
+
+  it('rejects a partial JavaScript compiler API rather than degrading analysis', () => {
+    expect(() => { assertTypertCompilerApi({ versionMajorMinor: '6.0' }) })
+      .toThrow('incomplete compiler API: createProgram')
+  })
 })
 
 describe('typertPlugin', () => {

@@ -1,15 +1,25 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { join, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects } from './compile-referenced-projects.ts'
+import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects, referencedProjectsCompilerArgs } from './compile-referenced-projects.ts'
+import { nativeCompilerPath } from './native-compiler-cli.ts'
 import { runCiBench } from './run-ci-bench.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 import { setPublishedFiles, writeTypertWorkspace } from './typert-workspace.fixture.ts'
 
-const compiler = fileURLToPath(import.meta.resolve('typescript/bin/tsc'))
+const compiler = nativeCompilerPath()
+
+it('runs the pinned native build compiler rather than the semantic API compiler', () => {
+  const result = spawnSync(process.execPath, [compiler, '--version'], { encoding: 'utf8' })
+  expect(result.status, result.stderr).toBe(0)
+  expect(result.stdout.trim()).toBe('Version 7.0.2')
+  const launcher = spawnSync(process.execPath, [resolve(import.meta.dirname, 'native-compiler-cli.ts'), '--version'], { encoding: 'utf8' })
+  expect(launcher.status, launcher.stderr).toBe(0)
+  expect(launcher.stdout.trim()).toBe(result.stdout.trim())
+})
 
 function fixture(): { root: string; leaf: string } {
   const root = mkdtempSync(join(tmpdir(), 'dsh-referenced-projects-'))
@@ -358,9 +368,30 @@ describe('package project compilation', () => {
 
   it.each([undefined, []])('rejects an aggregate with missing or empty references: %j', (references) => {
     const { root } = fixture()
-    writeFileSync(join(root, 'tsconfig.host.json'), JSON.stringify({ files: [], references }))
+    writeFileSync(join(root, 'tsconfig.host.json'), JSON.stringify({ include: ['aggregate.ts'], references }))
 
     expect(() => { compileReferencedProjects(root, 'host') }).toThrow('requires non-empty project references')
+  })
+
+  it('resolves inherited noEmit and JSONC references through the compiler CLI', () => {
+    const { root, leaf } = fixture()
+    writeFileSync(join(root, 'tsconfig.base.json'), JSON.stringify({
+      compilerOptions: { noEmit: true },
+    }))
+    writeFileSync(join(root, 'tsconfig.host.json'), [
+      '{',
+      '  // Resolve inherited compiler options and preserve paths with spaces.',
+      '  "extends": "./tsconfig.base.json",',
+      '  "include": ["aggregate.ts"],',
+      '  "references": [{ "path": "./leaf package" }],',
+      '}',
+    ].join('\n'))
+
+    const args = referencedProjectsCompilerArgs(root, 'host')
+    expect(args).toEqual(['--max-old-space-size=8192', compiler, '-b', relative(root, leaf)])
+    expect(referencedProjectsCompilerArgs(root, 'host', 'benchmark-emit'))
+      .toEqual(['--max-old-space-size=8192', compiler, '-b', '--noCheck', relative(root, leaf)])
+    expect(existsSync(join(leaf, 'lib'))).toBe(false)
   })
 
   it('rejects a missing referenced project', () => {
@@ -391,7 +422,7 @@ describe('package project compilation', () => {
     const { root } = fixture()
     rmSync(join(root, 'tsconfig.host.json'))
 
-    expect(() => { compileReferencedProjects(root, 'host') }).toThrow('Cannot read file')
+    expect(() => { compileReferencedProjects(root, 'host') }).toThrow(`cannot read ${join(root, 'tsconfig.host.json')}`)
   })
 
   it('rejects invalid compiler options', () => {

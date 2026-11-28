@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 import { findBuildOutputLoads, findUnresolvedWorkspaceImports } from './build-output-guard.ts'
 import type { BuildOutputLoad, UnresolvedWorkspaceImport } from './build-output-guard.ts'
 import type {

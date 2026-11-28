@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
+import ts from './semantic-compiler-api.ts'
+import typertCompilerApi from '../packages/typert/generator/src/compiler-api.ts'
 import { compileBlocks, extractBlocks } from './doc-typecheck.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 
@@ -53,4 +55,11 @@ it('checks Client examples against their JSX project and rejects invalid props w
   } finally {
     removeFixtureSafely(root)
   }
+})
+
+it('shares the supported programmatic compiler with Typert, independently of the build CLI', () => {
+  expect(ts).toBe(typertCompilerApi)
+  expect(ts.versionMajorMinor).toMatch(/^6\./)
+  expect(typeof ts.getParsedCommandLineOfConfigFile).toBe('function')
+  expect(typeof ts.createProgram).toBe('function')
 })
