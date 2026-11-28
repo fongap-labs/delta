@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import ts from './compiler-api.ts'
+import ts from './semantic-compiler-api.ts'
 import { checkParams, checkReturns, parseJsDoc, parseTags, pointer, rawJsDoc, reportViolations } from './jsdoc.ts'
 import { cordisModuleBody } from './cordis-walk.ts'
 

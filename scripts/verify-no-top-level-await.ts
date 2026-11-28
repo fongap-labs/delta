@@ -24,7 +24,7 @@
 
 import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs'
 import { join, posix, resolve } from 'node:path'
-import ts from './compiler-api.ts'
+import ts from './semantic-compiler-api.ts'
 
 const GATE = 'verify-no-top-level-await'
 const root = resolve(import.meta.dirname, '..')

@@ -2,7 +2,7 @@
 
 import { existsSync, globSync } from 'node:fs'
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
-import ts from './compiler-api.ts'
+import ts from './semantic-compiler-api.ts'
 
 type ProjectFace = 'host' | 'client'
 
