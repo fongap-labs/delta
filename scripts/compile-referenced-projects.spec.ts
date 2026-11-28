@@ -2,14 +2,24 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { aggregateCheckArgs, buildHostContracts, buildLibraryArtifacts, compileReferencedProjects, referencedProjectsCompilerArgs } from './compile-referenced-projects.ts'
+import { nativeCompilerPath } from './native-compiler-cli.ts'
 import { runCiBench } from './run-ci-bench.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 import { setPublishedFiles, writeTypertWorkspace } from './typert-workspace.fixture.ts'
 
-const compiler = fileURLToPath(import.meta.resolve('typescript/bin/tsc'))
+const compiler = nativeCompilerPath()
+
+it('runs the pinned native build compiler rather than the semantic API compiler', () => {
+  const result = spawnSync(process.execPath, [compiler, '--version'], { encoding: 'utf8' })
+  expect(result.status, result.stderr).toBe(0)
+  expect(result.stdout.trim()).toBe('Version 7.0.2')
+  const launcher = spawnSync(process.execPath, [resolve(import.meta.dirname, 'native-compiler-cli.ts'), '--version'], { encoding: 'utf8' })
+  expect(launcher.status, launcher.stderr).toBe(0)
+  expect(launcher.stdout.trim()).toBe(result.stdout.trim())
+})
 
 function fixture(): { root: string; leaf: string } {
   const root = mkdtempSync(join(tmpdir(), 'dsh-referenced-projects-'))

@@ -10,6 +10,7 @@
 import { execFileSync } from 'node:child_process'
 import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { nativeCompilerPath } from './native-compiler-cli.ts'
 import ts from './semantic-compiler-api.ts'
 import { builtDeclarationPath, isFrozenUpgradeGuidePath } from './doc-typecheck-paths.ts'
 import { markdownFences } from './markdown.ts'
@@ -189,8 +190,8 @@ function compileBlocksStandalone(blocks: Block[], face: 'host' | 'client', repos
       writeFileSync(join(tmp, `block-${index}.ts`), block.code.endsWith('\n') ? block.code : `${block.code}\n`)
     }
     try {
-      // Invoke tsc's JS entry through Node instead of a platform-specific shell shim.
-      execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-b', join(tmp, 'tsconfig.json')], {
+      // Invoke the declared compiler entry through Node instead of a platform-specific shell shim.
+      execFileSync(process.execPath, [nativeCompilerPath(), '-b', join(tmp, 'tsconfig.json')], {
         cwd: repositoryRoot,
         stdio: 'pipe',
       })
