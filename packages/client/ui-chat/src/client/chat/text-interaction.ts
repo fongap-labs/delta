@@ -1,4 +1,3 @@
-/** Area-local text gestures, action ownership, dismissal, and content-relative placement. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { readTextSelection, selectedText } from './text-selection.ts'
@@ -8,7 +7,6 @@ import type {
   TextInteractionGesture, TextInteractionSurface, TextInteractionTrigger,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
-/** Current area-owned surface and its actions. */
 export interface TextInteractionBinding extends Omit<TextInteractionSurface, 'trigger'> {
   readonly active: { readonly id: string; readonly trigger: TextInteractionTrigger } | null
 }

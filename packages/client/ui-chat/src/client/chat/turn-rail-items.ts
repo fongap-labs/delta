@@ -17,7 +17,6 @@ export interface TurnRailItem {
   readonly prompt: string
   /** Bounded response preview (loaded window first, outline fallback). */
   readonly response: string
-  /** How the rail reaches the Turn. */
   readonly anchor:
     | { readonly kind: 'loaded'; readonly key: string }
     | { readonly kind: 'unloaded'; readonly seq: SessionSeq }

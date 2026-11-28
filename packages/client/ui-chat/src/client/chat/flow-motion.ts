@@ -15,11 +15,9 @@ const SETTLE_SLACK_MS = 80
 const MOTION_SCOPE = '[data-chat-motion]'
 const EASING = 'cubic-bezier(0.4, 0, 0.2, 1)'
 
-/** Row-local operations supplied by the containing viewport. */
 export interface FlowMotionRows {
   /** @param element - visible row. @param done - commits hidden state before idle callbacks run. */
   collapse(element: HTMLElement, done: () => void): void
-  /** @param element - newly visible row to grow to its natural size. */
   reveal(element: HTMLElement): void
   /** @param element - row whose active transition should be cancelled without hiding it. */
   cancelMotion(element: HTMLElement): void
@@ -31,7 +29,6 @@ export interface FlowMotionRows {
   hideNow?(element: HTMLElement, commit: () => void): void
 }
 
-/** Geometry captured before one fold batch changes its boxes. */
 export interface InputFoldBox {
   readonly element: HTMLElement
   readonly height: number
@@ -70,11 +67,9 @@ export interface InputFoldDriver {
   finish(cancelled: boolean): void
 }
 
-/** Animation lifetime and fold coordination for one viewport. */
 export interface FlowMotion extends FlowMotionRows {
   /** @returns whether owned transitions or a scheduled, running, or settling batch remain active. */
   active(): boolean
-  /** @returns whether a row owned by this viewport is closing. */
   foldActive(): boolean
   /** @param listener - callback after the last fold. @returns cancellation for a pending callback. */
   onFoldIdle(listener: () => void): () => void
@@ -118,7 +113,6 @@ function revealedShare(box: OwnedBox, progress: number): number {
   return start + (1 - start) * progress
 }
 
-/** A box this viewport owns until it finishes or is cancelled. */
 interface OwnedBox {
   readonly element: HTMLElement
   /**

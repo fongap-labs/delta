@@ -5,7 +5,6 @@
 import { useEffect, useId, useRef, useState, type MutableRefObject } from 'react'
 import { useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
 
-/** Open state, refs, and CSS anchor identity for one stat dialog. */
 export interface StatDialogSeat {
   open: boolean
   setOpen: (open: boolean) => void

@@ -1,8 +1,6 @@
-/** Presentation of durable non-human messages claimed to begin a Turn. */
 import type { ContextMessageNode } from '../contract/snapshot.ts'
 import type { ChatKey } from '../locale.ts'
 
-/** Existing primitive glyph selected for a Turn trigger's source family. */
 export type TurnTriggerIcon = 'agent' | 'continue' | 'github' | 'goal' | 'job' | 'plugin' | 'request' | 'schedule' | 'subagent' | 'team' | 'webhook'
 
 function record(value: unknown): Record<string, unknown> {
