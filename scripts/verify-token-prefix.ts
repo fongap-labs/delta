@@ -22,10 +22,7 @@ export const COMPAT_FILES: Readonly<Record<string, string>> = Object.freeze({
   'packages/client/ui-theme/src/legacy-tokens.json': 'frozen legacy name list',
   'packages/client/ui-theme/src/legacy-tokens.ts': 'explicit legacy renames',
   'packages/client/ui-theme/src/styles/legacy-plugin-aliases.css': 'generated compatibility aliases',
-  'packages/client/ui-theme/tests/legacy-tokens.client.spec.ts': 'compatibility runtime spec',
-  'packages/client/ui-theme/tests/legacy-aliases.client.spec.ts': 'compatibility stylesheet spec',
   'scripts/verify-token-prefix.ts': 'this gate',
-  'scripts/verify-token-prefix.spec.ts': 'this gate\'s spec',
 })
 
 /** Paths outside the gate: third-party sources, history, and generated or binary artifacts. */

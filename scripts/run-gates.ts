@@ -1007,6 +1007,7 @@ function docSyncLeafGates(options: {
     pnpmScript('client-catalog', 'verify-client-catalog', { label: 'client catalog' }),
     pnpmScript('legacy-token-aliases', 'verify-legacy-token-aliases', { label: 'legacy token aliases', quick: true }),
     pnpmScript('token-prefix', 'verify-token-prefix', { label: 'token prefix', quick: true }),
+    pnpmScript('design-literals', 'verify-design-literals', { label: 'design literal tokens', quick: true }),
     pnpmScript('export-jsdoc', 'verify-export-jsdoc', { label: 'export jsdoc' }),
     pnpmScript('config-catalog', 'verify-config-catalog', { label: 'config catalog' }),
     pnpmScript('plugin-packages', 'verify-plugin-packages', { label: 'skill plugin package list' }),

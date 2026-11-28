@@ -160,6 +160,7 @@
     "gen-legacy-token-aliases": "tsx scripts/gen-token-aliases.ts",
     "verify-legacy-token-aliases": "tsx scripts/gen-token-aliases.ts --check",
     "verify-token-prefix": "tsx scripts/verify-token-prefix.ts",
+    "verify-design-literals": "tsx scripts/verify-design-literals.ts",
     "verify-export-jsdoc": "tsx scripts/verify-export-jsdoc.ts",
     "gen-workflow-guest": "tsx scripts/gen-workflow-guest.ts",
     "verify-workflow-guest": "tsx scripts/gen-workflow-guest.ts --check",
