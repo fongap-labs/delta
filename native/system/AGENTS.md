@@ -1,6 +1,8 @@
-# AGENTS.md
+# AGENTS — Native system
 
-This workspace owns `@deepseek-ai/node-addon-system`: the Linux `landlock-run` confinement executable and the POSIX `system.node` binding. It shares the root pnpm workspace and lockfile; native packages have one independent version and release workflow.
+Follow the root AGENTS.md. These are native-system runtime and packaging constraints only; central test ownership and release authorization still apply.
+
+This workspace owns `@deepseek-ai/node-addon-system`: the Linux `landlock-run` confinement executable and the POSIX `system.node` binding. It shares the root pnpm workspace and lockfile; native packages retain their independent version; publication uses the approved central release path.
 
 ## Runtime rules
 
@@ -8,7 +10,7 @@ This workspace owns `@deepseek-ai/node-addon-system`: the Linux `landlock-run` c
 - The launcher uses only libc, statically linked against musl. Its kernel UAPI definitions remain in the reviewed C source.
 - Node bindings use stable Node-API v8, never NAN, V8 C++ APIs, or experimental Node interfaces. Linux glibc and musl addons are distinct binaries; macOS has its own Mach-O bundle.
 - The flock binding attempts only `LOCK_EX | LOCK_NB` in asynchronous work and captures errno on that worker. The caller owns the fd through completion and releases its lock by closing it.
-- `./landlock-run` and `./flock` are independent capability exports; the package has no root export. Neither import loads the addon. `./flock` loads it only when called; Windows retains the Harness's existing semaphore implementation.
+- `./landlock-run` and `./flock` are independent capability exports; the package has no root export. Neither import loads the addon. `./flock` loads it only when called; Windows retains its existing semaphore implementation.
 - Runtime binary selection has no environment-variable overrides. `NALR_REQUIRE_LANDLOCK` is a test-only enforcement requirement.
 - There is no install-time compile fallback. Missing Landlock binaries probe unusable; missing flock bindings reject acquisition, never silently grant a lock.
 
@@ -25,4 +27,4 @@ Run `pnpm build:ts`, `pnpm build:native`, `pnpm build:test-oracle`, `pnpm typech
 - Platform prepack rejects missing, undeclared, wrong-format, wrong-architecture, and non-Node-API addon payloads. Launcher executability is checked separately.
 - Platform tarballs use npm pack to preserve executable permissions. The entry uses pnpm pack for workspace version conversion.
 - Packed-install verification checks manifests, installs local tarballs without a registry, byte-pins payloads, and exercises both the installed flock binding and Landlock's functional probe.
-- Build outputs stay ignored. Source/consumer changes and their behavior tests land together; preserve bilingual READMEs and independent native publication.
+- Build outputs stay ignored. Source/consumer changes and necessary behavior verification land together; preserve bilingual READMEs and approved native publication.
