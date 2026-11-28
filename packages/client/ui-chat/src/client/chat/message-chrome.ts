@@ -2,14 +2,11 @@
 
 import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 
-/** The date-template share of the conversation dictionary the clock consumes. */
 export type ClockTranslate = Translate<'clock.md' | 'clock.ymd'>
 
-/** The elapsed-duration share of the conversation dictionary. */
 export type RunDurationTranslate =
   Translate<'duration.secondUnit' | 'duration.minuteUnit' | 'duration.hourUnit'>
 
-/** Refresh interval for whole-second live run clocks. */
 export const LIVE_RUN_CLOCK_INTERVAL_MS = 1000
 
 function pad2(n: number): string {
@@ -38,7 +35,6 @@ export function msUntilNextLocalMidnight(ms: number): number {
   return Math.max(next.getTime() - ms, 1)
 }
 
-/** One numeric value or localized unit in an elapsed-time label. */
 export interface RunDurationPart {
   readonly text: string
   readonly numeric: boolean

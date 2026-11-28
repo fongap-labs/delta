@@ -1,4 +1,3 @@
-/** Completed-Turn token usage action and its accounting details dialog. */
 
 import { createPortal } from 'react-dom'
 import { IconDatabaseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -11,7 +10,6 @@ import dialogCss from './stat-dialog.module.css'
 
 export interface TurnUsagePanelProps {
   usage: TurnTokenUsage
-  /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
 

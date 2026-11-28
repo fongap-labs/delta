@@ -1,4 +1,3 @@
-/** Official reasoning content and its default Body Slot adapter. */
 import { memo, useMemo } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FactoryComponentPropsOf, PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'

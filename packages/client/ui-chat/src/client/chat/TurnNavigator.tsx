@@ -19,7 +19,6 @@ interface TurnNavigatorProps {
 
 /** Imperative controls for known turns; unknown turn numbers are ignored. */
 export interface TurnNavigatorHandle {
-  /** @param turn - turn to activate through the navigation callback. */
   activateTurn(turn: number): void
   /** @param turn - turn to center in the rail without navigating the transcript. */
   scrollToTurn(turn: number): void
@@ -27,7 +26,6 @@ export interface TurnNavigatorHandle {
 
 /** Fixed pitch between neighbouring marks; overflow scrolls inside the frame. */
 const TURN_SPACING_PX = 10
-/** Rail padding above the first mark and below the last one, per end. */
 const RAIL_INSET_PX = 6
 /** Fade band the mask reserves at a scrollable end. */
 const FADE_PX = 24

@@ -1,4 +1,3 @@
-/** Session-bound Markdown previews for manual and automatic compaction rows. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionAddress } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'

@@ -1,4 +1,3 @@
-/** Ordered Chat rows, local echoes, and running status share the flow slot's parent. */
 import { memo, type ReactElement } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
@@ -12,12 +11,10 @@ import { RunningStatus } from './RunningStatus.tsx'
 /** A local submission echo, or a Host-pending steering item without a local submission. */
 type PendingInput = ChatFlowSlotProps['pendingInputs'][number]
 
-/** Whether the echo is a local submission rather than a Host-pending steering item. */
 function isLocalSubmission(item: PendingInput): item is PendingSubmission {
   return 'requestId' in item
 }
 
-/** Whether the echo is a local submission that opens a new Turn. */
 function isTranscriptEcho(item: PendingInput): boolean {
   return isLocalSubmission(item) && item.placement === 'transcript'
 }

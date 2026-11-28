@@ -11,7 +11,6 @@ import { useCalendarDay } from './use-calendar-day.ts'
 import css from './MessageIconActions.module.css'
 
 export interface MessageIconActionsProps {
-  /** Plain text the copy action writes. */
   text: string
   /** Unix epoch ms for the clock label; omitted for transient messages. */
   time?: number | undefined
@@ -21,7 +20,6 @@ export interface MessageIconActionsProps {
   onBranch?: (() => void) | undefined
   /** The message is not a completed transcript tail, so branch stays visible but unavailable. */
   branchUnavailable?: boolean | undefined
-  /** Parent layout class composed onto the actions row. */
   className?: string | undefined
   /**
    * Slot-rendered actions owned by independent plugins, placed between the
@@ -33,7 +31,6 @@ export interface MessageIconActionsProps {
    * branch control at the end of the icon cluster.
    */
   usageAction?: ReactNode
-  /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
 

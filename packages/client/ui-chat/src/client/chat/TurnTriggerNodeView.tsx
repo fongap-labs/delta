@@ -1,4 +1,3 @@
-/** Recorded Turn triggers and compact manual-continuation receipts. */
 import { useId, useState, type ComponentType } from 'react'
 import {
   IconAgentPresetOutlineRegular, IconClockOutlineRegular, IconBranchOutlineRegular,
@@ -26,7 +25,6 @@ const TRIGGER_ICONS: Record<TurnTriggerIcon, ComponentType<IconProps>> = {
   plugin: IconCordisPluginOutlineRegular,
 }
 
-/** Render recorded trigger attribution above the whole-Turn disclosure. */
 export function TurnTriggerNodeView({ node, t }: Pick<ChatNodeViewProps<'turn-trigger'>, 'node' | 't'>) {
   const [open, setOpen] = useState(false)
   const bodyId = useId()

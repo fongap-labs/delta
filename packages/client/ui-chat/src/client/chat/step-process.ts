@@ -1,4 +1,3 @@
-/** Localized titles for projected step-process activity. */
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import type { ProcessActivitySummary } from '../contract/process-groups.ts'
 

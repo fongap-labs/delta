@@ -5,7 +5,6 @@ import type { ContextMessageNode } from '../contract/snapshot.ts'
 import { contextBody } from './ContextBody.tsx'
 import css from './ContextInjectionRow.module.css'
 
-/** Props for the logged non-user message presentation. */
 export interface ContextInjectionRowProps {
   content: ContextMessageNode['content']
   source: ContextMessageNode['source']
@@ -13,7 +12,6 @@ export interface ContextInjectionRowProps {
   producer: ContextMessageNode['producer']
   /** Producer-declared information form; null renders the opaque body. */
   form: ContextMessageNode['form']
-  /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
 

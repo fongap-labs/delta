@@ -1,4 +1,3 @@
-/** DOM selection validation and visible-text projection, independent of business actions. */
 
 const PROJECTED_BLOCK_TAGS = new Set([
   'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DD', 'DIV', 'DL', 'DT', 'FIGCAPTION',
