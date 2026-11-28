@@ -125,7 +125,6 @@ type Translate = ChatViewSlotProps['t']
 export interface StatPillProps extends InjectFace<PerformanceUsageInjected> {
   useChat: SnapshotSelectorHook<ChatSnapshot>
   useProjection: UseProjection
-  /** The owning dock's locale seat. */
   t: Translate
 }
 

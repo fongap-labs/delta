@@ -10,7 +10,6 @@ export interface SystemPromptRowProps {
   text: string
   /** True when the prompt replaced an earlier one from this position in the history. */
   update?: boolean
-  /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
 }
 

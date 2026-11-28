@@ -50,7 +50,6 @@ export interface AssistantMarkdownProps extends
   revealProcess?: (() => void) | undefined
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
-  /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
 

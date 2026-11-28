@@ -25,7 +25,6 @@ interface CompactionItemProps {
   title?: string
   /** Command settlement text used when structured compaction counts are unavailable. */
   fallbackSummary?: string | null
-  /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
 }
 

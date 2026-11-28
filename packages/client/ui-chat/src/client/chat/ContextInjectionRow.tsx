@@ -13,7 +13,6 @@ export interface ContextInjectionRowProps {
   producer: ContextMessageNode['producer']
   /** Producer-declared information form; null renders the opaque body. */
   form: ContextMessageNode['form']
-  /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
 
