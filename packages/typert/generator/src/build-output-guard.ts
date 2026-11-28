@@ -10,7 +10,7 @@
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 
 /** One program file that a workspace package's `lib/` holds, with the imports that load it. */
 export interface BuildOutputLoad {

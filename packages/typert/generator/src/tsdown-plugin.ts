@@ -12,7 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { Worker } from 'node:worker_threads'
-import ts from 'typescript'
+import ts from './compiler-api.ts'
 import { writePackageArtifacts, writeWorkspaceArtifacts } from './artifact-files.ts'
 import { findWorkspaceRoot, hasTypertExport, WorkspaceTypertGenerator } from './workspace.ts'
 import type { WorkspaceEmitResult } from './workspace.ts'
