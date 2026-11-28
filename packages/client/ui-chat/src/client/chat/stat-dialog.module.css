@@ -2,7 +2,7 @@
    CSS anchors place the portaled panel above its trigger, with a 12px window inset. */
 .panel {
   position: fixed;
-  z-index: 1100;
+  z-index: var(--delta-layer-overlay);
   box-sizing: border-box;
   /* Size to the widest row so provider/model stays on one line, within a cap.
      Both bounds yield to a viewport narrower than themselves (12px margins),
@@ -10,28 +10,28 @@
   width: max-content;
   min-width: min(300px, calc(100vw - 24px));
   max-width: min(440px, calc(100vw - 24px));
-  padding: 16px;
+  padding: var(--delta-space-4);
   border: 0;
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
   cursor: default;
-  max-height: calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)));
+  max-height: calc(100dvh - 12px - max(12px, var(--delta-frame-overlay-top, 12px)));
   overflow-x: hidden;
   overflow-y: auto;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 8px));
   left: max(12px, anchor(left));
   right: 12px;
-  position-try-fallbacks: --dsh-stat-window, --dsh-stat-opposite, --dsh-stat-wide-opposite, --dsh-stat-tall, --dsh-stat-viewport;
+  position-try-fallbacks: --delta-stat-window, --delta-stat-opposite, --delta-stat-wide-opposite, --delta-stat-tall, --delta-stat-viewport;
   align-self: end;
   justify-self: start;
   height: fit-content;
@@ -44,16 +44,16 @@
 .title {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 8px;
-  color: var(--dsw-alias-label-primary);
-  font-weight: 500;
+  gap: var(--delta-space-4);
+  margin-bottom: var(--delta-space-2);
+  color: var(--delta-alias-label-primary);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 /* Rule under each section heading, above its rows. */
 .titleRule {
-  margin-bottom: 10px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  margin-bottom: var(--delta-space-2-5);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .titleValue {
@@ -64,7 +64,7 @@
 .titleLabel {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
 }
 
@@ -77,9 +77,9 @@
 .details {
   display: grid;
   grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
-  gap: 6px 16px;
+  gap: var(--delta-space-1-5) var(--delta-space-4);
   margin: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .details dt,
@@ -89,7 +89,7 @@
 }
 
 .details dd {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -99,13 +99,13 @@
 }
 
 .reasoning {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   white-space: nowrap;
 }
 
-@position-try --dsh-stat-window {
+@position-try --delta-stat-window {
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 8px));
   left: 12px;
   right: 12px;
@@ -114,13 +114,13 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-stat-opposite {
+@position-try --delta-stat-opposite {
   top: max(12px, calc(anchor(bottom) + 8px));
   bottom: 12px;
   align-self: start;
 }
 
-@position-try --dsh-stat-wide-opposite {
+@position-try --delta-stat-wide-opposite {
   top: max(12px, calc(anchor(bottom) + 8px));
   bottom: 12px;
   left: 12px;
@@ -129,9 +129,9 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-stat-tall {
+@position-try --delta-stat-tall {
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: 12px;
   left: max(12px, anchor(left));
   right: 12px;
@@ -140,9 +140,9 @@
   justify-self: start;
 }
 
-@position-try --dsh-stat-viewport {
+@position-try --delta-stat-viewport {
   position-area: none;
-  inset: max(12px, var(--dsh-frame-overlay-top, 12px)) 12px 12px;
+  inset: max(12px, var(--delta-frame-overlay-top, 12px)) 12px 12px;
   margin: 0;
   align-self: safe start;
   justify-self: safe end;

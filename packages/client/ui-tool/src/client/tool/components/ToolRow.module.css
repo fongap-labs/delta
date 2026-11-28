@@ -3,7 +3,7 @@
    The Settings font-size preference rides the body-published axis: the shared
    DisclosureRow chrome scales the row height and leading glyph by the body px
    delta; the title and the summary texts here read the secondary tier
-   (--dsh-content-font-size-secondary: one step under the body — setting −1 at
+   (--delta-content-font-size-secondary: one step under the body — setting −1 at
    ≤14, setting −2 above), matching think text. */
 
 .root {
@@ -16,11 +16,11 @@
 }
 
 .root[data-tool^='cordis_'] .title {
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .title {
-  font-weight: 400;
+  font-weight: var(--delta-font-weight-regular);
 }
 
 .sep {
@@ -28,8 +28,8 @@
   width: 2px;
   height: 2px;
   border-radius: 1px;
-  margin: 0 8px;
-  background: var(--dsw-alias-label-caption);
+  margin: 0 var(--delta-space-2);
+  background: var(--delta-alias-label-caption);
 }
 
 .summary {
@@ -38,8 +38,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
 }
 
 /* Trailing summary fragment kept out of .summary's ellipsis, for a count whose
@@ -49,10 +49,10 @@
    which would break the one-line row in the narrow case the slot exists for. */
 .summarySuffix {
   flex: none;
-  margin-left: 4px;
+  margin-left: var(--delta-space-1);
   white-space: nowrap;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
 }
 
 /* Diff-row +/- totals: the code font, matching the diff body the numbers
@@ -62,29 +62,29 @@
    half-pixel nudge closes the baseline gap the size difference leaves under
    the row's box-centering (a transform, so flex layout is untouched). */
 .diffStat {
-  margin-left: 10px;
-  font-family: var(--ds-font-family-code);
-  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 2px);
+  margin-left: var(--delta-space-2-5);
+  font-family: var(--delta-font-family-code);
+  font-size: calc(var(--delta-content-font-size-secondary, 13px) - 2px);
   transform: translateY(0.5px);
 }
 
 .row[aria-expanded='true'] .diffAdded {
-  color: var(--dsw-alias-state-success-primary);
+  color: var(--delta-alias-state-success-primary);
 }
 
 @media (hover: hover) {
   .row:hover .diffAdded {
-    color: var(--dsw-alias-state-success-primary);
+    color: var(--delta-alias-state-success-primary);
   }
 }
 
 .row[aria-expanded='true'] .diffRemoved {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 @media (hover: hover) {
   .row:hover .diffRemoved {
-    color: var(--dsw-alias-state-error-primary);
+    color: var(--delta-alias-state-error-primary);
   }
 }
 
@@ -105,8 +105,8 @@
   background: none;
   font: inherit;
   text-align: left;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   color: inherit;
 }
 
@@ -119,8 +119,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
 }
 
 /* One file inside .fileLinks: .fileLink's affordance without its own box, so the
@@ -149,7 +149,7 @@
    row keeps its idle color and diff totals instead of the whole-row hover. */
 @media (hover: hover) {
   .row:has(.fileTargetLink:hover) {
-    color: var(--dsw-alias-label-tertiary);
+    color: var(--delta-alias-label-tertiary);
   }
 
   .row:not([aria-expanded='true']):has(.fileTargetLink:hover) .diffAdded,
@@ -158,18 +158,18 @@
   }
 
   .fileTargetLink:hover {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
 /* Error row's collapsed summary: the failure's first line in the error color. */
 .errorSummary {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 /* Interrupted rows retain their business glyph and replace the summary with a visible warning. */
 .stoppedSummary {
-  color: var(--dsw-alias-state-warn-label);
+  color: var(--delta-alias-state-warn-label);
 }
 
 /* Expanded body + Inspect pill wrapper (sibling of .row: clicks never toggle). */
@@ -186,21 +186,21 @@
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 4px;
-  margin: 4px 0 2px 4px;
-  padding: 2px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
+  gap: var(--delta-space-1);
+  margin: var(--delta-space-1) 0 var(--delta-space-0-5) var(--delta-space-1);
+  padding: var(--delta-space-0-5) var(--delta-space-2);
+  border: 0.5px solid var(--delta-alias-border-l3);
   border-radius: 999px;
   corner-shape: round;
   /* Base background, not bg-overlay: the overlay token is a raised dark
      surface and reads too heavy for a quiet in-flow affordance. */
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  line-height: 16px;
+  background: var(--delta-alias-bg-base);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--delta-transition-duration-fast) ease;
 }
 
 .inspectButton:focus-visible {
@@ -227,8 +227,8 @@
 /* Solid hover fill (a translucent token would let content bleed through). */
 @media (hover: hover) {
   .inspectButton:hover {
-    background: var(--dsw-alias-interactive-bg-hover-solid);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover-solid);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -247,12 +247,12 @@
 .ioCard {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: 14px;
-  margin: 4px 0 4px 4px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-markdown-code-block);
-  font: var(--dsw-font-markdown-code-block-small);
+  column-gap: var(--delta-space-3-5);
+  margin: var(--delta-space-1) 0 var(--delta-space-1) var(--delta-space-1);
+  border: 0.5px solid var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-markdown-code-block);
+  font: var(--delta-font-markdown-code-block-small);
 }
 
 /* One card section (IN or OUT): the gutter-label grid, capped and scrolling
@@ -262,7 +262,7 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: baseline;
-  padding: 12px 16px;
+  padding: var(--delta-space-3) var(--delta-space-4);
   max-height: 150px;
   overflow-y: auto;
 }
@@ -273,12 +273,12 @@
 .ioSection::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
 }
 
 /* Track end-margins keep the thumb's travel out of the rounded corners. */
 .ioSection::-webkit-scrollbar-track {
-  margin: 6px 0;
+  margin: var(--delta-space-1-5) 0;
 }
 
 /* Caption (not tertiary): one step dimmer than the payload text so the
@@ -290,7 +290,7 @@
   position: sticky;
   top: 0;
   align-self: start;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 /* l2 hairline between the IN and OUT sections, spanning the full card width
@@ -298,19 +298,19 @@
 .ioDivider {
   grid-column: 1 / -1;
   height: 0.5px;
-  background: var(--dsw-alias-border-l2);
+  background: var(--delta-alias-border-l2);
 }
 
 .ioText {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* A failed call's OUT text shares the collapsed summary's error color. */
 .ioText[data-error] {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 /* The block-shaped expanded bodies: the code variant's run_code program
@@ -328,18 +328,18 @@
 .imageBody,
 .searchBody,
 .webBody {
-  margin: 4px 0 4px 4px;
+  margin: var(--delta-space-1) 0 var(--delta-space-1) var(--delta-space-1);
 }
 
 /* The recovery footer for a capped search: the result text (its `Full … stored
    at …` locator) below the card in the muted tone, since the card holds only the
    retained rows. Same column indent as the card body. */
 .searchRecovery {
-  margin: 4px 0 4px 4px;
+  margin: var(--delta-space-1) 0 var(--delta-space-1) var(--delta-space-1);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: var(--dsw-font-xs-13);
-  color: var(--dsw-alias-label-tertiary);
+  font: var(--delta-font-xs-13);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The image card's full path and size lines under the gallery, in the small
@@ -348,32 +348,32 @@
    keeps repeated whitespace in a path. The enclosing .imageBody already carries
    the row indent. */
 .imageMeta {
-  margin-top: 4px;
+  margin-top: var(--delta-space-1);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: var(--dsw-font-markdown-code-block-small);
-  color: var(--dsw-alias-label-tertiary);
+  font: var(--delta-font-markdown-code-block-small);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* Text blocks other than the envelope (for example, appended by a post-execute
    hook), in the muted tone the search recovery footer uses. */
 .imageExtra {
-  margin-top: 4px;
+  margin-top: var(--delta-space-1);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: var(--dsw-font-xs-13);
-  color: var(--dsw-alias-label-tertiary);
+  font: var(--delta-font-xs-13);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The terminal card scrolls its OUTPUT inside its own surface (same l1
    hairline as the IN/OUT card): the banner stays pinned and the scrollbar
    never rides over it. 224px = the 260px card cap minus the ~36px banner. */
 .terminalBody {
-  --dsl-terminal-font: var(--dsw-font-markdown-code-block-small);
-  --dsl-terminal-line-height: 18px;
-  --dsl-terminal-output-max-height: 224px;
-  --dsl-terminal-command-whitespace: pre-wrap;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  --delta-terminal-font: var(--delta-font-markdown-code-block-small);
+  --delta-terminal-line-height: 18px;
+  --delta-terminal-output-max-height: 224px;
+  --delta-terminal-command-whitespace: pre-wrap;
+  border: 0.5px solid var(--delta-alias-border-l1);
 }
 
 /* Visually hidden run-state label for assistive technology: the business icon

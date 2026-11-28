@@ -636,7 +636,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       const spine = getComputedStyle(node, '::before')
       const stroke = Number.parseFloat(horizontal.borderTopWidth)
       const colorProbe = document.createElement('span')
-      colorProbe.style.cssText = 'display:none;color:var(--dsw-alias-border-l3)'
+      colorProbe.style.cssText = 'display:none;color:var(--delta-alias-border-l3)'
       row.append(colorProbe)
       let expectedColor: string
       try {

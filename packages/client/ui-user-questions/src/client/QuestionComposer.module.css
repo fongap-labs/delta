@@ -4,7 +4,7 @@
 .frame {
   display: flex;
   justify-content: center;
-  padding: 6px calc(var(--dsh-composer-side-clearance) + 16px) 10px;
+  padding: 6px calc(var(--delta-composer-side-clearance) + 16px) 10px;
 }
 
 /* Figma Input 973:36348 body over the 1019:36938 header: no banner strip —
@@ -13,26 +13,26 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: var(--dsh-chat-content-width);
+  max-width: var(--delta-chat-content-width);
   /* Composer seat sits in a fixed-height conversation column (overflow
      hidden): cap the card against the viewport and scroll the option list
      so header and footer actions stay reachable on long batches. */
   max-height: min(60vh, 520px);
-  padding: 0 0 10px;
+  padding: 0 0 var(--delta-space-2-5);
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: var(--dsw-radius-xl);
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-panel);
-  color: var(--dsw-alias-label-primary);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l2-darkmode-thin);
+  border-radius: var(--delta-radius-xl);
+  background: var(--delta-specific-input-major);
+  box-shadow: var(--delta-elevation-panel);
+  color: var(--delta-alias-label-primary);
   overflow: hidden;
   /* Elevated surface in dark, same as the menus: the body inside scrolls
      once the card hits the cap above, so the thumb takes the l2 pair. Declared
      on the card because the elevation belongs to the surface, and the custom
      properties inherit down to `.body` (see ui-theme styles/scrollbar.css
      for the rebinding contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .card,
@@ -50,7 +50,7 @@
 /* The header strip is the whole card when collapsed: the title row needs
    bottom padding once the body that normally carries it is hidden. */
 .cardMinimized .header {
-  padding-bottom: 14px;
+  padding-bottom: var(--delta-space-3-5);
 }
 
 /* Header button group: minimize sits next to the close action, both on the
@@ -58,7 +58,7 @@
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -68,9 +68,9 @@
 }
 
 .waitStatus {
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 24px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-24);
   white-space: nowrap;
 }
 
@@ -80,9 +80,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--delta-space-4);
   flex-shrink: 0;
-  padding: 20px 20px 0 24px;
+  padding: var(--delta-space-5) var(--delta-space-5) 0 var(--delta-space-6);
 }
 
 .headingBlock {
@@ -93,16 +93,16 @@
 .eyebrow {
   /* Eyebrow-to-title gap widened from the figma 2px (user-tuned). */
   margin-bottom: 5px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
-  line-height: 22px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-16);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 /* Long copy keeps one line fewer than its budget once it overflows: a
@@ -116,18 +116,18 @@
 .questionTitle {
   position: relative;
   flex-shrink: 0;
-  margin: 5px 24px 0;
+  margin: 5px var(--delta-space-6) 0;
   timeline-scope: --question-copy;
 }
 
 .questionTitle[data-expanded] {
-  padding-bottom: 24px;
+  padding-bottom: var(--delta-space-6);
 }
 
 .titlePreview {
-  max-height: calc(3lh + 2px);
-  margin: 0 0 -2px;
-  padding-bottom: 2px;
+  max-height: calc(3lh + var(--delta-space-0-5));
+  margin: 0 0 calc(-1 * var(--delta-space-0-5));
+  padding-bottom: var(--delta-space-0-5);
   overflow: hidden;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -141,8 +141,8 @@
 
 @keyframes question-clipped {
   from, to {
-    margin-bottom: calc(-1lh - 2px);
-    clip-path: inset(0 0 calc(1lh + 2px) 0);
+    margin-bottom: calc(-1lh - var(--delta-space-0-5));
+    clip-path: inset(0 0 calc(1lh + var(--delta-space-0-5)) 0);
     mask-image: linear-gradient(#000, #000), linear-gradient(to right, #000 calc(100% - 56px), transparent calc(100% - 28px));
     mask-size: 100% 1lh, 100% 1lh;
     mask-position: 0 0, 0 1lh;
@@ -168,29 +168,29 @@
 
 .detail {
   flex-shrink: 0;
-  margin: 0 24px 8px;
+  margin: 0 var(--delta-space-6) var(--delta-space-2);
 }
 
 .footerActions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--delta-space-3);
   flex-shrink: 0;
 }
 
 .pager {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   flex-shrink: 0;
 }
 
 .progress {
-  padding: 0 4px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 14px;
-  line-height: 24px;
-  font-weight: 500;
+  padding: 0 var(--delta-space-1);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
   white-space: nowrap;
   /* Narrow the plain spaces around the slash without touching glyph tracking. */
   word-spacing: -2px;
@@ -203,21 +203,21 @@
   height: 24px;
   padding: 0;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .iconButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .iconButton:disabled {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
   cursor: default;
 }
 
@@ -234,8 +234,8 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin: 8px 0 0;
-  padding: 4px 12px;
+  margin: var(--delta-space-2) 0 0;
+  padding: var(--delta-space-1) var(--delta-space-3);
 }
 
 .optionRow {
@@ -244,9 +244,9 @@
   min-height: 40px;
   flex-shrink: 0;
   border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background-color var(--delta-transition-duration-120ms) ease, border-color var(--delta-transition-duration-120ms) ease;
   timeline-scope: --description-copy;
 }
 
@@ -254,11 +254,11 @@
   display: flex;
   /* flex-start keeps the indicator aligned with the first label line. */
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--delta-space-2);
   width: 100%;
   min-width: 0;
   min-height: 40px;
-  padding: 8px 12px 8px 8px;
+  padding: var(--delta-space-2) var(--delta-space-3) var(--delta-space-2) var(--delta-space-2);
   border: 0;
   background: transparent;
   color: inherit;
@@ -267,17 +267,17 @@
 }
 
 .optionSelected {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .optionRowInteractive:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .optionSelected {
-  border-color: var(--dsw-alias-border-l2);
+  border-color: var(--delta-alias-border-l2);
 }
 
 .option:disabled {
@@ -295,13 +295,13 @@
   height: 20px;
   /* (24px first-line box − 20px indicator) / 2: centers the indicator against
      the first text line under the row's flex-start alignment. */
-  margin-top: 2px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  margin-top: var(--delta-space-0-5);
+  border-radius: var(--delta-radius-xs);
+  background: var(--delta-alias-bg-module-platform);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-18);
 }
 
 /* Multi-select box (figma 1055:41594, user-tuned down to 14×14): a radius-4
@@ -314,7 +314,7 @@
   width: 20px;
   height: 20px;
   /* Same first-line centering as .number under flex-start alignment. */
-  margin-top: 2px;
+  margin-top: var(--delta-space-0-5);
 }
 
 .checkbox::before {
@@ -322,9 +322,9 @@
   grid-area: 1 / 1;
   width: 14px;
   height: 14px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-xs);
-  transition: background-color 120ms ease, border-color 120ms ease;
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-xs);
+  transition: background-color var(--delta-transition-duration-120ms) ease, border-color var(--delta-transition-duration-120ms) ease;
 }
 
 .checkbox > svg {
@@ -334,12 +334,12 @@
 /* Checked: label-primary fill with a primary-foreground check — the pair
    inverts with the theme (dark fill in light mode, light fill in dark mode). */
 .checkboxChecked {
-  color: var(--dsw-alias-label-primary-foreground);
+  color: var(--delta-alias-label-primary-foreground);
 }
 
 .checkboxChecked::before {
-  border-color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-label-primary);
+  border-color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-label-primary);
 }
 
 .optionCopy {
@@ -347,7 +347,7 @@
   flex: 1;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 6px;
+  gap: 0 var(--delta-space-1-5);
   min-width: 0;
 }
 
@@ -356,23 +356,23 @@
   max-width: 100%;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 2px 6px;
+  gap: var(--delta-space-0-5) var(--delta-space-1-5);
 }
 
 .optionLabel {
-  font-size: 14px;
-  line-height: 24px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .badge {
-  padding: 0 4px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-specific-sidebar-nav-item-active-accent);
-  color: var(--dsw-alias-button-info-fill);
-  font-size: 11px;
-  line-height: 18px;
-  font-weight: 600;
+  padding: 0 var(--delta-space-1);
+  border-radius: var(--delta-radius-xs);
+  background: var(--delta-specific-sidebar-nav-item-active-accent);
+  color: var(--delta-alias-button-info-fill);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-18);
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .description {
@@ -380,16 +380,16 @@
   width: max-content;
   max-width: 100%;
   min-width: 0;
-  max-height: calc(2lh + 2px);
-  margin-bottom: -2px;
-  padding-bottom: 2px;
+  max-height: calc(2lh + var(--delta-space-0-5));
+  margin-bottom: calc(-1 * var(--delta-space-0-5));
+  padding-bottom: var(--delta-space-0-5);
   overflow: hidden;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 400;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-regular);
   scroll-timeline: --description-copy block;
   animation-name: description-clipped;
   animation-fill-mode: both;
@@ -398,8 +398,8 @@
 
 @keyframes description-clipped {
   from, to {
-    margin-bottom: calc(-1lh - 2px);
-    clip-path: inset(0 0 calc(1lh + 2px) 0);
+    margin-bottom: calc(-1lh - var(--delta-space-0-5));
+    clip-path: inset(0 0 calc(1lh + var(--delta-space-0-5)) 0);
     mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent calc(100% - 28px));
     mask-size: 100% 1lh;
     mask-repeat: no-repeat;
@@ -417,7 +417,7 @@
 
 /* Expanded copy keeps its collapse button on a line of its own below the text. */
 .optionRow[data-expanded] .option {
-  padding-bottom: 32px;
+  padding-bottom: var(--delta-space-8);
 }
 
 .questionTitle[data-expanded] .titlePreview,
@@ -460,10 +460,10 @@
    option rows' horizontal padding so it lines up with the choices above it. */
 .reviewNote {
   margin: 0;
-  padding: 8px 12px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
-  line-height: 24px;
+  padding: var(--delta-space-2) var(--delta-space-3);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
 }
 
 /* Custom answer row (figma 973:36427): an option-shaped row whose copy is an
@@ -475,32 +475,32 @@
   /* Same first-line alignment as .option — the indicator seat carries the
      2px re-centering margin. */
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--delta-space-2);
   width: 100%;
   min-height: 40px;
   /* Same reason as .option: the custom row is scroll content, and shrinking
      it pushes the inline input past the footer. */
   flex-shrink: 0;
-  padding: 8px 12px 8px 8px;
+  padding: var(--delta-space-2) var(--delta-space-3) var(--delta-space-2) var(--delta-space-2);
   border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-md);
-  transition: background-color 120ms ease, border-color 120ms ease;
+  border-radius: var(--delta-radius-md);
+  transition: background-color var(--delta-transition-duration-120ms) ease, border-color var(--delta-transition-duration-120ms) ease;
 }
 
 .customRow:focus-within:not(.customRowYielded),
 .customRowActive {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .customRow:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .customRow:focus-within:not(.customRowYielded),
 .customRowActive {
-  border-color: var(--dsw-alias-border-l2);
+  border-color: var(--delta-alias-border-l2);
 }
 
 /* Auto-growing free-text answer (see AnswerField): mirror and textarea share
@@ -510,16 +510,16 @@
 .field {
   display: grid;
   min-width: 0;
-  --dsh-answer-field-padding: 0;
+  --delta-answer-field-padding: 0;
 }
 
 .field > * {
   grid-area: 1 / 1;
   min-width: 0;
-  padding: var(--dsh-answer-field-padding);
+  padding: var(--delta-answer-field-padding);
   font: inherit;
-  font-size: 14px;
-  line-height: 24px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -549,12 +549,12 @@
   border: none;
   outline: none;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  caret-color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-label-primary);
+  caret-color: var(--delta-alias-state-business-primary);
 }
 
 .fieldInput::placeholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 /* Inline variant: the custom row's copy column, borrowing the row's chrome. */
@@ -569,57 +569,57 @@
 .customBlock {
   min-height: 64px;
   flex-shrink: 0;
-  margin: 0 12px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-module-platform);
-  --dsh-answer-field-padding: 8px 12px;
+  margin: 0 var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-module-platform);
+  --delta-answer-field-padding: 8px 12px;
 }
 
 .customBlock:focus-within {
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 .footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
   flex-shrink: 0;
-  margin-top: 12px;
-  padding: 0 24px 0 19px;
+  margin-top: var(--delta-space-3);
+  padding: 0 var(--delta-space-6) 0 19px;
 }
 
 .feedback {
   flex: 1;
   min-height: 16px;
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 11px;
-  line-height: 16px;
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
   text-align: right;
 }
 
 @media (max-width: 720px) {
   .card {
-    border-radius: var(--dsw-radius-xl);
+    border-radius: var(--delta-radius-xl);
   }
 
   .header {
-    padding: 10px 12px 0 18px;
+    padding: var(--delta-space-2-5) var(--delta-space-3) 0 18px;
   }
 
   .options {
-    padding: 4px 8px;
+    padding: var(--delta-space-1) var(--delta-space-2);
   }
 
   .title {
-    font-size: 15px;
+    font-size: var(--delta-font-size-15);
     line-height: 21px;
   }
 
   .option,
   .customRow {
-    padding: 8px 6px;
+    padding: var(--delta-space-2) var(--delta-space-1-5);
   }
 
   .descriptionToggle {
@@ -628,7 +628,7 @@
 
   .footer {
     align-items: flex-end;
-    padding: 0 10px;
+    padding: 0 var(--delta-space-2-5);
   }
 
   .footerActions {

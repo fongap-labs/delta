@@ -29,25 +29,25 @@ H 表示以 CSS 像素计、包含边框的设计外部高度。R 表示浏览�
 
 | 用途 | 典型尺寸或示例 | 圆角 | 共享 token |
 |---|---|---|---|
-| 小细节 | 低于 H20；键帽、行内代码、微型控件 | R4 | `--dsw-radius-xs` |
-| 紧凑控件 | H20–28；小按钮、紧凑图标按钮、紧凑菜单项 | R8 | `--dsw-radius-sm` |
-| 标准控件或单行 cell | H32–40；按钮、输入框、选择器、导航行 | R12 | `--dsw-radius-md` |
-| 大控件或分组内容 | 大按钮、明确设计为多行的 cell、嵌套表单组 | R16 | `--dsw-radius-lg` |
-| 独立内容卡片 | 设置卡片、消息气泡、引导入口卡片 | R20 | `--dsw-radius-xl` |
-| 主容器 | 对话输入框、对话框、主面板或悬浮面板 | R28 | `--dsw-radius-panel` |
+| 小细节 | 低于 H20；键帽、行内代码、微型控件 | R4 | `--delta-radius-xs` |
+| 紧凑控件 | H20–28；小按钮、紧凑图标按钮、紧凑菜单项 | R8 | `--delta-radius-sm` |
+| 标准控件或单行 cell | H32–40；按钮、输入框、选择器、导航行 | R12 | `--delta-radius-md` |
+| 大控件或分组内容 | 大按钮、明确设计为多行的 cell、嵌套表单组 | R16 | `--delta-radius-lg` |
+| 独立内容卡片 | 设置卡片、消息气泡、引导入口卡片 | R20 | `--delta-radius-xl` |
+| 主容器 | 对话输入框、对话框、主面板或悬浮面板 | R28 | `--delta-radius-panel` |
 
 拟定控件尺寸落在档位之间时，优先复用已有的公共尺寸变体。高卡片仍是卡片，不因高度超过按钮就升到 R28。专门设计为多行的 cell 使用 R16；普通按钮的文字发生换行时，仍保留其按钮变体。
 
 具体默认值：`Button` 的 `sm` 使用 H28/R8，`md` 使用 H36/R12，包含描边变体。标准 H32 输入框和 H36 选择器使用 R12。“工作区文件”和“新建终端”引导入口统一使用 R20，包含仅标题与带描述的变体。R28 留给包围它们的面板或对话框，不用于这些入口。输入框统计控件与上下文占用率入口使用紧凑控件的 R8 和主题曲线，包含 hover、展开与焦点状态。
 
-代码块、diff 与预览卡片共用 R16：包括改动文件入口卡片、交付文件卡片、已提交计划卡片、已创建任务卡片、发送前后的通用附件文件卡片和悬停预览浮层。改动文件、交付文件、已提交计划与已创建任务卡片内部的 40px 图标底框作为组件特例，四角统一使用 R10，并在明暗两种主题下分别共用相同的中性底色与边框。各自的 hover 保持同一轮廓。
+代码块、diff 与预览卡片共用 R16：包括改动文件入口卡片、交付文件卡片、已提交计划卡片、已创建任务卡片、发送前后的通用附件文件卡片和悬停预览浮层。改动文件、交付文件、已提交计划与已创建任务卡片内部的 40px 图标底框统一使用共享 R10 token（`--delta-radius-2-5`），并在明暗两种主题下分别共用相同的中性底色与边框。各自的 hover 保持同一轮廓。
 
 <a id="shapes"></a>
 ## 复用 token，保留有意设计的形状
 
 添加功能自有的几何规则前，优先复用 `ui-primitives` 控件。固定外部尺寸使用 `box-sizing: border-box`。填充、描边、ghost、加载中和禁用变体保持相同尺寸与圆角；hover、按下、选中和焦点状态不改变圆角。
 
-普通控件和卡片使用具名 token，不新增 10px、14px、18px、24px 等局部数值。计划任务控件、Desktop 引导、账号通知和快捷键控件保留所属包的几何规则；[圆角例外记录](../packages/client/ui-theme/tests/expected/radius-exceptions.expected.json)逐项固定允许的文件、选择器及声明，不豁免整个包。组件族专用属性可引用共享 token，例如 `--dsl-guide-entry-radius`。由真实内缩距离派生的几何可使用 `calc()`；它不构成新的尺度档位。
+控件和卡片使用具名 token，不新增 6px、10px、14px、18px、24px 或 32px 等局部数值。`base.css` 也为既有几何所需的 R6、R10、R24 和 R32 提供共享 token。组件族专用属性可引用共享 token，例如 `--delta-guide-entry-radius`。由真实内缩距离派生的几何可使用 `calc()`；它不构成新的尺度档位。
 
 普通圆角表面在支持时使用主题的 `superellipse(1.5)` 曲线。`corner-shape` 不会继承：主题将它应用于元素及其 `::before`/`::after`。不支持的引擎保留普通圆弧。不要添加组件专用的平滑规则，导致底色与外框使用不同曲线。
 
@@ -78,7 +78,7 @@ H 表示以 CSS 像素计、包含边框的设计外部高度。R 表示浏览�
 
 ```css
 .entry {
-  border-radius: var(--dsl-guide-entry-radius);
+  border-radius: var(--delta-guide-entry-radius);
   overflow: hidden;
 }
 
@@ -88,7 +88,7 @@ H 表示以 CSS 像素计、包含边框的设计外部高度。R 表示浏览�
 }
 ```
 
-外围引导页设置 `--dsl-guide-entry-radius: var(--dsw-radius-xl)`。外层卡片为 R20 时，不要再给内部按钮设置独立的 R28 端部。
+外围引导页设置 `--delta-guide-entry-radius: var(--delta-radius-xl)`。外层卡片为 R20 时，不要再给内部按钮设置独立的 R28 端部。
 
 <a id="settings-cards"></a>
 ## 设置卡片材质
@@ -97,15 +97,15 @@ H 表示以 CSS 像素计、包含边框的设计外部高度。R 表示浏览�
 
 ```css
 .card {
-  border-radius: var(--dsw-radius-xl);
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  background: var(--dsw-alias-settings-card-fill);
+  border-radius: var(--delta-radius-xl);
+  border: 0.5px solid var(--delta-alias-settings-card-stroke);
+  background: var(--delta-alias-settings-card-fill);
 }
 ```
 
-主题在色板别名所在的 `body` 上，将卡片底色解析为 `--dsw-alias-bg-layer-2`，描边解析为 `--dsw-alias-border-l4`。功能样式在明暗主题中均使用这些别名。嵌套编辑器使用 R16 和既有模块底色。账号的查询用量、充值链接遵循 H36/R12 的 Button 几何；授权按钮使用公共 Button。
+主题在色板别名所在的 `body` 上，将卡片底色解析为 `--delta-alias-bg-layer-2`，描边解析为 `--delta-alias-border-l4`。功能样式在明暗主题中均使用这些别名。嵌套编辑器使用 R16 和既有模块底色。账号的查询用量、充值链接遵循 H36/R12 的 Button 几何；授权按钮使用公共 Button。
 
-平面中性边框使用共享的 0.5px 发丝线。具有层级阴影的菜单、浮层、对话框和面板使用 `border: 0` 与既有 `--dsw-elevation-*` 材质，其阴影已包含发丝描边。不要在该描边上再叠一层中性边框，也不要仅为区分设置 tab 就给普通设置卡片加阴影。保留语义状态色边框与既有的半透明菜单背景效果。
+平面中性边框使用共享的 0.5px 发丝线。具有层级阴影的菜单、浮层、对话框和面板使用 `border: 0` 与既有 `--delta-elevation-*` 材质，其阴影已包含发丝描边。不要在该描边上再叠一层中性边框，也不要仅为区分设置 tab 就给普通设置卡片加阴影。保留语义状态色边框与既有的半透明菜单背景效果。
 
 整页圆角审查要同时比较角色与轮廓，包含原生的小型选择控件。符合 token 只能证明数值属于尺度，不能证明相邻角色或嵌套轮廓协调。比较方法见[几何案例](ui-design-review-cases.zh.md#geometry)，本规范继续拥有数值与曲线规则。
 

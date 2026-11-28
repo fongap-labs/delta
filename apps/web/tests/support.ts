@@ -100,7 +100,7 @@ export async function assertWarningDialogLayout(dialog: Locator): Promise<void> 
     const bodyRect = paragraph.getBoundingClientRect()
     const color = getComputedStyle(icon).color
     const previous = icon.style.color
-    icon.style.color = 'var(--dsw-alias-state-warn-primary)'
+    icon.style.color = 'var(--delta-alias-state-warn-primary)'
     const warningColor = getComputedStyle(icon).color
     icon.style.color = previous
     return {

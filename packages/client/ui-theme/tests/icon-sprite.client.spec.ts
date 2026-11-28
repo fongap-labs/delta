@@ -9,7 +9,7 @@ import { ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { installIconSprite } from '../src/client/icon-sprite.ts'
 
 const SEARCH = 'dsw-icon-search-outline-regular'
-const TWO_TONE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" class="x"><circle cx="8" cy="8" r="6" fill="var(--dsw-alias-link)"/><path d="M4 8h8" stroke="currentColor"/></svg>'
+const TWO_TONE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" class="x"><circle cx="8" cy="8" r="6" fill="var(--delta-alias-link)"/><path d="M4 8h8" stroke="currentColor"/></svg>'
 
 async function mount() {
   const ctx = new Context()
@@ -41,7 +41,7 @@ describe('icon sprite', () => {
     const replaced = symbol(id)!
     expect(replaced.getAttribute('viewBox')).toBe('0 0 16 16')
     expect(replaced.hasAttribute('width') || replaced.hasAttribute('class')).toBe(false)
-    expect(replaced.querySelector('circle')?.getAttribute('fill')).toBe('var(--dsw-alias-link)')
+    expect(replaced.querySelector('circle')?.getAttribute('fill')).toBe('var(--delta-alias-link)')
     expect(symbol('dsw-icon-settings-outline-medium')).toBe(gear)
     const untouched = symbol('dsw-icon-plus-outline-regular')
     theme.setTheme('light')

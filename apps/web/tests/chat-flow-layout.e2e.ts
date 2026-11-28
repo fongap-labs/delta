@@ -37,7 +37,7 @@ it.each(['turn-tail-actions', 'goal-multi-turn-actions', 'present'] as const)(
       await process.click()
       for (const fontSize of [10, 14, 22]) {
         await scaffold.ctx.settings.update('ui-theme', { fontSize })
-        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size')))
           .toBe(`${String(fontSize)}px`)
         const group = page.locator('[data-process-activity]:visible').first()
         expect(await process.evaluate(element => element.getBoundingClientRect().top))

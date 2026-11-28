@@ -3,9 +3,9 @@
   flex: none;
   align-items: center;
   gap: 3px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 16px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-16);
   white-space: nowrap;
 }
 
@@ -17,17 +17,17 @@
   font: inherit;
 }
 
-.tooltip { color: inherit; font-size: 11px; line-height: 14px; gap: 2px; }
+.tooltip { color: inherit; font-size: var(--delta-font-size-11); line-height: 14px; gap: var(--delta-space-0-5); }
 .tooltip .key {
   min-width: 16px;
   height: 16px;
-  padding: 0 2px;
+  padding: 0 var(--delta-space-0-5);
   border-radius: 4px;
   border: 0;
-  background: var(--dsw-alias-tooltip-key-bg);
+  background: var(--delta-alias-tooltip-key-bg);
 }
 
 .separator { font: inherit; }
 
-.joined { box-sizing: border-box; height: 16px; padding: 0 4px; border-radius: 4px; background: var(--dsw-alias-tooltip-key-bg); }
+.joined { box-sizing: border-box; height: 16px; padding: 0 var(--delta-space-1); border-radius: 4px; background: var(--delta-alias-tooltip-key-bg); }
 .joined .key { min-width: 0; height: auto; padding: 0; border: 0; background: transparent; }

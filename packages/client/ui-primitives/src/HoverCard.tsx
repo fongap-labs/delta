@@ -74,7 +74,7 @@ export function HoverCard({
   copiedLabel?: string
 })) {
   const compact = variant !== 'preview' && !inline
-  const anchorName = `--dsh-hover-card-${useId().replaceAll(':', '')}`
+  const anchorName = `--delta-hover-card-${useId().replaceAll(':', '')}`
   const rootRef = useRef<HTMLSpanElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const portalRef = useRef<HTMLSpanElement>(null)
@@ -288,7 +288,7 @@ export function HoverCard({
         positionAnchor: compact ? anchorName : undefined,
         left: pos.left, top: pos.top, width: pos.width, maxWidth: pos.maxWidth, maxHeight: pos.maxHeight,
         minHeight: copied && copyHeightRef.current !== null ? copyHeightRef.current : undefined,
-        '--dsh-hover-preview-fade': `${PREVIEW_FADE_MS}ms`,
+        '--delta-hover-preview-fade': `${PREVIEW_FADE_MS}ms`,
       } as CSSProperties}
       role={copyable ? 'button' : undefined}
       tabIndex={copyable ? 0 : undefined}

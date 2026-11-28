@@ -269,11 +269,11 @@ describe('web e2e: secondary Thinking Markdown', () => {
     const trajectoryHeading = details.locator('[data-markdown-variant="compact"] h1')
     await trajectoryHeading.waitFor({ timeout: 10_000 })
     expect(await trajectoryHeading.evaluate(element => getComputedStyle(element).fontSize)).toBe(summaryStyle.fontSize)
-    const originalFontSize = await page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size'))
+    const originalFontSize = await page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size'))
     try {
       for (const fontSize of [16, 17]) {
         await scaffold.ctx.settings.update('ui-theme', { fontSize })
-        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size')))
           .toBe(`${String(fontSize)}px`)
         const typography = await details.evaluate((panel) => {
           const heading = panel.querySelector('[data-markdown-variant="compact"] h1')
@@ -295,7 +295,7 @@ describe('web e2e: secondary Thinking Markdown', () => {
       }
     } finally {
       await scaffold.ctx.settings.update('ui-theme', { fontSize: Number.parseFloat(originalFontSize) })
-      await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+      await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size')))
         .toBe(originalFontSize)
     }
     expect(tripwire.pageErrors).toEqual([])

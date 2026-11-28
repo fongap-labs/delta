@@ -3,7 +3,7 @@
    stacked above the view still paints its active bar over the view's top
    edge. */
 .root {
-  --dsh-trajectory-toolbar-height: 32px;
+  --delta-trajectory-toolbar-height: 32px;
 
   isolation: isolate;
   display: flex;
@@ -13,8 +13,8 @@
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-layer-1);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-bg-layer-1);
 }
 
 .ledger {
@@ -28,5 +28,5 @@
   overflow: hidden;
 
   /* ConversationRoot publishes the floating composer's live height. */
-  --dsh-trajectory-bottom-clearance: calc(var(--dsh-composer-height, 152px) + 16px);
+  --delta-trajectory-bottom-clearance: calc(var(--delta-composer-height, 152px) + 16px);
 }

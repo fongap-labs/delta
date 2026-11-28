@@ -14,7 +14,7 @@ import { atRuleBlock, packageStylesheets, parseRules } from './stylesheet-scan.t
 /** The support guard prelude, spelled exactly as the sheet must spell it. */
 const GUARD = '@supports (corner-shape: superellipse(1.5))'
 /** The smoothing token corner-shape.css owns. */
-const TOKEN = '--dsw-corner-shape'
+const TOKEN = '--delta-corner-shape'
 
 const sheetPath = fileURLToPath(new URL('../src/styles/corner-shape.css', import.meta.url))
 const sheetCss = readFileSync(sheetPath, 'utf8')

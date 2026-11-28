@@ -1,22 +1,22 @@
 .block {
-  --dsl-search-radius: var(--dsw-radius-lg);
-  --dsl-search-line-height: 22px;
+  --delta-search-radius: var(--delta-radius-lg);
+  --delta-search-line-height: 22px;
 
   position: relative;
-  margin: 16px 0;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-markdown-code-block);
-  border-radius: var(--dsl-search-radius);
+  margin: var(--delta-space-4) 0;
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-markdown-code-block);
+  border-radius: var(--delta-search-radius);
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 14px;
-  background: var(--dsw-alias-markdown-code-block-banner);
-  border-top-left-radius: var(--dsl-search-radius);
-  border-top-right-radius: var(--dsl-search-radius);
+  gap: var(--delta-space-3);
+  padding: 9px var(--delta-space-3-5);
+  background: var(--delta-alias-markdown-code-block-banner);
+  border-top-left-radius: var(--delta-search-radius);
+  border-top-right-radius: var(--delta-search-radius);
 }
 
 .summary {
@@ -25,8 +25,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: var(--dsw-font-xs-13);
-  color: var(--dsw-alias-label-secondary);
+  font: var(--delta-font-xs-13);
+  color: var(--delta-alias-label-secondary);
 }
 
 .copyButton {
@@ -35,14 +35,14 @@
   border: none;
   padding: 0;
   margin: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
-  font: var(--dsw-font-xs-13);
+  font: var(--delta-font-xs-13);
 }
 
 .body {
-  padding: 8px 14px 12px 0;
-  font: var(--dsw-font-markdown-code-block);
+  padding: var(--delta-space-2) var(--delta-space-3-5) var(--delta-space-3) 0;
+  font: var(--delta-font-markdown-code-block);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -50,15 +50,15 @@
 /* No wrapping: a match line or a path keeps its content on one row and scrolls
    sideways instead of folding. */
 .line {
-  min-height: var(--dsl-search-line-height);
-  padding-left: 14px;
+  min-height: var(--delta-search-line-height);
+  padding-left: var(--delta-space-3-5);
   white-space: pre;
 }
 
 /* The 1-based line number ahead of a grep match line, dimmed so the match text
    stays the salient content. */
 .lineNumber {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* A file group's header: a bold path label plus its match count, the whole row
@@ -66,10 +66,10 @@
 .fileHeader {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--delta-space-2);
   width: 100%;
-  min-height: var(--dsl-search-line-height);
-  padding: 0 14px;
+  min-height: var(--delta-search-line-height);
+  padding: 0 var(--delta-space-3-5);
   border: none;
   background-color: transparent;
   cursor: pointer;
@@ -79,23 +79,23 @@
 
 .filePath {
   min-width: 0;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
+  font-weight: var(--delta-font-weight-semibold);
+  color: var(--delta-alias-label-primary);
   white-space: pre;
 }
 
 .fileCount {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .expand {
   display: block;
   width: 100%;
-  padding: 0 14px;
+  padding: 0 var(--delta-space-3-5);
   border: none;
   background-color: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -103,12 +103,12 @@
 
 @media (hover: hover) {
   .expand:hover {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
 .empty {
-  padding: 12px 14px;
-  font: var(--dsw-font-markdown-code-block);
-  color: var(--dsw-alias-label-tertiary);
+  padding: var(--delta-space-3) var(--delta-space-3-5);
+  font: var(--delta-font-markdown-code-block);
+  color: var(--delta-alias-label-tertiary);
 }

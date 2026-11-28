@@ -81,7 +81,7 @@ it('shares menu transparency and blur across palettes and follows native menu bo
       }, { platform, dark })
       const overlayFill = await page.evaluate(() => {
         const overlay = document.createElement('div')
-        overlay.style.background = 'var(--dsw-specific-menu)'
+        overlay.style.background = 'var(--delta-specific-menu)'
         document.body.appendChild(overlay)
         try { return getComputedStyle(overlay).backgroundColor } finally { overlay.remove() }
       })

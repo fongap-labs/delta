@@ -25,16 +25,16 @@ describe('Conversation body end reserve', () => {
   const body = declarationsOf('.body')
 
   it('derives the largest reserve and the inset from the scrollport width, the content width, and the side inset', () => {
-    expect(body['--dsh-composer-side-clearance']).toBe('16px')
-    expect(body['--dsh-chat-end-reserve-max']).toBe(
-      'calc(var(--dsh-conversation-viewport-width) - var(--dsh-chat-content-width-resolved) - var(--dsh-composer-side-clearance) - 16px)',
+    expect(body['--delta-composer-side-clearance']).toBe('16px')
+    expect(body['--delta-chat-end-reserve-max']).toBe(
+      'calc(var(--delta-conversation-viewport-width) - var(--delta-chat-content-width-resolved) - var(--delta-composer-side-clearance) - 16px)',
     )
-    expect(body['--dsh-chat-end-inset-resolved']).toBe(
-      'min(max(0px, calc((var(--dsh-chat-end-reserve-max) - var(--dsh-chat-end-reserve, 0px)) * 10000000 + 1000px)),'
-      + ' calc(2 * max(0px, var(--dsh-chat-end-reserve, 0px)'
-      + ' - (var(--dsh-conversation-viewport-width) - var(--dsh-chat-content-width-resolved)) / 2)))',
+    expect(body['--delta-chat-end-inset-resolved']).toBe(
+      'min(max(0px, calc((var(--delta-chat-end-reserve-max) - var(--delta-chat-end-reserve, 0px)) * 10000000 + 1000px)),'
+      + ' calc(2 * max(0px, var(--delta-chat-end-reserve, 0px)'
+      + ' - (var(--delta-conversation-viewport-width) - var(--delta-chat-content-width-resolved)) / 2)))',
     )
-    expect(body['--dsh-chat-end-inset']).toBe('var(--dsh-chat-end-inset-resolved)')
+    expect(body['--delta-chat-end-inset']).toBe('var(--delta-chat-end-inset-resolved)')
   })
 
   it('keeps the continuously varying lengths on the body and publishes resolved lengths to its descendants', () => {
@@ -42,18 +42,18 @@ describe('Conversation body end reserve', () => {
     const registered = Object.fromEntries([...css.matchAll(/@property\s+(--[\w-]+)\s*\{([^{}]*)\}/g)]
       .map((match): [string, string] => [match[1] ?? '', (match[2] ?? '').replace(/\s+/g, ' ').trim()]))
     expect(registered).toEqual({
-      '--dsh-conversation-column-width': "syntax: '<length>'; inherits: false; initial-value: 0px;",
-      '--dsh-conversation-viewport-width': "syntax: '<length>'; inherits: false; initial-value: 0px;",
-      '--dsh-chat-user-width': "syntax: '*'; inherits: false;",
-      '--dsh-chat-content-width-resolved': "syntax: '<length>'; inherits: false; initial-value: 0px;",
-      '--dsh-chat-end-reserve-max': "syntax: '<length>'; inherits: false; initial-value: 0px;",
-      '--dsh-chat-end-inset-resolved': "syntax: '<length>'; inherits: false; initial-value: 0px;",
+      '--delta-conversation-column-width': "syntax: '<length>'; inherits: false; initial-value: 0px;",
+      '--delta-conversation-viewport-width': "syntax: '<length>'; inherits: false; initial-value: 0px;",
+      '--delta-chat-user-width': "syntax: '*'; inherits: false;",
+      '--delta-chat-content-width-resolved': "syntax: '<length>'; inherits: false; initial-value: 0px;",
+      '--delta-chat-end-reserve-max': "syntax: '<length>'; inherits: false; initial-value: 0px;",
+      '--delta-chat-end-inset-resolved': "syntax: '<length>'; inherits: false; initial-value: 0px;",
     })
     // The inherited public names repeat a computed length, whose text changes only with the resolved width.
-    expect(body['--dsh-chat-content-width-resolved']).toBe(
-      'var(--dsh-chat-user-width, clamp(680px, calc(var(--dsh-conversation-column-width) * 0.64), 880px))',
+    expect(body['--delta-chat-content-width-resolved']).toBe(
+      'var(--delta-chat-user-width, clamp(680px, calc(var(--delta-conversation-column-width) * 0.64), 880px))',
     )
-    expect(body['--dsh-chat-content-width']).toBe('var(--dsh-chat-content-width-resolved)')
+    expect(body['--delta-chat-content-width']).toBe('var(--delta-chat-content-width-resolved)')
   })
 
   it('moves the column aside by twice the missing gutter at its own width, and makes no room once the start gutter is at the side inset', () => {
@@ -87,22 +87,22 @@ describe('Conversation body end reserve', () => {
   })
 
   it('pads the scrollport end by the inset and makes no room in an embedded occurrence', () => {
-    expect(declarationsOf('.scrollBody')['padding-inline-end']).toBe('var(--dsh-chat-end-inset)')
+    expect(declarationsOf('.scrollBody')['padding-inline-end']).toBe('var(--delta-chat-end-inset)')
     // The inset applies at once unless a stylesheet sets the transition for a change it wants animated.
-    expect(declarationsOf('.scrollBody')['transition']).toBe('padding-inline-end var(--dsh-chat-end-reserve-transition, 0s)')
+    expect(declarationsOf('.scrollBody')['transition']).toBe('padding-inline-end var(--delta-chat-end-reserve-transition, 0s)')
     const embedded = declarationsOf('.embeddedBody')
-    expect([embedded['--dsh-chat-end-reserve-max'], embedded['--dsh-chat-end-inset']]).toEqual(['0px', '0px'])
+    expect([embedded['--delta-chat-end-reserve-max'], embedded['--delta-chat-end-inset']]).toEqual(['0px', '0px'])
   })
 
   it('moves each width handle with the column and sizes it from the gutter on its own side', () => {
     // Half the inset toward the start edge, as the column's center moves; the start gutter loses that half and the end gutter gains it.
     expect(declarationsOf(".widthHandle[data-side='left']")).toEqual({
-      right: 'calc(50% + var(--dsh-chat-end-inset) / 2 + var(--dsh-chat-content-width) / 2 + 24px)',
-      width: 'min(10px, calc((100% - var(--dsh-chat-end-inset) - var(--dsh-chat-content-width)) / 2 - 24px - 24px))',
+      right: 'calc(50% + var(--delta-chat-end-inset) / 2 + var(--delta-chat-content-width) / 2 + 24px)',
+      width: 'min(10px, calc((100% - var(--delta-chat-end-inset) - var(--delta-chat-content-width)) / 2 - 24px - 24px))',
     })
     expect(declarationsOf(".widthHandle[data-side='right']")).toEqual({
-      left: 'calc(50% - var(--dsh-chat-end-inset) / 2 + var(--dsh-chat-content-width) / 2 + 24px)',
-      width: 'min(10px, calc((100% + var(--dsh-chat-end-inset) - var(--dsh-chat-content-width)) / 2 - 24px - 24px))',
+      left: 'calc(50% - var(--delta-chat-end-inset) / 2 + var(--delta-chat-content-width) / 2 + 24px)',
+      width: 'min(10px, calc((100% + var(--delta-chat-end-inset) - var(--delta-chat-content-width)) / 2 - 24px - 24px))',
     })
     expect(declarationsOf('.widthHandle')['width']).toBeUndefined()
   })

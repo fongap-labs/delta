@@ -10,24 +10,24 @@
    padding so the pair reads as one cluster inside the row's 8px flex gap,
    while keeping 2px clear between their hover backgrounds. */
 .root + .root {
-  margin-left: -6px;
+  margin-left: calc(-1 * var(--delta-space-1-5));
 }
 
 /* The information pills use the action icons' resting color. */
 .trigger {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
-  padding: 6px 8px;
+  height: calc(28px + var(--delta-content-font-delta, 0px));
+  padding: var(--delta-space-1-5) var(--delta-space-2);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
+  color: var(--delta-alias-label-tertiary);
+  font-size: calc(var(--delta-content-font-size-secondary, 13px) - 1px);
   font-variant-numeric: tabular-nums;
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   white-space: nowrap;
   cursor: pointer;
 }
@@ -41,20 +41,20 @@
 }
 
 .trigger svg {
-  width: calc(15px + var(--dsh-content-font-delta, 0px));
-  height: calc(15px + var(--dsh-content-font-delta, 0px));
+  width: calc(15px + var(--delta-content-font-delta, 0px));
+  height: calc(15px + var(--delta-content-font-delta, 0px));
   flex: none;
 }
 
 .trigger[aria-expanded='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-tertiary);
+  background: var(--delta-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-tertiary);
 }
 
 @media (hover: hover) {
   .trigger:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-tertiary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-tertiary);
   }
 }
 
@@ -65,8 +65,8 @@
 @media (max-width: 480px) {
   .trigger {
     justify-content: center;
-    width: calc(28px + var(--dsh-content-font-delta, 0px));
-    padding: 6px;
+    width: calc(28px + var(--delta-content-font-delta, 0px));
+    padding: var(--delta-space-1-5);
   }
 
   .trigger .label {

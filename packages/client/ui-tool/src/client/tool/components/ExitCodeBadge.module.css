@@ -1,6 +1,6 @@
 .badge {
   flex: none;
-  margin-left: 8px;
+  margin-left: var(--delta-space-2);
   gap: 5px;
 }
 
@@ -10,5 +10,5 @@
   height: 4px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-state-error-primary);
+  background: var(--delta-alias-state-error-primary);
 }

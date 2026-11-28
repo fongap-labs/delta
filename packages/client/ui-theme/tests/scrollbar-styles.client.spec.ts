@@ -1,6 +1,6 @@
 /**
  * Scrollbar stylesheet contract, asserted against the CSS text on disk: every
- * --dsw-alias-scrollbar-* token design-platform.css defines has a consumer,
+ * --delta-alias-scrollbar-* token design-platform.css defines has a consumer,
  * scrollbar.css binds the base-surface pair through the rebindable
  * indirection, the WebKit geometry reads the shared width, thumb-border, and
  * track-margin variables, and elevated surfaces rebind the colour indirection
@@ -26,9 +26,9 @@ const scrollbarCss = read('scrollbar.css')
 /** Body attribute selecting the dark palette; ui-layout's ThemePresenter sets it. */
 const DARK_ATTRIBUTE = '[data-ds-dark-theme]'
 /** Alias tokens under test: the prefix the elevation pairs share. */
-const TOKEN_PREFIX = '--dsw-alias-scrollbar-'
+const TOKEN_PREFIX = '--delta-alias-scrollbar-'
 /** Prefix of the rebindable indirection scrollbar.css owns. */
-const INDIRECTION_PREFIX = '--dsh-scrollbar-'
+const INDIRECTION_PREFIX = '--delta-scrollbar-'
 /** The elevation-aware colour variables surfaces rebind as one pair. */
 const COLOUR_INDIRECTIONS = new Set([
   `${INDIRECTION_PREFIX}thumb`,
@@ -38,8 +38,8 @@ const COLOUR_INDIRECTIONS = new Set([
 const HIDDEN_THUMB = 'transparent'
 /** The elevation rebind, spelled per property: value-wholeness, not token shape. */
 const ELEVATED_REBIND = new Map([
-  ['--dsh-scrollbar-thumb', '--dsw-alias-scrollbar-bg-l2'],
-  ['--dsh-scrollbar-thumb-hover', '--dsw-alias-scrollbar-hover-l2'],
+  ['--delta-scrollbar-thumb', '--delta-alias-scrollbar-bg-l2'],
+  ['--delta-scrollbar-thumb-hover', '--delta-alias-scrollbar-hover-l2'],
 ].map(([property, token]) => [property!, `var(${token!})`]))
 
 /**
@@ -48,7 +48,7 @@ const ELEVATED_REBIND = new Map([
  * an indirection counts. The walk starts from the standard-property
  * declarations, so a defined-but-unread indirection contributes nothing.
  * @param rules - parsed rules of one stylesheet.
- * @returns every `--dsw-*` token the sheet's rendering declarations depend on.
+ * @returns every `--delta-*` token the sheet's rendering declarations depend on.
  */
 function tokensRendered(rules: CssRule[]): Set<string> {
   const definitions = new Map<string, string>()
@@ -63,7 +63,7 @@ function tokensRendered(rules: CssRule[]): Set<string> {
   const visited = new Set<string>()
   while (pending.length > 0) {
     for (const name of varReferences(pending.pop()!)) {
-      if (name.startsWith('--dsw-')) reached.add(name)
+      if (name.startsWith('--delta-')) reached.add(name)
       if (visited.has(name)) continue
       visited.add(name)
       const definition = definitions.get(name)
@@ -138,16 +138,16 @@ const OVERFLOW_PROPERTIES = ['overflow', 'overflow-x', 'overflow-y']
 const SURFACE_PROPERTIES = ['background', 'background-color']
 /**
  * Token families that name a SURFACE — a background an element is drawn on, and
- * so something a scrollbar can sit against. `--dsw-alias-button-*`,
- * `--dsw-alias-interactive-*`, and `--dsw-alias-markdown-*` reach the same dark
+ * so something a scrollbar can sit against. `--delta-alias-button-*`,
+ * `--delta-alias-interactive-*`, and `--delta-alias-markdown-*` reach the same dark
  * elevation rungs while naming a control or an inline span, which no scroll
  * container renders its bar against (ChatView's floating `.toBottom` pill,
  * CodeBlock's banner). Family, not geometry: a floating button legitimately
  * carries a radius, a shadow, and a fixed size, so shape cannot separate them.
  */
-const SURFACE_TOKEN_PATTERN = /^--dsw-(?:alias-bg-|specific-)/
+const SURFACE_TOKEN_PATTERN = /^--delta-(?:alias-bg-|specific-)/
 /** Translucent elevated surfaces whose colors do not resolve to a palette rung. */
-const TRANSLUCENT_ELEVATED_SURFACES = new Set(['--dsw-specific-menu'])
+const TRANSLUCENT_ELEVATED_SURFACES = new Set(['--delta-specific-menu'])
 
 /**
  * The palette's own dark elevation ladder, resolved from `design-platform.css`:
@@ -176,7 +176,7 @@ function elevatedRungs(): Set<string> {
     }
     return current
   }
-  const rungs = new Set([resolve('--dsw-alias-bg-layer-2'), resolve('--dsw-alias-bg-layer-3')])
+  const rungs = new Set([resolve('--delta-alias-bg-layer-2'), resolve('--delta-alias-bg-layer-3')])
   const tokens = new Set<string>()
   for (const name of definitions.keys()) {
     if (SURFACE_TOKEN_PATTERN.test(name) && rungs.has(resolve(name))) tokens.add(name)
@@ -230,7 +230,7 @@ describe('design-platform.css scrollbar tokens', () => {
       for (const [property, value] of rule.declarations) {
         if (!property.startsWith(TOKEN_PREFIX)) continue
         for (const reference of varReferences(value)) {
-          expect(reference, `${property}: ${value}`).toMatch(/^--dsw-static-/)
+          expect(reference, `${property}: ${value}`).toMatch(/^--delta-static-/)
         }
       }
     }
@@ -315,7 +315,7 @@ describe('scrollbar.css geometry variables', () => {
 
   it('every reader of the width variable outside ui-theme references a defined variable', () => {
     // The consumer is ConversationRoot's overlay composer seat
-    // (`right: var(--dsh-scrollbar-width)`); a rename in scrollbar.css without
+    // (`right: var(--delta-scrollbar-width)`); a rename in scrollbar.css without
     // the consumer, or a typo in the consumer, leaves the value
     // guaranteed-invalid and the seat loses the band. The equal-rectangle e2e
     // would catch it only on an engine that draws the bar, so the sheet
@@ -468,13 +468,13 @@ describe('elevated surface rebinds', () => {
   it('rebinds the pair to one target: the l2 elevation pair, or transparent', () => {
     // The rule as a whole, not each declaration on its own. Per-declaration
     // checking accepts a MIXED rule — `thumb: transparent` beside
-    // `thumb-hover: var(--dsw-alias-scrollbar-hover-l2)` — which repaints the
+    // `thumb-hover: var(--delta-alias-scrollbar-hover-l2)` — which repaints the
     // bar the moment the pointer reaches it while passing a gate that claims
     // the two targets are exclusive.
     //
     // The elevation half compares the whole value against the pair's canonical
     // spelling rather than checking that every token it mentions ends in `-l2`.
-    // A shape check admits `color-mix(…, var(--dsw-alias-scrollbar-bg-l2) 85%,
+    // A shape check admits `color-mix(…, var(--delta-alias-scrollbar-bg-l2) 85%,
     // white)` and a crossed pair (the hover token bound to the resting
     // property); neither is what the contract says.
     for (const { file, rule } of rebindRules) {
@@ -494,19 +494,19 @@ describe('elevated surface rebinds', () => {
     // remembered, and a surface nobody has rebound yet — the case the check
     // exists for — would define itself as unelevated. Anchoring it here means a
     // new palette token on an elevated rung is in scope the moment it is
-    // defined. `--dsw-specific-tip` is the regression that proved the point: it
+    // defined. `--delta-specific-tip` is the regression that proved the point: it
     // resolves to the same dark rung as the input surface, and the Todo panel
     // scrolled on it unrebound while a rebind-derived set stayed green. The
     // translucent menu remains explicit because its alpha color has no rung.
-    expect(elevatedSurfaces).toContain('--dsw-alias-bg-layer-2')
-    expect(elevatedSurfaces).toContain('--dsw-alias-bg-layer-3')
-    expect(elevatedSurfaces).toContain('--dsw-specific-menu')
-    expect(elevatedSurfaces).toContain('--dsw-specific-input-major')
-    expect(elevatedSurfaces).toContain('--dsw-specific-tip')
+    expect(elevatedSurfaces).toContain('--delta-alias-bg-layer-2')
+    expect(elevatedSurfaces).toContain('--delta-alias-bg-layer-3')
+    expect(elevatedSurfaces).toContain('--delta-specific-menu')
+    expect(elevatedSurfaces).toContain('--delta-specific-input-major')
+    expect(elevatedSurfaces).toContain('--delta-specific-tip')
     // Base surfaces stay out, or every scroll container would be in scope and
     // the check would say nothing.
-    expect(elevatedSurfaces).not.toContain('--dsw-alias-bg-base')
-    expect(elevatedSurfaces).not.toContain('--dsw-alias-bg-layer-1')
+    expect(elevatedSurfaces).not.toContain('--delta-alias-bg-base')
+    expect(elevatedSurfaces).not.toContain('--delta-alias-bg-layer-1')
   })
 
   it('every sheet that scrolls on an elevated surface rebinds', () => {
@@ -520,7 +520,7 @@ describe('elevated surface rebinds', () => {
     // Surface-level, not element-level: the elevated card and the descendant
     // that scrolls are separate rules, and CSS text does not say which contains
     // which. What keeps that from over-reporting is the token FAMILY: only
-    // `--dsw-alias-bg-*` and `--dsw-specific-*` name a surface, so a floating
+    // `--delta-alias-bg-*` and `--delta-specific-*` name a surface, so a floating
     // button or an inline code span reaching the same rung is out of scope
     // (ChatView's `.toBottom`, CodeBlock's banner). Geometry cannot make that
     // call — a floating button carries a radius, a shadow, and a fixed size.

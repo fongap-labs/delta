@@ -3,23 +3,23 @@
   display: inline-grid;
   grid-template-columns: 14px max-content;
   align-items: center;
-  column-gap: 4px;
+  column-gap: var(--delta-space-1);
   height: 28px;
-  padding: 0 8px;
+  padding: 0 var(--delta-space-2);
   box-sizing: border-box;
   border: 1px solid transparent;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  font-size: var(--delta-font-size-12);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-18);
   white-space: nowrap;
   transition:
-    background-color 160ms ease-out,
-    color 160ms ease-out,
-    border-color 160ms ease-out,
-    opacity 150ms ease-out;
-  animation: indicator-enter 150ms ease-out;
+    background-color var(--delta-transition-duration-160ms) ease-out,
+    color var(--delta-transition-duration-160ms) ease-out,
+    border-color var(--delta-transition-duration-160ms) ease-out,
+    opacity var(--delta-transition-duration-150ms) ease-out;
+  animation: indicator-enter var(--delta-transition-duration-150ms) ease-out;
 }
 
 .leaving {
@@ -33,9 +33,9 @@
 }
 
 .warning {
-  background: var(--dsw-alias-state-warn-tertiary);
-  color: var(--dsw-alias-state-warn-label);
-  border-color: color-mix(in srgb, var(--dsw-alias-state-warn-label) 20%, transparent);
+  background: var(--delta-alias-state-warn-tertiary);
+  color: var(--delta-alias-state-warn-label);
+  border-color: color-mix(in srgb, var(--delta-alias-state-warn-label) 20%, transparent);
   cursor: pointer;
 }
 
@@ -43,8 +43,8 @@
   .warning:hover {
     background: color-mix(
       in srgb,
-      var(--dsw-alias-state-warn-tertiary),
-      var(--dsw-alias-state-warn-primary) 6%
+      var(--delta-alias-state-warn-tertiary),
+      var(--delta-alias-state-warn-primary) 6%
     );
   }
 }
@@ -52,20 +52,20 @@
 .warning:active {
   background: color-mix(
     in srgb,
-    var(--dsw-alias-state-warn-tertiary),
-    var(--dsw-alias-state-warn-primary) 10%
+    var(--delta-alias-state-warn-tertiary),
+    var(--delta-alias-state-warn-primary) 10%
   );
 }
 
 .warning:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
 .success {
-  background: var(--dsw-alias-state-success-tertiary);
-  color: var(--dsw-alias-state-success-primary);
-  border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 20%, transparent);
+  background: var(--delta-alias-state-success-tertiary);
+  color: var(--delta-alias-state-success-primary);
+  border-color: color-mix(in srgb, var(--delta-alias-state-success-primary) 20%, transparent);
 }
 
 .icon {
@@ -90,11 +90,11 @@
 }
 
 .secondDot {
-  animation: reveal-second-dot 1.5s step-end infinite;
+  animation: reveal-second-dot var(--delta-transition-duration-1500ms) step-end infinite;
 }
 
 .thirdDot {
-  animation: reveal-third-dot 1.5s step-end infinite;
+  animation: reveal-third-dot var(--delta-transition-duration-1500ms) step-end infinite;
 }
 
 @keyframes reveal-second-dot {

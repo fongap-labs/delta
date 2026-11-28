@@ -5,10 +5,10 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { Menu, MenuItemButton } from '../src/Menu.tsx'
 import { ReferenceChip } from '../src/user-text.tsx'
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); cleanup(); document.documentElement.style.removeProperty('--dsh-frame-top-clearance') })
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); cleanup(); document.documentElement.style.removeProperty('--delta-frame-top-clearance') })
 
 it('places pointer menus at the cursor above the frame inset and focuses after portal placement', async () => {
-  document.documentElement.style.setProperty('--dsh-frame-top-clearance', '96px')
+  document.documentElement.style.setProperty('--delta-frame-top-clearance', '96px')
   const close = vi.fn()
   const view = render(<Menu open portal autoFocus contextual anchor={null} onClose={close}
     anchorPoint={{ x: 200, y: 20 }} items={[{ id: 'copy', label: 'Copy' }]} />)

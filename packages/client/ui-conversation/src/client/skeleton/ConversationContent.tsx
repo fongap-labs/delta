@@ -43,11 +43,11 @@ export function ConversationContent(props: ConversationContentProps) {
   const pickerAnchor = useRef<HTMLButtonElement>(null)
 
   // Publishes the two live measurements floating View chrome reads off the
-  // scroll body: the seat's height as --dsh-composer-height, so controls clear
+  // scroll body: the seat's height as --delta-composer-height, so controls clear
   // the composer as it grows, and the scrollport's own height as
-  // --dsh-conversation-viewport-height, so a control can sit in the band the
+  // --delta-conversation-viewport-height, so a control can sit in the band the
   // seat leaves visible. The scrollport's width goes on the body as
-  // --dsh-conversation-viewport-width, where the end reserve's lengths derive
+  // --delta-conversation-viewport-width, where the end reserve's lengths derive
   // from it for the scrollport and the width handles alike; the width counts
   // the scrollport's padding, so the inset it sizes does not change it.
   // Callback ref, not an effect; stable identity prevents observer churn
@@ -63,16 +63,16 @@ export function ConversationContent(props: ConversationContentProps) {
     if (content === null) return
     let width: number | undefined
     seatObserver.current = new ResizeObserver(() => {
-      scroller.style.setProperty('--dsh-composer-height', `${seat.offsetHeight}px`)
+      scroller.style.setProperty('--delta-composer-height', `${seat.offsetHeight}px`)
       scroller.style.setProperty(
-        '--dsh-conversation-viewport-height',
+        '--delta-conversation-viewport-height',
         `${scroller.clientHeight}px`,
       )
       // The body is an ancestor of the whole transcript: write its property only when the width changes,
       // not on every report of the composer's height.
       if (scroller.clientWidth === width) return
       width = scroller.clientWidth
-      content.style.setProperty('--dsh-conversation-viewport-width', `${width}px`)
+      content.style.setProperty('--delta-conversation-viewport-width', `${width}px`)
     })
     seatObserver.current.observe(seat)
     // The scrollport's border box: its end inset changes only the content box, and no published length depends on that.

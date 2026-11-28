@@ -2,19 +2,19 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   width: 240px;
   height: 64px;
-  padding: 0 12px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-input-major, transparent);
+  padding: 0 var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-input-major, transparent);
   box-sizing: border-box;
   text-align: left;
 }
 
 .failed {
-  border-color: var(--dsw-alias-state-error-primary);
+  border-color: var(--delta-alias-state-error-primary);
 }
 
 .icon {
@@ -33,7 +33,7 @@
   border-top-color: transparent;
   border-radius: 50%;
   corner-shape: round;
-  animation: file-card-spin 0.8s linear infinite;
+  animation: file-card-spin var(--delta-transition-duration-800ms) linear infinite;
 }
 
 @keyframes file-card-spin {
@@ -45,7 +45,7 @@
   flex: 1;
   flex-direction: column;
   min-width: 0;
-  padding: 8px 0;
+  padding: var(--delta-space-2) 0;
 }
 
 .retry {
@@ -62,23 +62,23 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-22);
 }
 
 .meta {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
   line-height: 15px;
 }
 
 .metaFailed {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .remove {
@@ -94,11 +94,11 @@
   border: none;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-button-contrast-fill);
-  color: var(--dsw-alias-label-primary-inverted);
+  background: var(--delta-alias-button-contrast-fill);
+  color: var(--delta-alias-label-primary-inverted);
   opacity: 0;
   cursor: pointer;
-  transition: opacity 0.2s ease-in-out;
+  transition: opacity var(--delta-transition-duration) ease-in-out;
 }
 
 .remove:focus-visible {
@@ -134,8 +134,8 @@
 }
 
 .removeFailed {
-  background: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-label-on-color);
+  background: var(--delta-alias-state-error-primary);
+  color: var(--delta-alias-label-on-color);
   opacity: 1;
 }
 
@@ -147,7 +147,7 @@
   overflow: hidden;
   height: 2px;
   border-radius: 1px;
-  background: var(--dsw-specific-file-upload-track);
+  background: var(--delta-specific-file-upload-track);
 }
 
 .progressBar {
@@ -155,8 +155,8 @@
   width: 35%;
   height: 100%;
   border-radius: inherit;
-  background: var(--dsw-alias-brand-primary);
-  animation: file-card-progress 1.2s ease-in-out infinite alternate;
+  background: var(--delta-alias-brand-primary);
+  animation: file-card-progress var(--delta-transition-duration-1200ms) ease-in-out infinite alternate;
 }
 
 .progressBar[style] {

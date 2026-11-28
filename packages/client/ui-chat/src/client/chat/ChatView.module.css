@@ -29,11 +29,11 @@
   overflow-y: auto;
   /* Sides = composer clearance + 16px: on narrow viewports the transcript
      stays exactly 32px narrower than the input card (the shared width rule). */
-  padding: 16px calc(var(--dsh-composer-side-clearance) + 16px);
+  padding: 16px calc(var(--delta-composer-side-clearance) + 16px);
   /* Inline-size query container: wide markdown tables size their breakout
      against this box's content width (100cqw in AssistantMarkdown's
      md-table-wide rule) — the CSS stand-in for deepsuite chat's JS-measured
-     --dsl-virtual-list-width. */
+     --delta-virtual-list-width. */
   container-type: inline-size;
 }
 
@@ -63,12 +63,12 @@
   min-height: auto;
 }
 
-/* Message column: shared chat width (ConversationRoot --dsh-chat-content-width),
+/* Message column: shared chat width (ConversationRoot --delta-chat-content-width),
    centered on the same axis as the input box (which caps at chat + 16px); the
    scroller itself stays full-bleed. */
 .column {
   position: relative;
-  max-width: var(--dsh-chat-content-width);
+  max-width: var(--delta-chat-content-width);
   width: 100%;
   margin: 0 auto;
   display: flex;
@@ -83,18 +83,18 @@
   ~ :not([hidden]):not(.textInteraction):not(.flowItem:is(:empty, :has(> [data-slot="conversation.chat.node"]:empty))),
 .column > .older + :global([data-slot="conversation.chat.flow"])
   > :not([hidden]):not(.textInteraction):not(.flowItem:is(:empty, :has(> [data-slot="conversation.chat.node"]:empty))) {
-  margin-top: var(--dsh-chat-flow-gap, 4px);
+  margin-top: var(--delta-chat-flow-gap, 4px);
 }
 
 /* Process rows sit 4px apart; an Assistant response is separated from its
    neighbours by 12px. */
 .flowItem[data-chat-group-part="response"] {
-  --dsh-chat-flow-gap: 12px;
+  --delta-chat-flow-gap: 12px;
 }
 
 :is(.column, :global([data-slot="conversation.chat.flow"])) > [data-chat-group-part="response"]:not([hidden]):not(:empty)
   + :not([hidden]):not(.flowItem:is(:empty, :has(> [data-slot="conversation.chat.node"]:empty))):not(.running):not(:has(> [data-slot="conversation.chat.node"] > [data-chat-steering-batch])) {
-  --dsh-chat-flow-gap: 12px;
+  --delta-chat-flow-gap: 12px;
 }
 
 /* Settled-flow identity boundary. It is neutral until it becomes the natural
@@ -112,7 +112,7 @@
 /* While a Turn folds, spacing changes share the closing rows' timing. */
 .column[data-chat-motion] > :not([data-chat-motion]),
 .column[data-chat-motion] > :global([data-slot="conversation.chat.flow"]) > :not([data-chat-motion]) {
-  transition: margin-top 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: margin-top var(--delta-transition-duration-160ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .column[data-input-fold] > :not([data-chat-motion]),
@@ -140,7 +140,7 @@
 .flowItem[data-chat-flow-kind="turn-process"],
 :is(.column, :global([data-slot="conversation.chat.flow"])) > [data-chat-flow-kind="turn-process"]:not(:empty, :has(> [data-slot="conversation.chat.node"]:empty)) + :not([hidden]):not(.flowItem:is(:empty, :has(> [data-slot="conversation.chat.node"]:empty))):not(.running):not(:has(> [data-slot="conversation.chat.node"] > [data-chat-steering-batch])),
 :is(.column, :global([data-slot="conversation.chat.flow"])) > [data-chat-flow-kind="turn-process"] + :not([hidden]):not(.flowItem:is(:empty, :has(> [data-slot="conversation.chat.node"]:empty))):not(.running):not([data-submission-echo], [data-pending-steering]):not(:has(> [data-slot="conversation.chat.node"] > [data-chat-steering-batch])) {
-  --dsh-chat-flow-gap: 16px;
+  --delta-chat-flow-gap: 16px;
 }
 
 /* Tail slot: the running status and a completed Turn's actions row both take
@@ -153,11 +153,11 @@
    without moving any bubble. Neighbour gap rules exclude the batch start so
    this slot always applies. */
 :is(.column, :global([data-slot="conversation.chat.flow"])) > .flowItem:has(> [data-slot="conversation.chat.node"] > [data-chat-steering-batch="start"]) {
-  --dsh-chat-flow-gap: calc(44px + var(--dsh-content-font-delta, 0px));
+  --delta-chat-flow-gap: calc(44px + var(--delta-content-font-delta, 0px));
 }
 
 .running + [data-pending-steering] {
-  --dsh-chat-flow-gap: 0px;
+  --delta-chat-flow-gap: 0px;
 }
 
 /* A completed Turn's actions row owns the tail slot; the status can trail it
@@ -173,7 +173,7 @@
    fade-in covers that difference, so this entrance approximates the move. */
 @media (prefers-reduced-motion: no-preference) {
   :where(.column > :global([data-slot="conversation.chat.flow"]) > .flowItem[data-chat-flow-kind="steering"]) + .running {
-    animation: running-enters-slot 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: running-enters-slot var(--delta-transition-duration-140ms) cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   /* An input fold runs the entrance at zero duration. The switch only changes
@@ -189,7 +189,7 @@
 @keyframes running-enters-slot {
   from {
     opacity: 0;
-    translate: 0 calc(-44px - var(--dsh-content-font-delta, 0px));
+    translate: 0 calc(-44px - var(--delta-content-font-delta, 0px));
   }
   40% {
     opacity: 1;
@@ -203,16 +203,16 @@
 }
 
 .callRow {
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
 }
 
 /* Selection still sets data-selected for details linkage; no outline —
    tool rows match Think chrome (no selected ring). */
 
 .hint {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(18px + var(--delta-content-font-delta-secondary, 0px));
 }
 
 .running {
@@ -220,11 +220,11 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  --dsh-chat-flow-gap: 12px;
-  --dsw-alias-label-shimmer: var(--dsw-alias-label-deep-diving-shimmer);
-  color: var(--dsw-alias-label-deep-diving);
-  font-size: calc(var(--dsh-content-font-size, 14px) - 2px);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
+  --delta-chat-flow-gap: 12px;
+  --delta-alias-label-shimmer: var(--delta-alias-label-deep-diving-shimmer);
+  color: var(--delta-alias-label-deep-diving);
+  font-size: calc(var(--delta-content-font-size, 14px) - 2px);
+  line-height: calc(22px + var(--delta-content-font-delta, 0px));
 }
 
 /* After the Session stops running and before the Turn's actions row arrives, the status keeps its slot
@@ -252,14 +252,14 @@
   left: 0;
   right: 0;
   height: 0.5px;
-  background: color-mix(in srgb, var(--dsw-alias-border-l1) 75%, var(--dsw-alias-border-l2));
+  background: color-mix(in srgb, var(--delta-alias-border-l1) 75%, var(--delta-alias-border-l2));
   opacity: 0;
   pointer-events: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .runningDivider {
-    transition: opacity 160ms ease;
+    transition: opacity var(--delta-transition-duration-160ms) ease;
   }
 }
 
@@ -268,9 +268,9 @@
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  gap: 6px;
-  margin-top: 4px;
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  gap: var(--delta-space-1-5);
+  margin-top: var(--delta-space-1);
+  height: calc(28px + var(--delta-content-font-delta, 0px));
 }
 
 .runningText {
@@ -282,8 +282,8 @@
   position: relative;
   display: inline-flex;
   flex: none;
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--delta-content-font-delta, 0px));
+  height: calc(14px + var(--delta-content-font-delta, 0px));
   /* The fixed footprint contains the animation's layout and paint. */
   contain: strict;
   overflow: hidden;
@@ -317,9 +317,9 @@
 }
 
 .openError {
-  color: var(--dsw-alias-state-error-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(18px + var(--delta-content-font-delta-secondary, 0px));
 }
 
 .older {
@@ -330,14 +330,14 @@
 
 .older button {
   display: grid;
-  line-height: 18px;
+  line-height: var(--delta-line-height-18);
   white-space: nowrap;
   border: none;
-  border-radius: var(--dsw-radius-sm);
-  padding: 4px 12px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-interactive-bg-hover-solid);
+  border-radius: var(--delta-radius-sm);
+  padding: var(--delta-space-1) var(--delta-space-3);
+  font-size: var(--delta-font-size-12);
+  color: var(--delta-alias-label-secondary);
+  background: var(--delta-alias-interactive-bg-hover-solid);
   cursor: pointer;
 }
 
@@ -358,16 +358,16 @@
    anchors them to its frame; the shared host supplies the sticky scrollport. */
 /* The aside layer: zero height at the frame's top, sticky in a shared
    scrollport so its occupant stays put while the transcript scrolls and
-   inherits the scrollport's --dsh-composer-height and
-   --dsh-conversation-viewport-height. Above the turn rail (7) and the
+   inherits the scrollport's --delta-composer-height and
+   --delta-conversation-viewport-height. Above the turn rail (7) and the
    back-to-bottom control (8). It publishes the end gutter, the inline space
    between the transcript column and the frame's end edge, for the
    occupant's inline sizes: the percentage resolves against the layer in an
    element whose containing block is the layer, as it does in the
    back-to-bottom control's padding below. The Conversation body's end
-   reserve narrows the frame by --dsh-chat-end-inset; the layer reaches back
+   reserve narrows the frame by --delta-chat-end-inset; the layer reaches back
    across it to the scrollport's end edge, and the gutter counts it. The
-   margin follows the body's --dsh-chat-end-reserve-transition, as the
+   margin follows the body's --delta-chat-end-reserve-transition, as the
    scrollport's padding does, so the layer's end edge stays put while the
    inset animates. */
 .asideSlot {
@@ -377,12 +377,12 @@
   left: 0;
   z-index: 9;
   height: 0;
-  margin-inline-end: calc(-1 * var(--dsh-chat-end-inset, 0px));
-  transition: margin-inline-end var(--dsh-chat-end-reserve-transition, 0s);
+  margin-inline-end: calc(-1 * var(--delta-chat-end-inset, 0px));
+  transition: margin-inline-end var(--delta-chat-end-reserve-transition, 0s);
   pointer-events: none;
-  --dsh-chat-aside-gutter: calc(
-    var(--dsh-chat-end-inset, 0px)
-    + max(0px, (100% - var(--dsh-chat-end-inset, 0px) - var(--dsh-chat-content-width, 100%)) / 2)
+  --delta-chat-aside-gutter: calc(
+    var(--delta-chat-end-inset, 0px)
+    + max(0px, (100% - var(--delta-chat-end-inset, 0px) - var(--delta-chat-content-width, 100%)) / 2)
   );
 }
 
@@ -404,8 +404,8 @@
   display: flex;
   justify-content: flex-end;
   padding-right: max(
-    calc(var(--dsh-composer-side-clearance) + 16px),
-    calc((100% - var(--dsh-chat-content-width)) / 2)
+    calc(var(--delta-composer-side-clearance) + 16px),
+    calc((100% - var(--delta-chat-content-width)) / 2)
   );
   pointer-events: none;
 }
@@ -413,10 +413,10 @@
 :global([data-conversation-scroll]) .toBottomSlot {
   position: sticky;
   /* Clears the sticky composer stack (docks + input card + stats): the live
-     height rides --dsh-composer-height (ConversationRoot's seat observer) so
+     height rides --delta-composer-height (ConversationRoot's seat observer) so
      the control follows a growing textarea; the fallback covers the first
      paint before the observer fires. */
-  bottom: calc(var(--dsh-composer-height, 152px) + 16px);
+  bottom: calc(var(--delta-composer-height, 152px) + 16px);
 }
 
 .toBottom {
@@ -428,19 +428,19 @@
   margin-top: -34px;
   padding: 0;
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l3);
   border-radius: 100px;
   corner-shape: round;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-button-floating-fill);
-  box-shadow: var(--dsw-elevation-panel);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-button-floating-fill);
+  box-shadow: var(--delta-elevation-panel);
   cursor: pointer;
   pointer-events: auto;
 }
 
 @media (hover: hover) {
   .toBottom:hover {
-    background: var(--dsw-alias-button-floating-hover);
+    background: var(--delta-alias-button-floating-hover);
   }
 }
 

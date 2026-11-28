@@ -3,7 +3,7 @@
 
 .text {
   margin: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   font: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -13,29 +13,29 @@
 .fields {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 8px 0 0;
-  padding-top: 8px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-0-5);
+  margin: var(--delta-space-2) 0 0;
+  padding-top: var(--delta-space-2);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .field {
   display: flex;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
 }
 
 .fieldKey {
   flex: none;
   min-width: 96px;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .fieldValue {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
@@ -43,8 +43,8 @@
 .files {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 0 0 8px;
+  gap: var(--delta-space-1) var(--delta-space-3);
+  margin: 0 0 var(--delta-space-2);
   padding: 0;
   list-style: none;
 }
@@ -52,30 +52,30 @@
 .file {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
 }
 
 .filePath {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   overflow-wrap: anywhere;
 }
 
 .fileAction {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 /* catalog: a replacement notice above one row per published entry. */
 .catalogNotice {
-  margin: 0 0 6px;
-  color: var(--dsw-alias-label-caption);
+  margin: 0 0 var(--delta-space-1-5);
+  color: var(--delta-alias-label-caption);
 }
 
 
 .entries {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -83,20 +83,20 @@
 
 .entry {
   display: flex;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
 }
 
 .entryName {
   flex: none;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .entryDescription {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -105,32 +105,32 @@
 .sections {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   margin: 0;
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   min-width: 0;
 }
 
 .sectionName {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .sectionText {
   margin: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 /* relay: who sent this, above what they said. */
 .relaySender {
-  margin: 0 0 6px;
-  color: var(--dsw-alias-label-caption);
+  margin: 0 0 var(--delta-space-1-5);
+  color: var(--delta-alias-label-caption);
   overflow-wrap: anywhere;
 }
 
@@ -138,24 +138,24 @@
 .recalls {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 0 0 8px;
+  gap: var(--delta-space-0-5);
+  margin: 0 0 var(--delta-space-2);
   padding: 0;
   list-style: none;
 }
 
 .recall {
   display: flex;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
 }
 
 .recallLabel {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   overflow-wrap: anywhere;
 }
 
 .recallCounts {
   flex: none;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }

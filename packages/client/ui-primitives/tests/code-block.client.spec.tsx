@@ -141,7 +141,7 @@ describe('CodeBlock', () => {
     expect(view.container.querySelectorAll('code > .line')).toHaveLength(1)
     expect(view.container.querySelector('pre')!.textContent).toBe('')
     const gutter = () => view.container.querySelector<HTMLElement>('[data-line-numbers]')!
-      .style.getPropertyValue('--dsl-code-block-line-number-width')
+      .style.getPropertyValue('--delta-code-block-line-number-width')
     expect(gutter()).toBe('2ch')
     view.rerender(<CodeBlock code="const first = 1" lang="ts" streaming lineNumbers />)
     const code = ['const first = 1', ...Array.from({ length: 99 }, (_, index) => `const line${index} = 0`)].join('\n')

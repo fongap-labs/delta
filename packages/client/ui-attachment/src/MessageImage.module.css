@@ -1,7 +1,7 @@
 .gallery {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   max-width: 100%;
 }
 
@@ -23,9 +23,9 @@
   min-height: 44px;
   padding: 0;
   overflow: hidden;
-  border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: var(--dsw-radius-xl);
-  background: var(--dsw-alias-interactive-bg-hover);
+  border: 0.5px solid var(--delta-alias-border-l2-darkmode-thin);
+  border-radius: var(--delta-radius-xl);
+  background: var(--delta-alias-interactive-bg-hover);
   cursor: zoom-in;
 }
 
@@ -45,17 +45,17 @@
 
 .loading,
 .error {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .error {
   max-width: 240px;
-  padding: 10px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-interactive-bg-hover-danger);
+  padding: var(--delta-space-2-5) var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l2-darkmode-thin);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-interactive-bg-hover-danger);
   cursor: pointer;
 }
 
@@ -63,9 +63,9 @@
 .error[data-variant='tile'] {
   width: 64px;
   height: 64px;
-  padding: 4px;
+  padding: var(--delta-space-1);
   overflow: hidden;
-  border-radius: var(--dsw-radius-xl);
+  border-radius: var(--delta-radius-xl);
 }
 
 .frame[data-variant='thumbnail'],
@@ -77,9 +77,9 @@
   height: 48px;
   min-width: 48px;
   min-height: 48px;
-  padding: 2px;
+  padding: var(--delta-space-0-5);
   overflow: hidden;
-  border-radius: var(--dsw-radius-lg);
+  border-radius: var(--delta-radius-lg);
 }
 
 .frame[data-variant='thumbnail'] img {
@@ -87,7 +87,7 @@
 }
 
 .spinner {
-  animation: spinner-rotate 0.9s linear infinite;
+  animation: spinner-rotate var(--delta-transition-duration-900ms) linear infinite;
 }
 
 @keyframes spinner-rotate {
@@ -102,6 +102,6 @@
 
 .frame:focus-visible,
 .error:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }

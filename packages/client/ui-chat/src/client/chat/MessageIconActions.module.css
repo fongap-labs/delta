@@ -5,24 +5,24 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  gap: var(--delta-space-2);
+  height: calc(28px + var(--delta-content-font-delta, 0px));
 }
 
 /* The user clock keeps the secondary tier. */
 .timeStart {
-  padding-right: 12px;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  color: var(--dsw-alias-label-tertiary);
+  padding-right: var(--delta-space-3);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
+  color: var(--delta-alias-label-tertiary);
   white-space: nowrap;
 }
 
 /* Assistant-tail metadata keeps the smaller information size while sharing
    the action icons' resting color. */
 .timeEnd {
-  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: calc(var(--delta-content-font-size-secondary, 13px) - 1px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   color: inherit;
   white-space: nowrap;
 }
@@ -30,10 +30,10 @@
 .endInfo {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
-  margin-left: 8px;
-  color: var(--dsw-alias-label-tertiary);
+  margin-left: var(--delta-space-2);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* Earlier user-authored flow rows and opted-in turn tails reveal the complete
@@ -45,7 +45,7 @@
     ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
   ) .actions {
     opacity: 0;
-    transition: opacity 80ms ease;
+    transition: opacity var(--delta-transition-duration-80ms) ease;
   }
 
   [data-actions-reveal='hover']:hover .actions,
@@ -64,32 +64,32 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(28px + var(--dsh-content-font-delta, 0px));
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
-  padding: 6px;
+  width: calc(28px + var(--delta-content-font-delta, 0px));
+  height: calc(28px + var(--delta-content-font-delta, 0px));
+  padding: var(--delta-space-1-5);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 /* Action glyphs follow the content font-size delta. */
 .action svg {
-  width: calc(15px + var(--dsh-content-font-delta, 0px));
-  height: calc(15px + var(--dsh-content-font-delta, 0px));
+  width: calc(15px + var(--delta-content-font-delta, 0px));
+  height: calc(15px + var(--delta-content-font-delta, 0px));
 }
 
 .actions[data-clock='end'] .action svg {
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--delta-content-font-delta, 0px));
+  height: calc(16px + var(--delta-content-font-delta, 0px));
 }
 
 @media (hover: hover) {
   .action:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-secondary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
@@ -102,7 +102,7 @@
 @media (hover: hover) {
   .action[data-unavailable]:hover {
     background: transparent;
-    color: var(--dsw-alias-label-tertiary);
+    color: var(--delta-alias-label-tertiary);
   }
 }
 

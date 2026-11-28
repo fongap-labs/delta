@@ -100,8 +100,8 @@ export function ModelSelect(
   const groupsRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
-  const anchorStyle: CSSProperties & Record<'--dsh-model-anchor', string> = {
-    '--dsh-model-anchor': `--dsh-model-${id.replaceAll(':', '')}`,
+  const anchorStyle: CSSProperties & Record<'--delta-model-anchor', string> = {
+    '--delta-model-anchor': `--delta-model-${id.replaceAll(':', '')}`,
   }
 
   const accountProviderName = t('provider.account')

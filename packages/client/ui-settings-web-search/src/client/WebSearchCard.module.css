@@ -14,56 +14,56 @@
 }
 
 .section + .section {
-  margin-top: 32px;
+  margin-top: var(--delta-space-8);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 0 12px;
+  gap: var(--delta-space-1-5);
+  padding: var(--delta-space-2) 0 var(--delta-space-3);
 }
 
 .selector {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
   width: 100%;
   height: 34px;
-  padding: 0 12px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-3);
+  padding: 0 var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-layer-3);
   font: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-primary);
   text-align: start;
   cursor: pointer;
 }
 
 .selector:focus-visible {
   outline: none;
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 .selector:disabled {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: default;
 }
 
 @media (hover: hover) {
   .selector:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -76,36 +76,36 @@
 
 .chevron {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The gray panel holding a section's settings below its provider menu. */
 .panel {
   display: flex;
   flex-direction: column;
-  padding: 0 16px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
+  padding: 0 var(--delta-space-4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-module-platform);
 }
 
 /* A panel field built here rather than by the settings form: the billing menu. */
 .panelField {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 0;
+  gap: var(--delta-space-1-5);
+  padding: var(--delta-space-3) 0;
 }
 
 /* Matches the settings fields' own divider, so the billing menu joins their rhythm. */
 .panel > * + .panelField {
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 /* Matches the settings fields' label row: the label, then the override tag at the end. */
 .panelHead {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .panelHead > .panelLabel {
@@ -115,31 +115,31 @@
 
 /* Matches the settings fields' label. */
 .panelLabel {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-primary);
 }
 
 .hint {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .notice {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-state-error-primary);
+  gap: var(--delta-space-3);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .link {
-  color: var(--dsw-alias-link);
+  color: var(--delta-alias-link);
   text-decoration: none;
 }
 

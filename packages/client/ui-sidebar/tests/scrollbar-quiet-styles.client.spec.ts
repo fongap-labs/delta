@@ -28,15 +28,15 @@ describe('SidebarRoot.module.css quiet column', () => {
     // painting its base-surface colour the moment the pointer reaches the bar.
     const declarations = quietDeclarations().filter(part => !part.startsWith('transition')).sort()
     expect(declarations).toEqual([
-      '--dsh-scrollbar-thumb-hover: transparent',
-      '--dsh-scrollbar-thumb: transparent',
+      '--delta-scrollbar-thumb-hover: transparent',
+      '--delta-scrollbar-thumb: transparent',
     ].sort())
   })
 
   it('fades both halves of the pair out after a delay, and only on the way to quiet', () => {
     const transition = quietDeclarations().find(part => part.startsWith('transition:'))
     expect(transition?.replace(/\s+/g, ' ')).toBe(
-      'transition: --dsh-scrollbar-thumb 200ms linear 500ms, --dsh-scrollbar-thumb-hover 200ms linear 500ms',
+      'transition: --delta-scrollbar-thumb var(--delta-transition-duration) linear var(--delta-transition-duration-500ms), --delta-scrollbar-thumb-hover var(--delta-transition-duration) linear var(--delta-transition-duration-500ms)',
     )
     // A reveal has no transition: the base rule declares none.
     const base = /(?:^|\})\s*\.root\s*\{([^{}]*)\}/.exec(declarationText)

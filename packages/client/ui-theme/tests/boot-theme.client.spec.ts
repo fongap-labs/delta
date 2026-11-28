@@ -22,8 +22,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   delete document.documentElement.dataset.dsThemeSource
   document.body.removeAttribute(DARK_ATTRIBUTE)
-  for (const name of ['--dsh-content-font-size', '--dsh-code-font-size', '--dsh-terminal-font-size']) document.body.style.removeProperty(name)
-  for (const kind of ['text', 'code', 'terminal']) document.body.style.removeProperty(`--dsh-font-family-${kind}`)
+  for (const name of ['--delta-content-font-size', '--delta-code-font-size', '--delta-terminal-font-size']) document.body.style.removeProperty(name)
+  for (const kind of ['text', 'code', 'terminal']) document.body.style.removeProperty(`--delta-font-family-user-${kind}`)
 })
 
 describe('theme bootstrap row', () => {
@@ -33,7 +33,7 @@ describe('theme bootstrap row', () => {
     expect(head).toMatchObject({ kind: 'style' })
     expect(body).toMatchObject({ kind: 'script', placement: 'body' })
     if (head?.kind !== 'style') throw new Error('theme head bootstrap row is not a style')
-    expect(head.text).toBe(':root{color-scheme:dark}body{background-color:#151517;--dsh-boot-bg:#151517}')
+    expect(head.text).toBe(':root{color-scheme:dark}body{background-color:#151517;--delta-boot-bg:#151517}')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
     if (body?.kind !== 'script') throw new Error('theme body bootstrap row is not a script')
     runInNewContext(body.text, { document, matchMedia: globalThis.matchMedia })
@@ -46,7 +46,7 @@ describe('theme bootstrap row', () => {
     mockSystemDark(true)
     const [head] = bootThemeInjections('light')
     if (head?.kind !== 'style') throw new Error('theme head bootstrap row is not a style')
-    expect(head.text).toBe(':root{color-scheme:light}body{background-color:#fff;--dsh-boot-bg:#fff}')
+    expect(head.text).toBe(':root{color-scheme:light}body{background-color:#fff;--delta-boot-bg:#fff}')
     executeBootstrap('light')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
   })
@@ -65,8 +65,8 @@ describe('theme bootstrap row', () => {
     const [head] = bootThemeInjections('system')
     if (head?.kind !== 'style') throw new Error('theme head bootstrap row is not a style')
     expect(head.text).toBe(
-      ':root{color-scheme:light}body{background-color:#fff;--dsh-boot-bg:#fff}'
-      + '@media(prefers-color-scheme:dark){:root{color-scheme:dark}body{background-color:#151517;--dsh-boot-bg:#151517}}',
+      ':root{color-scheme:light}body{background-color:#fff;--delta-boot-bg:#fff}'
+      + '@media(prefers-color-scheme:dark){:root{color-scheme:dark}body{background-color:#151517;--delta-boot-bg:#151517}}',
     )
   })
 
@@ -79,13 +79,13 @@ describe('theme bootstrap row', () => {
   it('writes the durable font sizes and their defaults', () => {
     mockSystemDark(false)
     executeBootstrap('light', { text: 22, code: 15, terminal: 18 })
-    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('22px')
-    expect(document.body.style.getPropertyValue('--dsh-code-font-size')).toBe('15px')
-    expect(document.body.style.getPropertyValue('--dsh-terminal-font-size')).toBe('18px')
+    expect(document.body.style.getPropertyValue('--delta-content-font-size')).toBe('22px')
+    expect(document.body.style.getPropertyValue('--delta-code-font-size')).toBe('15px')
+    expect(document.body.style.getPropertyValue('--delta-terminal-font-size')).toBe('18px')
     executeBootstrap('light')
-    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('14px')
-    expect(document.body.style.getPropertyValue('--dsh-code-font-size')).toBe('11px')
-    expect(document.body.style.getPropertyValue('--dsh-terminal-font-size')).toBe('13px')
+    expect(document.body.style.getPropertyValue('--delta-content-font-size')).toBe('14px')
+    expect(document.body.style.getPropertyValue('--delta-code-font-size')).toBe('11px')
+    expect(document.body.style.getPropertyValue('--delta-terminal-font-size')).toBe('13px')
   })
 
   it('writes normalized durable font lists and leaves empty lists unset', () => {
@@ -94,8 +94,8 @@ describe('theme bootstrap row', () => {
     if (body?.kind !== 'script') throw new Error('theme body bootstrap row is not a script')
     expect(body.text).not.toContain('<')
     runInNewContext(body.text, { document, matchMedia: globalThis.matchMedia })
-    expect(document.body.style.getPropertyValue('--dsh-font-family-text')).toBe('"Inter"')
-    expect(document.body.style.getPropertyValue('--dsh-font-family-code')).toBe('')
-    expect(document.body.style.getPropertyValue('--dsh-font-family-terminal')).toBe('"MesloLGS NF/script", monospace')
+    expect(document.body.style.getPropertyValue('--delta-font-family-user-text')).toBe('"Inter"')
+    expect(document.body.style.getPropertyValue('--delta-font-family-user-code')).toBe('')
+    expect(document.body.style.getPropertyValue('--delta-font-family-user-terminal')).toBe('"MesloLGS NF/script", monospace')
   })
 })

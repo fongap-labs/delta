@@ -120,7 +120,7 @@ export function ReadBlock({
     ))
 
   const gutterDigits = lines.reduce((digits, line) => Math.max(digits, String(line.number).length), 3)
-  const gutterStyle = { '--dsl-read-gutter': `${gutterDigits}ch` } as CSSProperties
+  const gutterStyle = { '--delta-read-gutter': `${gutterDigits}ch` } as CSSProperties
 
   const paired = lines.map((line, index): readonly [ReadBlockLine, readonly HighlightSpan[] | undefined] =>
     [line, highlighted?.[index]])

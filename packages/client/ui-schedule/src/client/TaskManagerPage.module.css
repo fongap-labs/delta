@@ -5,10 +5,10 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-base);
-  font-size: 14px;
-  line-height: 1.6;
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-bg-base);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-relaxed);
 }
 
 .listPane {
@@ -30,8 +30,8 @@
   scrollbar-gutter: stable;
   /* A 9px rail carries the 5px thumb inset 2px from the pane edge (rendered by
      ui-theme styles/scrollbar.css). */
-  --dsh-scrollbar-width: 9px;
-  --dsh-scrollbar-thumb-border: 2px;
+  --delta-scrollbar-width: 9px;
+  --delta-scrollbar-thumb-border: 2px;
 }
 
 /* Matches the Plugins page's 960px column and responsive inline insets. */
@@ -49,7 +49,7 @@
 
 @media (max-width: 767px) {
   .pageContent {
-    padding-inline: 20px;
+    padding-inline: var(--delta-space-5);
   }
 }
 
@@ -59,17 +59,17 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--delta-space-4);
   /* The column's former top inset: the row starts at the window's top edge, so
      the whole strip above the heading belongs to the row's own box. */
-  padding-top: 28px;
-  margin-bottom: 24px;
+  padding-top: var(--delta-space-7);
+  margin-bottom: var(--delta-space-6);
 }
 
 /* macOS hiddenInset titlebar: the Plugins page's head carries the frame's top
    clearance above its own 28px inset, so both pages keep the same 76px total. */
 :global([data-platform='darwin']) .pageHeading {
-  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));
+  padding-top: calc(28px + var(--delta-frame-top-clearance, 0px));
 }
 
 /* The first-level page title, on the Plugins page's own `pageTitle` step
@@ -81,9 +81,9 @@
   min-width: 0;
   max-width: 100%;
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-20);
+  line-height: var(--delta-line-height-28);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 /* The Plugins toolbar: the heading's trailing group on its 16px gap. */
@@ -91,17 +91,17 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 16px;
+  gap: var(--delta-space-4);
   white-space: nowrap;
 }
 
 /* Header actions use the standard-control radius at their compact page height. */
 .headerAction {
   height: 32px;
-  font-size: 13px;
-  line-height: 20px;
-  padding: 0 12px;
-  border-radius: var(--dsw-radius-md);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  padding: 0 var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
 }
 
 /* The existing Plugins page's adjacent creation menu. */
@@ -111,37 +111,37 @@
   height: 32px;
   width: 32px;
   padding: 0;
-  border-radius: 0 var(--dsw-radius-md) var(--dsw-radius-md) 0;
-  border-left: 0.5px solid color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 30%, transparent);
+  border-radius: 0 var(--delta-radius-md) var(--delta-radius-md) 0;
+  border-left: 0.5px solid color-mix(in srgb, var(--delta-alias-label-primary-foreground) 30%, transparent);
 }
-.createMenu [role='menuitem'] { gap: 10px; padding: 6px 12px; }
+.createMenu [role='menuitem'] { gap: var(--delta-space-2-5); padding: var(--delta-space-1-5) var(--delta-space-3); }
 .targetMenu { width: 320px; max-width: calc(100vw - 48px); }
-.targetMenu [role='menuitem'] { height: 72px; box-sizing: border-box; gap: 10px; padding: 6px 12px; }
-.targetMenuItem { display: flex; flex-direction: column; gap: 2px; white-space: normal; }
+.targetMenu [role='menuitem'] { height: 72px; box-sizing: border-box; gap: var(--delta-space-2-5); padding: var(--delta-space-1-5) var(--delta-space-3); }
+.targetMenuItem { display: flex; flex-direction: column; gap: var(--delta-space-0-5); white-space: normal; }
 .targetMenuDescription {
   display: -webkit-box;
   max-height: 36px;
   overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 .workspaceMenu { width: 320px; max-width: calc(100vw - 48px); }
-.workspaceMenu [role='menuitem'] { gap: 10px; padding: 6px 12px; }
-.workspaceMenuItem { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workspaceMenu [role='menuitem'] { gap: var(--delta-space-2-5); padding: var(--delta-space-1-5) var(--delta-space-3); }
+.workspaceMenuItem { display: flex; flex-direction: column; gap: var(--delta-space-0-5); min-width: 0; }
 .workspaceMenuItem > span:first-child { overflow: hidden; text-overflow: ellipsis; }
-.workspaceMenuPath { line-height: 18px; }
-.taskEditor { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 20px; }
-.editorField { display: grid; gap: 8px; font-size: 14px; min-width: 0; }
+.workspaceMenuPath { line-height: var(--delta-line-height-18); }
+.taskEditor { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: var(--delta-space-5); }
+.editorField { display: grid; gap: var(--delta-space-2); font-size: var(--delta-font-size-14); min-width: 0; }
 .editorField > h3 { margin: 0; font: inherit; }
 .editorField input::placeholder,
-.instruction::placeholder { color: var(--dsw-alias-label-secondary); }
-.hostSessionFooter { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px var(--detail-gutter); font-size: 13px; }
+.instruction::placeholder { color: var(--delta-alias-label-secondary); }
+.hostSessionFooter { display: flex; justify-content: space-between; align-items: center; gap: var(--delta-space-4); padding: 16px var(--detail-gutter); font-size: var(--delta-font-size-13); }
 .hostSessionFooter button { min-width: 0; max-width: 75%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; }
-.hostSessionEmpty { color: var(--dsw-alias-label-tertiary); }
+.hostSessionEmpty { color: var(--delta-alias-label-tertiary); }
 
 /* The mock's `.list-tools`: the one row of filter tabs, 8px between chips and
    20px between the groups, with the list 14px below. */
@@ -149,15 +149,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  margin-bottom: 14px;
+  gap: var(--delta-space-2) var(--delta-space-3);
+  margin-bottom: var(--delta-space-3-5);
 }
 
 .filterTabs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: var(--delta-space-2) var(--delta-space-3);
 }
 
 /* Filter chips use the compact-control radius and retain a stable footprint. */
@@ -166,27 +166,27 @@
   flex: none;
   align-items: center;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--delta-space-2-5);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
   white-space: nowrap;
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .filterTab:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .filterTabActive {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
+  background: var(--delta-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The mock's `.searchbox`: the 40px field on the mock's 4px/12px inset, the
@@ -197,8 +197,8 @@
   --task-search-height: 36px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--delta-space-2);
+  margin-bottom: var(--delta-space-4);
 }
 
 .catalogMore {
@@ -208,7 +208,7 @@
 }
 
 .catalogMore[aria-expanded='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 .searchField {
@@ -219,21 +219,21 @@
   align-items: center;
   height: var(--task-search-height);
   margin: 0;
-  padding: 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  color: var(--dsw-alias-label-tertiary);
-  transition: border-color 0.15s;
+  padding: 0 var(--delta-space-2-5);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-md);
+  color: var(--delta-alias-label-tertiary);
+  transition: border-color var(--delta-transition-duration-150ms);
 }
 
 @media (hover: hover) {
   .searchField:hover {
-    border-color: var(--dsw-alias-border-l2);
+    border-color: var(--delta-alias-border-l2);
   }
 }
 
 .searchField:focus-within {
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 /* The search atom's own box would double the field's hairline, so the wrapper
@@ -258,7 +258,7 @@
 }
 
 .searchField input::placeholder {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .searchField input:focus-visible {
@@ -276,9 +276,9 @@
   flex: none;
   width: 28px;
   height: 28px;
-  margin-right: -6px;
+  margin-right: calc(-1 * var(--delta-space-1-5));
   padding: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .searchClear svg {
@@ -298,7 +298,7 @@
 .listRows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -310,18 +310,18 @@
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 12px;
+  gap: var(--delta-space-3);
   width: 100%;
   height: auto;
-  padding: 8px;
-  border-radius: var(--dsw-radius-lg);
+  padding: var(--delta-space-2);
+  border-radius: var(--delta-radius-lg);
   text-align: left;
   white-space: normal;
 }
 
 @media (hover: hover) {
   .row:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -329,8 +329,8 @@
   flex: none;
   width: 16px;
   height: 20px;
-  margin-top: 2px;
-  color: var(--dsw-alias-label-tertiary);
+  margin-top: var(--delta-space-0-5);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .rowContent {
@@ -344,7 +344,7 @@
    23px leading, on one line in place of the mock's wrapping heading. */
 .rowTitle {
   overflow: hidden;
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
   line-height: 23px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -354,38 +354,38 @@
    name. Status, frequency, and next time stay as separate inline spans. */
 .rowSummary {
   display: block;
-  margin-top: 2px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
+  margin-top: var(--delta-space-0-5);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
   line-height: 21px;
   overflow-wrap: anywhere;
 }
 
 .metadata {
   color: inherit;
-  font-size: 13px;
+  font-size: var(--delta-font-size-13);
   line-height: 21px;
   overflow-wrap: anywhere;
 }
 
 .metadata + .metadata::before {
   content: ' · ';
-  padding: 0 2px;
+  padding: 0 var(--delta-space-0-5);
 }
 
 .selectedRow {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 /* An ended task reads dimmer as a whole row — its status word is gone, so the
    lighter ink is what marks it — and returns to the usual steps while hovered
    or selected. */
 .endedRow .rowTitle {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .endedRow .rowSummary {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 @media (hover: hover) {
@@ -400,12 +400,12 @@
 
 @media (hover: hover) {
   .endedRow:hover .rowSummary {
-    color: var(--dsw-alias-label-tertiary);
+    color: var(--delta-alias-label-tertiary);
   }
 }
 
 .endedRow.selectedRow .rowSummary {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The mock's `.notice`: the catalog loading and failure text keeps the caption
@@ -418,13 +418,13 @@
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 9px;
-  margin: 0 0 20px;
-  padding: 12px 14px;
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-sidebar-fill);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 20px;
+  margin: 0 0 var(--delta-space-5);
+  padding: var(--delta-space-3) var(--delta-space-3-5);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-sidebar-fill);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
 }
 
 .notice p {
@@ -456,10 +456,10 @@
   display: flex;
   align-items: center;
   flex-direction: column;
-  padding: 48px 20px;
+  padding: var(--delta-space-12) var(--delta-space-5);
   text-align: center;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-14);
 }
 
 .empty h2,
@@ -472,18 +472,18 @@
 .empty h2,
 .empty h3,
 .empty .emptyTitle {
-  margin-bottom: 8px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
-  line-height: 1.6;
-  font-weight: 400;
+  margin-bottom: var(--delta-space-2);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-relaxed);
+  font-weight: var(--delta-font-weight-regular);
 }
 
 /* The mock's `.empty .icon`: the leading glyph keeps its 24px box from the
    render and takes the mock's 12px below, one ink step lighter than the box. */
 .emptyGlyph {
-  margin-bottom: 12px;
-  color: var(--dsw-alias-label-caption);
+  margin-bottom: var(--delta-space-3);
+  color: var(--delta-alias-label-caption);
 }
 
 .emptyIllustration {
@@ -491,13 +491,13 @@
   width: 110px;
   max-width: 100%;
   height: auto;
-  margin-bottom: 12px;
+  margin-bottom: var(--delta-space-3);
 }
 
 /* The mock's `.empty h3 + .btn`: the empty state's action keeps the mock's 16px
    above. */
 .emptyAction {
-  margin-top: 16px;
+  margin-top: var(--delta-space-4);
 }
 
 /* The mock's `.detail` override: the panel's left edge is the `l4` hairline,
@@ -510,8 +510,8 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-left: 0.5px solid var(--dsw-alias-border-l4);
-  background: var(--dsw-alias-bg-base);
+  border-left: 0.5px solid var(--delta-alias-border-l4);
+  background: var(--delta-alias-bg-base);
 }
 
 /* The panel takes focus programmatically for reader context (tabIndex -1);
@@ -569,8 +569,8 @@
 .detailHeader {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: var(--delta-space-2-5);
+  margin-bottom: var(--delta-space-1);
 }
 
 /* The mock's `.edit-name` as plain text: the stored task name in the detail
@@ -579,10 +579,10 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  padding: 2px 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 500;
+  padding: var(--delta-space-0-5) 0;
+  font-size: var(--delta-font-size-20);
+  line-height: var(--delta-line-height-28);
+  font-weight: var(--delta-font-weight-medium);
   overflow-wrap: anywhere;
 }
 
@@ -592,12 +592,12 @@
 .nextRun {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-height: 20px;
-  margin-bottom: 20px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-  line-height: 20px;
+  margin-bottom: var(--delta-space-5);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .nextRun p {
@@ -617,7 +617,7 @@
    is pinned so it does not follow the chip's selected/unselected text color. */
 .tabTitleIcon {
   flex: none;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* The panel's top strip is the mock's `.detail-titlebar`: the detail views on the
@@ -630,14 +630,14 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--delta-space-5);
   height: 44px;
   min-height: 44px;
   padding: 0 var(--detail-gutter);
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
 }
 
-.createTitle { margin: 0; font: inherit; font-weight: 500; }
+.createTitle { margin: 0; font: inherit; font-weight: var(--delta-font-weight-medium); }
 
 .detailTabs {
   display: flex;
@@ -662,7 +662,7 @@
 .detailActions {
   flex: none;
   align-items: center;
-  margin-right: -8px;
+  margin-right: calc(-1 * var(--delta-space-2));
 }
 
 /* The strip's icon controls are the 28px square targets other header icon
@@ -673,7 +673,7 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* 13/16 text with 13px below it, the Tasks page's own 44px bar, so the label
@@ -685,10 +685,10 @@
   padding: 0 0 13px;
   border: none;
   background: transparent;
-  font-size: 13px;
-  line-height: 16px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-16);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
@@ -704,11 +704,11 @@
 }
 
 .detailTab[aria-selected="true"] {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
 }
 
 .detailTab[aria-selected="true"]::after {
-  background: var(--dsw-alias-state-business-primary);
+  background: var(--delta-alias-state-business-primary);
 }
 
 /* The theme's WebKit bar takes layout space: the reservation keeps the content
@@ -722,8 +722,8 @@
   padding: 24px var(--detail-gutter) 28px;
   padding-right: max(0px, calc(var(--detail-gutter) - var(--detail-scrollbar-space, 0px)));
   scrollbar-gutter: stable;
-  --dsh-scrollbar-width: 9px;
-  --dsh-scrollbar-thumb-border: 2px;
+  --delta-scrollbar-width: 9px;
+  --delta-scrollbar-thumb-border: 2px;
 }
 
 .detailRecords {
@@ -748,16 +748,16 @@
 .retentionEnd {
   flex: none;
   padding: 0 var(--detail-gutter) 16px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 20px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
 }
 
 .retentionLine {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .retentionInfo {
@@ -771,26 +771,26 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .retentionInfo:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .retentionInfo:focus-visible {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 2px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
 .retentionRule {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-layer-1);
+  margin-top: var(--delta-space-3);
+  padding: var(--delta-space-3) var(--delta-space-3-5);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-layer-1);
 }
 
 .retentionRule p {
@@ -798,16 +798,16 @@
 }
 
 .retentionRule p + p {
-  margin-top: 6px;
+  margin-top: var(--delta-space-1-5);
 }
 
 .ruleRows {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 0 12px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
+  padding: 0 var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
 }
 
 /* The searchable zone inventory is intentionally shorter than a general menu:
@@ -820,21 +820,21 @@
 /* A stronger rule makes the unlabeled recent block read as a distinct section. */
 .zoneMenu [role='separator'] {
   height: 0.5px;
-  margin: 6px 4px;
-  background: var(--dsw-alias-border-l3);
+  margin: var(--delta-space-1-5) var(--delta-space-1);
+  background: var(--delta-alias-border-l3);
 }
 
 .ruleRow,
 .ruleRowMenu {
   display: flex;
   width: 100%;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .ruleRow {
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
   min-height: 48px;
 }
 
@@ -844,9 +844,9 @@
 
 .ruleLabel {
   flex: none;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 1.6;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-relaxed);
 }
 
 /* The mock's `.field-control`: every value control keeps its own box on the
@@ -857,7 +857,7 @@
 }
 
 .ruleRows .ruleControl:focus-visible {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 2px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -868,16 +868,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
   width: 100%;
   min-height: 48px;
   padding: 0;
   margin: 0;
   border: none;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 1.6;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-relaxed);
   text-align: left;
   cursor: pointer;
 }
@@ -888,17 +888,17 @@
   display: flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
   min-height: 32px;
-  padding: 0 8px;
-  border-radius: var(--dsw-radius-md);
-  transition: background 0.15s;
+  padding: 0 var(--delta-space-2);
+  border-radius: var(--delta-radius-md);
+  transition: background var(--delta-transition-duration-150ms);
 }
 
 @media (hover: hover) {
   .ruleValue:not(:disabled):hover .ruleValueFace {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -909,19 +909,19 @@
 }
 
 .ruleValue:focus-visible .ruleValueFace {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 2px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
 .ruleValueFace > svg {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* A disabled value stays readable: tertiary rather than dimmed ink. A held
    editor keeps the enabled tone for the length of one brief request. */
 .ruleValue:disabled:not(.editorHeld *) {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: default;
 }
 
@@ -937,52 +937,52 @@
 .zoneSearch {
   box-sizing: border-box;
   width: 100%;
-  padding: 6px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-md);
+  padding: var(--delta-space-1-5) var(--delta-space-2);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-md);
   outline: none;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-primary);
+  background: var(--delta-alias-bg-base);
+  color: var(--delta-alias-label-primary);
   font: inherit;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .zoneSearch:focus {
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 .ruleWeekdays {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 4px;
-  padding: 6px 0;
+  gap: var(--delta-space-1);
+  padding: var(--delta-space-1-5) 0;
 }
 
 .ruleInput {
   flex: 0 1 58%;
   min-width: 0;
-  padding: 5px 8px;
+  padding: 5px var(--delta-space-2);
   margin-right: 0;
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--delta-font-size-14);
   text-align: right;
-  transition: background 0.15s;
+  transition: background var(--delta-transition-duration-150ms);
 }
 
 @media (hover: hover) {
   .ruleInput:not(:disabled):hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .ruleInput:disabled:not(.editorHeld *) {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The repeat interval and the month day sit in the settings font-size stepper
@@ -995,8 +995,8 @@
   justify-content: center;
   min-width: 72px;
   height: 36px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-module-platform);
 }
 
 /* The input sizes the pill from its digit count (`--interval-digits`, set by
@@ -1039,7 +1039,7 @@
   right: 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   opacity: 0;
 }
 
@@ -1066,19 +1066,19 @@
   padding: 0;
   border: none;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 75%, transparent);
-  color: var(--dsw-alias-label-primary);
+  background: color-mix(in srgb, var(--delta-alias-bg-layer-1) 75%, transparent);
+  color: var(--delta-alias-label-primary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .ruleIntervalArrow:hover:not(:disabled) {
-    background: var(--dsw-alias-bg-layer-1);
+    background: var(--delta-alias-bg-layer-1);
   }
 }
 
 .ruleIntervalArrow:disabled:not(.editorHeld *) {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
   cursor: default;
 }
 
@@ -1089,7 +1089,7 @@
   flex: 0 1 auto;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   cursor: pointer;
 }
 
@@ -1099,7 +1099,7 @@
 
 .pickerIcon {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The mock's `.automation-detail .instruction`: the editable instruction box on
@@ -1119,32 +1119,32 @@
   max-height: 160px;
   field-sizing: content;
   margin: 0;
-  padding: 12px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
+  padding: var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
   outline: 0;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-primary);
+  background: var(--delta-alias-bg-base);
+  color: var(--delta-alias-label-primary);
   font: inherit;
-  font-size: 14px;
-  line-height: 24px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
   resize: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--delta-transition-duration-150ms);
   /* The inset thumb and the vertical track margin keep the bar inside the
      box's rounded corners (rendered by ui-theme styles/scrollbar.css). */
-  --dsh-scrollbar-width: 9px;
-  --dsh-scrollbar-thumb-border: 2px;
-  --dsh-scrollbar-track-margin: 12px;
+  --delta-scrollbar-width: 9px;
+  --delta-scrollbar-thumb-border: 2px;
+  --delta-scrollbar-track-margin: 12px;
 }
 
 @media (hover: hover) {
   .instruction:hover {
-    border-color: var(--dsw-alias-border-l2);
+    border-color: var(--delta-alias-border-l2);
   }
 }
 
 .instruction:focus {
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 /* Delivery records follow the design mock: the clock glyph owns its own column
@@ -1156,12 +1156,12 @@
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  margin: 0 -8px;
-  padding: 14px 8px;
-  border-radius: var(--dsw-radius-lg);
-  font-size: 14px;
-  line-height: 22px;
+  gap: var(--delta-space-3);
+  margin: 0 calc(-1 * var(--delta-space-2));
+  padding: var(--delta-space-3-5) var(--delta-space-2);
+  border-radius: var(--delta-radius-lg);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
 }
 
 /* The scroll region's own 24px lead-in already spaces the first record; the
@@ -1183,7 +1183,7 @@
      hairline's own 0.5px, so the line sits exactly on the centre. */
   left: 15.75px;
   width: 0.5px;
-  background: var(--dsw-alias-border-l3);
+  background: var(--delta-alias-border-l3);
 }
 
 .delivery:not(:first-of-type)::before {
@@ -1204,28 +1204,28 @@
 
 .deliveryGlyph {
   flex: none;
-  margin-top: 6px;
-  color: var(--dsw-alias-label-tertiary);
+  margin-top: var(--delta-space-1-5);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .deliveryBody {
   flex: 1;
   min-width: 0;
-  padding: 2px 0;
+  padding: var(--delta-space-0-5) 0;
 }
 
 .deliveryHead {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 .deliveryTime {
   display: block;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 500;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 /* Instruction text sits in the row's text column at the mock's 13px/22px and
@@ -1236,10 +1236,10 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  margin: 6px 0 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-  line-height: 22px;
+  margin: var(--delta-space-1-5) 0 0;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-22);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1255,27 +1255,27 @@
 .savedPromptToggle {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  margin: 2px 0 0 -6px;
-  padding: 1px 6px;
+  gap: var(--delta-space-0-5);
+  margin: var(--delta-space-0-5) 0 0 calc(-1 * var(--delta-space-1-5));
+  padding: var(--delta-space-0-25) var(--delta-space-1-5);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   font: inherit;
-  font-size: 12px;
-  line-height: 20px;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .savedPromptToggle:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .savedPromptToggle:focus-visible {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 2px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -1284,7 +1284,7 @@
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .detailHeader {
@@ -1298,23 +1298,23 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--delta-space-2);
   padding: 20px var(--detail-gutter);
-  border-top: 0.5px solid var(--dsw-alias-border-l4);
-  background: var(--dsw-alias-bg-base);
+  border-top: 0.5px solid var(--delta-alias-border-l4);
+  background: var(--delta-alias-bg-base);
 }
 
 .saveFooter > button {
   height: 32px;
-  font-size: 13px;
+  font-size: var(--delta-font-size-13);
 }
 
 .saveNotice {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1323,22 +1323,22 @@
 .saveFailure {
   flex-shrink: 0;
   margin: 0;
-  padding: 12px 0 0;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 1.6;
+  padding: var(--delta-space-3) 0 0;
+  background: var(--delta-alias-bg-base);
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-relaxed);
 }
 
 /* The linked-Session notice keeps its own line under the rule card. */
 .detailNotice {
   flex-shrink: 0;
   margin: 0;
-  padding: 0 0 6px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  padding: 0 0 var(--delta-space-1-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
   overflow-wrap: anywhere;
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
 }
 
 .confirmDialog {
@@ -1353,8 +1353,8 @@
   /* The confirmation dialog's own surface is elevated, so the bar drawn against
      it takes that rung's colours; the sheet's base-surface scrollers keep the
      shell's pair. */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .confirmDialog > :last-child {
@@ -1362,10 +1362,10 @@
 }
 
 .deleteButton {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
   /* The outlined confirmation button keeps its border in the danger colour so
      the destructive action reads as a bordered control, not bare text. */
-  --dsh-button-outline-color: var(--dsw-alias-state-error-primary);
+  --delta-button-outline-color: var(--delta-alias-state-error-primary);
 }
 
 /* The instruction only identifies the task here, so a long one stays a
@@ -1377,15 +1377,15 @@
   line-clamp: 3;
   margin: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 22px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-22);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .page :focus-visible {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 2px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -1416,7 +1416,7 @@
   }
 
   .detailScroll {
-    padding-top: 20px;
+    padding-top: var(--delta-space-5);
   }
 
   .saveNotice {
@@ -1433,7 +1433,7 @@
      actions' group gap between its icon buttons. */
 
   .detailTabsBar {
-    gap: 16px;
+    gap: var(--delta-space-4);
   }
 
   .detailActions {
@@ -1451,7 +1451,7 @@
   .instruction,
   .ruleInput,
   .zoneSearch {
-    font-size: 16px;
+    font-size: var(--delta-font-size-16);
   }
 }
 
@@ -1460,22 +1460,22 @@
    12px inset. */
 .recommendations {
   container-type: inline-size;
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
 }
 
 .recommendationsHeading {
-  margin: 0 0 6px;
-  padding: 0 12px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
+  margin: 0 0 var(--delta-space-1-5);
+  padding: 0 var(--delta-space-3);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .recommendationGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 16px;
+  gap: var(--delta-space-1) var(--delta-space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1491,11 +1491,11 @@
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 14px;
+  gap: var(--delta-space-3-5);
   width: 100%;
   height: auto;
-  padding: 12px;
-  border-radius: var(--dsw-radius-lg);
+  padding: var(--delta-space-3);
+  border-radius: var(--delta-radius-lg);
   text-align: left;
   white-space: normal;
 }
@@ -1510,9 +1510,9 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-illustration-background);
-  color: var(--dsw-alias-state-business-primary);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-illustration-background);
+  color: var(--delta-alias-state-business-primary);
 }
 
 .tile [data-fill] {
@@ -1561,25 +1561,25 @@
 }
 
 .recommendationTitle {
-  font-weight: 500;
-  line-height: 22px;
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-22);
 }
 
 .recommendationDescription {
-  margin-top: 2px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
+  margin-top: var(--delta-space-0-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .recommendationWhen {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-  line-height: 20px;
+  gap: var(--delta-space-1-5);
+  margin-top: var(--delta-space-1-5);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .whenGlyph {

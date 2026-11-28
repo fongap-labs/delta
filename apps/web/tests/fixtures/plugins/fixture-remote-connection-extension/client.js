@@ -12,10 +12,10 @@ window.__ModuleLoader__.load({
         min-width: 0;
         box-sizing: border-box;
         padding: 16px;
-        border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-        border-radius: var(--dsw-radius-xl);
-        background: var(--dsw-alias-settings-card-fill);
-        color: var(--dsw-alias-label-primary);
+        border: 0.5px solid var(--delta-alias-settings-card-stroke);
+        border-radius: var(--delta-radius-xl);
+        background: var(--delta-alias-settings-card-fill);
+        color: var(--delta-alias-label-primary);
       }
       .remoteOptions_header {
         display: flex;
@@ -45,7 +45,7 @@ window.__ModuleLoader__.load({
       .remoteOptions_checkbox input { margin-top: 2px; }
       .remoteOptions_description {
         margin: 0 0 0 22px;
-        color: var(--dsw-alias-label-secondary);
+        color: var(--delta-alias-label-secondary);
         font-size: 13px;
         line-height: 20px;
         overflow-wrap: anywhere;
@@ -59,7 +59,7 @@ window.__ModuleLoader__.load({
         font-size: 13px;
         line-height: 20px;
       }
-      .remoteOptions_details dt { color: var(--dsw-alias-label-secondary); }
+      .remoteOptions_details dt { color: var(--delta-alias-label-secondary); }
       .remoteOptions_details dd { min-width: 0; margin: 0; }
       .remoteOptions_details code {
         font-size: 12px;

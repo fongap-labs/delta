@@ -35,7 +35,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-shimmer);
+  color: var(--delta-alias-label-shimmer);
   mask-image: linear-gradient(105deg, transparent 0%, black 40% 60%, transparent 100%);
   transform: translateX(-100%);
   animation-name: dsh-row-shimmer-sweep;
@@ -60,7 +60,7 @@
 
 .sweep,
 .highlight {
-  animation-duration: 1.5s;
+  animation-duration: var(--delta-transition-duration-1500ms);
   animation-delay: 0.3s;
   animation-timing-function: steps(48, end);
   animation-iteration-count: infinite;

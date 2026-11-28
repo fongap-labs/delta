@@ -15,7 +15,7 @@ it('keeps each backing after its menu anchor and removes it when unmounted', () 
   const backing = document.querySelector<HTMLElement>('[data-menu-backing]')!
   expect(ref.current).toBe(menu)
   expect(menu.compareDocumentPosition(backing) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-  expect(backing.style.getPropertyValue('--dsh-menu-anchor')).toBe(menu.style.getPropertyValue('--dsh-menu-anchor'))
+  expect(backing.style.getPropertyValue('--delta-menu-anchor')).toBe(menu.style.getPropertyValue('--delta-menu-anchor'))
   expect(backing.getAttribute('aria-hidden')).toBe('true')
   view.unmount()
   expect(document.querySelector('[data-menu-backing]')).toBeNull()
@@ -23,7 +23,7 @@ it('keeps each backing after its menu anchor and removes it when unmounted', () 
 
 it('gives simultaneously open menus independent anchors and follows visibility changes', () => {
   const view = render(<><MenuSurface role="menu" /><MenuSurface role="menu" /></>)
-  const anchors = screen.getAllByRole('menu').map(menu => menu.style.getPropertyValue('--dsh-menu-anchor'))
+  const anchors = screen.getAllByRole('menu').map(menu => menu.style.getPropertyValue('--delta-menu-anchor'))
   expect(new Set(anchors).size).toBe(2)
   expect(document.querySelectorAll('[data-menu-backing]')).toHaveLength(2)
   view.rerender(<MenuSurface role="menu" style={{ visibility: 'hidden' }} />)

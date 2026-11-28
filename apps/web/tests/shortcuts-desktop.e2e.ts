@@ -142,9 +142,9 @@ it.each([
         const readFontSizes = () => page.evaluate(() => {
           const style = document.body.style
           return {
-            text: Number.parseInt(style.getPropertyValue('--dsh-content-font-size'), 10),
-            code: Number.parseInt(style.getPropertyValue('--dsh-code-font-size'), 10),
-            terminal: Number.parseInt(style.getPropertyValue('--dsh-terminal-font-size'), 10),
+            text: Number.parseInt(style.getPropertyValue('--delta-content-font-size'), 10),
+            code: Number.parseInt(style.getPropertyValue('--delta-code-font-size'), 10),
+            terminal: Number.parseInt(style.getPropertyValue('--delta-terminal-font-size'), 10),
           }
         })
         const defaults = { text: 14, code: 11, terminal: 13 }

@@ -20,18 +20,18 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 4px 7px 2px;
+  padding: var(--delta-space-1) 7px var(--delta-space-0-5);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-  font-weight: 500;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .heading[data-stuck] {
-  background: var(--dsw-alias-menu-group-header-fill);
+  background: var(--delta-alias-menu-group-header-fill);
 }
 
 :global(html:not([data-platform='darwin'])) .heading {
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }

@@ -1,16 +1,16 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 1001;
+  z-index: var(--delta-layer-modal-raised);
   display: flex;
   flex-direction: column;
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
 }
 
 /* Windows Electron: the Desktop caption menu owns the window's top strip, so
    the return bar and the native Platform view start below it. */
 :global([data-windows-titlebar]) .overlay {
-  padding-top: var(--dsh-windows-titlebar-height);
+  padding-top: var(--delta-windows-titlebar-height);
 }
 
 /* The macOS shell's drag row: on darwin this bar IS the window's top strip, and
@@ -22,14 +22,14 @@
   box-sizing: border-box;
   height: 48px;
   flex: none;
-  padding: 6px 16px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  padding: var(--delta-space-1-5) var(--delta-space-4);
+  border-bottom: 0.5px solid var(--delta-alias-border-l1);
 }
 
 .controls {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: var(--delta-space-6);
   padding-top: 5px;
 }
 
@@ -48,17 +48,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   box-sizing: border-box;
   height: 28px;
-  padding: 0 6px;
+  padding: 0 var(--delta-space-1-5);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -67,7 +67,7 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .status {
@@ -77,13 +77,13 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: var(--delta-space-4);
 }
 
 .failure {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
-  line-height: 22px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
   text-align: center;
 }
 
@@ -91,19 +91,19 @@
   box-sizing: border-box;
   height: 32px;
   min-width: 58px;
-  padding: 0 12px;
-  --dsh-button-outline-color: var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-md);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 400;
+  padding: 0 var(--delta-space-3);
+  --delta-button-outline-color: var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-md);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-regular);
 }
 
 .spinner {
   position: relative;
   width: 24px;
   height: 24px;
-  animation: spin 1s linear infinite;
+  animation: spin var(--delta-transition-duration-1000ms) linear infinite;
 }
 
 .spinner::before {

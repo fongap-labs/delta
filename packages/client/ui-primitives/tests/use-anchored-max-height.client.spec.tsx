@@ -2,7 +2,7 @@
 /**
  * `useAnchoredMaxHeight` clamps a bottom-anchored overlay to the space above
  * its bottom edge, keeping a 12px viewport margin that widens to the frame's
- * published `--dsh-frame-top-clearance` (the macOS window strip).
+ * published `--delta-frame-top-clearance` (the macOS window strip).
  */
 import { useRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +12,7 @@ import { useAnchoredMaxHeight } from '../src/useAnchoredMaxHeight.ts'
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
-  document.documentElement.style.removeProperty('--dsh-frame-top-clearance')
+  document.documentElement.style.removeProperty('--delta-frame-top-clearance')
 })
 
 /** Render the hook against an element whose bottom edge sits at `bottom`. */
@@ -37,14 +37,14 @@ describe('useAnchoredMaxHeight', () => {
   })
 
   it('widens the margin to the frame top clearance when published', () => {
-    document.documentElement.style.setProperty('--dsh-frame-top-clearance', '48px')
+    document.documentElement.style.setProperty('--delta-frame-top-clearance', '48px')
     stubBottom(300)
     const { getByTestId } = render(<Probe cap={400} />)
     expect(getByTestId('probe').dataset.maxHeight).toBe('232')
   })
 
   it('keeps a caller-raised margin over a published smaller clearance', () => {
-    document.documentElement.style.setProperty('--dsh-frame-top-clearance', '48px')
+    document.documentElement.style.setProperty('--delta-frame-top-clearance', '48px')
     stubBottom(300)
     const { getByTestId } = render(<Probe cap={400} margin={84} />)
     expect(getByTestId('probe').dataset.maxHeight).toBe('216')

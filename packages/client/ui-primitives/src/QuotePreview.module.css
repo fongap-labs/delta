@@ -1,23 +1,23 @@
 .quote {
   display: inline-flex;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--delta-space-1);
   box-sizing: border-box;
   max-width: min(80%, 300px);
   margin: 0;
   padding: 0;
   vertical-align: baseline;
-  color: var(--dsw-alias-state-business-primary);
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(20px + var(--dsh-content-font-delta, 0px));
+  color: var(--delta-alias-state-business-primary);
+  font-size: var(--delta-content-font-size, 14px);
+  line-height: calc(20px + var(--delta-content-font-delta, 0px));
 }
 
 .popoverText {
   display: block;
-  padding: 8px 10px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 20px;
+  padding: var(--delta-space-2) var(--delta-space-2-5);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -32,29 +32,29 @@
 }
 
 .inlineBody {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .summary {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  font-size: 14px;
-  line-height: 20px;
+  gap: var(--delta-space-1);
+  padding: var(--delta-space-2) var(--delta-space-2-5);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
 }
 
 .summaryTitle {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
   overflow-wrap: anywhere;
 }
 
 .summaryDetail {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .summaryBody {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -102,7 +102,7 @@
 .quoteMark,
 .closeMark {
   grid-area: 1 / 1;
-  transition: opacity 120ms ease;
+  transition: opacity var(--delta-transition-duration-120ms) ease;
 }
 
 .closeMark {

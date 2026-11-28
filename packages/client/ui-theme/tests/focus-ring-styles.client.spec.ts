@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { INPUT_MODALITY, INPUT_MODALITY_ATTRIBUTE } from '../../ui-primitives/src/input-modality.ts'
 import { packageStylesheets, parseRules, varReferences } from './stylesheet-scan.ts'
 
-const ACCENT = '--dsw-alias-state-business-primary'
-const COLOR = '--dsw-focus-ring-color'
-const WIDTH = '--dsw-focus-ring-width'
+const ACCENT = '--delta-alias-state-business-primary'
+const COLOR = '--delta-focus-ring-color'
+const WIDTH = '--delta-focus-ring-width'
 const FALLBACK = `var(${COLOR}, var(${ACCENT}))`
 const css = readFileSync(new URL('../src/styles/focus.css', import.meta.url), 'utf8')
 const rules = parseRules(css)
@@ -54,9 +54,9 @@ describe('focus styles', () => {
 
   it('rejects a non-blue ring and a keyboard ring that bypasses pointer suppression', () => {
     expect(ringColorViolations('.a:focus-visible { outline: 2px solid red; }')).toHaveLength(1)
-    expect(ringColorViolations('.a:focus { box-shadow: 0 0 0 2px var(--dsw-alias-brand-primary); }'))
+    expect(ringColorViolations('.a:focus { box-shadow: 0 0 0 2px var(--delta-alias-brand-primary); }'))
       .toHaveLength(1)
-    expect(ringColorViolations('.a:focus-visible .label { outline: 2px solid var(--dsw-alias-state-business-primary); }'))
+    expect(ringColorViolations('.a:focus-visible .label { outline: 2px solid var(--delta-alias-state-business-primary); }'))
       .toHaveLength(1)
     expect(ringColorViolations(`.a:focus-visible::after { outline: 2px solid ${FALLBACK}; }`)).toEqual([])
   })

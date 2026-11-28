@@ -1367,7 +1367,7 @@ describe('FloatLayer', () => {
     })
     root.setAttribute('data-windows-titlebar', '')
     root.toggleAttribute('data-fullscreen', fullscreen)
-    root.style.setProperty('--dsh-windows-titlebar-height', '40px')
+    root.style.setProperty('--delta-windows-titlebar-height', '40px')
     const { intents, paneId, panel } = floating(undefined, savedY)
     const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
     const computedStyle = vi.spyOn(window, 'getComputedStyle')
@@ -1522,7 +1522,7 @@ describe('FloatLayer', () => {
     expect(intents.focusPane).not.toHaveBeenCalled()
     // The recorded rectangle and depth are drawn again once the preview clears.
     expect(panel.style.left).toBe('')
-    expect(panel.style.getPropertyValue('--dsh-dockkit-float-x')).toBe('100px')
+    expect(panel.style.getPropertyValue('--delta-dockkit-float-x')).toBe('100px')
     expect(panel.style.zIndex).toBe('1')
   })
 

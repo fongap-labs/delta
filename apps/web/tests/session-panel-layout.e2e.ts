@@ -173,7 +173,7 @@ describe.skipIf(MODE === 'record')('web e2e: Session panel layout', () => {
       const scroll = document.querySelector<HTMLElement>('[data-conversation-scroll]')
       const frame = document.querySelector<HTMLElement>('[data-chat-aside]')
       if (body === null || scroll === null || frame === null) return null
-      const published = body.style.getPropertyValue('--dsh-conversation-viewport-width')
+      const published = body.style.getPropertyValue('--delta-conversation-viewport-width')
       return published === `${scroll.clientWidth}px` ? frame.getBoundingClientRect().width : null
     }), { timeout: 10_000 }).toBe(width)
   }

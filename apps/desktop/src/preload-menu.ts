@@ -13,16 +13,16 @@ export function installWindowsMenu(): { update(): void; dispose(): void } {
   const shadow = host.attachShadow({ mode: 'open' })
   const style = document.createElement('style')
   style.textContent = `
-    :host { position: fixed; top: 0; left: var(--dsh-windows-menu-start, 48px); z-index: 1100;
-      height: var(--dsh-windows-titlebar-height); display: flex; align-items: center;
-      font-family: var(--dsw-font-family); -webkit-app-region: no-drag; }
+    :host { position: fixed; top: 0; left: var(--delta-windows-menu-start, 48px); z-index: 1100;
+      height: var(--delta-windows-titlebar-height); display: flex; align-items: center;
+      font-family: var(--delta-font-family); -webkit-app-region: no-drag; }
     [role=menubar] { display: flex; gap: 2px; }
     button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px;
-      background: transparent; color: var(--dsw-alias-label-secondary);
+      background: transparent; color: var(--delta-alias-label-secondary);
       font: inherit; font-size: 14px; cursor: default; }
-    button:hover, button[aria-expanded=true] { background: var(--dsw-alias-interactive-bg-hover);
-      color: var(--dsw-alias-label-primary); }
-    button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+    button:hover, button[aria-expanded=true] { background: var(--delta-alias-interactive-bg-hover);
+      color: var(--delta-alias-label-primary); }
+    button:focus-visible { outline: 2px solid var(--delta-alias-state-business-primary); outline-offset: -2px; }
     :host-context(html[data-input-modality='pointer']) button:focus-visible { outline-color: transparent; }
   `
   const bar = document.createElement('div')

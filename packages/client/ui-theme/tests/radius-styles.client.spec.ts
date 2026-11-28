@@ -6,7 +6,7 @@ import { packageStylesheets, parseRules, varReferences } from './stylesheet-scan
 
 const base = readFileSync(fileURLToPath(new URL('../src/styles/base.css', import.meta.url)), 'utf8')
 const tokens = new Set(parseRules(base).flatMap(rule => rule.declarations)
-  .filter(([name]) => name.startsWith('--dsw-radius-')).map(([name]) => name))
+  .filter(([name]) => name.startsWith('--delta-radius-')).map(([name]) => name))
 // Navigation markers and the 10px switch track are drawings, not control containers.
 const drawings = new Map([
   ['ui-chat/src/client/chat/TurnNavigator.module.css', '.mark'],
@@ -20,10 +20,10 @@ const drawings = new Map([
  */
 function unscaledRadii(css: string): string[] {
   return parseRules(css).flatMap(rule => rule.declarations
-    .filter(([property]) => /^border(?:-[\w-]+)?-radius$/.test(property) || /^--dsl-.*radius$/.test(property))
+    .filter(([property]) => /^border(?:-[\w-]+)?-radius$/.test(property) || /^--delta-.*radius$/.test(property))
     .filter(([, value]) => [...value.matchAll(/\b(\d+(?:\.\d+)?)px\b/g)]
       .some(([, number]) => Number(number) > 4 && Number(number) < 99)
-      || varReferences(value).some(name => name.startsWith('--dsw-radius-') && !tokens.has(name)))
+      || varReferences(value).some(name => name.startsWith('--delta-radius-') && !tokens.has(name)))
     .map(([property, value]) => `${rule.selectors.join(', ')}: ${property}: ${value}`))
 }
 
@@ -31,9 +31,9 @@ describe('component radius scale', () => {
   it('rejects local radii and misspelled tokens while accepting drawing details and full-round shapes', () => {
     expect(unscaledRadii('.button { border-radius: 14px; }')).toHaveLength(1)
     expect(unscaledRadii('.card { border-top-left-radius: 18px; }')).toHaveLength(1)
-    expect(unscaledRadii('.card { --dsl-code-block-border-radius: 12px; }')).toHaveLength(1)
-    expect(unscaledRadii('.card { border-radius: var(--dsw-radius-missing); }')).toHaveLength(1)
-    expect(unscaledRadii('.card { border-radius: var(--dsw-radius-xl); }')).toEqual([])
+    expect(unscaledRadii('.card { --delta-code-block-border-radius: 12px; }')).toHaveLength(1)
+    expect(unscaledRadii('.card { border-radius: var(--delta-radius-missing); }')).toHaveLength(1)
+    expect(unscaledRadii('.card { border-radius: var(--delta-radius-xl); }')).toEqual([])
     expect(unscaledRadii('.dot { border-radius: 2px; } .circle { border-radius: 50%; } .pill { border-radius: 999px; }')).toEqual([])
   })
 

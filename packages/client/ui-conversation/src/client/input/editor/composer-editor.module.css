@@ -1,10 +1,10 @@
 /* Shared inline reference treatment; hover does not change text metrics. */
 .reference {
-  padding: 0 4px;
-  border-radius: var(--dsw-radius-sm);
+  padding: 0 var(--delta-space-1);
+  border-radius: var(--delta-radius-sm);
   line-height: inherit;
   vertical-align: baseline;
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
   background: transparent;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -12,7 +12,7 @@
 
 @media (hover: hover) {
   .reference:hover {
-    background: var(--dsw-alias-state-business-tertiary);
+    background: var(--delta-alias-state-business-tertiary);
   }
 }
 
@@ -22,7 +22,7 @@
 
 /* A command chip selected by its first deletion keystroke keeps the hover tint until the next deletion removes it. */
 [data-composer-command][data-selected] > .reference {
-  background: var(--dsw-alias-state-business-tertiary);
+  background: var(--delta-alias-state-business-tertiary);
 }
 
 .textRef {

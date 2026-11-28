@@ -82,7 +82,7 @@ function floatBounds(): FloatBounds {
   // Desktop publishes the caption height in pixels on the root's inline style;
   // a root without it keeps the 20px floor.
   const caption = windows && !root.hasAttribute('data-fullscreen')
-    ? Number.parseFloat(root.style.getPropertyValue('--dsh-windows-titlebar-height')) : 0
+    ? Number.parseFloat(root.style.getPropertyValue('--delta-windows-titlebar-height')) : 0
   return { top: windows ? (Number.isFinite(caption) ? caption : 0) + 20 : 0, width: window.innerWidth, height: window.innerHeight }
 }
 
@@ -144,10 +144,10 @@ interface Settling {
 export function floatStyle(rect: FloatRect, lifted: boolean): CSSProperties {
   if (lifted) return { left: rect.x, top: rect.y, width: rect.width, height: rect.height }
   return {
-    '--dsh-dockkit-float-x': `${rect.x}px`,
-    '--dsh-dockkit-float-y': `${rect.y}px`,
-    '--dsh-dockkit-float-width': `${rect.width}px`,
-    '--dsh-dockkit-float-height': `${rect.height}px`,
+    '--delta-dockkit-float-x': `${rect.x}px`,
+    '--delta-dockkit-float-y': `${rect.y}px`,
+    '--delta-dockkit-float-width': `${rect.width}px`,
+    '--delta-dockkit-float-height': `${rect.height}px`,
   } as CSSProperties
 }
 

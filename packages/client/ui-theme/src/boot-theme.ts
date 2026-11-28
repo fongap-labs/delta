@@ -17,8 +17,8 @@ const DARK_BACKGROUND = '#151517'
 
 /** CSS that colors the document canvas before any script executes. */
 function bootThemeStyle(preference: ThemePreference): string {
-  const light = `:root{color-scheme:light}body{background-color:${LIGHT_BACKGROUND};--dsh-boot-bg:${LIGHT_BACKGROUND}}`
-  const dark = `:root{color-scheme:dark}body{background-color:${DARK_BACKGROUND};--dsh-boot-bg:${DARK_BACKGROUND}}`
+  const light = `:root{color-scheme:light}body{background-color:${LIGHT_BACKGROUND};--delta-boot-bg:${LIGHT_BACKGROUND}}`
+  const dark = `:root{color-scheme:dark}body{background-color:${DARK_BACKGROUND};--delta-boot-bg:${DARK_BACKGROUND}}`
   if (preference === 'light') return light
   if (preference === 'dark') return dark
   return `${light}@media(prefers-color-scheme:dark){${dark}}`

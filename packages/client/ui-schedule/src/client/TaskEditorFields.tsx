@@ -140,8 +140,8 @@ export function TaskEditorFields({ draft, onChange, projects, disabled, held, or
   const dateAnchor = useRef<HTMLButtonElement>(null)
   const clockAnchor = useRef<HTMLButtonElement>(null)
   const id = useId()
-  const dateAnchorName = `--dsh-schedule-date-${id.replaceAll(':', '')}`
-  const clockAnchorName = `--dsh-schedule-clock-${id.replaceAll(':', '')}`
+  const dateAnchorName = `--delta-schedule-date-${id.replaceAll(':', '')}`
+  const clockAnchorName = `--delta-schedule-clock-${id.replaceAll(':', '')}`
   const rowId = (name: string): string => `${id}-${name}`
   const change = (patch: Partial<TaskEditorDraft>): void => { onChange({ ...draft, ...patch }) }
   const clock = draft.frequency === 'daily' ? `${draft.dailyTime}:00` : draft.start.slice(11)

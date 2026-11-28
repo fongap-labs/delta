@@ -53,9 +53,9 @@ it('passes the visible-row limit to CSS and clears it when the option is removed
   const props = { open: true, anchor: null, items: [{ id: 'one', label: 'One' }], onClose: vi.fn() }
   const view = render(<Menu {...props} maxVisibleRows={6} />)
   const menu = view.getByRole('menu')
-  expect(menu.style.getPropertyValue('--dsh-menu-visible-rows')).toBe('6')
+  expect(menu.style.getPropertyValue('--delta-menu-visible-rows')).toBe('6')
   view.rerender(<Menu {...props} maxVisibleRows={3} />)
-  expect(menu.style.getPropertyValue('--dsh-menu-visible-rows')).toBe('3')
+  expect(menu.style.getPropertyValue('--delta-menu-visible-rows')).toBe('3')
   view.rerender(<Menu {...props} />)
-  expect(menu.style.getPropertyValue('--dsh-menu-visible-rows')).toBe('')
+  expect(menu.style.getPropertyValue('--delta-menu-visible-rows')).toBe('')
 })

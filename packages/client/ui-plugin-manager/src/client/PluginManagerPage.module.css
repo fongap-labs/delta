@@ -26,7 +26,7 @@
      (`.pageHead`, `.detailTop`, `.moreHead`). macOS window dragging is owned by a row's own box,
      so an inset above that box leaves a top strip no drag region covers. */
   padding: 0 var(--plugin-page-inset);
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (max-width: 767px) {
@@ -70,7 +70,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  gap: var(--delta-space-8);
   box-sizing: border-box;
   padding: 0 var(--plugin-page-inset) 48px;
   overflow-x: hidden;
@@ -81,7 +81,7 @@
 
 /* The initial list inset scrolls away; the scroll viewport meets the fixed bar directly. */
 .page > :not(.pageBody) + .pageBody {
-  padding-top: 32px;
+  padding-top: var(--delta-space-8);
 }
 
 .pageBody > * {
@@ -145,7 +145,7 @@
   position: absolute;
   inset: 0 0 auto;
   height: var(--plugin-header-paint-height, var(--plugin-header-rest-height));
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
   pointer-events: none;
 }
 
@@ -156,7 +156,7 @@
   top: 0;
   height: var(--plugin-header-compact-height);
   box-sizing: border-box;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .pageHead {
@@ -164,7 +164,7 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--delta-space-4);
   box-sizing: border-box;
   /* The page's former top inset: the row starts at the window's top edge, so the whole
      strip above the page content drags the window. */
@@ -176,7 +176,7 @@
    owns the window drag over its own box — clearance included — so this page's
    top strip drags without a frame band. */
 :global([data-platform='darwin']) .pageHead {
-  padding-top: calc(var(--plugin-page-top-inset) + var(--dsh-frame-top-clearance, 0px));
+  padding-top: calc(var(--plugin-page-top-inset) + var(--delta-frame-top-clearance, 0px));
 }
 
 .pageHeading {
@@ -187,19 +187,19 @@
 
 .pageTitle {
   margin: 0;
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 28px;
+  font-size: var(--delta-font-size-20);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-28);
 }
 
 .pageIntro {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  gap: var(--delta-space-1);
+  margin: var(--delta-space-1) 0 0;
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
 }
 
 .infoButton {
@@ -207,7 +207,7 @@
   width: 20px;
   height: 20px;
   padding: 0;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .toolbar {
@@ -216,7 +216,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px 16px;
+  gap: var(--delta-space-2) var(--delta-space-4);
   min-width: 0;
   white-space: nowrap;
   order: 2;
@@ -230,14 +230,14 @@
 .addMenu [role='menuitem'] {
   height: 72px;
   box-sizing: border-box;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: var(--delta-space-2-5);
+  padding: var(--delta-space-1-5) var(--delta-space-3);
 }
 
 .addMenuItem {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   white-space: normal;
 }
 
@@ -246,9 +246,9 @@
   max-height: 36px;
   overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -257,101 +257,101 @@
 .failure p,
 .empty {
   margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .failure {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--dsw-alias-state-error-primary);
+  gap: var(--delta-space-2-5);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .failure ul {
   margin: 0;
-  padding-left: 16px;
-  font-size: 13px;
-  line-height: 20px;
+  padding-left: var(--delta-space-4);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .statusWithDot {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .groupHead {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .groupTitle {
   flex: 1;
   margin: 0;
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .groupMore {
   flex: none;
-  gap: 4px;
+  gap: var(--delta-space-1);
   /* Like .card, the hover surface reaches 8px past the trailing content edge. */
-  margin-inline-end: -8px;
-  padding: 0 8px;
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 400;
-  color: color-mix(in srgb, var(--dsw-alias-label-secondary) 60%, var(--dsw-alias-label-tertiary));
+  margin-inline-end: calc(-1 * var(--delta-space-2));
+  padding: 0 var(--delta-space-2);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-regular);
+  color: color-mix(in srgb, var(--delta-alias-label-secondary) 60%, var(--delta-alias-label-tertiary));
 }
 
 .groupMore:focus-visible {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 @media (hover: hover) {
   .groupMore:hover {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
 .moreHead {
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .moreBack {
   width: 28px;
   padding: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* Center the status label geometrically: beside larger titles the capsule's line-box offset shows. */
 .statusTag {
   height: 18px;
   padding: 0 7px;
-  font-size: 10px;
-  line-height: 1;
+  font-size: var(--delta-font-size-10);
+  line-height: var(--delta-line-height-none);
 }
 
 /* The package an install just enabled: a ring that fades while the list scrolls to it. */
 .card[data-plugin-highlight] {
-  animation: dsh-plugin-highlight 2400ms ease-out;
+  animation: dsh-plugin-highlight var(--delta-transition-duration-2400ms) ease-out;
 }
 
 @keyframes dsh-plugin-highlight {
   0%,
   55% {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--delta-alias-state-business-primary) 40%, transparent);
   }
 
   100% {
@@ -362,12 +362,12 @@
 @media (prefers-reduced-motion: reduce) {
   .card[data-plugin-highlight] {
     animation: none;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--delta-alias-state-business-primary) 40%, transparent);
   }
 }
 
 .iconButton:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -380,19 +380,19 @@
 .cards {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
 }
 
 .card {
   min-width: 0;
   /* The hover surface reaches 8px past the content on both sides while the
      row's content stays aligned with the page header. */
-  margin: 0 -8px;
-  border-radius: var(--dsw-radius-xl);
+  margin: 0 calc(-1 * var(--delta-space-2));
+  border-radius: var(--delta-radius-xl);
   /* The page itself scrolls on the base surface. Anything that scrolls inside
      a card draws the l2 thumb (ui-theme styles/scrollbar.css rebinding contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .cardHead {
@@ -410,9 +410,9 @@
   width: var(--card-icon-size);
   height: var(--card-icon-size);
   /* The same hairline frame as the component rows below. */
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
-  color: var(--dsw-alias-label-secondary);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* A card's reason lines start under its title. */
@@ -429,21 +429,21 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
 }
 
 .titleRow {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
 }
 
 .cardTitle {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -461,12 +461,12 @@
 /* Press feedback carries the tap: with hover fenced off, a card would otherwise
    read as inert between touch-down and release. */
 .cardLink:active {
-  background: var(--dsw-alias-interactive-bg-active);
+  background: var(--delta-alias-interactive-bg-active);
 }
 
 @media (hover: hover) {
   .cardLink:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -478,9 +478,9 @@
   color: inherit;
   /* font: inherit resets the size, so the card title's own size follows. */
   font: inherit;
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
   text-align: left;
   cursor: pointer;
 }
@@ -489,7 +489,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: var(--dsw-radius-xl);
+  border-radius: var(--delta-radius-xl);
 }
 
 .cardOpen:focus-visible {
@@ -497,14 +497,14 @@
 }
 
 .cardOpen:focus-visible::after {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
 .cardDesc {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
@@ -513,8 +513,8 @@
 
 /* Match Session search's pulse without coupling the two feature packages. */
 .skeletonFill {
-  background: var(--dsw-alias-bg-skeleton);
-  animation: dsh-plugin-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
+  background: var(--delta-alias-bg-skeleton);
+  animation: dsh-plugin-skeleton var(--delta-transition-duration-2000ms) cubic-bezier(0.36, 0, 0.64, 1) infinite;
 }
 
 /* Keep each real text line's height; center the shorter painted bar within it. */
@@ -527,7 +527,7 @@
 .skeletonBar {
   width: 100%;
   height: 12px;
-  border-radius: var(--dsw-radius-xs);
+  border-radius: var(--delta-radius-xs);
 }
 
 .skeletonHeading { width: 48px; }
@@ -557,7 +557,7 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .bundleToggle {
@@ -591,20 +591,20 @@
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
   cursor: pointer;
 }
 
 .iconButton:active:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-active);
+  background: var(--delta-alias-interactive-bg-active);
 }
 
 @media (hover: hover) {
   .iconButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-secondary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
@@ -618,10 +618,10 @@
 .addPrimary,
 .addMore {
   height: 32px;
-  font-size: 13px;
-  line-height: 20px;
-  padding: 0 12px;
-  border-radius: var(--dsw-radius-md);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  padding: 0 var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
 }
 
 .addGroup {
@@ -638,7 +638,7 @@
 .addMore {
   width: 32px;
   padding: 0;
-  border-left: 0.5px solid color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 30%, transparent);
+  border-left: 0.5px solid color-mix(in srgb, var(--delta-alias-label-primary-foreground) 30%, transparent);
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
@@ -650,9 +650,9 @@
 /* The destructive text action in a card body: red ink inside a 30% red frame,
    and the outline hover rebinds to a red wash instead of the gray one. */
 .danger {
-  color: var(--dsw-alias-state-error-primary);
-  --dsh-button-outline-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent);
-  --dsw-alias-interactive-bg-hover: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
+  color: var(--delta-alias-state-error-primary);
+  --delta-button-outline-color: color-mix(in srgb, var(--delta-alias-state-error-primary) 30%, transparent);
+  --delta-alias-interactive-bg-hover: color-mix(in srgb, var(--delta-alias-state-error-primary) 8%, transparent);
 }
 
 /* Retry, uninstall, and the switch at the end of the page's head. */
@@ -660,13 +660,13 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 16px;
+  gap: var(--delta-space-4);
 }
 
 .actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--delta-space-4);
 }
 
 /* The delete of a row the person added: red on its own, not only on hover. */
@@ -677,19 +677,19 @@
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
   cursor: pointer;
 }
 
 .deleteButton:active:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-danger, var(--dsw-alias-interactive-bg-hover));
+  background: var(--delta-alias-interactive-bg-hover-danger, var(--delta-alias-interactive-bg-hover));
 }
 
 @media (hover: hover) {
   .deleteButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover-danger, var(--dsw-alias-interactive-bg-hover));
+    background: var(--delta-alias-interactive-bg-hover-danger, var(--delta-alias-interactive-bg-hover));
   }
 }
 
@@ -699,15 +699,15 @@
 }
 
 .deleteButton:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
 .reason {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-state-error-primary);
   overflow-wrap: anywhere;
   /* The Host's captured tail, when no output streamed, keeps its lines. */
   white-space: pre-wrap;
@@ -722,7 +722,7 @@
 }
 
 .partsFilter:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -743,7 +743,7 @@
 .installBody {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
   min-width: 0;
 }
 
@@ -751,60 +751,60 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--delta-space-5);
   min-width: 0;
 }
 
 .templateHint {
-  margin: -4px 0 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  margin: calc(-1 * var(--delta-space-1)) 0 0;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* Where pnpm installs: the profile directory the first run names. */
 .installLocation {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
 .installField {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--delta-space-1-5);
+  font-size: var(--delta-font-size-13);
 }
 
 .installField input[type='text'] {
   height: 40px;
-  padding: 0 14px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
+  padding: 0 var(--delta-space-3-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
   outline: none;
-  background: var(--dsw-alias-bg-layer-3);
+  background: var(--delta-alias-bg-layer-3);
   font: inherit;
-  font-size: 13px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  color: var(--delta-alias-label-primary);
 }
 
 .installField input[type='text']:focus,
 .registryCustomField:focus {
-  border-color: var(--dsw-alias-state-business-primary);
-  box-shadow: inset 0 0 0 0.5px var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
+  box-shadow: inset 0 0 0 0.5px var(--delta-alias-state-business-primary);
 }
 
 .installField input[type='text'][aria-invalid='true'],
 .registryCustomField[aria-invalid='true'] {
-  border-color: var(--dsw-alias-state-error-primary);
+  border-color: var(--delta-alias-state-error-primary);
   box-shadow: none;
 }
 
 .installField input[type='text'][aria-invalid='true']:focus,
 .registryCustomField[aria-invalid='true']:focus {
-  box-shadow: inset 0 0 0 0.5px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  box-shadow: inset 0 0 0 0.5px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 /* The guide under the field: opened by a text button, it names the npm package name and shows its example. */
@@ -812,25 +812,25 @@
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--delta-space-1);
+  margin-top: var(--delta-space-1);
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
   font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .guideToggle:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .guideChevron {
-  transition: transform 160ms ease;
+  transition: transform var(--delta-transition-duration-160ms) ease;
 }
 
 .guideToggle[aria-expanded='true'] .guideChevron {
@@ -840,51 +840,51 @@
 .guide {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 8px 14px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-layer-1);
+  gap: var(--delta-space-2-5);
+  padding: var(--delta-space-2) var(--delta-space-3-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-layer-1);
 }
 
 .guideHint {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  margin: var(--delta-space-1-5) 0 0;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* Trust guidance stays beside the install action, including while examples are collapsed. */
 .installSafety {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--delta-space-2);
   margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-state-warn-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  padding: var(--delta-space-2-5) var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-state-warn-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
 }
 
 .installSafetyText {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
 }
 
 .installSafety > svg {
   flex: none;
-  margin-top: 2px;
-  color: var(--dsw-alias-state-warn-primary);
+  margin-top: var(--delta-space-0-5);
+  color: var(--delta-alias-state-warn-primary);
 }
 
 .guideList {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -893,8 +893,8 @@
 .guideItem {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 0;
+  gap: var(--delta-space-2-5);
+  padding: var(--delta-space-2) 0;
 }
 
 .guideItem > button {
@@ -910,25 +910,25 @@
 }
 
 .guideTitle {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
 }
 
 .guideExample {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
 .guideExample code {
-  font-family: var(--ds-font-family-code);
+  font-family: var(--delta-font-family-code);
 }
 
 .guideExampleLabel {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The row under the field: the guide's toggle on the left, the registry's on the right, both folded by default. */
@@ -937,28 +937,28 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 12px;
+  gap: var(--delta-space-2) var(--delta-space-3);
 }
 
 /* The registry toggle names the registry the install asks first, so the choice reads without unfolding. */
 .registryToggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   height: 28px;
-  padding: 0 8px 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-2);
+  padding: 0 var(--delta-space-2) 0 var(--delta-space-2-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-layer-2);
   font: inherit;
   font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .registryToggle:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -968,8 +968,8 @@
 }
 
 .registryToggle[aria-expanded='true'] {
-  border-color: var(--dsw-alias-border-l3);
-  background: var(--dsw-alias-bg-layer-3);
+  border-color: var(--delta-alias-border-l3);
+  background: var(--delta-alias-bg-layer-3);
 }
 
 .registryToggle[aria-expanded='true'] .guideChevron {
@@ -977,41 +977,41 @@
 }
 
 .registryChosen {
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The registry options float from their toggle over the dialog: pnpm's own, the configured mirrors, and a typed
    address, with the order asked under them. Portaled and fixed, so the dialog keeps its height. */
 .registry {
   position: fixed;
-  z-index: 1100;
+  z-index: var(--delta-layer-overlay);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
   box-sizing: border-box;
   width: min(440px, calc(100vw - 24px));
 
-  padding: 8px;
+  padding: var(--delta-space-2);
   border: 0;
   /* An opaque layer keeps the registry form controls readable over the dialog. */
-  background: var(--dsw-alias-bg-layer-2);
-  border-radius: var(--dsw-radius-lg);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  background: var(--delta-alias-bg-layer-2);
+  border-radius: var(--delta-radius-lg);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
   min-width: 0;
   max-width: calc(100vw - 24px);
-  max-height: calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)));
+  max-height: calc(100dvh - 12px - max(12px, var(--delta-frame-overlay-top, 12px)));
   overflow-x: hidden;
   overflow-y: auto;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
   position-area: none;
   top: max(12px, calc(anchor(bottom) + 6px));
   bottom: 12px;
   left: 12px;
   right: max(12px, anchor(right));
-  position-try-fallbacks: --dsh-registry-window, --dsh-registry-opposite, --dsh-registry-wide-opposite, --dsh-registry-tall, --dsh-registry-viewport;
+  position-try-fallbacks: --delta-registry-window, --delta-registry-opposite, --delta-registry-wide-opposite, --delta-registry-tall, --delta-registry-viewport;
   align-self: start;
   justify-self: end;
   height: fit-content;
@@ -1022,16 +1022,16 @@
 .registryOption {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: var(--delta-space-1);
+  padding: var(--delta-space-2) var(--delta-space-2-5);
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .registryOption:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -1039,38 +1039,38 @@
 label.registryOption {
   flex-direction: row;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 .registryOption input[type='radio'] {
   flex: none;
   width: 16px;
   height: 16px;
-  margin: 2px 0 0;
-  accent-color: var(--dsw-alias-brand-primary);
+  margin: var(--delta-space-0-5) 0 0;
+  accent-color: var(--delta-alias-brand-primary);
 }
 
 .registryTitle {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  gap: var(--delta-space-2);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
 }
 
 .registryHint {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
 .registryCustomPick {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   cursor: pointer;
 }
 
@@ -1078,13 +1078,13 @@ label.registryOption {
   outline: none;
   height: 32px;
   margin-left: 26px;
-  padding: 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-3);
+  padding: 0 var(--delta-space-2-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-layer-3);
   font: inherit;
-  font-size: 13px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The typed address's field, refusal, and line sit under its title, past the radio and its gap. */
@@ -1095,10 +1095,10 @@ label.registryOption {
 
 /* What the check refused, under the field. */
 .inputError {
-  margin: -4px 0 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+  margin: calc(-1 * var(--delta-space-1)) 0 0;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-state-error-primary);
 }
 
 /* The footer's only action spans the dialog, as the primary action of a short form does. */
@@ -1106,7 +1106,7 @@ label.registryOption {
   width: 100%;
   height: 40px;
   justify-content: center;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 /* The installing, installed, and failed screens: a head row, the centred
@@ -1115,10 +1115,10 @@ label.registryOption {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-width: 0;
   min-height: 0;
-  padding: 16px 20px 0;
+  padding: var(--delta-space-4) var(--delta-space-5) 0;
 }
 
 /* Everything under the head: it scrolls when the runs' output makes the screen taller than the card. */
@@ -1126,7 +1126,7 @@ label.registryOption {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-height: 0;
   overflow-y: auto;
 }
@@ -1141,14 +1141,14 @@ label.registryOption {
 .wizardBack {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-15);
+  font-weight: var(--delta-font-weight-semibold);
+  color: var(--delta-alias-label-primary);
   cursor: pointer;
 }
 
@@ -1160,16 +1160,16 @@ label.registryOption {
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .wizardClose:hover {
-    background: var(--dsw-alias-bg-layer-3);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-bg-layer-3);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -1177,8 +1177,8 @@ label.registryOption {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0 4px;
+  gap: var(--delta-space-2-5);
+  padding: var(--delta-space-2) 0 var(--delta-space-1);
   text-align: center;
 }
 
@@ -1188,29 +1188,29 @@ label.registryOption {
   justify-content: center;
   width: 44px;
   height: 44px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .wizardIcon[data-state='done'] {
-  color: var(--dsw-alias-state-success-secondary);
+  color: var(--delta-alias-state-success-secondary);
 }
 
 .wizardIcon[data-state='error'] {
-  color: var(--dsw-alias-state-warn-label);
+  color: var(--delta-alias-state-warn-label);
 }
 
 .wizardTitle {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--delta-font-size-18);
   line-height: 26px;
-  font-weight: 600;
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .wizardSub {
   margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
   overflow-wrap: anywhere;
 }
 
@@ -1218,36 +1218,36 @@ label.registryOption {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 16px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
+  gap: var(--delta-space-1-5);
+  padding: var(--delta-space-4);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
   text-align: center;
 }
 
 .subjectName {
   margin: 0;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
+  font-size: var(--delta-font-size-15);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-semibold);
   overflow-wrap: anywhere;
 }
 
 .subjectSpec {
   margin: 0;
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
 .subjectDesc,
 .subjectMeta {
   margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
   overflow-wrap: anywhere;
 }
 
@@ -1255,29 +1255,29 @@ label.registryOption {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .footAction {
   height: 32px;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 .detailsToggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  font-size: 13px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 .detailsChevron {
-  transition: transform 160ms ease;
+  transition: transform var(--delta-transition-duration-160ms) ease;
 }
 
 .detailsToggle[aria-expanded='true'] .detailsChevron {
@@ -1287,7 +1287,7 @@ label.registryOption {
 .detailsBody {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
 }
 
@@ -1295,26 +1295,26 @@ label.registryOption {
 .wizardActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 /* One pnpm run of the install; once several registries were asked, a badge names each run's. */
 .run {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
 }
 
 .attemptBadge {
   align-self: flex-start;
   margin: 0;
-  padding: 0 6px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-3);
-  font-size: 11px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  padding: 0 var(--delta-space-1-5);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-bg-layer-3);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1326,55 +1326,55 @@ label.registryOption {
 .result,
 .resultWarn {
   margin: 0;
-  padding: 8px 12px;
-  border-radius: var(--dsw-radius-md);
-  font-size: 13px;
-  line-height: 20px;
-  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent);
-  color: var(--dsw-alias-label-primary);
+  padding: var(--delta-space-2) var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  background: color-mix(in srgb, var(--delta-alias-state-success-primary) 10%, transparent);
+  color: var(--delta-alias-label-primary);
 }
 
 .resultWarn {
-  background: var(--dsw-alias-state-warn-tertiary);
+  background: var(--delta-alias-state-warn-tertiary);
 }
 
 /* The approval a blocked run asks for: the packages whose install scripts pnpm did not run, and the one action. */
 .approval {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 0.5px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary) 40%, transparent);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-state-warn-tertiary);
+  gap: var(--delta-space-2);
+  padding: var(--delta-space-3) var(--delta-space-3-5);
+  border: 0.5px solid color-mix(in srgb, var(--delta-alias-state-warn-primary) 40%, transparent);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-state-warn-tertiary);
 }
 
 .approvalTitle {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-semibold);
+  color: var(--delta-alias-label-primary);
 }
 
 .approvalText {
   margin: 0;
   font-size: 12.5px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
 }
 
 .approvalCaution {
   margin: 0;
   font-size: 12.5px;
-  line-height: 18px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-secondary);
+  line-height: var(--delta-line-height-18);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-secondary);
 }
 
 .approvalList {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1382,35 +1382,35 @@ label.registryOption {
 
 .approvalList code {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-3);
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  color: var(--dsw-alias-label-primary);
+  padding: var(--delta-space-0-5) var(--delta-space-2);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-bg-layer-3);
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-12);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The install terminal: the shared TerminalBlock at the bash card's smaller
    size, its output capped so an expanded log scrolls inside the dialog. */
 .terminal {
-  --dsl-terminal-font: var(--dsw-font-markdown-code-block-small);
-  --dsl-terminal-line-height: 18px;
-  --dsl-terminal-output-max-height: 240px;
-  margin: 4px 0 0;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  --delta-terminal-font: var(--delta-font-markdown-code-block-small);
+  --delta-terminal-line-height: 18px;
+  --delta-terminal-output-max-height: 240px;
+  margin: var(--delta-space-1) 0 0;
+  border: 0.5px solid var(--delta-alias-border-l1);
 }
 
 .dependents {
-  margin: 8px 0 0;
+  margin: var(--delta-space-2) 0 0;
   padding-left: 18px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
 }
 
 .dangerButton {
-  --dsw-alias-button-primary-fill: var(--dsw-alias-state-error-primary);
-  --dsw-alias-button-primary-hover: var(--dsw-alias-state-error-primary);
+  --delta-alias-button-primary-fill: var(--delta-alias-state-error-primary);
+  --delta-alias-button-primary-hover: var(--delta-alias-state-error-primary);
 }
 
 .detail {
@@ -1438,17 +1438,17 @@ label.registryOption {
 
 :global([data-platform='darwin']) .detailTop,
 :global([data-platform='darwin']) .moreHead {
-  padding-top: calc(var(--plugin-page-top-inset) + var(--dsh-frame-top-clearance, 0px));
+  padding-top: calc(var(--plugin-page-top-inset) + var(--delta-frame-top-clearance, 0px));
 }
 
 .crumb {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   border: 0;
   padding: 0;
   background: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
@@ -1456,12 +1456,12 @@ label.registryOption {
 
 @media (hover: hover) {
   .crumb:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .crumb:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -1475,23 +1475,23 @@ label.registryOption {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin: 32px 0 0;
+  gap: var(--delta-space-3);
+  margin: var(--delta-space-8) 0 0;
 }
 
 .detailMain {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
-  margin-top: 20px;
+  margin-top: var(--delta-space-5);
 }
 
 .detailTitle {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-20);
+  line-height: var(--delta-line-height-28);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .versionTag {
@@ -1501,60 +1501,60 @@ label.registryOption {
 
 .detailDesc {
   margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 14px;
-  line-height: 22px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
 }
 
 /* The package or row identity under the title, where a title of its own or a
    shortened name hides it. */
 .detailName {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
 .detailName code {
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--delta-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
 }
 
 /* The unknown-package note under the name block. */
 .detail > .detailDesc {
-  margin-top: 12px;
+  margin-top: var(--delta-space-3);
 }
 
 .detailSections {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  margin-top: 32px;
+  gap: var(--delta-space-8);
+  margin-top: var(--delta-space-8);
 }
 
 .detailSection {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .sectionHead {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .sectionCount {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* A bundle's source facts: label at the start, value at the end, one ruled line each. */
@@ -1566,41 +1566,41 @@ label.registryOption {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-height: 44px;
-  padding: 8px 2px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  padding: var(--delta-space-2) var(--delta-space-0-5);
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .facts dt {
   flex: none;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
 }
 
 .facts dd {
   min-width: 0;
   margin: 0;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
   text-align: end;
   overflow-wrap: anywhere;
 }
 
 .facts code {
-  padding: 2px 6px;
+  padding: var(--delta-space-0-5) var(--delta-space-1-5);
   border-radius: 4px;
-  background: var(--dsw-alias-bg-module-platform);
+  background: var(--delta-alias-bg-module-platform);
   box-decoration-break: clone;
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 12px;
+  font-family: var(--delta-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--delta-font-size-12);
 }
 
 /* The way into a package's page. */
 .cardArrow {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* Rows sit on the page ground, one hairline apart, so they read on a white page too. */
@@ -1613,8 +1613,8 @@ label.registryOption {
 }
 
 .row {
-  padding: 12px 2px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  padding: var(--delta-space-3) var(--delta-space-0-5);
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .row:last-child {
@@ -1623,13 +1623,13 @@ label.registryOption {
 
 .detail[data-plugin-detail='@deepseek-ai/dsh-cua-bundle'] .facts div,
 .detail[data-plugin-detail='@deepseek-ai/dsh-cua-bundle'] .row {
-  border-bottom-color: var(--dsw-alias-border-l3);
+  border-bottom-color: var(--delta-alias-border-l3);
 }
 
 .rowLine {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-width: 0;
 }
 
@@ -1640,36 +1640,36 @@ label.registryOption {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  color: var(--dsw-alias-label-secondary);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-md);
+  color: var(--delta-alias-label-secondary);
 }
 
 .rowMain {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   min-width: 0;
 }
 
 .rowId {
   font-size: 13.5px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
   overflow-wrap: anywhere;
 }
 
 .row[data-state='off'] .rowId {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .rowModule {
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--delta-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 11.5px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-tertiary);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
@@ -1677,7 +1677,7 @@ label.registryOption {
 .rowOpen {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   padding: 0;
   border: 0;
   background: transparent;
@@ -1696,12 +1696,12 @@ label.registryOption {
 
 .rowOpenIcon {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 @media (hover: hover) {
   .rowOpen:hover .rowOpenIcon {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -1709,22 +1709,22 @@ label.registryOption {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   font-size: 12.5px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
   white-space: nowrap;
 }
 
 .row[data-state='failed'] .rowState {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .rowFailure {
-  margin: 4px 0 0 56px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+  margin: var(--delta-space-1) 0 0 56px;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-state-error-primary);
   overflow-wrap: anywhere;
 }
 
@@ -1744,7 +1744,7 @@ label.registryOption {
 .pageBar[data-compact]:not([data-natural]) {
   --plugin-page-top-inset: 16px;
 
-  padding-bottom: 16px;
+  padding-bottom: var(--delta-space-4);
 }
 
 /* With the sidebar open, native window controls sit in the sidebar rather than above the page. */
@@ -1756,7 +1756,7 @@ label.registryOption {
 :global([data-platform='darwin']) :global([data-sidebar-collapsed]) .pageBar[data-compact]:not([data-natural]) .pageHead {
   --plugin-page-top-inset: 8px;
 
-  padding-top: calc(var(--plugin-page-top-inset) + var(--dsh-frame-top-clearance, 0px));
+  padding-top: calc(var(--plugin-page-top-inset) + var(--delta-frame-top-clearance, 0px));
 }
 
 /* The collapsed bar's divider spans the page like the scrolled list and its scrollbar. */
@@ -1765,7 +1765,7 @@ label.registryOption {
   position: absolute;
   inset-inline: 0;
   bottom: 0;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
   pointer-events: none;
 }
 
@@ -1851,47 +1851,47 @@ label.registryOption {
 .installedPanel {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: var(--delta-space-8);
 }
 
 .tabPanel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--delta-space-6);
 }
 
 /* The list toolbar's sentence about the last update check. */
 .updatesNote {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .updatesNote[data-tone='info'] {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
 }
 
 .updatesNote[data-tone='error'] {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 /* A bundle's Versions section: one summary row that unfolds into the newer versions or the registries asked. */
 .versionPanel {
   container-type: inline-size;
   overflow: hidden;
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  border-radius: var(--dsw-radius-xl);
-  background: var(--dsw-alias-settings-card-fill);
+  border: 0.5px solid var(--delta-alias-settings-card-stroke);
+  border-radius: var(--delta-radius-xl);
+  background: var(--delta-alias-settings-card-fill);
 }
 
 .versionSummary {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--delta-space-3);
   box-sizing: border-box;
   width: 100%;
   min-height: 64px;
-  padding: 12px 16px;
+  padding: var(--delta-space-3) var(--delta-space-4);
   border: 0;
   background: transparent;
   color: inherit;
@@ -1905,16 +1905,16 @@ button.versionSummary {
 
 @media (hover: hover) {
   button.versionSummary:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .versionSummary[aria-expanded='true'] {
-  background: var(--dsw-alias-bg-module-platform);
+  background: var(--delta-alias-bg-module-platform);
 }
 
 button.versionSummary:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -1931,49 +1931,49 @@ button.versionSummary:focus-visible {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-secondary);
+  background: var(--delta-alias-bg-module-platform);
+  color: var(--delta-alias-label-secondary);
   corner-shape: round;
 }
 
 .versionGlyph[data-tone='info'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent);
-  color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--delta-alias-state-business-primary) 10%, transparent);
+  color: var(--delta-alias-state-business-primary);
 }
 
 .versionGlyph[data-tone='success'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent);
-  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--delta-alias-state-success-primary) 10%, transparent);
+  color: var(--delta-alias-state-success-primary);
 }
 
 .versionGlyph[data-tone='warn'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
-  color: var(--dsw-alias-state-warn-primary);
+  background: color-mix(in srgb, var(--delta-alias-state-warn-primary) 12%, transparent);
+  color: var(--delta-alias-state-warn-primary);
 }
 
 .versionGlyph[data-tone='error'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
-  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--delta-alias-state-error-primary) 10%, transparent);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .versionSummaryText {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   min-width: 0;
 }
 
 .versionSummaryTitle {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .versionSummarySub {
   font-size: 12.5px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
 }
 
@@ -1981,15 +1981,15 @@ button.versionSummary:focus-visible {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   white-space: nowrap;
 }
 
 .versionBody {
-  padding: 0 16px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  padding: 0 var(--delta-space-4);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .versionRows {
@@ -2004,10 +2004,10 @@ button.versionSummary:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content 56px;
   align-items: center;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-height: 28px;
-  padding: 12px 0;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  padding: var(--delta-space-3) 0;
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .versionRow:last-child {
@@ -2018,7 +2018,7 @@ button.versionSummary:focus-visible {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   min-width: 0;
 }
 
@@ -2026,39 +2026,39 @@ button.versionSummary:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .versionNumber {
-  font-family: var(--ds-font-family-code);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
 .versionRow[data-blocked] .versionNumber,
 .versionNumber[data-old] {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .versionNote {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-secondary);
 }
 
 .versionNote[data-tone='warn'] {
-  color: var(--dsw-alias-state-warn-label, var(--dsw-alias-state-warn-primary));
+  color: var(--delta-alias-state-warn-label, var(--delta-alias-state-warn-primary));
 }
 
 .versionDate {
   flex: none;
   font-size: 12.5px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2071,11 +2071,11 @@ button.versionSummary:focus-visible {
 
 .versionLog {
   display: block;
-  margin-top: 4px;
-  font-family: var(--ds-font-family-code);
+  margin-top: var(--delta-space-1);
+  font-family: var(--delta-font-family-code);
   font-size: 11.5px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-tertiary);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-tertiary);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -2084,30 +2084,30 @@ button.versionSummary:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 24px;
-  padding: 12px 0;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-2) var(--delta-space-6);
+  padding: var(--delta-space-3) 0;
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .versionFact {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .versionFact dt {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .versionFact dd {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   margin: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2118,7 +2118,7 @@ button.versionSummary:focus-visible {
 }
 
 .versionHint:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -2134,7 +2134,7 @@ button.versionSummary:focus-visible {
 .updateBody {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-width: 0;
 }
 
@@ -2142,47 +2142,47 @@ button.versionSummary:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 20px 16px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-tertiary);
+  gap: var(--delta-space-4);
+  padding: var(--delta-space-5) var(--delta-space-4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-module-platform);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .updateVersions .versionNumber {
-  font-size: 16px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-16);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-primary);
 }
 
 .updateVersions .versionNumber[data-old] {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .updateText {
   margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
 }
 
 .updateOutcome {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .updateOutput {
   margin: 0;
   max-height: 200px;
   overflow: auto;
-  padding: 10px 12px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
-  font-family: var(--ds-font-family-code);
+  padding: var(--delta-space-2-5) var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-module-platform);
+  font-family: var(--delta-font-family-code);
   font-size: 11.5px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-secondary);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-secondary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -2190,20 +2190,20 @@ button.versionSummary:focus-visible {
 .updateSteps {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
   margin: 0;
-  padding: 12px 16px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
+  padding: var(--delta-space-3) var(--delta-space-4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-module-platform);
   list-style: none;
 }
 
 .updateStep {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  line-height: 20px;
+  gap: var(--delta-space-2-5);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .updateStep > :last-child {
@@ -2219,28 +2219,28 @@ button.versionSummary:focus-visible {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   corner-shape: round;
 }
 
 .updateStep[data-state='done'] .updateStepDot {
-  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent);
-  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--delta-alias-state-success-primary) 12%, transparent);
+  color: var(--delta-alias-state-success-primary);
 }
 
 .updateStep[data-state='failed'] .updateStepDot {
-  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
-  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--delta-alias-state-error-primary) 10%, transparent);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .updateStep[data-state='unknown'] .updateStepDot {
-  border: 0.5px solid var(--dsw-alias-border-l3);
+  border: 0.5px solid var(--delta-alias-border-l3);
 }
 
 @container (max-width: 460px) {
   .versionRow {
     grid-template-columns: minmax(0, 1fr) 56px;
-    gap: 4px 12px;
+    gap: var(--delta-space-1) var(--delta-space-3);
   }
 
   .versionMain {
@@ -2259,7 +2259,7 @@ button.versionSummary:focus-visible {
   }
 
   .versionMeta {
-    gap: 8px 16px;
+    gap: var(--delta-space-2) var(--delta-space-4);
   }
 
   .versionMeta > label {
@@ -2275,11 +2275,11 @@ button.versionSummary:focus-visible {
   .installField input[type='text'],
   .registryCustomField,
   .partsFilter input {
-    font-size: 16px;
+    font-size: var(--delta-font-size-16);
   }
 }
 
-@position-try --dsh-registry-window {
+@position-try --delta-registry-window {
   position-area: none;
   top: max(12px, calc(anchor(bottom) + 6px));
   bottom: 12px;
@@ -2290,14 +2290,14 @@ button.versionSummary:focus-visible {
   justify-self: safe start;
 }
 
-@position-try --dsh-registry-opposite {
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+@position-try --delta-registry-opposite {
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 6px));
   align-self: end;
 }
 
-@position-try --dsh-registry-wide-opposite {
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+@position-try --delta-registry-wide-opposite {
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 6px));
   left: 12px;
   right: 12px;
@@ -2305,9 +2305,9 @@ button.versionSummary:focus-visible {
   justify-self: safe start;
 }
 
-@position-try --dsh-registry-tall {
+@position-try --delta-registry-tall {
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: 12px;
   left: 12px;
   right: max(12px, anchor(right));
@@ -2316,9 +2316,9 @@ button.versionSummary:focus-visible {
   justify-self: end;
 }
 
-@position-try --dsh-registry-viewport {
+@position-try --delta-registry-viewport {
   position-area: none;
-  inset: max(12px, var(--dsh-frame-overlay-top, 12px)) 12px 12px;
+  inset: max(12px, var(--delta-frame-overlay-top, 12px)) 12px 12px;
   margin: 0;
   align-self: safe start;
   justify-self: safe start;

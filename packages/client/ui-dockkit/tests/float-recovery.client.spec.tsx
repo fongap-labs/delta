@@ -83,7 +83,7 @@ function mounted(rect: FloatRect = { x: 100, y: 80, width: 300, height: 200 }) {
   const grip = (): HTMLElement => panel().querySelector<HTMLElement>('[data-dockkit-float-grip]') as HTMLElement
   // A lifted panel writes left and top inline; a resting one publishes them to the `.float` rule.
   const drawn = (side: 'left' | 'top', axis: 'x' | 'y'): number =>
-    Number.parseFloat(panel().style.getPropertyValue(side) || panel().style.getPropertyValue(`--dsh-dockkit-float-${axis}`))
+    Number.parseFloat(panel().style.getPropertyValue(side) || panel().style.getPropertyValue(`--delta-dockkit-float-${axis}`))
   const left = (): number => drawn('left', 'x')
   const top = (): number => drawn('top', 'y')
   const stored = (): FloatRect => floatRect(getPane(controller.getSnapshot().state, paneId))

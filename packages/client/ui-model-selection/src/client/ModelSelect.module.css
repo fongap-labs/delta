@@ -7,10 +7,10 @@
    12px caption chevron; 28px chip height matches the sibling Plan /
    Read-only selects in the same tool row. */
 .trigger {
-  anchor-name: var(--dsh-model-anchor);
+  anchor-name: var(--delta-model-anchor);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
   /* Preferred width: the composer measures this expanded seat against the
      space the other controls leave, so the cap must not shrink with the row.
@@ -18,31 +18,31 @@
      width, and the expanded text would then always fit. */
   max-width: 360px;
   height: 28px;
-  padding: 0 4px 0 8px;
+  padding: 0 var(--delta-space-1) 0 var(--delta-space-2);
   border: none;
   /* Rounded chip chrome, matching the sibling permission trigger. */
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   outline: none;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 400;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-regular);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .trigger:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .trigger:focus-visible:not([data-selection-focus]) {
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  box-shadow: 0 0 0 2px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 .trigger:disabled {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
   cursor: default;
 }
 
@@ -63,12 +63,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 /* The Models glyph replaces the text when the composer row cannot fit it. */
 .triggerIcon {
-  display: var(--dsh-composer-model-icon-display, none);
+  display: var(--delta-composer-model-icon-display, none);
   flex: 0 0 auto;
 }
 
@@ -76,13 +76,13 @@
    Outside a composer, the trigger retains its text. */
 .triggerLabel,
 .triggerEffort {
-  display: var(--dsh-composer-model-text-display, block);
+  display: var(--delta-composer-model-text-display, block);
 }
 
 .chevron {
   flex: 0 0 auto;
-  color: var(--dsw-alias-label-caption);
-  transition: transform 120ms ease;
+  color: var(--delta-alias-label-caption);
+  transition: transform var(--delta-transition-duration-120ms) ease;
 }
 
 .chevronOpen {
@@ -94,8 +94,8 @@
 .menu {
   box-sizing: border-box;
   position: fixed;
-  position-anchor: var(--dsh-model-anchor);
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  position-anchor: var(--delta-model-anchor);
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   left: 12px;
   /* Anchor insets stay linear because scroll compensation runs after layout. */
   right: anchor(right);
@@ -103,7 +103,7 @@
   align-self: safe end;
   justify-self: safe end;
   margin: 0;
-  z-index: 1100;
+  z-index: var(--delta-layer-overlay);
   display: flex;
   flex-direction: column;
   /* Rows size the card up to its visible bounds; longer names ellipsize. */
@@ -113,20 +113,20 @@
   max-width: min(420px, calc(100vw - 24px));
   max-height: min(360px, calc(100dvh - 96px));
   overflow: hidden;
-  padding: 4px;
+  padding: var(--delta-space-1);
   /* Surface tokens match the Menu primitive card (ui-primitives
    * Menu.module.css) so every dropdown reads as the same material. */
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
-  color: var(--dsw-alias-label-primary);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
+  color: var(--delta-alias-label-primary);
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens.
      Declared here rather than on the scrolling `.groups` child so the
      elevation choice sits with the surface; the custom properties inherit
      down to whichever descendant actually scrolls (see ui-theme
      styles/scrollbar.css for the rebinding contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .settingsMenu {
@@ -135,10 +135,10 @@
 
 .status,
 .empty {
-  padding: 8px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  padding: var(--delta-space-2);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .error,
@@ -146,19 +146,19 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   margin-bottom: 3px;
-  padding: 6px 7px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 11px;
-  line-height: 16px;
+  padding: var(--delta-space-1-5) 7px;
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-interactive-bg-hover-danger);
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
 }
 
 .warning {
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-state-warn-label);
+  background: var(--delta-alias-bg-module-platform);
+  color: var(--delta-alias-state-warn-label);
 }
 
 .retry {
@@ -168,14 +168,14 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--delta-font-weight-semibold);
   cursor: pointer;
 }
 
 .searchRow {
   position: relative;
   flex-shrink: 0;
-  margin: 2px 0 3px;
+  margin: var(--delta-space-0-5) 0 3px;
 }
 
 .searchRow .search {
@@ -183,7 +183,7 @@
   height: auto;
   padding: 5px 7px;
   border: 0 solid transparent;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
 }
 
@@ -206,19 +206,19 @@
   border-radius: 50%;
   corner-shape: round;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 .searchClear:focus-visible {
   outline: none;
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .searchClear:hover {
     outline: none;
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -228,18 +228,18 @@
 
 .searchRow .search input {
   padding: 0;
-  font-size: 12px;
+  font-size: var(--delta-font-size-12);
   line-height: normal;
 }
 
 @media (pointer: coarse) {
   .searchRow .search input {
-    font-size: 16px;
+    font-size: var(--delta-font-size-16);
   }
 }
 
 .searchRow .search input::placeholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .groups:not([hidden]) {
@@ -252,13 +252,13 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   width: auto;
   min-width: 100%;
   min-height: 34px;
   padding: 5px 7px;
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   outline: none;
   background: transparent;
   color: inherit;
@@ -268,7 +268,7 @@
 
 .option:focus-visible,
 .optionActive:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 .modelOption {
@@ -277,7 +277,7 @@
 
 @media (hover: hover) {
   .option:not(.modelOption):hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -288,7 +288,7 @@
 }
 
 .option:disabled {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
   cursor: default;
 }
 
@@ -302,9 +302,9 @@
 .modelName {
   overflow: hidden;
   color: inherit;
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 400;
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-18);
+  font-weight: var(--delta-font-weight-regular);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -313,7 +313,7 @@
   display: inline-flex;
   align-items: center;
   max-width: 100%;
-  gap: 4px;
+  gap: var(--delta-space-1);
   vertical-align: baseline;
   white-space: nowrap;
 }
@@ -332,7 +332,7 @@
   display: grid;
   place-items: center;
   flex: 0 0 14px;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .check svg {
@@ -345,29 +345,29 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   width: auto;
   min-width: 100%;
   height: 34px;
-  padding: 0 8px;
+  padding: 0 var(--delta-space-2);
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
   cursor: pointer;
   text-align: left;
   outline: none;
 }
 
 .cell:focus-visible {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .cell:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -383,12 +383,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: right;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .cellChevron {
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }

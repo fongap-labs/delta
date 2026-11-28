@@ -11,11 +11,11 @@
 }
 
 .renderer .code {
-  --dsl-code-block-border-radius: 0px;
-  --dsl-code-block-line-white-space: pre;
+  --delta-code-block-border-radius: 0px;
+  --delta-code-block-line-white-space: pre;
   /* In a sidebar pane the code sits on the pane's own background; the chat
      card's gray fill stays a chat-only default. */
-  --dsl-code-block-background: transparent;
+  --delta-code-block-background: transparent;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -38,12 +38,12 @@
 }
 
 .renderer .code > [data-code-block-content]::-webkit-scrollbar-track {
-  margin: 2px;
+  margin: var(--delta-space-0-5);
 }
 
 .renderer .code pre {
   box-sizing: border-box;
-  padding: 16px;
+  padding: var(--delta-space-4);
   min-width: 100%;
   overflow: visible;
   white-space: pre;
@@ -52,7 +52,7 @@
 }
 
 .renderer[data-wrap='true'] .code {
-  --dsl-code-block-line-white-space: pre-wrap;
+  --delta-code-block-line-white-space: pre-wrap;
 }
 
 .renderer[data-wrap='true'] .code pre {

@@ -55,9 +55,9 @@ export interface FontSizeSpec {
  * terminal cell font size.
  */
 export const FONT_SIZE_SPECS = {
-  text: { field: FONT_SIZE_FIELD, variable: '--dsh-content-font-size', min: FONT_SIZE_MIN, max: FONT_SIZE_MAX, default: DEFAULT_FONT_SIZE },
-  code: { field: 'codeFontSize', variable: '--dsh-code-font-size', min: 10, max: 16, default: 11 },
-  terminal: { field: 'terminalFontSize', variable: '--dsh-terminal-font-size', min: 10, max: 20, default: 13 },
+  text: { field: FONT_SIZE_FIELD, variable: '--delta-content-font-size', min: FONT_SIZE_MIN, max: FONT_SIZE_MAX, default: DEFAULT_FONT_SIZE },
+  code: { field: 'codeFontSize', variable: '--delta-code-font-size', min: 10, max: 16, default: 11 },
+  terminal: { field: 'terminalFontSize', variable: '--delta-terminal-font-size', min: 10, max: 20, default: 13 },
 } as const satisfies Record<FontRole, FontSizeSpec>
 
 /** Integer px font sizes by role. */
@@ -82,7 +82,7 @@ export const FONT_FAMILY_FIELDS = {
  * @returns the CSS custom property name.
  */
 export function fontFamilyVariable(kind: FontRole): string {
-  return `--dsh-font-family-${kind}`
+  return `--delta-font-family-user-${kind}`
 }
 
 /** Normalized CSS font-family lists by role; `''` selects the built-in stack. */

@@ -10,14 +10,14 @@
 /* Definition cards keep a brand accent to distinguish their editable source. */
 .card .title,
 .card .chevron {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
 }
 
 .title {
   flex: none;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 24px;
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-24);
 }
 
 .row {
@@ -29,8 +29,8 @@
   width: 2px;
   height: 2px;
   border-radius: 1px;
-  margin: 0 8px;
-  background: var(--dsw-alias-state-business-primary);
+  margin: 0 var(--delta-space-2);
+  background: var(--delta-alias-state-business-primary);
 }
 
 .name {
@@ -39,9 +39,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* The purpose absorbs the remaining width and clips first: the name and the
@@ -49,13 +49,13 @@
 .purpose {
   flex: 1 1 auto;
   min-width: 0;
-  margin-left: 8px;
+  margin-left: var(--delta-space-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .errorSummary {
@@ -64,42 +64,42 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 24px;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .requestError {
   flex: none;
   max-width: 40%;
   overflow: hidden;
-  margin-left: 8px;
+  margin-left: var(--delta-space-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  line-height: 24px;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .readout {
   display: inline-flex;
   flex: none;
   align-items: center;
-  margin-left: 8px;
+  margin-left: var(--delta-space-2);
 }
 
 /* Said once in the expanded body: this card records, the panel operates. */
 .panelHint {
-  margin: 4px 0 2px 4px;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-caption);
+  margin: var(--delta-space-1) 0 var(--delta-space-0-5) var(--delta-space-1);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-caption);
 }
 
 .statusLabel {
-  font-size: 12px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-caption);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-caption);
 }
 
 /* The model's question, shown beside the approve/decline pair. */
@@ -107,12 +107,12 @@
   flex: none;
   max-width: 40%;
   overflow: hidden;
-  margin-left: 8px;
+  margin-left: var(--delta-space-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* A qualified success (nothing acknowledged the dispatch, or the browser half
@@ -122,18 +122,18 @@
   flex: none;
   max-width: 40%;
   overflow: hidden;
-  margin-left: 8px;
+  margin-left: var(--delta-space-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-caption);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-caption);
 }
 
 .switch {
   height: 22px;
-  padding: 0 8px;
-  font-size: 12px;
+  padding: 0 var(--delta-space-2);
+  font-size: var(--delta-font-size-12);
 }
 
 /* Terminal definitions (unloaded, or lost to a host restart) stay in the flow
@@ -143,11 +143,11 @@
 .card[data-terminal] .name,
 .card[data-terminal] .purpose,
 .card[data-terminal] .statusLabel {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .card[data-terminal] .separator {
-  background: var(--dsw-alias-label-caption);
+  background: var(--delta-alias-label-caption);
 }
 
 .bodyWrap {
@@ -158,29 +158,29 @@
 .sourceCard {
   display: flex;
   flex-direction: column;
-  margin: 4px 0 4px 4px;
+  margin: var(--delta-space-1) 0 var(--delta-space-1) var(--delta-space-1);
 }
 
 .sourceTabs {
   display: flex;
   height: 32px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .sourceTab {
   position: relative;
-  padding: 0 10px;
+  padding: 0 var(--delta-space-2-5);
   border: 0;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
-  font: var(--dsw-font-xs-13);
+  font: var(--delta-font-xs-13);
 }
 
 @media (hover: hover) {
   .sourceTab:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -190,7 +190,7 @@
 }
 
 .sourceTabActive {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
 }
 
 .sourceTabActive::after {
@@ -200,12 +200,12 @@
   left: 10px;
   height: 2px;
   border-radius: 1px 1px 0 0;
-  background: var(--dsw-alias-state-business-primary);
+  background: var(--delta-alias-state-business-primary);
   content: '';
 }
 
 .sourceTab:focus-visible {
-  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline: 1px solid var(--delta-alias-state-business-primary);
   outline-offset: -1px;
 }
 
@@ -222,54 +222,54 @@
   display: flex;
   flex-direction: column;
   max-height: 260px;
-  margin: 4px 0 4px 4px;
+  margin: var(--delta-space-1) 0 var(--delta-space-1) var(--delta-space-1);
   overflow: auto;
 }
 
 .sectionLabel {
   flex: none;
-  padding: 2px 0;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 16px;
-  color: var(--dsw-alias-label-caption);
+  padding: var(--delta-space-0-5) 0;
+  font-size: var(--delta-font-size-11);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .output {
   margin: 0;
-  padding: 8px 10px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
-  background: var(--dsw-alias-markdown-code-block);
+  padding: var(--delta-space-2) var(--delta-space-2-5);
+  border: 0.5px solid var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-markdown-code-block);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: var(--dsw-font-markdown-code-block-small);
-  color: var(--dsw-alias-label-secondary);
+  font: var(--delta-font-markdown-code-block-small);
+  color: var(--delta-alias-label-secondary);
 }
 
 .output[data-error] {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .inspectButton {
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 4px;
-  margin: 4px 0 2px 4px;
-  padding: 2px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  gap: var(--delta-space-1);
+  margin: var(--delta-space-1) 0 var(--delta-space-0-5) var(--delta-space-1);
+  padding: var(--delta-space-0-5) var(--delta-space-2);
+  border: 0.5px solid var(--delta-alias-border-l4);
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  line-height: 16px;
+  background: var(--delta-alias-bg-base);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--delta-transition-duration-fast) ease;
 }
 
 .inspectButton:focus-visible {
@@ -282,8 +282,8 @@
   }
 
   .inspectButton:hover {
-    background: var(--dsw-alias-interactive-bg-hover-solid);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover-solid);
+    color: var(--delta-alias-label-primary);
   }
 }
 

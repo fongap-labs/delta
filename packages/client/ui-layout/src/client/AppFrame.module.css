@@ -5,7 +5,7 @@
   height: 100%;
   box-sizing: border-box;
   overflow: hidden;
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
 }
 
 /* Only discrete collapse/expand and fold changes ease the tracks (the TSX holds
@@ -14,7 +14,7 @@
    an eased track chases the live window edge and the centre column visibly
    rubber-bands while the user resizes the window. */
 .frame[data-animating] {
-  transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: grid-template-columns var(--delta-transition-duration-slow) var(--delta-ease-in-out);
 }
 
 /* Dragging writes widths at pointer cadence; easing them would detach the
@@ -25,15 +25,15 @@
 
 /* The Windows caption row remains outside every conversation and file panel. */
 :global([data-windows-titlebar]) .frame {
-  --dsh-windows-content-radius: 16px;
+  --delta-windows-content-radius: var(--delta-radius-lg);
   box-sizing: border-box;
-  padding-top: var(--dsh-windows-titlebar-height);
-  background: var(--dsw-specific-sidebar-fill);
+  padding-top: var(--delta-windows-titlebar-height);
+  background: var(--delta-specific-sidebar-fill);
 }
 
 :global([data-windows-titlebar]) .centerCol {
-  background: var(--dsw-alias-bg-base);
-  border-radius: var(--dsh-windows-content-radius) 0 0 0;
+  background: var(--delta-alias-bg-base);
+  border-radius: var(--delta-windows-content-radius) 0 0 0;
   corner-shape: round;
 }
 
@@ -41,8 +41,8 @@
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: var(--dsh-windows-titlebar-height);
-  background: var(--dsw-specific-sidebar-fill);
+  height: var(--delta-windows-titlebar-height);
+  background: var(--delta-specific-sidebar-fill);
   -webkit-app-region: drag;
 }
 
@@ -61,8 +61,8 @@
   grid-row: 1;
   min-width: 0;
   overflow: hidden;
-  background: var(--dsw-specific-sidebar-fill);
-  border-right: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--delta-specific-sidebar-fill);
+  border-right: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .centerCol {
@@ -99,25 +99,25 @@
    Declared on the root element rather than the frame so
    overlays portalled to document.body inherit it too. */
 :global(html[data-platform='darwin']) {
-  --dsh-frame-top-clearance: 48px;
+  --delta-frame-top-clearance: 48px;
 }
 
 /* In-frame Windows content already clears the caption through .frame padding. */
 :global(html[data-windows-titlebar]) {
-  --dsh-frame-top-clearance: var(--dsh-windows-titlebar-height);
-  --dsh-frame-chrome-top: var(--dsh-windows-titlebar-height);
+  --delta-frame-top-clearance: var(--delta-windows-titlebar-height);
+  --delta-frame-chrome-top: var(--delta-windows-titlebar-height);
 }
 
 /* Portalled overlays share a viewport inset without adding space to entry pages. */
 :global(html[data-platform='darwin']),
 :global(html[data-windows-titlebar]) {
-  --dsh-frame-overlay-top: calc(var(--dsh-frame-top-clearance) + 20px);
+  --delta-frame-overlay-top: calc(var(--delta-frame-top-clearance) + 20px);
 }
 
 :global(html[data-platform='darwin'][data-fullscreen]),
 :global(html[data-windows-titlebar][data-fullscreen]) {
-  --dsh-frame-overlay-top: 20px;
-  --dsh-frame-chrome-top: 0px;
+  --delta-frame-overlay-top: 20px;
+  --delta-frame-chrome-top: 0px;
 }
 
 :global([data-platform='darwin']) .frame:not([data-sidebar-drawer]) .sidebarCol {
@@ -128,12 +128,12 @@
   background:
     linear-gradient(
       to bottom,
-      var(--dsw-specific-sidebar-wash-top),
-      var(--dsw-specific-sidebar-wash-top-clear) 35%,
-      var(--dsw-specific-sidebar-wash-bottom-clear) 68%,
-      var(--dsw-specific-sidebar-wash-bottom)
+      var(--delta-specific-sidebar-wash-top),
+      var(--delta-specific-sidebar-wash-top-clear) 35%,
+      var(--delta-specific-sidebar-wash-bottom-clear) 68%,
+      var(--delta-specific-sidebar-wash-bottom)
     ),
-    var(--dsw-specific-sidebar-tint);
+    var(--delta-specific-sidebar-tint);
   border-right: none;
 }
 
@@ -142,13 +142,13 @@
    them with a 90%-opaque fill of the same token in both themes. */
 @media (prefers-reduced-transparency: reduce) {
   :global([data-platform='darwin']) .frame:not([data-sidebar-drawer]) .sidebarCol {
-    background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 90%, transparent);
+    background: color-mix(in srgb, var(--delta-specific-sidebar-fill) 90%, transparent);
   }
 }
 
 :global([data-platform='darwin']) .centerCol {
-  background: var(--dsw-alias-bg-base);
-  border-left: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--delta-alias-bg-base);
+  border-left: 0.5px solid var(--delta-alias-border-l3);
 }
 
 /* The right track paints the base ground on the transparent frame: while the
@@ -157,7 +157,7 @@
    diverge would otherwise show vibrancy glass between the centre's right edge
    and the incoming panel. The occupant's opaque panel covers this at rest. */
 :global([data-platform='darwin']) .rightbarCol {
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
 }
 
 /* The darwin closed sidebar has no rail: the centre reaches the window edge,
@@ -173,7 +173,7 @@
    (28 + 8 + 28), then 8px of air. Main panels whose content reaches the
    top-left corner pad by this. */
 :global([data-platform='darwin']) .frame[data-sidebar-collapsed] {
-  --dsh-frame-leading-clearance: 160px;
+  --delta-frame-leading-clearance: 160px;
 }
 
 /* Fullscreen hides the traffic lights (preload mirrors the window state onto
@@ -182,7 +182,7 @@
    expanded sidebar strip's inline padding (ui-sidebar .topStrip), so
    collapsing never shifts the toggle. */
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-collapsed] {
-  --dsh-frame-leading-clearance: 84px;
+  --delta-frame-leading-clearance: 84px;
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .leadingSeat {
@@ -223,7 +223,7 @@
   top: 0;
   bottom: 0;
   width: 8px;
-  margin-left: -4px;
+  margin-left: calc(-1 * var(--delta-space-1));
   cursor: col-resize;
   z-index: 11;
   touch-action: none;
@@ -233,7 +233,7 @@
    during collapse/expand; instant at steady state (viewport-driven moves)
    and while dragging. */
 .frame[data-animating] .handle {
-  transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: left var(--delta-transition-duration-slow) var(--delta-ease-in-out);
 }
 
 .frame[data-dragging] .handle {
@@ -270,17 +270,17 @@
 }
 
 .frame[data-sidebar-drawer] {
-  --dsh-frame-leading-clearance: 84px;
+  --delta-frame-leading-clearance: 84px;
   overflow: clip;
 }
 
 :global(html:not([data-platform])) .frame[data-sidebar-drawer] {
   /* 12px seat offset + 28px opener + 8px gap; Desktop keeps room for two controls. */
-  --dsh-frame-leading-clearance: 48px;
+  --delta-frame-leading-clearance: 48px;
 }
 
 .frame[data-sidebar-drawer] .mainPanel[data-global-panel] {
-  padding-top: max(0px, calc(48px - var(--dsh-frame-top-clearance, 0px)));
+  padding-top: max(0px, calc(48px - var(--delta-frame-top-clearance, 0px)));
 }
 
 .frame[data-sidebar-drawer] .sidebarCol {
@@ -292,15 +292,15 @@
   border-right: none;
   transform: translateX(0);
   visibility: visible;
-  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: transform var(--delta-transition-duration-slow) var(--delta-ease-in-out);
 }
 
 .frame[data-sidebar-drawer][data-sidebar-collapsed] .sidebarCol {
   transform: translateX(-100%);
   visibility: hidden;
   transition:
-    transform var(--ds-transition-duration-slow) var(--ds-ease-in-out),
-    visibility 0s linear var(--ds-transition-duration-slow);
+    transform var(--delta-transition-duration-slow) var(--delta-ease-in-out),
+    visibility 0s linear var(--delta-transition-duration-slow);
 }
 
 .frame[data-sidebar-drawer][data-sidebar-instant] .sidebarCol {
@@ -309,13 +309,13 @@
 
 .drawerMask {
   position: absolute;
-  inset: var(--dsh-frame-chrome-top, 0px) 0 0;
+  inset: var(--delta-frame-chrome-top, 0px) 0 0;
   z-index: 70;
-  background: var(--dsw-alias-bg-mask-1);
-  backdrop-filter: var(--dsw-mask-blur);
+  background: var(--delta-alias-bg-mask-1);
+  backdrop-filter: var(--delta-mask-blur);
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: opacity var(--delta-transition-duration-slow) var(--delta-ease-in-out);
 }
 
 .frame[data-sidebar-drawer]:not([data-sidebar-collapsed]) .drawerMask {
@@ -329,7 +329,7 @@
 }
 
 :global([data-platform='darwin']) .frame[data-sidebar-drawer] {
-  --dsh-frame-leading-clearance: 160px;
+  --delta-frame-leading-clearance: 160px;
 }
 
 :global([data-platform='darwin']) .frame[data-sidebar-drawer] .leadingSeat {
@@ -337,7 +337,7 @@
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-drawer] {
-  --dsh-frame-leading-clearance: 84px;
+  --delta-frame-leading-clearance: 84px;
 }
 
 :global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-drawer] .leadingSeat {
@@ -357,7 +357,7 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
 }
 
 .overlayLayer {

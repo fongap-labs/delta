@@ -6,9 +6,9 @@
   min-width: 0;
   height: 100%;
   min-height: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: 1.5;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: var(--delta-line-height-normal);
 }
 
 /* Below the header: the pane's navigator. Like the document preview's
@@ -38,11 +38,11 @@
   min-height: 0;
   /* The search bar's height, which also places the settings panel below it. */
   --files-search-bar-height: 42px;
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: 1.5;
-  background: var(--dsw-alias-bg-base);
-  border-left: 0.5px solid var(--dsw-alias-border-l3);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: var(--delta-line-height-normal);
+  background: var(--delta-alias-bg-base);
+  border-left: 0.5px solid var(--delta-alias-border-l3);
 }
 
 /* The `files` page's navigator fills the page below its header. */
@@ -115,21 +115,21 @@
 /* Beside a preview in a row from FileNavigator `FILL_BELOW` on, the navigator
    is a raised card inset by the tree body's own 8px so its corners show, at a
    radius sized for a panel this narrow. The layer-1 background separates the
-   card in dark mode; its shadow is `--dsw-elevation-prominent` with the l2
+   card in dark mode; its shadow is `--delta-elevation-prominent` with the l2
    hairline, l3 in dark mode as on menu cards (ui-theme
    styles/gradient-shadow-text.css). */
 @media (width >= 768px) {
   .push,
   .overlay {
-    background: var(--dsw-alias-bg-layer-1);
+    background: var(--delta-alias-bg-layer-1);
     border: 0;
-    border-radius: var(--dsw-radius-lg);
-    --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-    box-shadow: var(--dsw-elevation-prominent);
+    border-radius: var(--delta-radius-lg);
+    --delta-elevation-stroke-color: var(--delta-alias-border-l2);
+    box-shadow: var(--delta-elevation-prominent);
     /* Elevated surface: the tree's scrollbar takes the l2 thumb pair (ui-theme
        styles/scrollbar.css). */
-    --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-    --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+    --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+    --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
   }
 
   /* From store `PUSH_FROM` on: a flex item of the row that narrows the body.
@@ -137,7 +137,7 @@
   .push {
     align-self: stretch;
     height: auto;
-    margin: 8px;
+    margin: var(--delta-space-2);
   }
 
   /* Below it: floating over the body's right part. */
@@ -152,13 +152,13 @@
 
   :global(body[data-ds-dark-theme]) .push,
   :global(body[data-ds-dark-theme]) .overlay {
-    --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+    --delta-elevation-stroke-color: var(--delta-alias-border-l3);
   }
 
   /* The bar stops where the card's corners curve, so they do not clip it. */
   .push .body::-webkit-scrollbar-track,
   .overlay .body::-webkit-scrollbar-track {
-    margin: var(--dsw-radius-lg) 2px;
+    margin: var(--delta-radius-lg) 2px;
   }
 }
 
@@ -174,12 +174,12 @@
 .header {
   display: flex;
   flex: 0 0 auto;
-  gap: 4px;
+  gap: var(--delta-space-1);
   align-items: center;
   box-sizing: border-box;
   height: 38px;
-  padding: 0 6px 0 16px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  padding: 0 var(--delta-space-1-5) 0 var(--delta-space-4);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
 }
 
 /* A real handoff aligns its frame to the upper glyph. */
@@ -205,7 +205,7 @@
 
 /* The margin plus the header's gap keeps the path 16px clear of reload. */
 .path {
-  margin-right: 12px;
+  margin-right: var(--delta-space-3);
 }
 
 .body {
@@ -215,8 +215,8 @@
      `.list`): the bar sits 2px clear of the pane's edge, and the stable gutter
      stands in for the right padding so the rows keep their inset whether or
      not the tree overflows. */
-  margin-right: 2px;
-  padding: 8px 0 8px 8px;
+  margin-right: var(--delta-space-0-5);
+  padding: var(--delta-space-2) 0 var(--delta-space-2) var(--delta-space-2);
   overflow: auto;
   scrollbar-gutter: stable;
 }
@@ -224,22 +224,22 @@
 /* The bar also stops 2px short of the body's ends, matching its 2px edge
    offset. WebKit-only: the Firefox path has no track to inset. */
 .body::-webkit-scrollbar-track {
-  margin: 2px;
+  margin: var(--delta-space-0-5);
 }
 
 /* The navigator's line before its tree starts, in the tree's note style (ui-primitives `.note`). */
 .note {
   margin: 0;
-  padding: 3px 10px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  padding: 3px var(--delta-space-2-5);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
 }
 
 /* "No matches" with the information button whose tooltip names the filters. */
 .emptyNote {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
 }
 
 /* The information button keeps the note's line height. */
@@ -247,22 +247,22 @@
   flex: none;
   width: 20px;
   height: 20px;
-  margin-block: -2px;
+  margin-block: calc(-1 * var(--delta-space-0-5));
   padding: 0;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .status {
   display: flex;
   flex-direction: column;
-  padding: 12px 10px;
+  padding: var(--delta-space-3) var(--delta-space-2-5);
 }
 
 .statusLine {
   margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: 1.6;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: var(--delta-line-height-relaxed);
 }
 
 /* The same icon button as the Sidebar's strip controls above it: a 28px
@@ -274,12 +274,12 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  padding: 6px;
-  color: var(--dsw-alias-label-secondary);
-  line-height: 1;
+  padding: var(--delta-space-1-5);
+  color: var(--delta-alias-label-secondary);
+  line-height: var(--delta-line-height-none);
   background: transparent;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   cursor: pointer;
 }
 
@@ -296,15 +296,15 @@
 
 @media (hover: hover) {
   .tool:hover {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .tool[aria-pressed='true'],
 .tool[aria-expanded='true'] {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 /* The folder sheet before the chip's text; the chip's title row centres it
@@ -320,30 +320,30 @@
   flex: 0 0 auto;
   box-sizing: border-box;
   height: var(--files-search-bar-height);
-  padding: 8px 8px 4px;
+  padding: var(--delta-space-2) var(--delta-space-2) var(--delta-space-1);
 }
 
 .searchField {
   display: flex;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   align-items: center;
   box-sizing: border-box;
   height: 100%;
-  padding: 0 2px;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
+  padding: 0 var(--delta-space-0-5);
+  background: var(--delta-alias-bg-layer-1);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
 }
 
 .searchField:focus-within {
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 /* The bar's icon controls: the header tool at a size that fits inside the field. */
 .searchTool {
   width: 24px;
   height: 24px;
-  padding: 4px;
+  padding: var(--delta-space-1);
 }
 
 .searchTool svg {
@@ -354,8 +354,8 @@
 .searchInput {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0 4px;
-  color: var(--dsw-alias-label-primary);
+  padding: 0 var(--delta-space-1);
+  color: var(--delta-alias-label-primary);
   font: inherit;
   background: transparent;
   border: none;
@@ -363,7 +363,7 @@
 }
 
 .searchInput::placeholder {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
 }
 
 /* The bar's own clear control replaces the browser's. */
@@ -375,13 +375,13 @@
 .searchStatus {
   display: flex;
   flex: 0 0 auto;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   align-items: center;
   min-height: 18px;
   margin: 0;
-  padding: 2px 18px 0;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
+  padding: var(--delta-space-0-5) 18px 0;
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xxs-12);
 }
 
 /* One sentence of the results status: the count. */
@@ -398,13 +398,13 @@
 .searchFailure {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   align-items: flex-start;
-  padding-bottom: 6px;
+  padding-bottom: var(--delta-space-1-5);
 }
 
 .searchRetry {
-  margin-left: 10px;
+  margin-left: var(--delta-space-2-5);
 }
 
 /* The `.gitignore` choice above the add field, at a rule's height. */
@@ -429,67 +429,67 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 6px 4px 6px 10px;
-  background: var(--dsw-alias-bg-base);
-  border-radius: var(--dsw-radius-lg);
+  padding: var(--delta-space-1-5) var(--delta-space-1) var(--delta-space-1-5) var(--delta-space-2-5);
+  background: var(--delta-alias-bg-base);
+  border-radius: var(--delta-radius-lg);
   outline: none;
-  box-shadow: var(--dsw-elevation-prominent);
+  box-shadow: var(--delta-elevation-prominent);
 }
 
 .settingsHeader {
   display: flex;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   align-items: center;
 }
 
 .settingsTitle {
   flex: 1 1 auto;
   min-width: 0;
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .settingsDescription {
   flex: 0 0 auto;
-  margin: 0 0 4px;
-  padding-right: 6px;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
+  margin: 0 0 var(--delta-space-1);
+  padding-right: var(--delta-space-1-5);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xxs-12);
 }
 
 /* One rule, and the add field above them at the same height. */
 .rule {
   display: flex;
   flex: 0 0 auto;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   align-items: center;
   box-sizing: border-box;
   min-height: 32px;
   margin: 0;
-  padding: 0 0 0 2px;
-  border-top: 0.5px solid var(--dsw-alias-border-l3);
+  padding: 0 0 0 var(--delta-space-0-5);
+  border-top: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .addRule {
-  padding-right: 6px;
+  padding-right: var(--delta-space-1-5);
 }
 
 /* The add row's plus glyph rides the tertiary ink, as the tree's folder glyph does. */
 .addRule .icon {
   flex: 0 0 auto;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The add field draws no box of its own, so its row's rule marks where typing goes. */
 .addRule:focus-within {
-  border-top-color: var(--dsw-alias-state-business-primary);
+  border-top-color: var(--delta-alias-state-business-primary);
 }
 
 .ruleInput {
   flex: 1 1 auto;
   min-width: 0;
   padding: 0;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   font: inherit;
   background: transparent;
   border: none;
@@ -497,14 +497,14 @@
 }
 
 .ruleInput::placeholder {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
 }
 
 .settingsError {
   flex: 0 0 auto;
-  margin: 0 0 4px;
-  color: var(--dsw-alias-state-error-primary);
-  font: var(--dsw-font-xxs-12);
+  margin: 0 0 var(--delta-space-1);
+  color: var(--delta-alias-state-error-primary);
+  font: var(--delta-font-xxs-12);
 }
 
 /* Only the list scrolls; the header and the add field stay put. */
@@ -521,7 +521,7 @@
 .ruleLabel {
   display: flex;
   flex: 1 1 auto;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   align-items: center;
   min-width: 0;
   cursor: pointer;
@@ -532,23 +532,23 @@
   width: 14px;
   height: 14px;
   margin: 0 1px;
-  accent-color: var(--dsw-alias-state-business-primary);
+  accent-color: var(--delta-alias-state-business-primary);
 }
 
 .ruleCheck:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
 .ruleName {
   min-width: 0;
-  padding: 6px 0;
+  padding: var(--delta-space-1-5) 0;
   overflow-wrap: anywhere;
 }
 
 /* A rule the reader turned off stays listed, in the tertiary ink. */
 .ruleOff .ruleName {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 @media (pointer: coarse) {
@@ -568,6 +568,6 @@
   /* Below 16px, mobile browsers zoom the page when a field takes focus. */
   .searchInput,
   .ruleInput {
-    font-size: 16px;
+    font-size: var(--delta-font-size-16);
   }
 }

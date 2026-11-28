@@ -226,7 +226,7 @@ describe.each(['MacIntel', 'Win32', 'Linux x86_64'])('web context menus on %s', 
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(join(scaffold.workspaceCwd, 'first.txt'))
     expect(await file.evaluate(element => element === document.activeElement)).toBe(true)
     await page.evaluate(() => {
-      document.documentElement.style.setProperty('--dsh-frame-overlay-top', '100px')
+      document.documentElement.style.setProperty('--delta-frame-overlay-top', '100px')
       const frames: number[] = []
       const observer = new MutationObserver(() => {
         for (const menu of document.querySelectorAll('[role="menu"]')) frames.push(menu.querySelectorAll('[role="menuitem"]').length)
@@ -254,7 +254,7 @@ describe.each(['MacIntel', 'Win32', 'Linux x86_64'])('web context menus on %s', 
       const observed = (window as Window & { menuObservation?: { frames: number[]; observer: MutationObserver } }).menuObservation
       if (observed === undefined) throw new Error('Menu observer not installed')
       observed.observer.disconnect()
-      document.documentElement.style.removeProperty('--dsh-frame-overlay-top')
+      document.documentElement.style.removeProperty('--delta-frame-overlay-top')
       return observed.frames
     })
     expect(counts.length).toBeGreaterThan(0)

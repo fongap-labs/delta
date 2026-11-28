@@ -42,20 +42,20 @@
 .header {
   display: flex;
   flex: 0 0 auto;
-  gap: 4px;
+  gap: var(--delta-space-1);
   align-items: center;
   box-sizing: border-box;
   height: 38px;
-  padding: 0 6px 0 16px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  padding: 0 var(--delta-space-1-5) 0 var(--delta-space-4);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
 }
 
 /* Match the trailing icon box above, retaining its internal glyph whitespace. */
 .externalActions {
   display: flex;
   flex: none;
-  margin-inline-start: 6px;
-  margin-inline-end: 6px;
+  margin-inline-start: var(--delta-space-1-5);
+  margin-inline-end: var(--delta-space-1-5);
 }
 
 .externalActions:not(:has(:global([data-slot]) > *)) {
@@ -63,21 +63,21 @@
 }
 
 .path {
-  margin-right: 12px;
+  margin-right: var(--delta-space-3);
 }
 
 /* Announced, not applied: the reader keeps the text they are looking at. */
 .changed {
   display: flex;
   flex: 0 0 auto;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   align-items: center;
   margin: 0;
-  padding: 6px 10px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  background: var(--dsw-alias-bg-layer-2);
-  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  padding: var(--delta-space-1-5) var(--delta-space-2-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  background: var(--delta-alias-bg-layer-2);
+  border-bottom: 0.5px solid var(--delta-alias-border-l1);
 }
 
 .body {
@@ -92,19 +92,19 @@
   overflow-anchor: none;
   /* The notice and retry surfaces in this sheet are elevated, so the file body's
      scroller rebinds the thumb indirection in a complete pair. */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  font-family: var(--dsw-font-mono, ui-monospace, monospace);
-  line-height: 1.6;
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  font-family: var(--delta-font-mono, ui-monospace, monospace);
+  line-height: var(--delta-line-height-relaxed);
   white-space: pre;
 }
 
 /* Keep the scrollbar track 2px clear of the body's ends. WebKit-only: the
    Firefox path has no track to inset. */
 .body::-webkit-scrollbar-track {
-  margin: 2px;
+  margin: var(--delta-space-0-5);
 }
 
 .body:has([data-code-preview]) {
@@ -114,7 +114,7 @@
 }
 
 .body:has([data-pdf-preview]) {
-  background: var(--dsw-alias-bg-document-preview);
+  background: var(--delta-alias-bg-document-preview);
 }
 
 .wrap {
@@ -128,19 +128,19 @@
   box-sizing: border-box;
   min-width: 100%;
   min-height: 100%;
-  padding: 8px;
+  padding: var(--delta-space-2);
 }
 
 /* One page of lines; pages abut so the file reads as one. */
 .page {
   margin: 0;
-  font: var(--dsw-font-markdown-code-block);
+  font: var(--delta-font-markdown-code-block);
   white-space: inherit;
 }
 
 /* The files tree row's 10px side inset, so a line's text sits where a row's does. */
 .line {
-  padding: 0 10px;
+  padding: 0 var(--delta-space-2-5);
 }
 
 /* A navigated line's mark: a band in the scrollport over the line, so renderer
@@ -150,9 +150,9 @@
 .lineMark {
   position: absolute;
   left: 0;
-  background: var(--dsw-alias-interactive-bg-hover-accent);
+  background: var(--delta-alias-interactive-bg-hover-accent);
   pointer-events: none;
-  animation: line-mark-fade 2s ease-in forwards;
+  animation: line-mark-fade var(--delta-transition-duration-2000ms) ease-in forwards;
 }
 
 @keyframes line-mark-fade {
@@ -173,16 +173,16 @@
 .empty {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--delta-space-4);
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
   height: 100%;
-  padding: 0 24px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  font-family: var(--dsw-font-family);
-  line-height: 1.6;
+  padding: 0 var(--delta-space-6);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  font-family: var(--delta-font-family);
+  line-height: var(--delta-line-height-relaxed);
   text-align: center;
   white-space: normal;
 }
@@ -211,22 +211,22 @@
 .retry {
   display: inline-flex;
   flex: none;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   align-items: center;
   height: 32px;
-  padding: 0 14px 0 12px;
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
+  padding: 0 var(--delta-space-3-5) 0 var(--delta-space-3);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
   font-family: inherit;
   background: transparent;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-md);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-md);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .retry:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -238,13 +238,13 @@
 
 .statusLine {
   display: flex;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   align-items: center;
   margin: 0;
-  padding: 6px 10px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: 1.6;
+  padding: var(--delta-space-1-5) var(--delta-space-2-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: var(--delta-line-height-relaxed);
   white-space: normal;
 }
 
@@ -254,57 +254,57 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
   height: 100%;
   min-height: 0;
-  padding: 12px 10px;
+  padding: var(--delta-space-3) var(--delta-space-2-5);
 }
 
 .action {
-  padding: 4px 10px;
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  font-family: var(--dsw-font, inherit);
+  padding: var(--delta-space-1) var(--delta-space-2-5);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  font-family: var(--delta-font, inherit);
   white-space: normal;
-  background: var(--dsw-alias-bg-layer-2);
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-sm);
+  background: var(--delta-alias-bg-layer-2);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-sm);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .action:hover {
-    background: var(--dsw-alias-bg-layer-3);
+    background: var(--delta-alias-bg-layer-3);
   }
 }
 
 /* The next page, asked for where the loaded text ends. */
 .more {
   display: block;
-  margin: 8px 10px;
-  padding: 4px 10px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  font-family: var(--dsw-font, inherit);
+  margin: var(--delta-space-2) var(--delta-space-2-5);
+  padding: var(--delta-space-1) var(--delta-space-2-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  font-family: var(--delta-font, inherit);
   white-space: normal;
-  background: var(--dsw-alias-bg-layer-2);
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-sm);
+  background: var(--delta-alias-bg-layer-2);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-sm);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .more:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-bg-layer-3);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-bg-layer-3);
   }
 }
 
 .more:disabled {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: default;
 }
 
@@ -318,12 +318,12 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  padding: 6px;
-  color: var(--dsw-alias-label-secondary);
-  line-height: 1;
+  padding: var(--delta-space-1-5);
+  color: var(--delta-alias-label-secondary);
+  line-height: var(--delta-line-height-none);
   background: transparent;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   cursor: pointer;
 }
 
@@ -334,23 +334,23 @@
 
 @media (hover: hover) {
   .tool:hover {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .tool[data-textpreview-tool='auto-refresh'][aria-pressed='true'] {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 .viewerTool {
   flex: none;
   width: auto;
   max-width: 160px;
-  padding: 0 6px;
+  padding: 0 var(--delta-space-1-5);
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
   white-space: nowrap;
   text-overflow: ellipsis;
 }

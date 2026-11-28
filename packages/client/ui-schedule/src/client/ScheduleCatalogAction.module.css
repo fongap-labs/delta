@@ -2,7 +2,7 @@
   position: relative;
   /* Sets the reminder entry slightly apart from the utility to its left, which
      sits at the header cluster's own tighter rhythm. */
-  margin-left: 4px;
+  margin-left: var(--delta-space-1);
 }
 
 /* Icon-only entry: the 28px round target used by the header's other icon
@@ -16,21 +16,21 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 28px;
+  border-radius: var(--delta-radius-panel);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 .trigger:focus-visible {
-  color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-secondary);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .trigger:hover {
-    color: var(--dsw-alias-label-secondary);
-    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-secondary);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -41,7 +41,7 @@
 .menu {
   position: fixed;
   position-area: none;
-  position-try-fallbacks: --dsh-schedule-catalog-wide-below, --dsh-schedule-catalog-above, --dsh-schedule-catalog-wide-above, --dsh-schedule-catalog-window, --dsh-schedule-catalog-viewport;
+  position-try-fallbacks: --delta-schedule-catalog-wide-below, --delta-schedule-catalog-above, --delta-schedule-catalog-wide-above, --delta-schedule-catalog-window, --delta-schedule-catalog-viewport;
   top: max(16px, calc(anchor(bottom) + 5px));
   bottom: 16px;
   left: max(16px, anchor(left));
@@ -49,7 +49,7 @@
   height: fit-content;
   align-self: start;
   justify-self: start;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -62,26 +62,26 @@
   overflow: auto;
   list-style: none;
   border: 0;
-  border-radius: 16px;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
 }
 
 .row {
   display: flex;
   align-items: start;
   flex-shrink: 0;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   box-sizing: border-box;
   width: 100%;
   min-height: 48px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  color: var(--dsw-alias-label-primary);
+  padding: var(--delta-space-2-5) var(--delta-space-3);
+  border-radius: var(--delta-radius-2-5);
+  color: var(--delta-alias-label-primary);
 }
 
 /* A task row is one whole-row opener, so the row itself carries the hover
@@ -92,17 +92,17 @@
 
 @media (hover: hover) {
   .rowTask:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .rowOverdue {
-  background: var(--dsw-alias-state-warn-tertiary);
+  background: var(--delta-alias-state-warn-tertiary);
 }
 
 @media (hover: hover) {
   .rowOverdue:hover {
-    background: var(--dsw-alias-state-warn-tertiary);
+    background: var(--delta-alias-state-warn-tertiary);
   }
 }
 
@@ -115,8 +115,8 @@
 }
 
 .title {
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-18);
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -139,7 +139,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 10px;
+  border-radius: var(--delta-radius-2-5);
 }
 
 .openButton:focus-visible {
@@ -147,7 +147,7 @@
 }
 
 .openButton:focus-visible::after {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 2px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -156,15 +156,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 10px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-10);
   line-height: 15px;
 }
 
 .metadataOverdue {
-  color: var(--dsw-alias-state-warn-label);
+  color: var(--delta-alias-state-warn-label);
 }
 
 /* The next target states its own line and takes the frequency line's rule above. */
@@ -186,21 +186,21 @@
   height: 20px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--delta-radius-1-5);
   background: none;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 .deleteButton:focus-visible {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .deleteButton:hover {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -210,24 +210,24 @@
 
 /* The open entry keeps the same quiet gray as its hover state. */
 .trigger[aria-expanded='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 /* A wide catalog first shifts horizontally without leaving its trigger's row. */
-@position-try --dsh-schedule-catalog-wide-below {
+@position-try --delta-schedule-catalog-wide-below {
   left: 16px;
   right: 16px;
   justify-self: safe end;
 }
 
-@position-try --dsh-schedule-catalog-above {
-  top: max(16px, var(--dsh-frame-overlay-top, 16px));
+@position-try --delta-schedule-catalog-above {
+  top: max(16px, var(--delta-frame-overlay-top, 16px));
   bottom: max(16px, calc(anchor(top) + 5px));
   align-self: end;
 }
 
-@position-try --dsh-schedule-catalog-wide-above {
-  top: max(16px, var(--dsh-frame-overlay-top, 16px));
+@position-try --delta-schedule-catalog-wide-above {
+  top: max(16px, var(--delta-frame-overlay-top, 16px));
   bottom: max(16px, calc(anchor(top) + 5px));
   left: 16px;
   right: 16px;
@@ -235,16 +235,16 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-schedule-catalog-window {
-  top: max(16px, var(--dsh-frame-overlay-top, 16px));
+@position-try --delta-schedule-catalog-window {
+  top: max(16px, var(--delta-frame-overlay-top, 16px));
   bottom: 16px;
   margin: 0;
   align-self: safe end;
 }
 
-@position-try --dsh-schedule-catalog-viewport {
+@position-try --delta-schedule-catalog-viewport {
   position-area: none;
-  inset: max(16px, var(--dsh-frame-overlay-top, 16px)) 16px 16px;
+  inset: max(16px, var(--delta-frame-overlay-top, 16px)) 16px 16px;
   margin: 0;
   align-self: safe end;
   justify-self: safe end;

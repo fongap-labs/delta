@@ -1,36 +1,109 @@
 /* Base variables referenced by the token sheets and component CSS but defined
  * upstream (deepsuite theme/global.css) — supplied here so the composite
- * --dsw-font-* variables resolve and motion rides the upstream curve. Code
+ * --delta-font-* variables resolve and motion rides the upstream curve. Code
  * font stack deliberately omits a bare `monospace` tail (Windows CJK falls
  * back to SimSun otherwise). */
 :root {
-  --dsh-font-family-text-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+  --delta-font-family-text-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --dsw-font-family: var(--dsh-font-family-text-default);
-  --dsw-font-family-brand: 'Montserrat', var(--dsh-font-family-text-default);
-  --dsh-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+  --delta-font-family: var(--delta-font-family-text-default);
+  --delta-font-family-brand: 'Montserrat', var(--delta-font-family-text-default);
+  --delta-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
     'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
-  --ds-font-family-code: var(--dsh-font-family-code-default);
-  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --ds-transition-duration: 0.2s;
-  --ds-transition-duration-fast: 0.1s;
-  --ds-transition-duration-slow: 0.3s;
-  --dsw-radius-xs: 4px;
-  --dsw-radius-sm: 8px;
-  --dsw-radius-md: 12px;
-  --dsw-radius-lg: 16px;
-  --dsw-radius-xl: 20px;
-  --dsw-radius-panel: 28px;
+  --delta-font-family-code: var(--delta-font-family-code-default);
+  --delta-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --delta-transition-duration: 0.2s;
+  --delta-transition-duration-fast: 0.1s;
+  --delta-transition-duration-slow: 0.3s;
+  --delta-font-weight-emphasis: 650;
+  --delta-transition-duration-80ms: 80ms;
+  --delta-transition-duration-120ms: 120ms;
+  --delta-transition-duration-140ms: 140ms;
+  --delta-transition-duration-150ms: 150ms;
+  --delta-transition-duration-160ms: 160ms;
+  --delta-transition-duration-180ms: 180ms;
+  --delta-transition-duration-250ms: 250ms;
+  --delta-transition-duration-400ms: 400ms;
+  --delta-transition-duration-500ms: 500ms;
+  --delta-transition-duration-800ms: 800ms;
+  --delta-transition-duration-900ms: 900ms;
+  --delta-transition-duration-1000ms: 1000ms;
+  --delta-transition-duration-1200ms: 1200ms;
+  --delta-transition-duration-1500ms: 1500ms;
+  --delta-transition-duration-2000ms: 2000ms;
+  --delta-transition-duration-2400ms: 2400ms;
+  --delta-transition-duration-3000ms: 3000ms;
+  --delta-transition-duration-14000ms: 14000ms;
+  --delta-radius-xs: 4px;
+  --delta-radius-1-5: 6px;
+  --delta-radius-2-5: 10px;
+  --delta-radius-6: 24px;
+  --delta-radius-8: 32px;
+  --delta-radius-sm: 8px;
+  --delta-radius-md: 12px;
+  --delta-radius-lg: 16px;
+  --delta-radius-xl: 20px;
+  --delta-radius-panel: 28px;
+  --delta-font-weight-light: 300;
+  --delta-font-weight-regular: 400;
+  --delta-font-weight-medium: 500;
+  --delta-font-weight-semibold: 600;
+  --delta-font-weight-bold: 700;
+  --delta-layer-popover: 100;
+  --delta-layer-onboarding: 900;
+  --delta-layer-modal: 1000;
+  --delta-layer-modal-raised: 1001;
+  --delta-layer-overlay: 1100;
+  --delta-layer-overlay-raised: 1101;
+  --delta-space-unit: 4px;
+  --delta-space-0-25: calc(var(--delta-space-unit) * 0.25);
+  --delta-space-0-5: calc(var(--delta-space-unit) * 0.5);
+  --delta-space-1: var(--delta-space-unit);
+  --delta-space-1-5: calc(var(--delta-space-unit) * 1.5);
+  --delta-space-2: calc(var(--delta-space-unit) * 2);
+  --delta-space-2-5: calc(var(--delta-space-unit) * 2.5);
+  --delta-space-3: calc(var(--delta-space-unit) * 3);
+  --delta-space-3-5: calc(var(--delta-space-unit) * 3.5);
+  --delta-space-4: calc(var(--delta-space-unit) * 4);
+  --delta-space-5: calc(var(--delta-space-unit) * 5);
+  --delta-space-6: calc(var(--delta-space-unit) * 6);
+  --delta-space-7: calc(var(--delta-space-unit) * 7);
+  --delta-space-8: calc(var(--delta-space-unit) * 8);
+  --delta-space-10: calc(var(--delta-space-unit) * 10);
+  --delta-space-12: calc(var(--delta-space-unit) * 12);
+  --delta-font-size-10: 10px;
+  --delta-font-size-11: 11px;
+  --delta-font-size-12: 12px;
+  --delta-font-size-13: 13px;
+  --delta-font-size-14: 14px;
+  --delta-font-size-15: 15px;
+  --delta-font-size-16: 16px;
+  --delta-font-size-18: 18px;
+  --delta-font-size-20: 20px;
+  --delta-font-size-24: 24px;
+  --delta-font-size-28: 28px;
+  --delta-line-height-16: 16px;
+  --delta-line-height-18: 18px;
+  --delta-line-height-20: 20px;
+  --delta-line-height-22: 22px;
+  --delta-line-height-24: 24px;
+  --delta-line-height-28: 28px;
+  --delta-line-height-32: 32px;
+  --delta-line-height-none: 1;
+  --delta-line-height-snug: 1.4;
+  --delta-line-height-normal: 1.5;
+  --delta-line-height-relaxed: 1.6;
+  --delta-line-height-loose: 1.7;
 }
 
-/* User font lists (--dsh-font-family-text/-code, written on body by the theme
+/* User font lists (--delta-font-family-user-text/-code, written on body by the theme
  * boot script and ThemePresenter) lead the built-in stacks. An unset list
  * falls back to the built-in stack itself; the repeated families are inert. */
 body {
-  --dsw-font-family: var(--dsh-font-family-text, var(--dsh-font-family-text-default)), var(--dsh-font-family-text-default);
-  --ds-font-family-code: var(--dsh-font-family-code, var(--dsh-font-family-code-default)), var(--dsh-font-family-code-default);
-  --dsw-alias-settings-card-fill: var(--dsw-alias-bg-layer-2);
-  --dsw-alias-settings-card-stroke: var(--dsw-alias-border-l4);
+  --delta-font-family: var(--delta-font-family-user-text, var(--delta-font-family-text-default)), var(--delta-font-family-text-default);
+  --delta-font-family-code: var(--delta-font-family-user-code, var(--delta-font-family-code-default)), var(--delta-font-family-code-default);
+  --delta-alias-settings-card-fill: var(--delta-alias-bg-layer-2);
+  --delta-alias-settings-card-stroke: var(--delta-alias-border-l4);
 }
 
 [data-dsh-automatic-focus]:focus,

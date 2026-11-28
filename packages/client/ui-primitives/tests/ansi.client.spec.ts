@@ -41,19 +41,19 @@ describe('parseAnsiLines: text without SGR state', () => {
 
 describe('parseAnsiLines: basic colors mapped onto theme tokens', () => {
   it.each<[string, string, string]>([
-    ['30', 'black', 'var(--dsw-alias-label-primary)'],
-    ['37', 'white', 'var(--dsw-alias-label-primary)'],
-    ['90', 'bright black', 'var(--dsw-alias-label-tertiary)'],
-    ['31', 'red', 'var(--dsw-alias-state-error-primary)'],
-    ['91', 'bright red', 'var(--dsw-alias-state-error-secondary)'],
-    ['32', 'green', 'var(--dsw-alias-state-success-primary)'],
-    ['92', 'bright green', 'var(--dsw-alias-state-success-secondary)'],
-    ['33', 'yellow', 'var(--dsw-alias-state-warn-primary)'],
-    ['93', 'bright yellow', 'var(--dsw-alias-state-warn-secondary)'],
-    ['34', 'blue', 'var(--dsw-alias-state-business-primary)'],
-    ['94', 'bright blue', 'var(--dsw-static-blue-400)'],
-    ['36', 'cyan', 'var(--dsw-static-blue-600)'],
-    ['96', 'bright cyan', 'var(--dsw-static-blue-500)'],
+    ['30', 'black', 'var(--delta-alias-label-primary)'],
+    ['37', 'white', 'var(--delta-alias-label-primary)'],
+    ['90', 'bright black', 'var(--delta-alias-label-tertiary)'],
+    ['31', 'red', 'var(--delta-alias-state-error-primary)'],
+    ['91', 'bright red', 'var(--delta-alias-state-error-secondary)'],
+    ['32', 'green', 'var(--delta-alias-state-success-primary)'],
+    ['92', 'bright green', 'var(--delta-alias-state-success-secondary)'],
+    ['33', 'yellow', 'var(--delta-alias-state-warn-primary)'],
+    ['93', 'bright yellow', 'var(--delta-alias-state-warn-secondary)'],
+    ['34', 'blue', 'var(--delta-alias-state-business-primary)'],
+    ['94', 'bright blue', 'var(--delta-static-blue-400)'],
+    ['36', 'cyan', 'var(--delta-static-blue-600)'],
+    ['96', 'bright cyan', 'var(--delta-static-blue-500)'],
   ])('SGR %s (%s) resolves to %s', (code, _name, token) => {
     expect(onlySpan(sgr(code, 'x'))).toEqual({ text: 'x', style: { color: token } })
   })
@@ -108,7 +108,7 @@ describe('parseAnsiLines: decorations', () => {
 
   it('combines a color with several decorations in one style', () => {
     expect(onlySpan(sgr('1;3;31', 'x')).style).toEqual({
-      color: 'var(--dsw-alias-state-error-primary)',
+      color: 'var(--delta-alias-state-error-primary)',
       fontWeight: 700,
       fontStyle: 'italic',
     })
@@ -165,7 +165,7 @@ describe('parseAnsiLines: carriage returns', () => {
     // A carriage return moves the cursor; it does not reset the graphic state,
     // so the redraw inherits the color the discarded frame was written with.
     expect(onlySpan(`${ESC}[31mgone\rkept`))
-      .toEqual({ text: 'kept', style: { color: 'var(--dsw-alias-state-error-primary)' } })
+      .toEqual({ text: 'kept', style: { color: 'var(--delta-alias-state-error-primary)' } })
   })
 
   it('preserves both lines of a CRLF pair instead of treating it as a redraw', () => {
@@ -213,7 +213,7 @@ describe('parseAnsiLines: backspaces', () => {
     // corrupt it and repaint the rest of the line with whatever the remainder
     // parses as. The visible result is `aXY`, still red, with the reset intact.
     expect(parseAnsiLines(`${sgr('31', 'abc')}${BS}${BS}XY`)).toEqual([[
-      { text: 'a', style: { color: 'var(--dsw-alias-state-error-primary)' } },
+      { text: 'a', style: { color: 'var(--delta-alias-state-error-primary)' } },
       { text: 'XY', style: undefined },
     ]])
   })
@@ -221,8 +221,8 @@ describe('parseAnsiLines: backspaces', () => {
   it('erases across a style boundary without dropping the styles between', () => {
     // The backspace reaches back past the reset to the last printed character.
     expect(parseAnsiLines(`${sgr('32', 'ok')}${ESC}[31m${BS}bad`)).toEqual([[
-      { text: 'o', style: { color: 'var(--dsw-alias-state-success-primary)' } },
-      { text: 'bad', style: { color: 'var(--dsw-alias-state-error-primary)' } },
+      { text: 'o', style: { color: 'var(--delta-alias-state-success-primary)' } },
+      { text: 'bad', style: { color: 'var(--delta-alias-state-error-primary)' } },
     ]])
   })
 
@@ -239,7 +239,7 @@ describe('parseAnsiLines: backspaces', () => {
     // the three columns, so the untouched `d` keeps the run's red.
     expect(parseAnsiLines(`${sgr('31', 'bad')}${BS}${BS}${BS}ok`)).toEqual([[
       { text: 'ok', style: undefined },
-      { text: 'd', style: { color: 'var(--dsw-alias-state-error-primary)' } },
+      { text: 'd', style: { color: 'var(--delta-alias-state-error-primary)' } },
     ]])
   })
 })
@@ -283,7 +283,7 @@ describe('parseAnsiLines: erase and column arithmetic', () => {
     // Only SGR carries graphic state. An erase folded into the style string
     // would grow it per redraw and emit boundaries anser has to discard.
     expect(parseAnsiLines(`${ESC}[31ma\r${ESC}[Kb`)).toEqual([[
-      { text: 'b', style: { color: 'var(--dsw-alias-state-error-primary)' } },
+      { text: 'b', style: { color: 'var(--delta-alias-state-error-primary)' } },
     ]])
   })
 })
@@ -296,7 +296,7 @@ describe('parseAnsiLines: line-end state and column widths', () => {
     // and this exact shape (`\r\x1b[K\x1b[32m✓ built\x1b[0m`) is what every
     // build tool writes.
     expect(parseAnsiLines(`${ESC}[32mdone\rok${ESC}[0m\nplain`)).toEqual([
-      [{ text: 'okne', style: { color: 'var(--dsw-alias-state-success-primary)' } }],
+      [{ text: 'okne', style: { color: 'var(--delta-alias-state-success-primary)' } }],
       [{ text: 'plain', style: undefined }],
     ])
   })
@@ -330,7 +330,7 @@ describe('parseAnsiLines: line-end state and column widths', () => {
     // open the run at the line end for it to reach the following line.
     expect(parseAnsiLines(`ab\rX${ESC}[31m\nnext`)).toEqual([
       [{ text: 'Xb', style: undefined }],
-      [{ text: 'next', style: { color: 'var(--dsw-alias-state-error-primary)' } }],
+      [{ text: 'next', style: { color: 'var(--delta-alias-state-error-primary)' } }],
     ])
   })
 
@@ -407,7 +407,7 @@ describe('parseAnsiLines: bounded state and true widths', () => {
     ]])
     // A bright foreground and a bright background, the 90-97 / 100-107 arms.
     expect(parseAnsiLines(`${ESC}[91mA\r${ESC}[KB`)).toEqual([[
-      { text: 'B', style: { color: 'var(--dsw-alias-state-error-secondary)' } },
+      { text: 'B', style: { color: 'var(--delta-alias-state-error-secondary)' } },
     ]])
     expect(parseAnsiLines(`${ESC}[101mA\r${ESC}[KB`)).toEqual([[
       { text: 'B', style: { backgroundColor: 'rgb(255, 85, 85)' } },
@@ -472,8 +472,8 @@ describe('parseAnsiLines: SGR across lines', () => {
     // A newline does not reset the graphic state, so a replayed line must hand
     // its state to the next one instead of closing it off.
     expect(parseAnsiLines(`${ESC}[31mabc\rX\nnext`)).toEqual([
-      [{ text: 'Xbc', style: { color: 'var(--dsw-alias-state-error-primary)' } }],
-      [{ text: 'next', style: { color: 'var(--dsw-alias-state-error-primary)' } }],
+      [{ text: 'Xbc', style: { color: 'var(--delta-alias-state-error-primary)' } }],
+      [{ text: 'next', style: { color: 'var(--delta-alias-state-error-primary)' } }],
     ])
   })
 
@@ -481,9 +481,9 @@ describe('parseAnsiLines: SGR across lines', () => {
     // The middle line has no movement, so it is not replayed — but its own SGR
     // still has to reach the line after it.
     expect(parseAnsiLines(`a\r${ESC}[32mb\nplain\nc`)).toEqual([
-      [{ text: 'b', style: { color: 'var(--dsw-alias-state-success-primary)' } }],
-      [{ text: 'plain', style: { color: 'var(--dsw-alias-state-success-primary)' } }],
-      [{ text: 'c', style: { color: 'var(--dsw-alias-state-success-primary)' } }],
+      [{ text: 'b', style: { color: 'var(--delta-alias-state-success-primary)' } }],
+      [{ text: 'plain', style: { color: 'var(--delta-alias-state-success-primary)' } }],
+      [{ text: 'c', style: { color: 'var(--delta-alias-state-success-primary)' } }],
     ])
   })
 })
@@ -491,15 +491,15 @@ describe('parseAnsiLines: SGR across lines', () => {
 describe('parseAnsiLines: runs spanning lines', () => {
   it('carries one run\'s style onto every line it covers', () => {
     expect(parseAnsiLines(sgr('32', 'first\nsecond'))).toEqual([
-      [{ text: 'first', style: { color: 'var(--dsw-alias-state-success-primary)' } }],
-      [{ text: 'second', style: { color: 'var(--dsw-alias-state-success-primary)' } }],
+      [{ text: 'first', style: { color: 'var(--delta-alias-state-success-primary)' } }],
+      [{ text: 'second', style: { color: 'var(--delta-alias-state-success-primary)' } }],
     ])
   })
 
   it('keeps several runs of one line in order', () => {
     expect(parseAnsiLines(`plain${sgr('31', 'red')}tail`)).toEqual([[
       { text: 'plain', style: undefined },
-      { text: 'red', style: { color: 'var(--dsw-alias-state-error-primary)' } },
+      { text: 'red', style: { color: 'var(--delta-alias-state-error-primary)' } },
       { text: 'tail', style: undefined },
     ]])
   })

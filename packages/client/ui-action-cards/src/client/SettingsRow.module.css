@@ -2,24 +2,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 16px 0;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-6);
+  padding: var(--delta-space-4) 0;
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .title {
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
 }
 
 .description {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  gap: var(--delta-space-1);
+  margin-top: var(--delta-space-1);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .infoButton {
@@ -27,5 +27,5 @@
   width: 20px;
   height: 20px;
   padding: 0;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }

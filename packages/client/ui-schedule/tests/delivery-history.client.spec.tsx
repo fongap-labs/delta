@@ -129,38 +129,38 @@ describe.each([en, zh])('saved delivery records', (dictionary) => {
     // the mock inherits from the page base. A timeline hairline between the
     // rows' glyphs replaces the retired per-row bottom separator.
     const rowRule = ruleBlock(stylesheet, 'delivery')
-    expect(rowRule).toMatch(/gap:\s*12px;/)
-    expect(rowRule).toMatch(/padding:\s*14px 8px;/)
-    expect(rowRule).toMatch(/margin:\s*0 -8px;/)
+    expect(rowRule).toMatch(/gap:\s*var\(--delta-space-3\);/)
+    expect(rowRule).toMatch(/padding:\s*var\(--delta-space-3-5\)\s*var\(--delta-space-2\);/)
+    expect(rowRule).toMatch(/margin:\s*0 calc\(-1 \* var\(--delta-space-2\)\);/)
     expect(rowRule).not.toMatch(/border-bottom/)
     expect(rowRule).toMatch(/position:\s*relative;/)
-    expect(rowRule).toMatch(/font-size:\s*14px;/)
-    expect(rowRule).toMatch(/line-height:\s*22px;/)
+    expect(rowRule).toMatch(/font-size:\s*var\(--delta-font-size-14\);/)
+    expect(rowRule).toMatch(/line-height:\s*var\(--delta-line-height-22\);/)
     // Timeline segments hang on the glyph centre, skip the edge beyond the
     // first and last glyphs, and stay 6px clear of each glyph.
     const segmentRule = ruleBlock(stylesheet, 'delivery::before,\n.delivery::after')
     expect(segmentRule).toMatch(/left:\s*15\.75px;/)
     expect(segmentRule).toMatch(/width:\s*0\.5px;/)
-    expect(segmentRule).toMatch(/background:\s*var\(--dsw-alias-border-l3\);/)
+    expect(segmentRule).toMatch(/background:\s*var\(--delta-alias-border-l3\);/)
     expect(ruleBlock(stylesheet, 'delivery:not\\(:first-of-type\\)::before')).toMatch(/height:\s*14px;/)
     expect(ruleBlock(stylesheet, 'delivery:not\\(:last-of-type\\)::after')).toMatch(/top:\s*42px;/)
     expect(ruleBlock(stylesheet, 'delivery:first-of-type:not\\(:last-of-type\\)::after')).toMatch(/top:\s*28px;/)
     // The mock's `.automation-detail .history-row > .icon`.
     const glyphRule = ruleBlock(stylesheet, 'deliveryGlyph')
-    expect(glyphRule).toMatch(/margin-top:\s*6px;/)
-    expect(glyphRule).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
+    expect(glyphRule).toMatch(/margin-top:\s*var\(--delta-space-1-5\);/)
+    expect(glyphRule).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
     // The mock's `.delivery-record-title`: the compact occurrence time.
     const occurrenceRule = ruleBlock(stylesheet, 'deliveryTime')
-    expect(occurrenceRule).toMatch(/font-size:\s*14px;/)
-    expect(occurrenceRule).toMatch(/line-height:\s*22px;/)
-    expect(occurrenceRule).toMatch(/font-weight:\s*500;/)
-    expect(occurrenceRule).toMatch(/color:\s*var\(--dsw-alias-label-primary\);/)
+    expect(occurrenceRule).toMatch(/font-size:\s*var\(--delta-font-size-14\);/)
+    expect(occurrenceRule).toMatch(/line-height:\s*var\(--delta-line-height-22\);/)
+    expect(occurrenceRule).toMatch(/font-weight:\s*var\(--delta-font-weight-medium\);/)
+    expect(occurrenceRule).toMatch(/color:\s*var\(--delta-alias-label-primary\);/)
     // The mock's `.delivery-record .history-caption`: the saved instruction.
     const instructionRule = ruleBlock(stylesheet, 'savedPrompt')
-    expect(instructionRule).toMatch(/margin:\s*6px 0 0;/)
-    expect(instructionRule).toMatch(/font-size:\s*13px;/)
-    expect(instructionRule).toMatch(/line-height:\s*22px;/)
-    expect(instructionRule).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
+    expect(instructionRule).toMatch(/margin:\s*var\(--delta-space-1-5\) 0 0;/)
+    expect(instructionRule).toMatch(/font-size:\s*var\(--delta-font-size-13\);/)
+    expect(instructionRule).toMatch(/line-height:\s*var\(--delta-line-height-22\);/)
+    expect(instructionRule).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
     expect(instructionRule).toMatch(/white-space:\s*pre-wrap;/)
     expect(instructionRule).toMatch(/overflow-wrap:\s*anywhere;/)
     // A collapsed instruction shows two lines; the expanded state lifts the clamp.
@@ -176,8 +176,8 @@ describe.each([en, zh])('saved delivery records', (dictionary) => {
     // The toggle's negative margin cancels its inline padding, so its label
     // starts at the instruction's left edge.
     const toggleRule = ruleBlock(stylesheet, 'savedPromptToggle')
-    expect(toggleRule).toMatch(/margin:\s*2px 0 0 -6px;/)
-    expect(toggleRule).toMatch(/padding:\s*1px 6px;/)
+    expect(toggleRule).toMatch(/margin:\s*var\(--delta-space-0-5\) 0 0 calc\(-1 \* var\(--delta-space-1-5\)\);/)
+    expect(toggleRule).toMatch(/padding:\s*var\(--delta-space-0-25\) var\(--delta-space-1-5\);/)
   })
 
   it('clamps each overflowing saved instruction behind its own expand toggle', async () => {
@@ -353,18 +353,18 @@ it('keeps the Rules and the Delivery records views on one type scale', () => {
   // The body step: the rules view's row label and value, the editor's field labels
   // with the run-time heading, and the records view's occurrence time and record
   // row all state the mock's 14px.
-  expect(declared('ruleValue', 'font-size')).toBe('14px')
-  expect(declared('ruleLabel', 'font-size')).toBe('14px')
-  expect(declared('editorField', 'font-size')).toBe('14px')
+  expect(declared('ruleValue', 'font-size')).toBe('var(--delta-font-size-14)')
+  expect(declared('ruleLabel', 'font-size')).toBe('var(--delta-font-size-14)')
+  expect(declared('editorField', 'font-size')).toBe('var(--delta-font-size-14)')
   expect(declared('editorField > h3', 'font')).toBe('inherit')
-  expect(declared('deliveryTime', 'font-size')).toBe('14px')
-  expect(declared('delivery', 'font-size')).toBe('14px')
+  expect(declared('deliveryTime', 'font-size')).toBe('var(--delta-font-size-14)')
+  expect(declared('delivery', 'font-size')).toBe('var(--delta-font-size-14)')
   // The secondary step: 13px in the records view's saved instruction.
-  expect(declared('savedPrompt', 'font-size')).toBe('13px')
+  expect(declared('savedPrompt', 'font-size')).toBe('var(--delta-font-size-13)')
   // Both views read their primary rows in one ink; the saved instruction is tertiary.
   expect(declared('ruleValue', 'color')).toBe(declared('deliveryTime', 'color'))
   expect(declared('ruleLabel', 'color')).toBe(declared('ruleValue', 'color'))
-  expect(declared('savedPrompt', 'color')).toBe('var(--dsw-alias-label-tertiary)')
+  expect(declared('savedPrompt', 'color')).toBe('var(--delta-alias-label-tertiary)')
 })
 
 it('offers the instruction toggle only while the collapsed instruction overflows at the current width', async () => {

@@ -19,7 +19,7 @@ it('keeps settings and expanded plugin dialogs clear of the Windows caption acro
       await page.waitForSelector('[class*="frame"]')
       await page.evaluate(() => {
         document.documentElement.setAttribute('data-windows-titlebar', '')
-        document.documentElement.style.setProperty('--dsh-windows-titlebar-height', '40px')
+        document.documentElement.style.setProperty('--delta-windows-titlebar-height', '40px')
       })
       await page.setViewportSize({ width: 521, height: 600 })
       await page.locator('[data-sidebar-drawer]').waitFor({ state: 'detached' })

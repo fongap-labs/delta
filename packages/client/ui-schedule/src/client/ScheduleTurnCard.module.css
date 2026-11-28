@@ -4,6 +4,6 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin: 4px 0;
+  gap: var(--delta-space-2-5);
+  margin: var(--delta-space-1) 0;
 }

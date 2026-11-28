@@ -9,75 +9,75 @@
 .trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   flex: none;
-  padding: 1px 8px;
+  padding: 1px var(--delta-space-2);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font-family: inherit;
-  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
-  font-weight: 400;
+  font-size: calc(var(--delta-content-font-size-secondary, 13px) - 1px);
+  font-weight: var(--delta-font-weight-regular);
   font-variant-numeric: tabular-nums;
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  line-height: calc(20px + var(--delta-content-font-delta-secondary, 0px));
   white-space: nowrap;
   cursor: pointer;
 }
 
 .trigger[aria-expanded='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
+  background: var(--delta-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-secondary);
 }
 
 @media (hover: hover) {
   .trigger:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-secondary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
 .track {
   fill: none;
-  stroke: var(--dsw-alias-border-l3);
+  stroke: var(--delta-alias-border-l3);
   stroke-width: 2;
 }
 
 .fill {
   fill: none;
-  stroke: var(--dsw-alias-label-tertiary);
+  stroke: var(--delta-alias-label-tertiary);
   stroke-width: 2;
   stroke-linecap: round;
 }
 
 .panel {
   position: fixed;
-  z-index: 1100;
+  z-index: var(--delta-layer-overlay);
   box-sizing: border-box;
   width: min(264px, calc(100vw - 24px));
-  padding: 12px;
+  padding: var(--delta-space-3);
   border: 0;
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
   cursor: default;
   max-width: calc(100vw - 24px);
-  max-height: calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)));
+  max-height: calc(100dvh - 12px - max(12px, var(--delta-frame-overlay-top, 12px)));
   overflow-x: hidden;
   overflow-y: auto;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 8px));
   left: max(12px, anchor(left));
   right: 12px;
-  position-try-fallbacks: --dsh-context-window, --dsh-context-opposite, --dsh-context-wide-opposite, --dsh-context-tall, --dsh-context-viewport;
+  position-try-fallbacks: --delta-context-window, --delta-context-opposite, --delta-context-wide-opposite, --delta-context-tall, --delta-context-viewport;
   align-self: end;
   justify-self: start;
   height: fit-content;
@@ -88,23 +88,23 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .figures {
   margin-left: auto;
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .percent {
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .headline {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The headline brackets the reading, so the side a locale leaves empty must
@@ -116,11 +116,11 @@
 .bar {
   display: flex;
   gap: 1px;
-  margin: 10px 0 12px;
+  margin: var(--delta-space-2-5) 0 var(--delta-space-3);
   height: 4px;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
   overflow: hidden;
 }
 
@@ -129,12 +129,12 @@
   min-width: 2px;
   height: 100%;
   border-radius: 1px;
-  background: var(--meter-tint, var(--dsw-alias-label-tertiary));
+  background: var(--meter-tint, var(--delta-alias-label-tertiary));
 }
 
 .swatch {
   display: inline-block;
-  margin-right: 6px;
+  margin-right: var(--delta-space-1-5);
   width: 8px;
   height: 8px;
   border-radius: 2px;
@@ -143,42 +143,42 @@
 }
 
 .colorSystem {
-  --meter-tint: var(--dsw-alias-chart-system);
+  --meter-tint: var(--delta-alias-chart-system);
 }
 
 .colorTools {
-  --meter-tint: var(--dsw-alias-chart-tools);
+  --meter-tint: var(--delta-alias-chart-tools);
 }
 
 .colorMessages {
-  --meter-tint: var(--dsw-alias-chart-messages);
+  --meter-tint: var(--delta-alias-chart-messages);
 }
 
 .rows {
-  margin: 6px 0 0;
+  margin: var(--delta-space-1-5) 0 0;
 }
 
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 2px 0;
+  gap: var(--delta-space-3);
+  padding: var(--delta-space-0-5) 0;
 }
 
 .row dt {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .row dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
-@position-try --dsh-context-window {
+@position-try --delta-context-window {
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 8px));
   left: 12px;
   right: 12px;
@@ -187,13 +187,13 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-context-opposite {
+@position-try --delta-context-opposite {
   top: max(12px, calc(anchor(bottom) + 8px));
   bottom: 12px;
   align-self: start;
 }
 
-@position-try --dsh-context-wide-opposite {
+@position-try --delta-context-wide-opposite {
   top: max(12px, calc(anchor(bottom) + 8px));
   bottom: 12px;
   left: 12px;
@@ -202,9 +202,9 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-context-tall {
+@position-try --delta-context-tall {
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: 12px;
   left: max(12px, anchor(left));
   right: 12px;
@@ -213,9 +213,9 @@
   justify-self: start;
 }
 
-@position-try --dsh-context-viewport {
+@position-try --delta-context-viewport {
   position-area: none;
-  inset: max(12px, var(--dsh-frame-overlay-top, 12px)) 12px 12px;
+  inset: max(12px, var(--delta-frame-overlay-top, 12px)) 12px 12px;
   margin: 0;
   align-self: safe start;
   justify-self: safe end;

@@ -3,14 +3,14 @@
 .mask {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--delta-layer-modal);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  background-color: var(--dsw-alias-bg-mask-drop);
+  background-color: var(--delta-alias-bg-mask-drop);
   backdrop-filter: blur(10px);
-  animation: fade-in 160ms ease-out;
+  animation: fade-in var(--delta-transition-duration-160ms) ease-out;
 }
 
 @keyframes fade-in {
@@ -29,8 +29,8 @@
   flex-direction: column;
   align-items: center;
   margin-top: -3%;
-  padding: 0 40px;
-  color: var(--dsw-alias-label-primary);
+  padding: 0 var(--delta-space-10);
+  color: var(--delta-alias-label-primary);
   text-align: center;
 }
 
@@ -40,13 +40,13 @@
 }
 
 .title {
-  margin-top: 16px;
-  font: var(--dsw-font-l-20);
+  margin-top: var(--delta-space-4);
+  font: var(--delta-font-l-20);
 }
 
 .desc {
-  margin-top: 16px;
-  font: var(--dsw-font-s-14);
-  color: var(--dsw-alias-label-tertiary);
+  margin-top: var(--delta-space-4);
+  font: var(--delta-font-s-14);
+  color: var(--delta-alias-label-tertiary);
   white-space: pre-wrap;
 }

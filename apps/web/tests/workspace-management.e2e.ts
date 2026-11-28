@@ -1145,7 +1145,7 @@ it('web e2e: finds a workspace beyond the picker scroll cap and opens a new Sess
   await expect.poll(() => rows.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true)
   const viewportStyle = await rows.evaluate((node) => {
     const style = getComputedStyle(node)
-    const rowHeight = parseFloat(style.getPropertyValue('--dsh-menu-row-height'))
+    const rowHeight = parseFloat(style.getPropertyValue('--delta-menu-row-height'))
     return { overflowY: style.overflowY, maxRows: parseFloat(style.maxHeight) / rowHeight }
   })
   expect(viewportStyle.overflowY).toBe('auto')

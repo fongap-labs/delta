@@ -6,11 +6,11 @@
 }
 
 .root[data-open] {
-  padding-bottom: 4px;
+  padding-bottom: var(--delta-space-1);
 }
 
 .chevron {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* Separator and producer name beside the role title: ToolRow's summary geometry,
@@ -19,18 +19,18 @@
   flex: none;
   width: 2px;
   height: 2px;
-  margin: 0 8px;
+  margin: 0 var(--delta-space-2);
   border-radius: 1px;
-  background: var(--dsw-alias-label-caption);
+  background: var(--delta-alias-label-caption);
 }
 
 .source {
   flex: none;
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -40,9 +40,9 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -50,17 +50,17 @@
 .body {
   box-sizing: border-box;
   /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
-  width: calc(100% - 22px - var(--dsh-content-font-delta, 0px));
+  width: calc(100% - 22px - var(--delta-content-font-delta, 0px));
   max-height: 141px;
-  margin: 4px 0 0 calc(22px + var(--dsh-content-font-delta, 0px));
+  margin: 4px 0 0 calc(22px + var(--delta-content-font-delta, 0px));
   overflow: auto;
-  padding: 10px 16px 12px 12px;
+  padding: var(--delta-space-2-5) var(--delta-space-4) var(--delta-space-3) var(--delta-space-3);
   border: none;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-markdown-code-block);
-  color: var(--dsw-alias-label-tertiary);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-markdown-code-block);
+  color: var(--delta-alias-label-tertiary);
   /* Figma 10:2482 code text: the form bodies inherit it from the scrollport. */
-  font: 400 11px/16px var(--ds-font-family-code);
+  font: 400 11px/16px var(--delta-font-family-code);
 }
 
 .toolChanges {

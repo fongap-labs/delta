@@ -831,12 +831,12 @@ describe('Task manager catalog', () => {
     const paths = illustration?.querySelectorAll('path')
     expect(paths).toHaveLength(20)
     // Roles follow the approved artwork's paint order, including overlapping paper and clock layers.
-    expect(paths?.[0]?.getAttribute('fill')).toBe('var(--dsw-alias-illustration-background)')
-    expect(paths?.[2]?.getAttribute('fill')).toBe('var(--dsw-alias-illustration-backing)')
-    expect(paths?.[3]?.getAttribute('fill')).toBe('var(--dsw-alias-illustration-surface)')
-    expect(paths?.[10]?.getAttribute('fill')).toBe('var(--dsw-alias-illustration-shadow)')
-    expect(paths?.[17]?.getAttribute('fill')).toBe('var(--dsw-alias-illustration-detail)')
-    expect(paths?.[18]?.getAttribute('fill')).toBe('var(--dsw-alias-illustration-inset)')
+    expect(paths?.[0]?.getAttribute('fill')).toBe('var(--delta-alias-illustration-background)')
+    expect(paths?.[2]?.getAttribute('fill')).toBe('var(--delta-alias-illustration-backing)')
+    expect(paths?.[3]?.getAttribute('fill')).toBe('var(--delta-alias-illustration-surface)')
+    expect(paths?.[10]?.getAttribute('fill')).toBe('var(--delta-alias-illustration-shadow)')
+    expect(paths?.[17]?.getAttribute('fill')).toBe('var(--delta-alias-illustration-detail)')
+    expect(paths?.[18]?.getAttribute('fill')).toBe('var(--delta-alias-illustration-inset)')
     expect(emptyNewTaskButton().textContent).toBe(en['empty.action'])
   })
 
@@ -1842,32 +1842,32 @@ describe('Task detail metrics', () => {
     const placement = /^\.tabBody > \.detail \.detailTabsBar\s*\{([^}]*)\}/m.exec(stylesheet)?.[1] ?? ''
     expect(placement).toMatch(/min-height:\s*37px;/)
     expect(tabStrip).toMatch(/padding:\s*0 var\(--detail-gutter\);/)
-    expect(stylesheet).toMatch(/\.detailActions\s*\{[^}]*margin-right:\s*-8px;/)
+    expect(stylesheet).toMatch(/\.detailActions\s*\{[^}]*margin-right:\s*calc\(-1 \* var\(--delta-space-2\)\);/)
     // The mock's `.detail-heading` is the scrolling rule view's first content:
     // its 4px lead-in meets the next-run line, and it opens no band of its own.
     const header = /\.detailHeader\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
-    expect(header).toMatch(/margin-bottom:\s*4px;/)
+    expect(header).toMatch(/margin-bottom:\s*var\(--delta-space-1\);/)
     expect(header).not.toMatch(/padding|min-height|border/)
     // The rule view keeps the scrolling region's full 24px lead-in for the name.
     expect(stylesheet).not.toMatch(/\.detailScroll:has\(/)
     const nextRun = /\.nextRun\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
-    expect(nextRun).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
-    expect(nextRun).toMatch(/font-size:\s*13px;/)
-    expect(nextRun).toMatch(/line-height:\s*20px;/)
+    expect(nextRun).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
+    expect(nextRun).toMatch(/font-size:\s*var\(--delta-font-size-13\);/)
+    expect(nextRun).toMatch(/line-height:\s*var\(--delta-line-height-20\);/)
     const instruction = /\.instruction\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
     expect(instruction).toMatch(/min-height:\s*112px;/)
     // The box grows with its content from the resting height to the 160px cap.
     expect(instruction).toMatch(/max-height:\s*160px;/)
     expect(instruction).toMatch(/field-sizing:\s*content;/)
-    expect(instruction).toMatch(/padding:\s*12px;/)
-    expect(instruction).toMatch(/border:\s*0\.5px solid var\(--dsw-alias-border-l3\);/)
-    expect(instruction).toMatch(/border-radius:\s*var\(--dsw-radius-lg\);/)
+    expect(instruction).toMatch(/padding:\s*var\(--delta-space-3\);/)
+    expect(instruction).toMatch(/border:\s*0\.5px solid var\(--delta-alias-border-l3\);/)
+    expect(instruction).toMatch(/border-radius:\s*var\(--delta-radius-lg\);/)
     // The mock inherits the instruction's 14px text and pins its own 24px leading.
-    expect(instruction).toMatch(/font-size:\s*14px;/)
-    expect(instruction).toMatch(/line-height:\s*24px;/)
-    expect(stylesheet).toMatch(/\.instruction:hover\s*\{[^}]*border-color:\s*var\(--dsw-alias-border-l2\);/)
-    expect(stylesheet).toMatch(/\.instruction:focus\s*\{[^}]*border-color:\s*var\(--dsw-alias-state-business-primary\);/)
-    expect(stylesheet).toMatch(/\.ruleRows\s*\{[^}]*border-radius:\s*var\(--dsw-radius-lg\);/)
+    expect(instruction).toMatch(/font-size:\s*var\(--delta-font-size-14\);/)
+    expect(instruction).toMatch(/line-height:\s*var\(--delta-line-height-24\);/)
+    expect(stylesheet).toMatch(/\.instruction:hover\s*\{[^}]*border-color:\s*var\(--delta-alias-border-l2\);/)
+    expect(stylesheet).toMatch(/\.instruction:focus\s*\{[^}]*border-color:\s*var\(--delta-alias-state-business-primary\);/)
+    expect(stylesheet).toMatch(/\.ruleRows\s*\{[^}]*border-radius:\s*var\(--delta-radius-lg\);/)
   })
 })
 
@@ -1882,19 +1882,19 @@ describe('Mock detail metrics shared with the task list', () => {
     // The mock's `.notice` is 12px/20px; without a stated size the text inherits
     // the host's 16px inside the detail pane.
     const notice = rule('notice')
-    expect([/font-size:\s*12px;/.test(notice)]).toEqual([true])
-    expect([/line-height:\s*20px;/.test(notice)]).toEqual([true])
+    expect([/font-size:\s*var\(--delta-font-size-12\);/.test(notice)]).toEqual([true])
+    expect([/line-height:\s*var\(--delta-line-height-20\);/.test(notice)]).toEqual([true])
     // The mock's notice box: its own 12px/14px padding, 9px gap, top
     // alignment, surface fill, 10px radius, and 20px below.
-    expect(notice).toMatch(/padding:\s*12px 14px;/)
+    expect(notice).toMatch(/padding:\s*var\(--delta-space-3\)\s*var\(--delta-space-3-5\);/)
     expect(notice).toMatch(/gap:\s*9px;/)
     expect(notice).toMatch(/align-items:\s*flex-start;/)
-    expect(notice).toMatch(/background:\s*var\(--dsw-specific-sidebar-fill\);/)
-    expect(notice).toMatch(/border-radius:\s*var\(--dsw-radius-lg\);/)
-    expect(notice).toMatch(/margin:\s*0 0 20px;/)
+    expect(notice).toMatch(/background:\s*var\(--delta-specific-sidebar-fill\);/)
+    expect(notice).toMatch(/border-radius:\s*var\(--delta-radius-lg\);/)
+    expect(notice).toMatch(/margin:\s*0 0 var\(--delta-space-5\);/)
     // The notice keeps the colour this box had before it took the mock's
     // surface fill; the retired deletion-failure variant leaves no rule behind.
-    expect(notice).toMatch(/color:\s*var\(--dsw-alias-label-secondary\);/)
+    expect(notice).toMatch(/color:\s*var\(--delta-alias-label-secondary\);/)
     expect(stylesheet).not.toMatch(/^\.error\s*\{/m)
   })
 
@@ -1905,26 +1905,26 @@ describe('Mock detail metrics shared with the task list', () => {
     expect(stylesheet).not.toMatch(/\.emptyCaption/)
     expect(stylesheet).not.toMatch(/\.detailDeletedNotice/)
     const empty = rule('empty')
-    expect(empty).toMatch(/padding:\s*48px 20px;/)
-    expect(empty).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
-    expect(empty).toMatch(/font-size:\s*14px;/)
+    expect(empty).toMatch(/padding:\s*var\(--delta-space-12\) var\(--delta-space-5\);/)
+    expect(empty).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
+    expect(empty).toMatch(/font-size:\s*var\(--delta-font-size-14\);/)
     // The mock spaces the empty state through its children's margins, so the
     // container states no gap that would double them.
     expect(empty).not.toMatch(/gap:/)
     // Every centered state's heading rides one declaration group on the body's
     // own 14px/400 tertiary step, so no centered state reads bolder than another.
     const heading = /\.empty h2,\s*\.empty h3,\s*\.empty \.emptyTitle\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
-    expect(heading).toMatch(/margin-bottom:\s*8px;/)
-    expect(heading).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
-    expect(heading).toMatch(/font-size:\s*14px;/)
-    expect(heading).toMatch(/font-weight:\s*400;/)
-    expect(rule('emptyGlyph')).toMatch(/margin-bottom:\s*12px;/)
+    expect(heading).toMatch(/margin-bottom:\s*var\(--delta-space-2\);/)
+    expect(heading).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
+    expect(heading).toMatch(/font-size:\s*var\(--delta-font-size-14\);/)
+    expect(heading).toMatch(/font-weight:\s*var\(--delta-font-weight-regular\);/)
+    expect(rule('emptyGlyph')).toMatch(/margin-bottom:\s*var\(--delta-space-3\);/)
     expect(rule('emptyIllustration')).toMatch(/width:\s*110px;/)
     expect(rule('emptyIllustration')).toMatch(/max-width:\s*100%;/)
     expect(rule('emptyIllustration')).toMatch(/height:\s*auto;/)
-    expect(rule('emptyIllustration')).toMatch(/margin-bottom:\s*12px;/)
+    expect(rule('emptyIllustration')).toMatch(/margin-bottom:\s*var\(--delta-space-3\);/)
     // The mock's `.empty h3 + .btn`.
-    expect(rule('emptyAction')).toMatch(/margin-top:\s*16px;/)
+    expect(rule('emptyAction')).toMatch(/margin-top:\s*var\(--delta-space-4\);/)
   })
 
   it('states the Plugins-aligned list-page column, heading, search field, and row metrics', () => {
@@ -1939,40 +1939,40 @@ describe('Mock detail metrics shared with the task list', () => {
     const heading = rule('pageHeading')
     expect(heading).toMatch(/align-items:\s*center;/)
     expect(heading).toMatch(/justify-content:\s*space-between;/)
-    expect(heading).toMatch(/gap:\s*16px;/)
+    expect(heading).toMatch(/gap:\s*var\(--delta-space-4\);/)
     // The column's former top inset the row now carries, matching the Plugins head.
-    expect(heading).toMatch(/padding-top:\s*28px;/)
-    expect(heading).toMatch(/margin-bottom:\s*24px;/)
+    expect(heading).toMatch(/padding-top:\s*var\(--delta-space-7\);/)
+    expect(heading).toMatch(/margin-bottom:\s*var\(--delta-space-6\);/)
     // The Plugins page's macOS head clearance above that same row inset, so the
     // heading clears the hiddenInset titlebar and keeps the 76px total offset.
     expect(stylesheet).toMatch(
-      /\[data-platform='darwin'\][^{]*\.pageHeading\s*\{[^}]*padding-top:\s*calc\(28px \+ var\(--dsh-frame-top-clearance, 0px\)\);/,
+      /\[data-platform='darwin'\][^{]*\.pageHeading\s*\{[^}]*padding-top:\s*calc\(28px \+ var\(--delta-frame-top-clearance, 0px\)\);/,
     )
     // The column keeps no top inset of its own, on either platform.
     expect(stylesheet).not.toMatch(
       /\[data-platform='darwin'\][^{]*\.pageContent\s*\{/,
     )
     // The Plugins toolbar's Add-plugin capsule, repeated by the creation action.
-    expect(rule('creationActions')).toMatch(/gap:\s*16px;/)
+    expect(rule('creationActions')).toMatch(/gap:\s*var\(--delta-space-4\);/)
     // The New action and the bulk cleanup share this capsule geometry.
     const headerAction = rule('headerAction')
     expect(headerAction).toMatch(/height:\s*32px;/)
-    expect(headerAction).toMatch(/font-size:\s*13px;/)
-    expect(headerAction).toMatch(/padding:\s*0 12px;/)
-    expect(headerAction).toMatch(/border-radius:\s*var\(--dsw-radius-md\);/)
+    expect(headerAction).toMatch(/font-size:\s*var\(--delta-font-size-13\);/)
+    expect(headerAction).toMatch(/padding:\s*0 var\(--delta-space-3\);/)
+    expect(headerAction).toMatch(/border-radius:\s*var\(--delta-radius-md\);/)
     const headingTitle = /\.pageHeading h1\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
     // The first-level title step is the Plugins page's `pageTitle`, not the
     // mock's larger page heading; the equality case below pins that pair.
-    expect(headingTitle).toMatch(/font-size:\s*20px;/)
-    expect(headingTitle).toMatch(/line-height:\s*28px;/)
+    expect(headingTitle).toMatch(/font-size:\s*var\(--delta-font-size-20\);/)
+    expect(headingTitle).toMatch(/line-height:\s*var\(--delta-line-height-28\);/)
     // The mock's `.list-tools` and `.tab`.
-    expect(rule('filters')).toMatch(/gap:\s*8px 12px;/)
-    expect(rule('filters')).toMatch(/margin-bottom:\s*14px;/)
+    expect(rule('filters')).toMatch(/gap:\s*var\(--delta-space-2\) var\(--delta-space-3\);/)
+    expect(rule('filters')).toMatch(/margin-bottom:\s*var\(--delta-space-3-5\);/)
     const tab = rule('filterTab')
     expect(tab).toMatch(/height:\s*28px;/)
-    expect(tab).toMatch(/padding:\s*0 10px;/)
-    expect(tab).toMatch(/border-radius:\s*var\(--dsw-radius-sm\);/)
-    expect(tab).toMatch(/font-size:\s*14px;/)
+    expect(tab).toMatch(/padding:\s*0 var\(--delta-space-2-5\);/)
+    expect(tab).toMatch(/border-radius:\s*var\(--delta-radius-sm\);/)
+    expect(tab).toMatch(/font-size:\s*var\(--delta-font-size-14\);/)
     // The selected chip keeps the chip's own weight; only the fill marks it.
     expect(rule('filterTabActive')).not.toMatch(/font-weight/)
     // The search row fixes the mock's 36px control height for the field and the
@@ -1983,46 +1983,46 @@ describe('Mock detail metrics shared with the task list', () => {
     expect(rule('catalogMore')).toMatch(/padding:\s*0;/)
     const field = rule('searchField')
     expect(field).toMatch(/height:\s*var\(--task-search-height\);/)
-    expect(field).toMatch(/padding:\s*0 10px;/)
-    expect(field).toMatch(/border:\s*0\.5px solid var\(--dsw-alias-border-l3\);/)
-    expect(field).toMatch(/border-radius:\s*var\(--dsw-radius-md\);/)
-    expect(stylesheet).toMatch(/\.searchField:hover\s*\{[^}]*border-color:\s*var\(--dsw-alias-border-l2\);/)
+    expect(field).toMatch(/padding:\s*0 var\(--delta-space-2-5\);/)
+    expect(field).toMatch(/border:\s*0\.5px solid var\(--delta-alias-border-l3\);/)
+    expect(field).toMatch(/border-radius:\s*var\(--delta-radius-md\);/)
+    expect(stylesheet).toMatch(/\.searchField:hover\s*\{[^}]*border-color:\s*var\(--delta-alias-border-l2\);/)
     expect(stylesheet)
-      .toMatch(/\.searchField:focus-within\s*\{[^}]*border-color:\s*var\(--dsw-alias-state-business-primary\);/)
+      .toMatch(/\.searchField:focus-within\s*\{[^}]*border-color:\s*var\(--delta-alias-state-business-primary\);/)
     expect(stylesheet).toMatch(/\.searchField > :first-child svg\s*\{[^}]*width:\s*14px;/)
-    expect(stylesheet).toMatch(/\.searchField input::placeholder\s*\{[^}]*color:\s*var\(--dsw-alias-label-tertiary\);/)
+    expect(stylesheet).toMatch(/\.searchField input::placeholder\s*\{[^}]*color:\s*var\(--delta-alias-label-tertiary\);/)
     expect(stylesheet).toMatch(/\.searchField input::-webkit-search-cancel-button\s*\{[^}]*display:\s*none;/)
-    expect(rule('searchClear')).toMatch(/margin-right:\s*-6px;/)
-    expect(rule('searchClear')).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
+    expect(rule('searchClear')).toMatch(/margin-right:\s*calc\(-1 \* var\(--delta-space-1-5\)\);/)
+    expect(rule('searchClear')).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
     expect(stylesheet).toMatch(/\.searchClear svg\s*\{[^}]*width:\s*14px;/)
     // The 2px column gap, the hover surface flush with the page column, the
     // 8px content inset, and no separator.
-    expect(rule('listRows')).toMatch(/gap:\s*2px;/)
+    expect(rule('listRows')).toMatch(/gap:\s*var\(--delta-space-0-5\);/)
     const row = rule('row')
-    expect(row).toMatch(/gap:\s*12px;/)
+    expect(row).toMatch(/gap:\s*var\(--delta-space-3\);/)
     expect(row).toMatch(/align-items:\s*flex-start;/)
     expect(row).toMatch(/width:\s*100%;/)
     expect(row).not.toMatch(/margin:/)
-    expect(row).toMatch(/padding:\s*8px;/)
-    expect(row).toMatch(/border-radius:\s*var\(--dsw-radius-lg\);/)
+    expect(row).toMatch(/padding:\s*var\(--delta-space-2\);/)
+    expect(row).toMatch(/border-radius:\s*var\(--delta-radius-lg\);/)
     expect(row).not.toMatch(/border(?:-(?!radius)|:)/)
     expect(stylesheet)
-      .toMatch(/\.row:hover\s*\{[^}]*background:\s*var\(--dsw-alias-interactive-bg-hover\);/)
-    expect(rule('selectedRow')).toMatch(/background:\s*var\(--dsw-alias-interactive-bg-hover\);/)
+      .toMatch(/\.row:hover\s*\{[^}]*background:\s*var\(--delta-alias-interactive-bg-hover\);/)
+    expect(rule('selectedRow')).toMatch(/background:\s*var\(--delta-alias-interactive-bg-hover\);/)
     // The inline glyph on the title line, sized to the 20px leading.
     const glyph = rule('rowGlyph')
     expect(glyph).toMatch(/width:\s*16px;/)
     expect(glyph).toMatch(/height:\s*20px;/)
-    expect(glyph).toMatch(/margin-top:\s*2px;/)
-    expect(glyph).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
+    expect(glyph).toMatch(/margin-top:\s*var\(--delta-space-0-5\);/)
+    expect(glyph).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
     const title = rule('rowTitle')
-    expect(title).toMatch(/font-weight:\s*500;/)
+    expect(title).toMatch(/font-weight:\s*var\(--delta-font-weight-medium\);/)
     expect(title).toMatch(/line-height:\s*23px;/)
     const summary = rule('rowSummary')
-    expect(summary).toMatch(/margin-top:\s*2px;/)
-    expect(summary).toMatch(/font-size:\s*13px;/)
+    expect(summary).toMatch(/margin-top:\s*var\(--delta-space-0-5\);/)
+    expect(summary).toMatch(/font-size:\s*var\(--delta-font-size-13\);/)
     expect(summary).toMatch(/line-height:\s*21px;/)
-    expect(summary).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
+    expect(summary).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
     // The title keeps one step at every width, so no breakpoint raises it past
     // the sibling first-level page's title.
     const narrowStep = /@media \(max-width: 760px\)\s*\{([\s\S]*?)\n\}/.exec(stylesheet)?.[1] ?? ''
@@ -2056,9 +2056,8 @@ describe('Mock detail metrics shared with the task list', () => {
       expect(oursStyle.fontSize).toBe(theirsStyle.fontSize)
       expect(oursStyle.lineHeight).toBe(theirsStyle.lineHeight)
       expect(oursStyle.fontWeight).toBe(theirsStyle.fontWeight)
-      expect(oursStyle.fontSize).toBe('20px')
-      expect(oursStyle.lineHeight).toBe('28px')
-      expect(oursStyle.fontWeight).toBe('500')
+      expect(oursStyle.lineHeight).toBe(theirsStyle.lineHeight)
+      expect(oursStyle.fontWeight).toBe(theirsStyle.fontWeight)
     } finally {
       sheet.remove()
       oursWrapper.remove()
@@ -2069,7 +2068,7 @@ describe('Mock detail metrics shared with the task list', () => {
   it('styles the run-time heading as an editor field label and states the l4 panel edge', () => {
     expect(rule('editorField > h3')).toMatch(/margin:\s*0;/)
     expect(rule('editorField > h3')).toMatch(/font:\s*inherit;/)
-    expect(rule('detail')).toMatch(/border-left:\s*0\.5px solid var\(--dsw-alias-border-l4\);/)
+    expect(rule('detail')).toMatch(/border-left:\s*0\.5px solid var\(--delta-alias-border-l4\);/)
   })
 
   it('steps the detail gutter at the mock breakpoints and drops the retired 18px step', () => {
@@ -2078,13 +2077,13 @@ describe('Mock detail metrics shared with the task list', () => {
     expect(stylesheet).not.toMatch(/--detail-gutter:\s*18px;/)
     // The footer uses the stepped gutter; feedback inherits the scroller's inset.
     expect(rule('saveFooter')).toMatch(/padding:\s*20px var\(--detail-gutter\);/)
-    expect(rule('saveFailure')).toMatch(/padding:\s*12px 0 0;/)
+    expect(rule('saveFailure')).toMatch(/padding:\s*var\(--delta-space-3\) 0 0;/)
     // The mock's `.automation-detail .detail-titlebar` narrows the strip's gap
     // at this width and closes the actions' group gap, while the strip above
     // the breakpoint keeps its 20px.
     const narrow = /@media \(max-width: 400px\)\s*\{([\s\S]*?)\n\}/.exec(stylesheet)?.[1] ?? ''
-    expect(rule('detailTabsBar')).toMatch(/gap:\s*20px;/)
-    expect(narrow).toMatch(/\.detailTabsBar\s*\{[^}]*gap:\s*16px;/)
+    expect(rule('detailTabsBar')).toMatch(/gap:\s*var\(--delta-space-5\);/)
+    expect(narrow).toMatch(/\.detailTabsBar\s*\{[^}]*gap:\s*var\(--delta-space-4\);/)
     expect(narrow).toMatch(/\.detailActions\s*\{[^}]*gap:\s*0;/)
   })
 })

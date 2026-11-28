@@ -13,24 +13,24 @@ describe('Turn tail slot spacing', () => {
   })
 
   it('combines the flow and footer offsets around turn-tail content', () => {
-    expect(read('ChatView.module.css')).toMatch(/margin-top:\s*var\(--dsh-chat-flow-gap, 4px\)/)
+    expect(read('ChatView.module.css')).toMatch(/margin-top:\s*var\(--delta-chat-flow-gap, 4px\)/)
     const tail = read('TurnTailNodeView.module.css')
-    expect(tail).toMatch(/\.root\s*\{[^}]*gap:\s*16px/s)
-    expect(tail).toMatch(/\.actions\s*\{[^}]*margin-top:\s*4px/s)
+    expect(tail).toMatch(/\.root\s*\{[^}]*gap:\s*var\(--delta-space-4\)/s)
+    expect(tail).toMatch(/\.actions\s*\{[^}]*margin-top:\s*var\(--delta-space-1\)/s)
   })
 
   it('keeps process rows inside and outside a group on the same gap', () => {
     const group = read('ChatGroupSeat.module.css')
-    expect(group).toMatch(/\.body \{[^}]*--dsh-chat-flow-gap: 4px;/s)
-    expect(group).toMatch(/margin-top:\s*var\(--dsh-chat-flow-gap, 4px\)/)
+    expect(group).toMatch(/\.body \{[^}]*--delta-chat-flow-gap: 4px;/s)
+    expect(group).toMatch(/margin-top:\s*var\(--delta-chat-flow-gap, 4px\)/)
   })
 
   it('keeps the tail slot above a marked steering batch start and out of neighbour gaps', () => {
     const view = read('ChatView.module.css')
     const marked = String.raw`:has\(> \[data-slot="conversation\.chat\.node"\] > \[data-chat-steering-batch`
-    expect(view).toMatch(new RegExp(String.raw`\.flowItem${marked}="start"\]\)\s*\{\s*--dsh-chat-flow-gap:\s*calc\(44px \+ var\(--dsh-content-font-delta, 0px\)\);`))
-    expect(view).toMatch(new RegExp(String.raw`:not\(\.running\):not\(${marked}\]\)\)\s*\{\s*--dsh-chat-flow-gap:\s*12px;`))
-    expect(view).toMatch(new RegExp(String.raw`:not\(\.running\):not\(\[data-submission-echo\], \[data-pending-steering\]\):not\(${marked}\]\)\)\s*\{\s*--dsh-chat-flow-gap:\s*16px;`))
+    expect(view).toMatch(new RegExp(String.raw`\.flowItem${marked}="start"\]\)\s*\{\s*--delta-chat-flow-gap:\s*calc\(44px \+ var\(--delta-content-font-delta, 0px\)\);`))
+    expect(view).toMatch(new RegExp(String.raw`:not\(\.running\):not\(${marked}\]\)\)\s*\{\s*--delta-chat-flow-gap:\s*12px;`))
+    expect(view).toMatch(new RegExp(String.raw`:not\(\.running\):not\(\[data-submission-echo\], \[data-pending-steering\]\):not\(${marked}\]\)\)\s*\{\s*--delta-chat-flow-gap:\s*16px;`))
   })
 
   it('keeps echoes after a running Turn\'s empty control at the input gap', () => {
@@ -48,14 +48,14 @@ describe('Turn tail slot spacing', () => {
 })
 
 describe('Running status entrance after admitted steering', () => {
-  const row = String.raw`calc\(24px \+ var\(--dsh-content-font-delta, 0px\)\)`
+  const row = String.raw`calc\(24px \+ var\(--delta-content-font-delta, 0px\)\)`
 
   it('enters its new slot from one slot higher, outside reduced motion', () => {
     const view = read('ChatView.module.css')
     expect(view).toMatch(new RegExp(String.raw`@media \(prefers-reduced-motion: no-preference\) \{\s*:where\(\.column > [^{]*\[data-chat-flow-kind="steering"\]\) \+ \.running \{\s*`
-      + String.raw`animation: running-enters-slot 140ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);`))
+      + String.raw`animation: running-enters-slot var\(--delta-transition-duration-140ms\) cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);`))
     expect(view).toMatch(new RegExp(String.raw`@keyframes running-enters-slot \{\s*from \{\s*opacity: 0;\s*`
-      + String.raw`translate: 0 calc\(-44px - var\(--dsh-content-font-delta, 0px\)\);\s*\}\s*40% \{\s*opacity: 1;`))
+      + String.raw`translate: 0 calc\(-44px - var\(--delta-content-font-delta, 0px\)\);\s*\}\s*40% \{\s*opacity: 1;`))
   })
 
   it('is the only status move, and an input fold changes only its duration', () => {

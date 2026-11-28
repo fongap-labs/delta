@@ -951,11 +951,11 @@ describe('ConversationRoot resident composer', () => {
     const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
     const readWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
     act(() => { fireResize(content, 1199.75) })
-    expect(content.style.getPropertyValue('--dsh-conversation-column-width')).toBe('1200px')
+    expect(content.style.getPropertyValue('--delta-conversation-column-width')).toBe('1200px')
     expect(readWidth.mock.contexts).not.toContain(content)
     // No dragged preference: the user-width override stays absent so the
     // adaptive clamp term applies.
-    expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('')
+    expect(content.style.getPropertyValue('--delta-chat-user-width')).toBe('')
   })
 
   it('drag → persist → window clamp round-trip on a width handle', () => {
@@ -981,16 +981,16 @@ describe('ConversationRoot resident composer', () => {
       // inside both bounds (max = 1600 − 176 = 1424 keeps the handles on-column).
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
       fireEvent.pointerMove(handle, { pointerId: 1, clientX: 825, clientY: 300 })
-      expect(handle.style.getPropertyValue('--dsh-width-handle-pointer-y')).toBe('300px')
+      expect(handle.style.getPropertyValue('--delta-width-handle-pointer-y')).toBe('300px')
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 825, clientY: 300 })
       expect(handle.hasAttribute('data-dragging')).toBe(false)
-      expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('930px')
+      expect(content.style.getPropertyValue('--delta-chat-user-width')).toBe('930px')
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('930')
       // Window shrinks: the displayed width re-clamps (900 − 176 = 724) but the
       // preference stays.
       Object.defineProperty(content, 'offsetWidth', { value: 900, configurable: true })
       act(() => { fireResize(content, 900) })
-      expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
+      expect(content.style.getPropertyValue('--delta-chat-user-width')).toBe('724px')
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('930')
       // A press without travel (a real double-click delivers two such
       // press/release rounds) must not commit the clamped display value over
@@ -998,7 +998,7 @@ describe('ConversationRoot resident composer', () => {
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 800, clientY: 300 })
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('930')
-      expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
+      expect(content.style.getPropertyValue('--delta-chat-user-width')).toBe('724px')
       // No reset affordance on the handle: double-click leaves the preference alone.
       fireEvent.doubleClick(handle)
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('930')
@@ -1034,12 +1034,12 @@ describe('ConversationRoot resident composer', () => {
       // The reserve holds the column's end edge: 25px outward on the start handle moves the start edge 25px → 880 + 25.
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 400, clientY: 300 })
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 375, clientY: 300 })
-      expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('905px')
+      expect(content.style.getPropertyValue('--delta-chat-user-width')).toBe('905px')
       // Without the inset the column is centered and both edges move: 905 + 2 × 10.
       inset = '0px'
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 400, clientY: 300 })
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 390, clientY: 300 })
-      expect(content.style.getPropertyValue('--dsh-chat-user-width')).toBe('925px')
+      expect(content.style.getPropertyValue('--delta-chat-user-width')).toBe('925px')
     } finally {
       for (const [name, descriptor] of originals) {
         if (descriptor === undefined) Reflect.deleteProperty(Element.prototype, name)
@@ -1057,17 +1057,17 @@ describe('ConversationRoot resident composer', () => {
     Object.defineProperty(scrollport, 'clientHeight', { value: 480, configurable: true })
     Object.defineProperty(scrollport, 'clientWidth', { value: 1153, configurable: true })
     fireResize(seat)
-    expect(scrollport.style.getPropertyValue('--dsh-composer-height')).toBe('152px')
-    expect(scrollport.style.getPropertyValue('--dsh-conversation-viewport-height')).toBe('480px')
-    expect(body.style.getPropertyValue('--dsh-conversation-viewport-width')).toBe('1153px')
-    expect(scrollport.style.getPropertyValue('--dsh-conversation-viewport-width')).toBe('')
+    expect(scrollport.style.getPropertyValue('--delta-composer-height')).toBe('152px')
+    expect(scrollport.style.getPropertyValue('--delta-conversation-viewport-height')).toBe('480px')
+    expect(body.style.getPropertyValue('--delta-conversation-viewport-width')).toBe('1153px')
+    expect(scrollport.style.getPropertyValue('--delta-conversation-viewport-width')).toBe('')
     // A report at the same width, as when only the composer grows, leaves the body's property alone.
     const write = vi.spyOn(body.style, 'setProperty')
     fireResize(seat)
     expect(write).not.toHaveBeenCalled()
     Object.defineProperty(scrollport, 'clientWidth', { value: 993, configurable: true })
     fireResize(seat)
-    expect(write.mock.calls).toEqual([['--dsh-conversation-viewport-width', '993px']])
+    expect(write.mock.calls).toEqual([['--delta-conversation-viewport-width', '993px']])
   })
 
   it('forwards wheel scrolling from a width handle to the transcript', () => {
@@ -1133,7 +1133,7 @@ describe('ConversationRoot resident composer', () => {
     fireEvent.pointerCancel(handle, { pointerId: 2 })
     expect(handle.hasAttribute('data-dragging')).toBe(false)
     fireEvent.pointerMove(handle, { pointerId: 2, clientX: 825, clientY: 300 })
-    expect(handle.style.getPropertyValue('--dsh-width-handle-pointer-y')).toBe('')
+    expect(handle.style.getPropertyValue('--delta-width-handle-pointer-y')).toBe('')
   })
 
   it('hero phase renders no width handles (no transcript to size)', () => {

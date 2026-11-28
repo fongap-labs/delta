@@ -6,12 +6,12 @@
   box-sizing: border-box;
   width: calc(
     100% -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
+    var(--delta-composer-side-clearance) -
+    var(--delta-composer-side-clearance) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset)
   );
   margin: 0 auto;
 }
@@ -22,16 +22,16 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   width: 100%;
-  max-width: calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset));
+  max-width: calc(var(--delta-composer-card-max-width) - 4 * var(--delta-composer-dock-inset));
   height: 36px;
   margin: 0 auto;
-  padding: 4px 5px 4px 12px;
+  padding: var(--delta-space-1) 5px var(--delta-space-1) var(--delta-space-3);
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-md);
-  box-shadow: var(--dsw-elevation-panel);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-md);
+  box-shadow: var(--delta-elevation-panel);
 }
 
 .bar::before {
@@ -39,8 +39,8 @@
   z-index: -1;
   inset: 0;
   border-radius: inherit;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
   content: '';
   pointer-events: none;
 }
@@ -48,26 +48,26 @@
 .goalGlyph {
   display: inline-flex;
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* Matches the Todo/Queue panel titles (13/24 medium, primary) so the three
    composer-stack cards read as one family. */
 .label {
   flex: none;
-  font-size: 13px;
-  line-height: 24px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .objective {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary-dimmed);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary-dimmed);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -76,9 +76,9 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 20px;
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -91,8 +91,8 @@
   min-height: 36px;
   align-items: flex-end;
   /* The editor scrolls inside this elevated menu-surface strip. */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 /* ---- Icon actions ---- */
@@ -100,7 +100,7 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   flex: none;
 }
 
@@ -115,14 +115,14 @@
   border-radius: 999px;
   corner-shape: round;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .iconBtn:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-secondary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-secondary);
   }
 }
 

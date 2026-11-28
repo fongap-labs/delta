@@ -113,7 +113,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * OCCUPIED by ui-sidebar's reopen/New Session controls.
      *
      * While the seat is mounted the frame publishes
-     * `--dsh-frame-leading-clearance` (the inline inset the seat's band
+     * `--delta-frame-leading-clearance` (the inline inset the seat's band
      * occupies, measured from the frame's left edge); a main panel whose
      * content reaches the top-left corner pads by it so nothing lands under
      * the lights or the controls.

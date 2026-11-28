@@ -43,26 +43,26 @@ describe('SessionPanel.module.css docking geometry', () => {
     const panel = declarationsOf('.panel')
     expect(panel['right']).toBe('var(--panel-edge)')
     expect(panel['width']).toBe(
-      'clamp(var(--panel-min-width), calc(var(--dsh-chat-aside-gutter, 0px) - var(--panel-clear) - var(--panel-edge)), 360px)',
+      'clamp(var(--panel-min-width), calc(var(--delta-chat-aside-gutter, 0px) - var(--panel-clear) - var(--panel-edge)), 360px)',
     )
     const probe = declarationsOf('.dockProbe')
     expect(probe['width']).toBe(
-      'max(calc(var(--dsh-chat-aside-gutter, 0px) - var(--panel-clear) - var(--panel-edge) - var(--panel-min-width) + 1px),'
-      + ' var(--dsh-session-panel-reserve-room))',
+      'max(calc(var(--delta-chat-aside-gutter, 0px) - var(--panel-clear) - var(--panel-edge) - var(--panel-min-width) + 1px),'
+      + ' var(--delta-session-panel-reserve-room))',
     )
     expect(probe['max-width']).toBe('1px')
   })
 
   it('derives the reserve step on the Conversation body, where the non-inherited maximum is readable', () => {
     expect(declarationsOf(':global([data-conversation-content])')).toEqual({
-      '--dsh-session-panel-reserve-room': 'clamp(0px,'
-        + ' calc((var(--dsh-chat-end-reserve-max, 0px) - var(--panel-clear) - var(--panel-edge) - var(--panel-min-width)) * 10000000 + 1px),'
+      '--delta-session-panel-reserve-room': 'clamp(0px,'
+        + ' calc((var(--delta-chat-end-reserve-max, 0px) - var(--panel-clear) - var(--panel-edge) - var(--panel-min-width)) * 10000000 + 1px),'
         + ' 1px)',
     })
-    expect(declarationsOf(":global([data-slot='conversation.chat.flow'])")['--dsh-session-panel-reserve-room']).toBe('initial')
+    expect(declarationsOf(":global([data-slot='conversation.chat.flow'])")['--delta-session-panel-reserve-room']).toBe('initial')
     // The aside inherits the computed step when it flips; the message rows keep the initial value.
     expect(css.replace(/\s+/g, ' ')).toContain(
-      "@property --dsh-session-panel-reserve-room { syntax: '<length>'; inherits: true; initial-value: 0px; }",
+      "@property --delta-session-panel-reserve-room { syntax: '<length>'; inherits: true; initial-value: 0px; }",
     )
   })
 
@@ -92,7 +92,7 @@ describe('SessionPanel.module.css docking geometry', () => {
 
   it('asks the Conversation body for exactly the gutter that docks the panel while the probe carries the mark', () => {
     const request = declarationsOf(':global([data-conversation-content]):has(.dockProbe[data-session-panel-reserve])')
-    expect(request).toEqual({ '--dsh-chat-end-reserve': 'calc(var(--panel-clear) + var(--panel-edge) + var(--panel-min-width))' })
+    expect(request).toEqual({ '--delta-chat-end-reserve': 'calc(var(--panel-clear) + var(--panel-edge) + var(--panel-min-width))' })
   })
 
   it('keeps the probe out of sight, out of the layout flow, and away from the pointer', () => {
@@ -112,7 +112,7 @@ describe('SessionPanel.module.css section reordering', () => {
     // Out of the row's flow: 2px in and 24px wide puts its center 14px from the row's end, the rows' More column.
     expect(declarationsOf('.grip')).toMatchObject({
       'position': 'absolute', 'top': '0', 'right': '2px', 'width': '24px', 'height': '24px',
-      'color': 'var(--dsw-alias-label-tertiary)', 'opacity': '0',
+      'color': 'var(--delta-alias-label-tertiary)', 'opacity': '0',
     })
     // A mark over the row's end: presses reach the title row, and at rest the trailing content, through it.
     expect(declarationsOf('.grip')['pointer-events']).toBe('none')
@@ -144,7 +144,7 @@ describe('SessionPanel.module.css section reordering', () => {
   })
 
   it('plays the entrance and the exit only on a panel that carries the mark, and moves the transcript over the same time and curve', () => {
-    const motion = '160ms cubic-bezier(0.4, 0, 0.2, 1)'
+    const motion = 'var(--delta-transition-duration-160ms) cubic-bezier(0.4, 0, 0.2, 1)'
     expect(declarationsOf('.panel')['animation']).toBeUndefined()
     expect(declarationsOf(".panel[data-session-panel-motion='enter']")).toEqual({ animation: `dsh-session-panel-enter ${motion}` })
     // The exit holds its last frame until the panel is removed, and a leaving panel takes no presses.
@@ -152,7 +152,7 @@ describe('SessionPanel.module.css section reordering', () => {
       'animation': `dsh-session-panel-exit ${motion} forwards`, 'pointer-events': 'none',
     })
     expect(declarationsOf(':global([data-conversation-content]):has(.dockProbe[data-session-panel-moving])'))
-      .toEqual({ '--dsh-chat-end-reserve-transition': motion })
+      .toEqual({ '--delta-chat-end-reserve-transition': motion })
     // The two keyframes mirror each other: transparent at the scrollport's end edge, the panel's own edge inset away,
     // so the slide never puts the panel past that edge.
     const frames = (name: string): string => (new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? '').replace(/\s+/g, ' ').trim()
@@ -166,7 +166,7 @@ describe('SessionPanel.module.css section reordering', () => {
     expect(declarationsOf('.section')['position']).toBe('relative')
     expect(declarationsOf('.section[data-dragging]')).toEqual({ opacity: '0.5' })
     expect(declarationsOf('.section[data-drop-target]::after')).toMatchObject({
-      'position': 'absolute', 'height': '2px', 'background': 'var(--dsw-alias-state-business-primary)', 'pointer-events': 'none',
+      'position': 'absolute', 'height': '2px', 'background': 'var(--delta-alias-state-business-primary)', 'pointer-events': 'none',
     })
     expect(declarationsOf(".section[data-drop-target='before']::after")).toEqual({ top: '-1px' })
     expect(declarationsOf(".section[data-drop-target='after']::after")).toEqual({ bottom: '-2px' })
@@ -179,9 +179,9 @@ describe('SessionPanel.module.css row rules', () => {
 
   it('lays a marked row out as one 28px line with the icon and the menu on fixed columns', () => {
     expect(row('[data-session-panel-row]')).toMatchObject({
-      'display': 'flex', 'align-items': 'center', 'gap': '8px', 'min-height': '28px', 'padding': '0 6px',
+      'display': 'flex', 'align-items': 'center', 'gap': 'var(--delta-space-2)', 'min-height': '28px', 'padding': '0 var(--delta-space-1-5)',
     })
-    expect(row("[data-session-panel-row] > [data-row-part='body']")).toMatchObject({ flex: '1 1 auto', height: '28px', gap: '8px' })
+    expect(row("[data-session-panel-row] > [data-row-part='body']")).toMatchObject({ flex: '1 1 auto', height: '28px', gap: 'var(--delta-space-2)' })
     // 6px of padding and half of the 16px box put the icon's center 14px from the row's start, and the menu's from its end.
     expect(row("[data-session-panel-row] [data-row-part='icon']")).toMatchObject({ width: '16px', height: '16px', flex: 'none' })
     expect(row("[data-session-panel-row] > [data-row-part='menu']")).toMatchObject({ 'width': '16px', 'justify-content': 'center' })
@@ -192,11 +192,11 @@ describe('SessionPanel.module.css row rules', () => {
 
   it('grows a row with a detail line and keeps the icon level with the first line', () => {
     const tall = "[data-session-panel-row] > [data-row-part='body']:has([data-row-part='detail'])"
-    expect(row(tall)).toEqual({ 'align-items': 'flex-start', 'height': 'auto', 'padding': '4px 0' })
+    expect(row(tall)).toEqual({ 'align-items': 'flex-start', 'height': 'auto', 'padding': 'var(--delta-space-1) 0' })
     expect(row(`${tall} > [data-row-part='icon']`)).toEqual({ height: '20px' })
     expect(row("[data-session-panel-row] [data-row-part='lines']")).toMatchObject({ 'display': 'flex', 'flex-direction': 'column', 'min-width': '0' })
     expect(row("[data-session-panel-row] [data-row-part='detail']")).toMatchObject({
-      'color': 'var(--dsw-alias-label-tertiary)', 'font-size': '12px', 'line-height': '17px', 'text-overflow': 'ellipsis', 'white-space': 'nowrap',
+      'color': 'var(--delta-alias-label-tertiary)', 'font-size': 'var(--delta-font-size-12)', 'line-height': '17px', 'text-overflow': 'ellipsis', 'white-space': 'nowrap',
     })
     // The two-line rules follow the one-line ones they adjust, since every rule for a part has the same specificity.
     const order = (selector: string): number => {
@@ -217,7 +217,7 @@ describe('SessionPanel.module.css row rules', () => {
 
   it('gives a plain button in the menu a 24px target and a tertiary glyph without a fill', () => {
     expect(row("[data-session-panel-row] > [data-row-part='menu']", ' button')).toMatchObject({
-      width: '24px', height: '24px', margin: '-4px', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)',
+      width: '24px', height: '24px', margin: 'calc(-1 * var(--delta-space-1))', background: 'transparent', color: 'var(--delta-alias-label-tertiary)',
     })
   })
 
@@ -226,7 +226,7 @@ describe('SessionPanel.module.css row rules', () => {
     expect(row("[data-session-panel-row] > [data-row-part='menu']:empty")).toEqual({ display: 'none' })
     // Only an open control in the menu part keeps the row highlighted; an expanded body button does not.
     expect(row("[data-session-panel-row]:has(> [data-row-part='menu'] [aria-expanded='true'])"))
-      .toEqual({ background: 'var(--dsw-alias-interactive-bg-hover)' })
+      .toEqual({ background: 'var(--delta-alias-interactive-bg-hover)' })
     expect(css).not.toMatch(/:has\(\[aria-expanded='true'\]\)\)\s*\{\s*background/)
     expect(row("[data-session-panel-row] > [data-row-part='menu']:has([aria-expanded='true'])")['opacity']).toBe('1')
     // Hover rules stay inside the hover media query, where the menu hides until the row is hovered or focused.
@@ -239,11 +239,11 @@ describe('SessionPanel.module.css row rules', () => {
   it('sets a fold control in the quiet type of the section counts with a 14px chevron, darker on hover and keyboard focus', () => {
     const fold = "[data-session-panel-row='fold']"
     expect(row(fold)).toEqual({
-      'color': 'var(--dsw-alias-label-tertiary)', 'font': 'var(--dsw-font-xxs-12)', 'font-variant-numeric': 'tabular-nums',
+      'color': 'var(--delta-alias-label-tertiary)', 'font': 'var(--delta-font-xxs-12)', 'font-variant-numeric': 'tabular-nums',
     })
     expect(row(`${fold} [data-row-part='icon']`, ' svg')).toEqual({ width: '14px', height: '14px' })
-    expect(row(`${fold}:has(> button:focus-visible)`)).toEqual({ color: 'var(--dsw-alias-label-secondary)' })
-    expect(row(`${fold}:hover`)).toEqual({ color: 'var(--dsw-alias-label-secondary)' })
+    expect(row(`${fold}:has(> button:focus-visible)`)).toEqual({ color: 'var(--delta-alias-label-secondary)' })
+    expect(row(`${fold}:hover`)).toEqual({ color: 'var(--delta-alias-label-secondary)' })
     // The fold rules follow the row rules they adjust, since every rule for a part has the same specificity.
     const at = (selector: string, tail = ''): number => {
       const index = css.indexOf(`.panel :where(${selector})${tail} {`)

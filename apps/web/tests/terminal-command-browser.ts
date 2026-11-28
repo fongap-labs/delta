@@ -38,7 +38,7 @@ export async function expectSelectableTerminalCommand(page: Page, card: Locator,
         return { x, y, width: w, height }
       }))).toEqual(before)
       const originalWhitespace = await card.evaluate((element) => {
-        const property = '--dsl-terminal-command-whitespace'
+        const property = '--delta-terminal-command-whitespace'
         const previous = { value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property) }
         element.style.setProperty(property, 'pre-wrap')
         return previous
@@ -52,7 +52,7 @@ export async function expectSelectableTerminalCommand(page: Page, card: Locator,
         })).toBeGreaterThan(1)
       } finally {
         await card.evaluate((element, previous) => {
-          element.style.setProperty('--dsl-terminal-command-whitespace', previous.value, previous.priority)
+          element.style.setProperty('--delta-terminal-command-whitespace', previous.value, previous.priority)
         }, originalWhitespace)
       }
       await expectCommandFocusAfterResize(card, command)

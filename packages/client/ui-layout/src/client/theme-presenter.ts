@@ -3,9 +3,9 @@
  * document — `html { color-scheme }` for native UA chrome (scrollbars, form
  * controls), `body[data-ds-dark-theme]` for the token palette, the active
  * theme's alias-token overrides as inline CSS variables on body, the content
- * font-size axis (`--dsh-content-font-size`), the code and terminal sizes
- * (`--dsh-code-font-size`, `--dsh-terminal-font-size`), the user font lists
- * (`--dsh-font-family-<role>`), `html[data-ds-theme-source]`
+ * font-size axis (`--delta-content-font-size`), the code and terminal sizes
+ * (`--delta-code-font-size`, `--delta-terminal-font-size`), the user font lists
+ * (`--delta-font-family-user-<role>`), `html[data-ds-theme-source]`
  * for native-chrome mirroring, and one presenter-owned
  * `meta[name="theme-color"]` for surrounding browser UI. Pure DOM writes, no
  * React involvement; the presenter only ever retracts what it wrote itself,
@@ -28,20 +28,20 @@ export const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 export const THEME_SOURCE_ATTRIBUTE = 'data-ds-theme-source'
 
 /** Body variable carrying the user's content font size in px. */
-export const CONTENT_FONT_SIZE_VARIABLE = '--dsh-content-font-size'
+export const CONTENT_FONT_SIZE_VARIABLE = '--delta-content-font-size'
 
 /** Body variables carrying the user's font sizes in px by role. */
 const FONT_SIZE_VARIABLES = {
   text: CONTENT_FONT_SIZE_VARIABLE,
-  code: '--dsh-code-font-size',
-  terminal: '--dsh-terminal-font-size',
+  code: '--delta-code-font-size',
+  terminal: '--delta-terminal-font-size',
 } as const satisfies Record<FontRole, string>
 
 /** Body variables carrying the user's normalized font lists; absent selects the built-in stack. */
 const FONT_FAMILY_VARIABLES = {
-  text: '--dsh-font-family-text',
-  code: '--dsh-font-family-code',
-  terminal: '--dsh-font-family-terminal',
+  text: '--delta-font-family-user-text',
+  code: '--delta-font-family-user-code',
+  terminal: '--delta-font-family-user-terminal',
 } as const satisfies Record<FontRole, string>
 
 /** Applies theme snapshots to the document; one instance per plugin fiber. */

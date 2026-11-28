@@ -28,9 +28,9 @@ import css from './Rows.module.css'
 
 /** Sidebar-owned layout values needed by row copies mounted outside the sidebar. */
 const DRAG_PREVIEW_PROPERTIES = [
-  '--dsh-sidebar-row-padding',
-  '--dsh-sidebar-label-gap',
-  '--dsh-sidebar-paint-inset',
+  '--delta-sidebar-row-padding',
+  '--delta-sidebar-label-gap',
+  '--delta-sidebar-paint-inset',
 ] as const
 
 /** Drag data type carrying a dragged Session row's id. */

@@ -1,24 +1,24 @@
 /* The framework-free boot page cannot depend on theme delivery succeeding. */
 
 .boot {
-  --dsh-boot-label-primary: #0f1115;
-  --dsh-boot-label-secondary: #61666b;
-  --dsh-boot-label-tertiary: #81858c;
-  --dsh-boot-border: rgb(0 0 0 / 10%);
-  --dsh-boot-brand: #0f1115;
+  --delta-boot-label-primary: #0f1115;
+  --delta-boot-label-secondary: #61666b;
+  --delta-boot-label-tertiary: #81858c;
+  --delta-boot-border: rgb(0 0 0 / 10%);
+  --delta-boot-brand: #0f1115;
 
   height: 100%;
   display: grid;
   place-items: center;
-  background: var(--dsw-alias-bg-base, var(--dsh-boot-bg, Canvas));
+  background: var(--delta-alias-bg-base, var(--delta-boot-bg, Canvas));
 }
 
 :global(body[data-ds-dark-theme]) .boot {
-  --dsh-boot-label-primary: #f9fafb;
-  --dsh-boot-label-secondary: #cfd3d6;
-  --dsh-boot-label-tertiary: #adb2b8;
-  --dsh-boot-border: rgb(255 255 255 / 12%);
-  --dsh-boot-brand: #f9fafb;
+  --delta-boot-label-primary: #f9fafb;
+  --delta-boot-label-secondary: #cfd3d6;
+  --delta-boot-label-tertiary: #adb2b8;
+  --delta-boot-border: rgb(255 255 255 / 12%);
+  --delta-boot-brand: #f9fafb;
 }
 
 .card {
@@ -33,13 +33,13 @@
   line-height: 24px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary));
+  color: var(--delta-alias-label-primary, var(--delta-boot-label-primary));
 }
 
 .hint {
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-label-tertiary, var(--dsh-boot-label-tertiary));
+  color: var(--delta-alias-label-tertiary, var(--delta-boot-label-tertiary));
 }
 
 .spinner {
@@ -48,8 +48,8 @@
   height: 20px;
   border-radius: 50%;
   corner-shape: round;
-  border: 2px solid var(--dsw-alias-border-l2, var(--dsh-boot-border));
-  animation: spin 0.8s linear infinite;
+  border: 2px solid var(--delta-alias-border-l2, var(--delta-boot-border));
+  animation: spin var(--delta-transition-duration-800ms) linear infinite;
 }
 
 .spinner::after {
@@ -59,7 +59,7 @@
   border-radius: 50%;
   corner-shape: round;
   background: conic-gradient(
-    var(--dsw-alias-brand-primary, var(--dsh-boot-brand)) var(--dsh-boot-arc, 72deg),
+    var(--delta-alias-brand-primary, var(--delta-boot-brand)) var(--delta-boot-arc, 72deg),
     transparent 0
   );
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
@@ -81,12 +81,12 @@
   font-size: 14px;
   line-height: 22px;
   font-weight: 600;
-  color: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary));
+  color: var(--delta-alias-label-primary, var(--delta-boot-label-primary));
 }
 
 .failedItem {
   font-family: var(
-    --ds-font-family-code,
+    --delta-font-family-code,
     'SF Mono',
     'JetBrains Mono',
     'Fira Code',
@@ -99,6 +99,6 @@
   );
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-label-secondary, var(--dsh-boot-label-secondary));
+  color: var(--delta-alias-label-secondary, var(--delta-boot-label-secondary));
   white-space: pre-wrap;
 }

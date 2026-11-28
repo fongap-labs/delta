@@ -11,7 +11,7 @@
   z-index: 72;
   box-sizing: border-box;
   display: flex;
-  padding: 8px;
+  padding: var(--delta-space-2);
   pointer-events: auto;
 }
 
@@ -19,19 +19,19 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   align-items: center;
   justify-content: center;
   min-width: 0;
-  padding: 12px;
+  padding: var(--delta-space-3);
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  border: 1.5px dashed var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-lg);
-  background: color-mix(in srgb, var(--dsw-alias-bg-base) 72%, transparent);
+  color: var(--delta-alias-label-tertiary);
+  border: 1.5px dashed var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-lg);
+  background: color-mix(in srgb, var(--delta-alias-bg-base) 72%, transparent);
   backdrop-filter: blur(6px);
-  transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out;
-  animation: zoneIn 140ms ease-out;
+  transition: color var(--delta-transition-duration-120ms) ease-out, background-color var(--delta-transition-duration-120ms) ease-out, border-color var(--delta-transition-duration-120ms) ease-out;
+  animation: zoneIn var(--delta-transition-duration-140ms) ease-out;
 }
 
 .zone[data-quiet]:not([data-active]) .card {
@@ -39,11 +39,11 @@
 }
 
 .zone[data-active] .card {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   background:
-    linear-gradient(color-mix(in srgb, var(--dsw-alias-brand-primary-new-colorprimary-new-color) 8%, transparent)),
-    color-mix(in srgb, var(--dsw-alias-bg-base) 72%, transparent);
-  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+    linear-gradient(color-mix(in srgb, var(--delta-alias-brand-primary-new-colorprimary-new-color) 8%, transparent)),
+    color-mix(in srgb, var(--delta-alias-bg-base) 72%, transparent);
+  border-color: var(--delta-alias-brand-primary-new-colorprimary-new-color);
 }
 
 /* The left sidebar's panel icon, mirrored, as on the right Sidebar's expand button. */
@@ -57,9 +57,9 @@
 .label {
   max-width: 100%;
   overflow: hidden;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  font-weight: 500;
-  line-height: 1.4;
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-snug);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

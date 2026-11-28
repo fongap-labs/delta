@@ -5,9 +5,9 @@
   box-sizing: border-box;
   width: 100%;
   flex: none;
-  min-height: var(--dsh-trajectory-toolbar-height);
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-layer-1);
+  min-height: var(--delta-trajectory-toolbar-height);
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
+  background: var(--delta-alias-bg-layer-1);
 }
 
 .inner {
@@ -15,10 +15,10 @@
   align-items: center;
   box-sizing: border-box;
   width: 100%;
-  min-height: var(--dsh-trajectory-toolbar-height);
+  min-height: var(--delta-trajectory-toolbar-height);
   flex-wrap: wrap;
-  padding: 4px 6px;
-  gap: 4px 8px;
+  padding: var(--delta-space-1) var(--delta-space-1-5);
+  gap: var(--delta-space-1) var(--delta-space-2);
 }
 
 .actions {
@@ -27,7 +27,7 @@
   flex-wrap: wrap;
   min-width: 0;
   align-items: center;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
 }
 
 .toggle {
@@ -36,29 +36,29 @@
   align-items: center;
   height: 20px;
   padding: 0 7px;
-  gap: 4px;
+  gap: var(--delta-space-1);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-label-tertiary);
+  border-radius: var(--delta-radius-sm);
+  color: var(--delta-alias-label-tertiary);
   background: transparent;
   cursor: pointer;
-  font: var(--dsw-font-xxs-12);
+  font: var(--delta-font-xxs-12);
 }
 
 @media (hover: hover) {
   .toggle:hover {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .toggle[aria-pressed='true'] {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 .toggle:focus-visible {
-  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 1px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
@@ -81,13 +81,13 @@
   width: 88px;
   height: 20px;
   padding: 0 5px;
-  gap: 4px;
+  gap: var(--delta-space-1);
   border: 0;
   border-radius: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   background: transparent;
   cursor: pointer;
-  font: var(--dsw-font-xxs-12);
+  font: var(--delta-font-xxs-12);
 }
 
 .control[hidden] {
@@ -96,22 +96,22 @@
 
 .control[aria-checked='true'],
 .control[aria-pressed='true'] {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .control:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .control:focus-visible {
-  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 1px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
 .control:disabled {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
   cursor: not-allowed;
 }
 
@@ -122,8 +122,8 @@
   width: 20px;
   height: 10px;
   border-radius: 5px;
-  background: var(--dsw-alias-border-l2);
-  transition: background-color 120ms var(--ds-ease-in-out);
+  background: var(--delta-alias-border-l2);
+  transition: background-color var(--delta-transition-duration-120ms) var(--delta-ease-in-out);
 }
 
 .controlThumb {
@@ -134,12 +134,12 @@
   height: 6px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-bg-layer-1);
-  transition: transform 120ms var(--ds-ease-in-out);
+  background: var(--delta-alias-bg-layer-1);
+  transition: transform var(--delta-transition-duration-120ms) var(--delta-ease-in-out);
 }
 
 .controlTrack[data-on='true'] {
-  background: var(--dsw-alias-state-business-primary);
+  background: var(--delta-alias-state-business-primary);
 }
 
 .controlTrack[data-on='true'] .controlThumb {
@@ -152,30 +152,30 @@
   align-items: center;
   height: 20px;
   padding: 0 5px;
-  gap: 4px;
+  gap: var(--delta-space-1);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-label-tertiary);
+  border-radius: var(--delta-radius-sm);
+  color: var(--delta-alias-label-tertiary);
   background: transparent;
   cursor: pointer;
-  font: var(--dsw-font-xxs-12);
+  font: var(--delta-font-xxs-12);
 }
 
 @media (hover: hover) {
   .action:hover {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .action:focus-visible {
-  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 1px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
 .actionIcon {
-  color: var(--dsw-alias-label-tertiary);
-  font: 14px/14px var(--ds-font-family-code);
+  color: var(--delta-alias-label-tertiary);
+  font: 14px/14px var(--delta-font-family-code);
 }
 
 .search {
@@ -185,23 +185,23 @@
   min-width: 84px;
   height: 22px;
   margin-left: auto;
-  padding: 0 6px;
-  gap: 4px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-label-caption);
-  background: var(--dsw-alias-bg-layer-2);
+  padding: 0 var(--delta-space-1-5);
+  gap: var(--delta-space-1);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-sm);
+  color: var(--delta-alias-label-caption);
+  background: var(--delta-alias-bg-layer-2);
 }
 
 @media (hover: hover) {
   .search:hover {
-    border-color: var(--dsw-alias-label-caption);
+    border-color: var(--delta-alias-label-caption);
   }
 }
 
 .search:focus-within {
-  border-color: var(--dsw-alias-state-business-primary);
-  background: var(--dsw-alias-bg-layer-1);
+  border-color: var(--delta-alias-state-business-primary);
+  background: var(--delta-alias-bg-layer-1);
 }
 
 .searchIcon {
@@ -214,13 +214,13 @@
   padding: 0;
   border: 0;
   outline: 0;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   background: transparent;
-  font: var(--dsw-font-xxs-12);
+  font: var(--delta-font-xxs-12);
 }
 
 .searchInput::placeholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .searchInput::-webkit-search-cancel-button {

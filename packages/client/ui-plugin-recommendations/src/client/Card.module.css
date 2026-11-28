@@ -1,13 +1,13 @@
-.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; background: var(--dsw-alias-bg-module-platform); font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
-.badge { font-size: 12px; }
-.body { padding: 20px; }
-.details { display: block; box-sizing: border-box; width: calc(100% + 16px); margin: -8px; padding: 8px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color 120ms ease; }
-@media (hover: hover) { .details:hover { background: var(--dsw-alias-interactive-bg-hover); } }
-.details:focus-visible { outline: none; background: var(--dsw-alias-interactive-bg-hover); box-shadow: inset 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); }
-.title { display: block; font-size: 16px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
-.description { display: block; margin: 8px 0 0; font-size: 13px; line-height: 1.7; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-.placeholder { display: inline-block; width: 50%; height: 0.8em; vertical-align: middle; border-radius: var(--dsw-radius-xs); background: var(--dsw-alias-bg-skeleton); }
-.footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 0.5px solid var(--dsw-alias-border-l1); flex-wrap: wrap; }
-.scope { font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
-.actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.status { margin: 16px 0 0; padding-top: 12px; border-top: 0.5px solid var(--dsw-alias-border-l1); font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: var(--delta-space-3); padding: var(--delta-space-2-5) var(--delta-space-5); background: var(--delta-alias-bg-module-platform); font-size: var(--delta-font-size-12); line-height: var(--delta-line-height-normal); color: var(--delta-alias-label-secondary); }
+.badge { font-size: var(--delta-font-size-12); }
+.body { padding: var(--delta-space-5); }
+.details { display: block; box-sizing: border-box; width: calc(100% + 16px); margin: calc(-1 * var(--delta-space-2)); padding: var(--delta-space-2); border: 0; border-radius: var(--delta-radius-sm); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--delta-transition-duration-120ms) ease; }
+@media (hover: hover) { .details:hover { background: var(--delta-alias-interactive-bg-hover); } }
+.details:focus-visible { outline: none; background: var(--delta-alias-interactive-bg-hover); box-shadow: inset 0 0 0 2px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary)); }
+.title { display: block; font-size: var(--delta-font-size-16); font-weight: var(--delta-font-weight-medium); line-height: var(--delta-line-height-normal); overflow-wrap: anywhere; }
+.description { display: block; margin: var(--delta-space-2) 0 0; font-size: var(--delta-font-size-13); line-height: var(--delta-line-height-loose); color: var(--delta-alias-label-secondary); overflow-wrap: anywhere; }
+.placeholder { display: inline-block; width: 50%; height: 0.8em; vertical-align: middle; border-radius: var(--delta-radius-xs); background: var(--delta-alias-bg-skeleton); }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: var(--delta-space-3); margin-top: var(--delta-space-4); padding-top: var(--delta-space-4); border-top: 0.5px solid var(--delta-alias-border-l1); flex-wrap: wrap; }
+.scope { font-size: var(--delta-font-size-12); line-height: var(--delta-line-height-normal); color: var(--delta-alias-label-secondary); }
+.actions { display: flex; align-items: center; gap: var(--delta-space-2); margin-left: auto; }
+.status { margin: var(--delta-space-4) 0 0; padding-top: var(--delta-space-3); border-top: 0.5px solid var(--delta-alias-border-l1); font-size: var(--delta-font-size-12); line-height: var(--delta-line-height-relaxed); color: var(--delta-alias-label-secondary); }

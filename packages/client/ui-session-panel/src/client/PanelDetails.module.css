@@ -5,14 +5,14 @@
 .details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
 }
 
 .title {
-  color: var(--dsw-alias-hovercard-label-primary);
-  font-size: 14px;
-  line-height: 20px;
+  color: var(--delta-alias-hovercard-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
   overflow-wrap: anywhere;
 }
 
@@ -20,9 +20,9 @@
 .line {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--dsw-alias-hovercard-label-secondary);
-  font-size: 12px;
-  line-height: 16px;
+  color: var(--delta-alias-hovercard-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-16);
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 6;
@@ -33,25 +33,25 @@
 .facts {
   display: flex;
   align-items: center;
-  color: var(--dsw-alias-hovercard-label-tertiary);
-  font-size: 12px;
-  line-height: 20px;
+  color: var(--delta-alias-hovercard-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
 }
 
 .status {
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .facts {
   flex-wrap: wrap;
-  gap: 0 12px;
+  gap: 0 var(--delta-space-3);
   font-variant-numeric: tabular-nums;
 }
 
 .fact {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   white-space: nowrap;
 }
 

@@ -15,7 +15,7 @@ const cases = [
 type Placement = (typeof cases)[number]
 
 async function showMenu(page: Page, css: string, placement: Placement): Promise<void> {
-  await page.setContent(`<style>${css}</style><style>:root{--dsh-frame-overlay-top:${placement.clearance}px}</style>
+  await page.setContent(`<style>${css}</style><style>:root{--delta-frame-overlay-top:${placement.clearance}px}</style>
     <button style="position:fixed;left:${placement.x}px;top:${placement.y}px;width:24px;height:28px;anchor-name:--test-menu">Anchor</button>
     <div role="menu" class="list portal scrollable" data-anchor-side="${placement.side}" data-anchor-align="${placement.align}"
       style="position-anchor:--test-menu;width:${placement.width}px;height:${placement.height}px">Menu</div>`)

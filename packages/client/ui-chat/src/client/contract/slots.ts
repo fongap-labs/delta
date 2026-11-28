@@ -440,7 +440,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * positions itself in it, enables its own pointer events, and keeps
      * within the end gutter to stay clear of the transcript column. The
      * layer publishes that gutter, the inline space between the transcript
-     * column and the frame's end edge, as the `--dsh-chat-aside-gutter`
+     * column and the frame's end edge, as the `--delta-chat-aside-gutter`
      * custom property; its percentage resolves in the inline sizes of an
      * element whose containing block is the layer.
      */

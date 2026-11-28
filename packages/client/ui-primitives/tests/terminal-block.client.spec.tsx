@@ -231,7 +231,7 @@ describe('TerminalBlock states', () => {
     // Scoped to a line: the prompt line's run-state dot is a styled span too.
     const span = view.container.querySelector('[class^="_line_"] span[style]')
     expect(span?.textContent).toBe('bad')
-    expect(span?.getAttribute('style')).toContain('--dsw-alias-state-error-primary')
+    expect(span?.getAttribute('style')).toContain('--delta-alias-state-error-primary')
     expect(outputLines(view.container)).toEqual(['bad ok'])
   })
 

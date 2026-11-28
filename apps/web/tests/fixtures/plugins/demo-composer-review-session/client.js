@@ -6,22 +6,22 @@ window.__ModuleLoader__.load({
     const slot = 'conversation.input.placeholder'
     const locale = 'demoComposerReviewSession'
     const steps = [
-      { key: 'changes', accent: 'var(--dsw-alias-state-business-primary)' },
-      { key: 'risks', accent: 'var(--dsw-alias-state-warn-primary)' },
-      { key: 'tests', accent: 'var(--dsw-alias-state-done-primary)' },
+      { key: 'changes', accent: 'var(--delta-alias-state-business-primary)' },
+      { key: 'risks', accent: 'var(--delta-alias-state-warn-primary)' },
+      { key: 'tests', accent: 'var(--delta-alias-state-done-primary)' },
     ]
     const leadStyle = {
-      color: 'var(--dsw-alias-label-secondary)',
+      color: 'var(--delta-alias-label-secondary)',
       fontWeight: 500,
       marginInlineEnd: '4px',
     }
     const stepStyle = {
       display: 'inline-block',
       paddingInline: '7px',
-      borderRadius: 'var(--dsw-radius-xs)',
+      borderRadius: 'var(--delta-radius-xs)',
       fontSize: '0.875em',
       lineHeight: '18px',
-      color: 'var(--dsw-alias-label-secondary)',
+      color: 'var(--delta-alias-label-secondary)',
       verticalAlign: 'baseline',
     }
     const connectorStyle = {
@@ -30,7 +30,7 @@ window.__ModuleLoader__.load({
       blockSize: '1px',
       marginInline: '1px 5px',
       verticalAlign: 'middle',
-      backgroundColor: 'var(--dsw-alias-border-l4)',
+      backgroundColor: 'var(--delta-alias-border-l4)',
     }
 
     function ReviewStep({ id, accent, label, linked }) {

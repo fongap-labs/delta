@@ -16,7 +16,7 @@
 .text[data-marquee] {
   text-overflow: clip;
   mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  animation: dsh-marquee-arrive 0s var(--dsh-marquee-duration) forwards;
+  animation: dsh-marquee-arrive 0s var(--delta-marquee-duration) forwards;
 }
 
 @keyframes dsh-marquee-arrive {
@@ -26,11 +26,11 @@
 /* Inline at rest, so the ellipsis cuts between characters; a transform needs a box. */
 .text[data-marquee] > .travel {
   display: inline-block;
-  animation: dsh-marquee-travel var(--dsh-marquee-duration) linear forwards;
+  animation: dsh-marquee-travel var(--delta-marquee-duration) linear forwards;
 }
 
 @keyframes dsh-marquee-travel {
-  to { transform: translateX(calc(-1 * var(--dsh-marquee-range))); }
+  to { transform: translateX(calc(-1 * var(--delta-marquee-range))); }
 }
 
 /* Reduced motion shows the far edge at once, so only the start edge hides text. */
@@ -42,6 +42,6 @@
 
   .text[data-marquee] > .travel {
     animation: none;
-    transform: translateX(calc(-1 * var(--dsh-marquee-range)));
+    transform: translateX(calc(-1 * var(--delta-marquee-range)));
   }
 }

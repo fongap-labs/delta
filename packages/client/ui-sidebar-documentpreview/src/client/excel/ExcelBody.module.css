@@ -5,7 +5,7 @@
   min-height: 0;
   overflow: hidden;
   white-space: normal;
-  font-family: var(--dsw-font, sans-serif);
+  font-family: var(--delta-font, sans-serif);
 }
 
 .workbook {
@@ -73,18 +73,18 @@
   display: flex;
   flex: none;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
-  color: var(--dsw-alias-state-warn-label);
-  background: var(--dsw-alias-state-warn-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: 1.5;
+  gap: var(--delta-space-2);
+  padding: var(--delta-space-2) var(--delta-space-3);
+  color: var(--delta-alias-state-warn-label);
+  background: var(--delta-alias-state-warn-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: var(--delta-line-height-normal);
   overflow-wrap: anywhere;
 }
 
 .notice > svg {
   flex: none;
-  margin-top: 2px;
+  margin-top: var(--delta-space-0-5);
 }
 
 .formulaWarning {
@@ -96,34 +96,34 @@
   width: 20px;
   height: 20px;
   padding: 3px;
-  color: var(--dsw-alias-state-warn-label);
+  color: var(--delta-alias-state-warn-label);
   background: transparent;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
 }
 
 .formulaWarning:focus-visible {
-  background: var(--dsw-alias-state-warn-tertiary);
+  background: var(--delta-alias-state-warn-tertiary);
   outline: none;
 }
 
 @media (hover: hover) {
   .formulaWarning:hover {
-    background: var(--dsw-alias-state-warn-tertiary);
+    background: var(--delta-alias-state-warn-tertiary);
     outline: none;
   }
 }
 
 .withFormulaWarning :global(.fortune-fx-input) {
-  padding-left: 24px;
+  padding-left: var(--delta-space-6);
 }
 
 .status {
   display: flex;
-  gap: 8px;
+  gap: var(--delta-space-2);
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 16px;
-  color: var(--dsw-alias-label-secondary);
+  padding: var(--delta-space-4);
+  color: var(--delta-alias-label-secondary);
 }

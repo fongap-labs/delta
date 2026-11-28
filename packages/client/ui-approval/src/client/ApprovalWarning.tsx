@@ -21,7 +21,7 @@ export function ApprovalWarning({ warning }: {
   const panel = useRef<HTMLDivElement>(null)
   const id = useId()
   const titleId = useId()
-  const anchorName = `--dsh-approval-warning-${id.replaceAll(':', '')}`
+  const anchorName = `--delta-approval-warning-${id.replaceAll(':', '')}`
   useDismissOnOutsidePointer(anchor, open, setOpen, panel)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(() => {
     if (anchor.current?.matches(':focus-visible')

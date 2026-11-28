@@ -1,17 +1,17 @@
 .block {
-  --dsl-web-radius: var(--dsw-radius-lg);
+  --delta-web-radius: var(--delta-radius-lg);
 
-  margin: 16px 0;
-  padding: 12px 14px;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-markdown-code-block);
-  border-radius: var(--dsl-web-radius);
+  margin: var(--delta-space-4) 0;
+  padding: var(--delta-space-3) var(--delta-space-3-5);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-markdown-code-block);
+  border-radius: var(--delta-web-radius);
 }
 
 /* The provider answer reads as body prose above the citation list; its own
    MarkdownText margins are trimmed so the list sits tight under it. */
 .answer {
-  margin-bottom: 8px;
+  margin-bottom: var(--delta-space-2);
 }
 
 .answer > :global(div) > :first-child {
@@ -42,7 +42,7 @@
   padding-left: 2.5em;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   max-height: 320px;
   overflow-y: auto;
 }
@@ -52,10 +52,10 @@
 }
 
 .sourceLink {
-  color: var(--dsw-alias-link);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
+  color: var(--delta-alias-link);
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-20);
   word-break: break-word;
   text-decoration: none;
 }
@@ -82,42 +82,42 @@
 }
 
 .snippet {
-  margin-top: 2px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
+  margin-top: var(--delta-space-0-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
   line-height: 19px;
   word-break: break-word;
 }
 
 .published {
-  margin-top: 2px;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xs-13);
+  margin-top: var(--delta-space-0-5);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xs-13);
 }
 
 .truncated {
-  margin-top: 8px;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xs-13);
+  margin-top: var(--delta-space-2);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xs-13);
 }
 
 .empty {
-  color: var(--dsw-alias-label-secondary);
-  font: var(--dsw-font-xs-13);
+  color: var(--delta-alias-label-secondary);
+  font: var(--delta-font-xs-13);
 }
 
 /* The fetch card is a compact summary: the URL over a status/truncation row. */
 .fetch {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .fetchUrl {
-  color: var(--dsw-alias-link);
-  font-family: var(--ds-font-family-code);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--delta-alias-link);
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-medium);
   line-height: 19px;
   word-break: break-all;
   text-decoration: none;
@@ -138,12 +138,12 @@
 .fetchMeta {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .status {
-  color: var(--dsw-alias-label-secondary);
-  font: var(--dsw-font-xs-13);
+  color: var(--delta-alias-label-secondary);
+  font: var(--delta-font-xs-13);
 }
 
 /* The fetch card's truncation note sits inline beside the status, so it drops

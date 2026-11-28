@@ -137,12 +137,12 @@ describe('web e2e: CJK-adjacent Markdown strong emphasis', () => {
       }
       const restoreFont = await page.evaluateHandle(() => {
         const style = document.body.style
-        const before = style.getPropertyValue('--dsh-content-font-size')
-        const priority = style.getPropertyPriority('--dsh-content-font-size')
-        style.setProperty('--dsh-content-font-size', '18px')
+        const before = style.getPropertyValue('--delta-content-font-size')
+        const priority = style.getPropertyPriority('--delta-content-font-size')
+        style.setProperty('--delta-content-font-size', '18px')
         return () => {
-          if (before) style.setProperty('--dsh-content-font-size', before, priority)
-          else style.removeProperty('--dsh-content-font-size')
+          if (before) style.setProperty('--delta-content-font-size', before, priority)
+          else style.removeProperty('--delta-content-font-size')
         }
       })
       try {

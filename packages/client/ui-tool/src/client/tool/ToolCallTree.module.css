@@ -1,12 +1,12 @@
 .callRow {
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
 }
 
 .subCalls {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 4px 0 2px 22px;
-  padding-left: 8px;
-  border-left: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-1);
+  margin: var(--delta-space-1) 0 var(--delta-space-0-5) 22px;
+  padding-left: var(--delta-space-2);
+  border-left: 0.5px solid var(--delta-alias-border-l2);
 }

@@ -222,7 +222,7 @@ async function awaitTableLayout(target: Page): Promise<void> {
       && element.getAnimations().every(animation =>
         animation.playState === 'finished' || animation.playState === 'idle')
       && body !== null
-      && body.style.getPropertyValue('--dsh-conversation-column-width') === `${String(body.offsetWidth)}px`
+      && body.style.getPropertyValue('--delta-conversation-column-width') === `${String(body.offsetWidth)}px`
   }, undefined, { timeout: 10_000 })
 }
 

@@ -24,8 +24,8 @@ describe('GoalCommandInputView.module.css typography', () => {
     const bubble = declarations('.bubble')
     expect(bubble.some(declaration => /^font(-family)?:/.test(declaration))).toBe(false)
     expect(bubble).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size, 14px)',
-      'line-height: calc(22px + var(--dsh-content-font-delta, 0px))',
+      'font-size: var(--delta-content-font-size, 14px)',
+      'line-height: calc(22px + var(--delta-content-font-delta, 0px))',
     ]))
   })
 })

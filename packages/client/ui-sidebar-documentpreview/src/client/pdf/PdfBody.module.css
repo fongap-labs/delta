@@ -1,15 +1,15 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
   min-width: 100%;
-  padding: 12px;
+  padding: var(--delta-space-3);
   overflow: visible;
-  background: var(--dsw-alias-bg-document-preview);
-  font-family: var(--dsw-font, sans-serif);
+  background: var(--delta-alias-bg-document-preview);
+  font-family: var(--delta-font, sans-serif);
   white-space: normal;
 }
 
@@ -29,7 +29,7 @@
 .placeholder {
   width: 100%;
   aspect-ratio: 3 / 4;
-  background: var(--dsw-alias-bg-skeleton);
+  background: var(--delta-alias-bg-skeleton);
 }
 
 .canvas {
@@ -44,7 +44,7 @@
   position: relative;
   max-width: none;
   margin-inline: auto;
-  box-shadow: var(--dsw-elevation-prominent);
+  box-shadow: var(--delta-elevation-prominent);
 }
 
 .surface[hidden] {
@@ -63,7 +63,7 @@
   inset: 0;
   text-align: initial;
   overflow: clip;
-  line-height: 1;
+  line-height: var(--delta-line-height-none);
   letter-spacing: normal;
   word-spacing: normal;
   text-size-adjust: none;
@@ -111,7 +111,7 @@
 }
 
 .text ::selection {
-  background: var(--dsw-alias-bg-document-selection);
+  background: var(--delta-alias-bg-document-selection);
   color: transparent;
 }
 
@@ -134,14 +134,14 @@
 
 .status {
   display: flex;
-  gap: 8px;
+  gap: var(--delta-space-2);
   align-items: center;
-  padding: 10px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 1.5;
+  padding: var(--delta-space-2-5);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-normal);
 }
 
 .body .status {
-  color: var(--dsw-alias-label-document-preview);
+  color: var(--delta-alias-label-document-preview);
 }

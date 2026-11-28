@@ -11,8 +11,8 @@
    * rebind the scrollbar indirection to the elevation pair here, on the
    * surface, so it inherits down to whichever descendant scrolls (the
    * rebinding contract in ui-theme styles/scrollbar.css). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 /* Card-scope wrapper hosting the path editor's Escape and focus-leave
@@ -26,10 +26,10 @@
 .header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   flex: none;
-  padding: 16px 14px 8px 24px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  padding: var(--delta-space-4) var(--delta-space-3-5) var(--delta-space-2) var(--delta-space-6);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .title {
@@ -37,10 +37,10 @@
   align-items: flex-end;
   min-height: 28px;
   margin: 0;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 510;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-16);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The bar IS the editor's box in both modes: it carries the rounded outline
@@ -51,25 +51,25 @@
 .crumbBar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   box-sizing: border-box;
   min-height: 24px;
   margin-left: -9px;
-  padding: 0 8px;
+  padding: 0 var(--delta-space-2);
   border: 1px solid transparent;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
 }
 
 /* Lit by the affordance the row belongs to, never by a crumb: a crumb's hover
  * offers navigation, not path entry. Editing keeps the outline standing. */
 .crumbBar:has(.crumbEditZone:focus-visible),
 .crumbBar:has(.pathInput) {
-  border-color: var(--dsw-alias-border-l2);
+  border-color: var(--delta-alias-border-l2);
 }
 
 @media (hover: hover) {
   .crumbBar:has(.crumbEditZone:enabled:hover) {
-    border-color: var(--dsw-alias-border-l2);
+    border-color: var(--delta-alias-border-l2);
   }
 }
 
@@ -88,7 +88,7 @@
   /* 12px of row gap on each side of the divider; the left side reads wider
    * by the column's trailing 8px scrollbar clearance, which is deliberate —
    * the thumb needs that room, the right pane's rows do not. */
-  gap: 12px;
+  gap: var(--delta-space-3);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -96,7 +96,7 @@
 .crumbTrail {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
@@ -106,7 +106,7 @@
 .crumbSeat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   flex: none;
   min-width: 0;
 }
@@ -119,28 +119,28 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 .crumb:focus-visible {
   /* The trail scrolls, so an outer ring would be clipped; keep it inside. */
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
 @media (hover: hover) {
   .crumb:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .crumbChevron {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The empty remainder of the bar: a real click target that flips the bar into
@@ -163,16 +163,16 @@
 
 .crumbEditGlyph {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .crumbEditZone:focus-visible .crumbEditGlyph {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .crumbEditZone:enabled:hover .crumbEditGlyph {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -181,7 +181,7 @@
 }
 
 .crumbEditZone:disabled .crumbEditGlyph {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 /* Chrome-free: the bar around it draws the box (border, radius, padding). */
@@ -194,9 +194,9 @@
   border: none;
   outline: none;
   background: transparent;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
 }
 
 /* Miller content: symmetric 16px vertical padding so the divider clears the
@@ -211,7 +211,7 @@
   position: relative;
   /* Right inset is slimmer than the left: the trailing column's own 8px
    * scrollbar clearance makes up the optical difference. */
-  padding: 16px 16px 16px 24px;
+  padding: var(--delta-space-4) var(--delta-space-4) var(--delta-space-4) var(--delta-space-6);
 }
 
 /* Columns split the row evenly around the divider (a solo column takes the
@@ -221,20 +221,20 @@
 .column {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   flex: 1 1 0;
   min-width: 256px;
   overflow-y: auto;
   /* The themed scrollbar occupies the column's edge (styled scrollbars are
    * classic, gutter-taking ones); the extra clearance keeps the row pills
    * clear of the thumb. */
-  padding-right: 8px;
+  padding-right: var(--delta-space-2);
 }
 
 .divider {
   flex: none;
   width: 0.5px;
-  background: var(--dsw-alias-border-l3);
+  background: var(--delta-alias-border-l3);
 }
 
 .rowSeat {
@@ -246,12 +246,12 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   height: 28px;
   flex: none;
-  padding: 4px;
+  padding: var(--delta-space-1);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -259,35 +259,35 @@
 
 .row:focus-visible {
   /* The column scrolls and its left edge carries no padding; keep the ring inside. */
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
 @media (hover: hover) {
   .row:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 /* Selection: pill fill + the open-folder glyph in the info accent. */
 .rowSelected {
-  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+  background: var(--delta-alias-interactive-bg-active, var(--delta-alias-interactive-bg-hover));
 }
 
 @media (hover: hover) {
   .rowSelected:hover {
-    background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+    background: var(--delta-alias-interactive-bg-active, var(--delta-alias-interactive-bg-hover));
   }
 }
 
 .rowIcon {
   flex: none;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .rowIconSelected {
   flex: none;
-  color: var(--dsw-alias-button-info-fill);
+  color: var(--delta-alias-button-info-fill);
 }
 
 .rowName {
@@ -296,34 +296,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .rowChevron {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .status,
 .error {
-  padding: 4px;
+  padding: var(--delta-space-1);
   /* The loading pill occupies the opposite corner while a stale status stays
    * visible. Reserve its widest localized footprint so wrapped text cannot
    * run underneath it on a narrow card. */
   padding-right: 120px;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .status {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .error {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 /* The slow-scan indicator floats over the content's bottom-RIGHT corner on
@@ -339,8 +339,8 @@
   position: absolute;
   right: 16px;
   bottom: 8px;
-  padding: 2px 8px;
-  background: var(--dsw-alias-bg-layer-2);
+  padding: var(--delta-space-0-5) var(--delta-space-2);
+  background: var(--delta-alias-bg-layer-2);
 }
 
 /* Footer: l3 separator on top, symmetric padding so the row sits vertically
@@ -351,10 +351,10 @@
   /* Narrow viewports wrap the confirm/cancel pair onto their own row
    * instead of clipping Open past the card's hidden overflow. */
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--delta-space-2);
   flex: none;
-  padding: 16px 24px;
-  border-top: 0.5px solid var(--dsw-alias-border-l3);
+  padding: var(--delta-space-4) var(--delta-space-6);
+  border-top: 0.5px solid var(--delta-alias-border-l3);
 }
 
 /* Show-hidden toggle: a subtle fixed-label text button left of the gap;
@@ -364,31 +364,31 @@
 .showHiddenToggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   border: none;
   background: transparent;
   padding: 0;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
   white-space: nowrap;
 }
 
 @media (hover: hover) {
   .showHiddenToggle:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .showHiddenToggle:disabled {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
   cursor: default;
 }
 
 .showHiddenToggleActive {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .footerGap {
@@ -409,47 +409,47 @@
 .createBody {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 22px 24px 20px;
+  gap: var(--delta-space-3);
+  padding: 22px var(--delta-space-6) var(--delta-space-5);
 }
 
 .createTitle {
   margin: 0;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 510;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-16);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .createIn {
   margin: 0;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  color: var(--delta-alias-label-primary);
 }
 
 .createInput {
   box-sizing: border-box;
   width: 100%;
   height: 44px;
-  padding: 7px 14px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-lg);
+  padding: 7px var(--delta-space-3-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-lg);
   outline: none;
   background: transparent;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  color: var(--delta-alias-label-primary);
 }
 
 .createInput::placeholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .createActions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--delta-space-2);
+  margin-top: var(--delta-space-2);
 }

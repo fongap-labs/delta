@@ -8,21 +8,21 @@
 .submenu {
   /* min-widths below are the design's outer card widths — include the pad. */
   box-sizing: border-box;
-  padding: 4px;
+  padding: var(--delta-space-1);
   display: flex;
   flex-direction: column;
   gap: 0;
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens. The
      declaration sits on the card rather than on `.scrollable .viewport`
      because the elevation is a property of this surface, and the custom
      properties inherit down to whichever descendant actually scrolls (see
      ui-theme styles/scrollbar.css for the rebinding contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  --dsh-menu-row-height: 34px;
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
+  --delta-menu-row-height: 34px;
 }
 
 /* Primary cards grow with their content between compact and readable bounds. */
@@ -30,7 +30,7 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
   min-width: min(144px, calc(100vw - 24px));
   max-width: min(360px, calc(100vw - 24px));
 }
@@ -42,88 +42,88 @@
 
 /* Every candidate reserves layout-window margins while browser zoom moves the page. */
 .portal {
-  --dsh-menu-window-top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  --delta-menu-window-top: max(12px, var(--delta-frame-overlay-top, 12px));
   position: fixed;
   position-area: none;
-  top: max(var(--dsh-menu-window-top), calc(anchor(bottom) + 4px));
+  top: max(var(--delta-menu-window-top), calc(anchor(bottom) + 4px));
   bottom: 12px;
   left: max(12px, anchor(left));
   right: 12px;
   justify-self: start;
   align-self: start;
   margin: 0;
-  position-try-fallbacks: --dsh-menu-wide-below, --dsh-menu-above, --dsh-menu-wide-above, --dsh-menu-window, --dsh-menu-wide-window;
+  position-try-fallbacks: --delta-menu-wide-below, --delta-menu-above, --delta-menu-wide-above, --delta-menu-window, --delta-menu-wide-window;
   width: max-content;
   height: fit-content;
-  z-index: 1100;
+  z-index: var(--delta-layer-overlay);
 }
 .portal[data-anchor-side='top'] {
-  top: var(--dsh-menu-window-top);
+  top: var(--delta-menu-window-top);
   bottom: max(12px, calc(anchor(top) + 4px));
   align-self: end;
-  position-try-fallbacks: --dsh-menu-wide-above, --dsh-menu-below, --dsh-menu-wide-below, --dsh-menu-window, --dsh-menu-wide-window;
+  position-try-fallbacks: --delta-menu-wide-above, --delta-menu-below, --delta-menu-wide-below, --delta-menu-window, --delta-menu-wide-window;
 }
 .portal[data-anchor-side='right'] {
-  top: max(var(--dsh-menu-window-top), anchor(top));
+  top: max(var(--delta-menu-window-top), anchor(top));
   bottom: 12px;
   left: max(12px, calc(anchor(right) + 4px));
   right: 12px;
-  position-try-fallbacks: --dsh-menu-left, --dsh-menu-wide-below, --dsh-menu-window, --dsh-menu-wide-window;
+  position-try-fallbacks: --delta-menu-left, --delta-menu-wide-below, --delta-menu-window, --delta-menu-wide-window;
 }
 .portal[data-anchor-align='end']:not([data-anchor-side='right']) {
   left: 12px;
   right: max(12px, anchor(right));
   justify-self: end;
-  --dsh-menu-wide-align: start;
+  --delta-menu-wide-align: start;
 }
 .portal[data-match-anchor-width] { min-width: min(anchor-size(width), calc(100vw - 24px)); }
-.portal[data-context-menu] { --dsh-menu-window-top: 12px; }
+.portal[data-context-menu] { --delta-menu-window-top: 12px; }
 
-@position-try --dsh-menu-below {
-  top: max(var(--dsh-menu-window-top), calc(anchor(bottom) + 4px));
+@position-try --delta-menu-below {
+  top: max(var(--delta-menu-window-top), calc(anchor(bottom) + 4px));
   bottom: 12px;
   align-self: start;
 }
-@position-try --dsh-menu-above {
-  top: var(--dsh-menu-window-top);
+@position-try --delta-menu-above {
+  top: var(--delta-menu-window-top);
   bottom: max(12px, calc(anchor(top) + 4px));
   align-self: end;
 }
-@position-try --dsh-menu-wide-below {
-  top: max(var(--dsh-menu-window-top), calc(anchor(bottom) + 4px));
+@position-try --delta-menu-wide-below {
+  top: max(var(--delta-menu-window-top), calc(anchor(bottom) + 4px));
   bottom: 12px;
   left: 12px;
   right: 12px;
   align-self: start;
-  justify-self: safe var(--dsh-menu-wide-align, end);
+  justify-self: safe var(--delta-menu-wide-align, end);
 }
-@position-try --dsh-menu-wide-above {
-  top: var(--dsh-menu-window-top);
+@position-try --delta-menu-wide-above {
+  top: var(--delta-menu-window-top);
   bottom: max(12px, calc(anchor(top) + 4px));
   left: 12px;
   right: 12px;
   align-self: end;
-  justify-self: safe var(--dsh-menu-wide-align, end);
+  justify-self: safe var(--delta-menu-wide-align, end);
 }
-@position-try --dsh-menu-left {
+@position-try --delta-menu-left {
   left: 12px;
   right: max(12px, calc(anchor(left) + 4px));
   justify-self: end;
 }
 /* A tall card keeps its trigger alignment before horizontal clamping is needed. */
-@position-try --dsh-menu-window {
-  top: var(--dsh-menu-window-top);
+@position-try --delta-menu-window {
+  top: var(--delta-menu-window-top);
   bottom: 12px;
   align-self: safe start;
 }
 
-@position-try --dsh-menu-wide-window {
-  top: var(--dsh-menu-window-top);
+@position-try --delta-menu-wide-window {
+  top: var(--delta-menu-window-top);
   left: 12px;
   right: 12px;
   bottom: 12px;
   align-self: safe start;
-  justify-self: safe var(--dsh-menu-wide-align, end);
+  justify-self: safe var(--delta-menu-wide-align, end);
 }
 
 /* Open above the anchor (empty-state workspace chip: figma 122:9481). */
@@ -140,15 +140,15 @@
 /* Tall lists scroll within the layout viewport, independently of pinch zoom.
  * Child cards use their own body portal, so a scrolling parent never clips them. */
 .scrollable {
-  max-height: calc(100vh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)));
-  max-height: calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)));
+  max-height: calc(100vh - 12px - max(12px, var(--delta-frame-overlay-top, 12px)));
+  max-height: calc(100dvh - 12px - max(12px, var(--delta-frame-overlay-top, 12px)));
 }
 
 .viewport {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(var(--dsh-menu-visible-rows) * var(--dsh-menu-row-height));
+  max-height: calc(var(--delta-menu-visible-rows) * var(--delta-menu-row-height));
 }
 
 .scrollable .viewport {
@@ -163,7 +163,7 @@
   flex-direction: column;
   margin-top: 3px;
   padding-top: 3px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .list[data-context-menu] .footer:has(> .separator:first-child) {
@@ -183,18 +183,18 @@
 }
 
 .search {
-  --dsh-search-field-height: var(--dsh-menu-row-height);
+  --delta-search-field-height: var(--delta-menu-row-height);
 }
 
 .searchStatus {
   box-sizing: border-box;
-  min-block-size: var(--dsh-menu-row-height);
+  min-block-size: var(--delta-menu-row-height);
   display: flex;
   align-items: center;
-  padding: 6px 8px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  padding: var(--delta-space-1-5) var(--delta-space-2);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
 }
 
 .itemWrap {
@@ -205,23 +205,23 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   width: 100%;
-  min-height: var(--dsh-menu-row-height);
-  padding: 6px 8px;
+  min-height: var(--delta-menu-row-height);
+  padding: var(--delta-space-1-5) var(--delta-space-2);
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
   cursor: pointer;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
   text-align: left;
 }
 
 @media (hover: hover) {
   .item:hover:not(:disabled):not([aria-disabled='true']) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -229,16 +229,16 @@
    same fill the pointer gets: the fill is the row's focus indication, and the
    browser's default ring would double it. */
 .item:focus-visible:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
   outline: none;
 }
 
 .denseList {
-  --dsh-menu-row-height: 30px;
+  --delta-menu-row-height: 30px;
 }
 
 .denseList .item {
-  padding-block: 4px;
+  padding-block: var(--delta-space-1);
 }
 
 .denseList .label {
@@ -247,16 +247,16 @@
 
 .list.compactList,
 .submenu.compactList {
-  --dsh-menu-row-height: 24px;
+  --delta-menu-row-height: 24px;
   min-width: min(156px, calc(100vw - 24px));
-  padding: 4px;
+  padding: var(--delta-space-1);
 }
 
 .compactList .item {
   gap: 5px;
-  padding: 2px 6px;
-  border-radius: var(--dsw-radius-sm);
-  font-size: 11px;
+  padding: var(--delta-space-0-5) var(--delta-space-1-5);
+  border-radius: var(--delta-radius-sm);
+  font-size: var(--delta-font-size-11);
   line-height: 17px;
 }
 
@@ -266,12 +266,12 @@
 }
 
 .compactList .separator {
-  margin: 2px 6px;
+  margin: var(--delta-space-0-5) var(--delta-space-1-5);
 }
 
 .compactList .label {
-  padding: 3px 6px;
-  font-size: 10px;
+  padding: 3px var(--delta-space-1-5);
+  font-size: var(--delta-font-size-10);
   line-height: 15px;
 }
 
@@ -288,7 +288,7 @@
   height: 14px;
   align-items: center;
   justify-content: center;
-  color: var(--dsw-alias-menu-icon);
+  color: var(--delta-alias-menu-icon);
 }
 
 .itemIcon svg,
@@ -317,9 +317,9 @@
 }
 
 .shortcut .shortcutKeys {
-  color: var(--dsw-alias-label-caption);
-  font-size: 11px;
-  line-height: 16px;
+  color: var(--delta-alias-label-caption);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
 }
 
 @media (pointer: coarse) {
@@ -330,7 +330,7 @@
 
 .check {
   flex: none;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 /* Selected cell keeps the plain fill (marker is the trailing check); the
@@ -341,43 +341,43 @@
 
 /* Fill-mode selection: the row holds the hover fill instead of a check. */
 .selectedFill {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 /* Destructive row: error text/icon, danger hover fill. */
 .danger {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .danger .itemIcon {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 @media (hover: hover) {
   .danger:hover:not(:disabled):not([aria-disabled='true']) {
-    background: var(--dsw-alias-interactive-bg-hover-danger);
+    background: var(--delta-alias-interactive-bg-hover-danger);
   }
 }
 
 .danger:focus-visible:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-danger);
+  background: var(--delta-alias-interactive-bg-hover-danger);
   outline: none;
 }
 
 /* Heading row: non-interactive small grey text, padding aligned with items. */
 .label {
-  padding: 6px 8px;
-  font-size: 11px;
+  padding: var(--delta-space-1-5) var(--delta-space-2);
+  font-size: var(--delta-font-size-11);
   line-height: 15px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* Separator endpoints align with the row content. The l2 stroke stays visible
  * on the menu surface. */
 .separator {
   height: 0.5px;
-  margin: 3px 8px;
-  background: var(--dsw-alias-border-l2);
+  margin: 3px var(--delta-space-2);
+  background: var(--delta-alias-border-l2);
 }
 
 /* A data separator directly followed by a row that starts a group draws one
@@ -409,34 +409,34 @@
  * supplies the active row's offset within the parent card and the child card's
  * natural height. */
 .submenu {
-  --dsh-menu-window-top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  --delta-menu-window-top: max(12px, var(--delta-frame-overlay-top, 12px));
   position: fixed;
-  position-anchor: var(--dsh-submenu-parent);
+  position-anchor: var(--delta-submenu-parent);
   position-visibility: always;
   margin: 0;
-  z-index: 1101;
+  z-index: var(--delta-layer-overlay-raised);
   width: max-content;
   min-width: min(163px, calc(100vw - 24px));
   max-width: min(360px, calc(100vw - 24px));
-  max-height: calc(100dvh - 12px - var(--dsh-menu-window-top));
+  max-height: calc(100dvh - 12px - var(--delta-menu-window-top));
 }
-.submenu[data-contextual] { --dsh-menu-window-top: 12px; }
+.submenu[data-contextual] { --delta-menu-window-top: 12px; }
 
 /* Side card: beside the parent card with a 4px gap, top edge on the active row,
  * moved up when its height does not fit below the row. The only placement
  * fallback is the left side. */
 .submenu[data-submenu-layout='side'] {
-  top: max(var(--dsh-menu-window-top), min(
-    calc(anchor(top) + var(--dsh-submenu-row-offset, 0px)),
-    calc(100dvh - 12px - var(--dsh-submenu-height, 0px))
+  top: max(var(--delta-menu-window-top), min(
+    calc(anchor(top) + var(--delta-submenu-row-offset, 0px)),
+    calc(100dvh - 12px - var(--delta-submenu-height, 0px))
   ));
   left: calc(anchor(right) + 4px);
   right: 12px;
   justify-self: start;
   height: max-content;
-  position-try-fallbacks: --dsh-submenu-left;
+  position-try-fallbacks: --delta-submenu-left;
 }
-@position-try --dsh-submenu-left {
+@position-try --delta-submenu-left {
   left: 12px;
   right: calc(anchor(left) + 4px);
   justify-self: end;
@@ -444,7 +444,7 @@
 
 /* Single-panel page: the child takes the parent card's place and at least its width. */
 .submenu[data-submenu-layout='page'] {
-  top: max(var(--dsh-menu-window-top), anchor(top));
+  top: max(var(--delta-menu-window-top), anchor(top));
   bottom: 12px;
   left: max(12px, anchor(left));
   right: 12px;

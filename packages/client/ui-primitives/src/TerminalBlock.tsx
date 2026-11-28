@@ -81,7 +81,7 @@ export interface TerminalBlockProps {
   /**
    * Draw the run-state dot and its assistive label in the card gutter
    * (default true). Hosts whose surrounding row already carries the same
-   * state omit both and reclaim the gutter via `--dsl-terminal-gutter`.
+   * state omit both and reclaim the gutter via `--delta-terminal-gutter`.
    */
   runStateDot?: boolean | undefined
   /** Extra class merged onto the wrapper (callers position; this component draws). */

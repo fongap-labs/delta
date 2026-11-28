@@ -10,7 +10,7 @@ vi.mock('../src/preload-menu.ts', () => ({ installWindowsMenu: () => ({ update: 
 afterEach(() => {
   window.dispatchEvent(new Event('pagehide'))
   document.documentElement.removeAttribute('data-windows-titlebar')
-  document.documentElement.style.removeProperty('--dsh-windows-titlebar-height')
+  document.documentElement.style.removeProperty('--delta-windows-titlebar-height')
   document.documentElement.lang = 'en'
   document.body.removeAttribute('data-ds-dark-theme')
   vi.restoreAllMocks()
@@ -42,7 +42,7 @@ it('synchronizes live language and palette changes and stops observing a closed 
   expect(send).not.toHaveBeenCalled()
   expect(document.documentElement.hasAttribute('data-windows-titlebar')).toBe(true)
   window.dispatchEvent(new Event('DOMContentLoaded'))
-  expect(document.documentElement.style.getPropertyValue('--dsh-windows-titlebar-height')).toBe('40px')
+  expect(document.documentElement.style.getPropertyValue('--delta-windows-titlebar-height')).toBe('40px')
   expect(send).toHaveBeenLastCalledWith(DESKTOP_IPC.windowsAppearance, 'en', 'rgba(255, 255, 255, 1)', 'rgba(0, 0, 0, 1)')
   document.documentElement.lang = 'zh-CN'
   document.body.setAttribute('data-ds-dark-theme', '')

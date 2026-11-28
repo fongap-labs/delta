@@ -78,7 +78,7 @@ root 作用域的 hoc Slot `conversation.hero.frame` 在所有阶段都包裹滚
 
 在粗指针设备上，composer 的草稿字号至少为 16px，以避免获得焦点时浏览器自动放大；更大的字号偏好仍然生效。
 
-控件组的尺寸、内容、可见性或字体加载状态变化后，composer 测量展开状态下的控件组。若无法排在同一行，控制栏为模型位设置 `--dsh-composer-model-text-display: none` 和 `--dsh-composer-model-icon-display: block`；两者默认值分别为 `block` 和 `none`。模型位按内容宽度（最多 360px）参与测量，而不是按行宽比例，因此长模型名在测量中保持可见。若连图标也放不下，仍允许换行。
+控件组的尺寸、内容、可见性或字体加载状态变化后，composer 测量展开状态下的控件组。若无法排在同一行，控制栏为模型位设置 `--delta-composer-model-text-display: none` 和 `--delta-composer-model-icon-display: block`；两者默认值分别为 `block` 和 `none`。模型位按内容宽度（最多 360px）参与测量，而不是按行宽比例，因此长模型名在测量中保持可见。若连图标也放不下，仍允许换行。
 
 上下文占用率入口遵循[统计控件圆角规则](../../../docs/ui-radius.zh.md#radius-scale)。
 
@@ -128,7 +128,7 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 
 <a id="end-reserve"></a>
 
-主 Conversation body 可以在行向末端空出一段位置，留给停在 transcript 旁边的内容，例如停靠的[会话面板](../ui-session-panel/README.zh.md#docking)。样式表在 `[data-conversation-content]` 元素上设置长度 `--dsh-chat-end-reserve` 来提出申请。滚动容器随即给末端加上 `--dsh-chat-end-inset` 的内边距，大小是所缺留白的两倍，居中的 transcript 列和输入框保持各自宽度向起始边缘移动，直到列后的空间等于预留值。`--dsh-chat-end-reserve-max` 是在列保持宽度和两侧内边距的前提下，起始留白能让出的最大预留；超出它的申请得不到任何内边距，因此申请方要先读取这个最大值，再依赖这段位置。这个最大值随每次缩放变化且不继承：样式表在 `[data-conversation-content]` 元素本身上读取它，并在那里把后代需要的值推导为已注册的长度，只有推导结果变化时该长度才变化。主体的其他变化输入同样不继承，传给后代的 `--dsh-chat-content-width` 与 `--dsh-chat-end-inset` 是计算后的长度，因此缩放只有在它们变化时才重新计算正文样式。主体从滚动容器的宽度推出这些长度，并把该宽度发布为 `--dsh-conversation-viewport-width`，因此它们在滚动容器、宽度拖拽条和 Chat 侧边层中的值相同。宽度拖拽条随列移动。内边距大于零时，预留固定了列的末端边缘，因此拖动任一拖拽条都只移动起始边缘，宽度的变化等于指针移动的距离而不是它的两倍；列被拖到超过起始留白能让出的宽度时不再有内边距，重新居中。内边距立即生效。样式表如果希望某次变化带动画，就在这次变化期间在同一个元素上再设置 `--dsh-chat-end-reserve-transition`（一个时长和一条缓动曲线），滚动容器的内边距和 Chat 侧边层的外边距随之一起过渡。嵌入式 occurrence 不让位：它的最大预留和内边距都是 0。
+主 Conversation body 可以在行向末端空出一段位置，留给停在 transcript 旁边的内容，例如停靠的[会话面板](../ui-session-panel/README.zh.md#docking)。样式表在 `[data-conversation-content]` 元素上设置长度 `--delta-chat-end-reserve` 来提出申请。滚动容器随即给末端加上 `--delta-chat-end-inset` 的内边距，大小是所缺留白的两倍，居中的 transcript 列和输入框保持各自宽度向起始边缘移动，直到列后的空间等于预留值。`--delta-chat-end-reserve-max` 是在列保持宽度和两侧内边距的前提下，起始留白能让出的最大预留；超出它的申请得不到任何内边距，因此申请方要先读取这个最大值，再依赖这段位置。这个最大值随每次缩放变化且不继承：样式表在 `[data-conversation-content]` 元素本身上读取它，并在那里把后代需要的值推导为已注册的长度，只有推导结果变化时该长度才变化。主体的其他变化输入同样不继承，传给后代的 `--delta-chat-content-width` 与 `--delta-chat-end-inset` 是计算后的长度，因此缩放只有在它们变化时才重新计算正文样式。主体从滚动容器的宽度推出这些长度，并把该宽度发布为 `--delta-conversation-viewport-width`，因此它们在滚动容器、宽度拖拽条和 Chat 侧边层中的值相同。宽度拖拽条随列移动。内边距大于零时，预留固定了列的末端边缘，因此拖动任一拖拽条都只移动起始边缘，宽度的变化等于指针移动的距离而不是它的两倍；列被拖到超过起始留白能让出的宽度时不再有内边距，重新居中。内边距立即生效。样式表如果希望某次变化带动画，就在这次变化期间在同一个元素上再设置 `--delta-chat-end-reserve-transition`（一个时长和一条缓动曲线），滚动容器的内边距和 Chat 侧边层的外边距随之一起过渡。嵌入式 occurrence 不让位：它的最大预留和内边距都是 0。
 
 内置输入栏通过 `conversation.input.placeholder` 为可编辑会话的空输入框提供占位提示。插件通过 chain 的选择器匹配拥有者传入的 `sessionId`。匹配的组件可渲染本地化文字或不参与交互的行内 JSX，例如 `<kbd>/</kbd>`。提示可见时，其文字用作输入框的无障碍名称。所有选择器均返回 `null` 时，输入栏按当前状态显示首页、Plan 或默认提示。选择工作区、输入受阻、会话不可用或可将排队消息送入当前轮次时，输入栏显示相应的内置提示。
 

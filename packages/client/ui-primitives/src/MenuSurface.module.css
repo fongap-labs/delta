@@ -1,10 +1,10 @@
 .surface,
 .backing {
-  border-radius: var(--dsw-radius-lg);
+  border-radius: var(--delta-radius-lg);
 }
 
 .compact {
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 :where(.surface) {
@@ -12,7 +12,7 @@
 }
 
 .surface {
-  anchor-name: var(--dsh-menu-anchor);
+  anchor-name: var(--delta-menu-anchor);
   isolation: isolate;
 }
 
@@ -23,8 +23,8 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--dsw-menu-surface-fill);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  background: var(--delta-menu-surface-fill);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
   pointer-events: none;
 }
 
@@ -38,26 +38,26 @@
 :global(html[data-platform='darwin']) .backing {
   display: block;
   position: fixed;
-  position-anchor: var(--dsh-menu-anchor);
+  position-anchor: var(--delta-menu-anchor);
   top: anchor(top);
   left: anchor(left);
   width: anchor-size(width, 0px);
   height: anchor-size(height, 0px);
   z-index: -1;
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
   pointer-events: none;
 }
 
 /* Opacity on the container would prevent its material from blurring the page.
  * Enter animations release their compositing layers so nested menus can blur too. */
 .surface[data-menu-phase='enter'] > *,
-.backing[data-menu-phase='enter'] { animation: dsh-context-menu-in var(--dsh-menu-enter) ease-out; }
+.backing[data-menu-phase='enter'] { animation: dsh-context-menu-in var(--delta-menu-enter) ease-out; }
 .surface[data-menu-phase='dismiss'] > *,
 .backing[data-menu-phase='dismiss'],
 .surface[data-menu-phase='replace'] > *,
-.backing[data-menu-phase='replace'] { animation: dsh-context-menu-out var(--dsh-menu-dismiss) ease-in both; }
+.backing[data-menu-phase='replace'] { animation: dsh-context-menu-out var(--delta-menu-dismiss) ease-in both; }
 .surface[data-menu-phase='replace'] > *,
-.backing[data-menu-phase='replace'] { animation-duration: var(--dsh-menu-replace); }
+.backing[data-menu-phase='replace'] { animation-duration: var(--delta-menu-replace); }
 @keyframes dsh-context-menu-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dsh-context-menu-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
@@ -66,6 +66,6 @@
 
 /* Windows has no native vibrancy to blur, so the translucent fill shows an off-theme tint; use the opaque theme base. */
 :global(html[data-platform='win32']) .material {
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
   backdrop-filter: none;
 }

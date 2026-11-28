@@ -3,9 +3,9 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 0;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-2);
+  padding: var(--delta-space-4) 0;
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .rowText {
@@ -13,51 +13,51 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-right: 48px;
+  gap: var(--delta-space-1);
+  padding-right: var(--delta-space-12);
 }
 
 /* Narrow settings panel: the 48px gutter separates the label from its control
    across a wide row and only squeezes the label here. */
 @media (max-width: 767px) {
   :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .rowText {
-    padding-right: 16px;
+    padding-right: var(--delta-space-4);
   }
 }
 
 .title {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-regular);
+  line-height: var(--delta-line-height-22);
+  color: var(--delta-alias-label-primary);
 }
 
 .desc {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  font-weight: var(--delta-font-weight-regular);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .selector {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--delta-space-3);
   height: 36px;
-  padding: 0 14px;
+  padding: 0 var(--delta-space-3-5);
   border: none;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-module-platform);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  color: var(--delta-alias-label-primary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .selector:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 

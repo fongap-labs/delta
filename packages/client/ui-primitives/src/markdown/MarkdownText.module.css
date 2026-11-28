@@ -5,37 +5,37 @@
 .markdown {
   min-width: 0;
   overflow-wrap: anywhere;
-  font: var(--dsw-font-markdown-base);
-  color: var(--dsw-alias-label-primary);
+  font: var(--delta-font-markdown-base);
+  color: var(--delta-alias-label-primary);
 }
 
 .markdown strong {
-  font-weight: 600;
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .markdown h1 {
-  font: var(--dsw-font-markdown-h1);
-  margin: 32px 0 16px;
+  font: var(--delta-font-markdown-h1);
+  margin: var(--delta-space-8) 0 var(--delta-space-4);
 }
 
 .markdown h2 {
-  font: var(--dsw-font-markdown-h2);
-  margin: 32px 0 16px;
+  font: var(--delta-font-markdown-h2);
+  margin: var(--delta-space-8) 0 var(--delta-space-4);
 }
 
 .markdown h3 {
-  font: var(--dsw-font-markdown-h3);
-  margin: 32px 0 16px;
+  font: var(--delta-font-markdown-h3);
+  margin: var(--delta-space-8) 0 var(--delta-space-4);
 }
 
 .markdown h4 {
-  font: var(--dsw-font-markdown-h4);
-  margin: 16px 0;
+  font: var(--delta-font-markdown-h4);
+  margin: var(--delta-space-4) 0;
 }
 
 .markdown :where(h5, h6) {
-  font: var(--dsw-font-markdown-base-strong);
-  margin: 16px 0;
+  font: var(--delta-font-markdown-base-strong);
+  margin: var(--delta-space-4) 0;
 }
 
 .markdown :where(h1, h2, h3, h4, h5, h6) strong {
@@ -43,18 +43,18 @@
 }
 
 .markdown p {
-  margin: 16px 0;
+  margin: var(--delta-space-4) 0;
 }
 
 /* Tighten h4–h6 against a following list (design: 8px gap). */
 .markdown :where(h4, h5, h6) + :where(ul, ol) {
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
 }
 
 .markdown :where(h4):has(+ :where(ul, ol)),
 .markdown :where(h5):has(+ :where(ul, ol)),
 .markdown :where(h6):has(+ :where(ul, ol)) {
-  margin-bottom: 8px;
+  margin-bottom: var(--delta-space-2);
 }
 
 .markdown a,
@@ -62,9 +62,9 @@
   /* deepsuite markdown.css uses brand-text (blue in newDesign); this sheet
      keeps design-platform brand-text as near-black, so links use the
      dedicated link alias instead. */
-  color: var(--dsw-alias-link);
-  font-weight: 500;
-  transition: box-shadow var(--ds-transition-duration) var(--ds-ease-in-out);
+  color: var(--delta-alias-link);
+  font-weight: var(--delta-font-weight-medium);
+  transition: box-shadow var(--delta-transition-duration) var(--delta-ease-in-out);
   position: relative;
   text-decoration: none;
   /* Transparent hit-area padding; literal zero-alpha only (no painted color). */
@@ -78,21 +78,21 @@
 
 .markdown a:focus {
   outline: none;
-  text-decoration: underline dotted var(--dsw-alias-link);
+  text-decoration: underline dotted var(--delta-alias-link);
   text-underline-offset: 3px;
 }
 
 @media (hover: hover) {
   .markdown a:hover {
     outline: none;
-    text-decoration: underline dotted var(--dsw-alias-link);
+    text-decoration: underline dotted var(--delta-alias-link);
     text-underline-offset: 3px;
   }
 }
 
 .markdown a:focus-visible,
 .fileMention:focus-visible {
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  box-shadow: 0 0 0 2px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 /* Inline icon boxes follow the text middle, preserving their internal whitespace.
@@ -110,21 +110,21 @@
 }
 
 .markdown :where(ul, ol) {
-  margin: 16px 0;
+  margin: var(--delta-space-4) 0;
   padding-left: 18px;
 }
 
 .markdown li:not(:first-child) {
-  margin-top: 6px;
+  margin-top: var(--delta-space-1-5);
 }
 
 .markdown li > :where(ul, ol) {
-  margin-top: 4px;
+  margin-top: var(--delta-space-1);
 }
 
 .markdown li::marker {
-  line-height: 24px;
-  color: var(--dsw-alias-label-secondary);
+  line-height: var(--delta-line-height-24);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* Nested ol under ul/ol: markers inside (models sometimes emit this shape). */
@@ -138,7 +138,7 @@
 }
 
 .markdown li > p {
-  margin: 8px 0;
+  margin: var(--delta-space-2) 0;
 }
 
 .markdown li > *:first-child {
@@ -154,19 +154,19 @@
   display: block;
   border: none;
   height: 0.5px;
-  margin: 32px 0;
-  background: var(--dsw-alias-border-l2);
+  margin: var(--delta-space-8) 0;
+  background: var(--delta-alias-border-l2);
 }
 
 .markdown blockquote {
-  border-left: 2px solid var(--dsw-alias-label-caption);
-  margin: 16px 0 0;
-  padding-left: 14px;
+  border-left: 2px solid var(--delta-alias-label-caption);
+  margin: var(--delta-space-4) 0 0;
+  padding-left: var(--delta-space-3-5);
 }
 
 .markdown pre {
-  margin: 16px 0;
-  font-family: var(--ds-font-family-code);
+  margin: var(--delta-space-4) 0;
+  font-family: var(--delta-font-family-code);
   overflow: auto;
 }
 
@@ -174,18 +174,18 @@
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
-  font: var(--dsw-font-markdown-code);
-  font-family: var(--ds-font-family-code);
+  font: var(--delta-font-markdown-code);
+  font-family: var(--delta-font-family-code);
   font-size: 0.875em !important;
-  background-color: var(--dsw-alias-markdown-inline-code);
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
+  background-color: var(--delta-alias-markdown-inline-code);
+  border: 0.5px solid var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-sm);
   padding: 0 5px;
 }
 
 .markdown :where(h1, h2, h3, h4, h5, h6) code {
   font: inherit;
-  font-family: var(--ds-font-family-code);
+  font-family: var(--delta-font-family-code);
 }
 
 .markdown :global(.katex-display) {
@@ -195,8 +195,8 @@
 }
 
 .markdown input[type='checkbox'] {
-  margin: 0 8px 0 0;
-  accent-color: var(--dsw-alias-label-secondary);
+  margin: 0 var(--delta-space-2) 0 0;
+  accent-color: var(--delta-alias-label-secondary);
 }
 
 .tableScroll {
@@ -223,7 +223,7 @@
 @media (hover: hover) {
   .tableScroll:global(.md-table-wide) {
     overflow-x: hidden;
-    padding-bottom: var(--dsh-scrollbar-width, 5px);
+    padding-bottom: var(--delta-scrollbar-width, 5px);
   }
 
   .tableScroll:global(.md-table-wide):hover {
@@ -236,7 +236,7 @@
    the sheet's link focus color. */
 .tableScroll:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  box-shadow: 0 0 0 2px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 /* Many-column tables (the renderer's `md-table-wide` hook) keep their
@@ -259,19 +259,19 @@
 
 .tableScroll th {
   text-align: start;
-  padding: 10px 16px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  padding: var(--delta-space-2-5) var(--delta-space-4);
+  border-bottom: 0.5px solid var(--delta-alias-border-l3);
   border-top: none;
-  font: var(--dsw-font-markdown-table-head);
+  font: var(--delta-font-markdown-table-head);
   max-width: 320px;
   max-width: min(30vw, 320px);
   min-width: 100px;
 }
 
 .tableScroll td {
-  padding: 10px 16px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
-  font: var(--dsw-font-markdown-table);
+  padding: var(--delta-space-2-5) var(--delta-space-4);
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
+  font: var(--delta-font-markdown-table);
   max-width: 320px;
   max-width: min(30vw, 320px);
   min-width: 100px;
@@ -287,7 +287,7 @@
 }
 
 .tableScroll table code {
-  font-size: 11px;
+  font-size: var(--delta-font-size-11);
 }
 
 .markdown > *:first-child,
@@ -301,7 +301,7 @@
 }
 
 .imageAlt {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font-style: italic;
 }
 
@@ -311,8 +311,8 @@
   max-width: 100%;
   height: auto;
   margin: 0;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-base);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-base);
   object-fit: contain;
 }
 
@@ -326,8 +326,8 @@
   border: none;
   background: none;
   font: inherit;
-  font-weight: 500;
-  color: var(--dsw-alias-link);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-link);
   text-decoration: none;
   cursor: pointer;
 }
@@ -339,42 +339,42 @@
 
 .fileMention:focus {
   outline: none;
-  text-decoration: underline dotted var(--dsw-alias-link);
+  text-decoration: underline dotted var(--delta-alias-link);
   text-underline-offset: 3px;
 }
 
 @media (hover: hover) {
   .fileMention:hover {
     outline: none;
-    text-decoration: underline dotted var(--dsw-alias-link);
+    text-decoration: underline dotted var(--delta-alias-link);
     text-underline-offset: 3px;
   }
 }
 
 .compact {
   max-width: 100%;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--delta-content-font-delta-secondary, 0px));
+  color: var(--delta-alias-label-tertiary);
 }
 
 .compact :is(h1, h2, h3, h4, h5, h6) {
-  margin: 8px 0 4px;
+  margin: var(--delta-space-2) 0 var(--delta-space-1);
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--delta-font-weight-semibold);
   color: inherit;
 }
 
 .compact :is(p, ul, ol, blockquote) {
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
 }
 
 .compact li:not(:first-child) {
-  margin-top: 2px;
+  margin-top: var(--delta-space-0-5);
 }
 
 .compact li > p {
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
 }
 
 .compact li::marker {
@@ -383,11 +383,11 @@
 }
 
 .compact blockquote {
-  padding-left: 8px;
+  padding-left: var(--delta-space-2);
 }
 
 .compact hr {
-  margin: 8px 0;
+  margin: var(--delta-space-2) 0;
 }
 
 .compact a,
@@ -412,15 +412,15 @@
 .compact :not(pre) > code {
   display: inline;
   font: inherit;
-  font-family: var(--ds-font-family-code);
+  font-family: var(--delta-font-family-code);
   font-size: 1em !important;
-  border-radius: var(--dsw-radius-xs);
+  border-radius: var(--delta-radius-xs);
   padding: 0 3px;
   box-decoration-break: clone;
 }
 
 .markdown.compact :global(.md-code-block) {
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
   color: inherit;
 }
 
@@ -438,7 +438,7 @@
 .markdown.compact .tableScroll {
   width: 100%;
   max-width: 100%;
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
   padding-left: 0;
 }
 
@@ -447,12 +447,12 @@
 }
 
 .compact :is(th, td) {
-  padding: 4px 8px;
+  padding: var(--delta-space-1) var(--delta-space-2);
   font: inherit;
 }
 
 .compact th {
-  font-weight: 600;
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .compact :global(.katex) {
@@ -476,7 +476,7 @@
 }
 
 .compact :global(.katex-display) {
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
 }
 
 .imageButton {
@@ -484,29 +484,29 @@
   max-width: 100%;
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
   vertical-align: middle;
   cursor: zoom-in;
 }
 .imageButton .image { max-width: min(100%, 640px); max-height: 360px; }
-.imageButton:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }
+.imageButton:focus-visible { outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary)); outline-offset: 3px; }
 .previewName {
   display: block;
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 /* A fence that a delegate renders sits in this box, which takes a code
    block's spacing among its siblings; the blocks inside it carry none, so
    wrappers between the box and a block do not change the document rhythm. */
 .fenceSeat {
-  margin: 16px 0;
+  margin: var(--delta-space-4) 0;
 }
 
 .fenceSeat:not(:last-child) {
@@ -514,7 +514,7 @@
 }
 
 .markdown.compact .fenceSeat {
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
 }
 
 .markdown .fenceSeat :is(:global(.md-code-block), :global(.katex-display)) {

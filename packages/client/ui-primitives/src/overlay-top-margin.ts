@@ -11,7 +11,7 @@
  */
 export function overlayTopMargin(min: number, anchor?: { readonly top: number; readonly bottom: number }, gap = 0): number {
   const root = document.documentElement
-  const clearance = Number.parseFloat(getComputedStyle(root).getPropertyValue('--dsh-frame-top-clearance'))
+  const clearance = Number.parseFloat(getComputedStyle(root).getPropertyValue('--delta-frame-top-clearance'))
   if (Number.isNaN(clearance)) return min
   const cap = anchor !== undefined && anchor.top >= 0 ? anchor.bottom + gap : Number.POSITIVE_INFINITY
   return Math.max(min, Math.min((root.hasAttribute('data-fullscreen') ? 0 : clearance) + 20, cap))

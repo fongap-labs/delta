@@ -30,21 +30,21 @@ describe('HoverCard.module.css', () => {
 
   it('tries the start side, then a bottom-held card on either side, then below the anchor and above it, then the viewport\'s corner', () => {
     expect(declarations('.compact').get('position-try-fallbacks')).toBe(
-      'flip-inline, --dsh-hover-card-low, --dsh-hover-card-low flip-inline, --dsh-hover-card-below, --dsh-hover-card-above, --dsh-hover-card-held',
+      'flip-inline, --delta-hover-card-low, --delta-hover-card-low flip-inline, --delta-hover-card-below, --delta-hover-card-above, --delta-hover-card-held',
     )
-    const low = declarations('@position-try --dsh-hover-card-low')
+    const low = declarations('@position-try --delta-hover-card-low')
     expect([low.get('position-area'), low.get('align-self')]).toEqual(['inline-end span-all', 'end'])
   })
 
   it('keeps a card that fits on neither side off its anchor: 8px below or above it, from the anchor\'s start edge', () => {
-    const below = declarations('@position-try --dsh-hover-card-below')
+    const below = declarations('@position-try --delta-hover-card-below')
     expect([below.get('position-area'), below.get('inset')]).toEqual(['block-end span-inline-end', '8px 8px 8px 0'])
-    const above = declarations('@position-try --dsh-hover-card-above')
+    const above = declarations('@position-try --delta-hover-card-above')
     expect([above.get('position-area'), above.get('inset')]).toEqual(['block-start span-inline-end', '8px 8px 8px 0'])
   })
 
   it('holds a card too tall to go below or above its anchor at the viewport\'s bottom and end margins, as the last fallback', () => {
-    const held = declarations('@position-try --dsh-hover-card-held')
+    const held = declarations('@position-try --delta-hover-card-held')
     expect([held.get('position-area'), held.get('justify-self'), held.get('align-self')]).toEqual(['span-all', 'end', 'end'])
   })
 })

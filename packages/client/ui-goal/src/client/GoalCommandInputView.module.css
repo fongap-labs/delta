@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .stack {
@@ -13,21 +13,21 @@
   /* Mirrors the user bubble in ui-conversation MessageItem.module.css: the
      figma 525px cap as a share of the width axis (525/748 ≈ 0.702), with the
      same 748px fallback outside the conversation column. */
-  max-width: min(calc(var(--dsh-chat-content-width, 748px) * 0.702), 82%);
+  max-width: min(calc(var(--delta-chat-content-width, 748px) * 0.702), 82%);
 }
 
 .bubble {
   max-width: 100%;
-  padding: 10px 16px;
+  padding: var(--delta-space-2-5) var(--delta-space-4);
   overflow-wrap: anywhere;
-  border-radius: var(--dsw-radius-xl);
-  background: var(--dsw-specific-bubble);
-  color: var(--dsw-alias-label-primary);
+  border-radius: var(--delta-radius-xl);
+  background: var(--delta-specific-bubble);
+  color: var(--delta-alias-label-primary);
   /* The command echo is a user message: it inherits the body face like the
      user bubble and rides the same Settings font-size axis (14/22 at the
      default); the `/goal` command chip, set in the code face by the shared
      projection, is what marks the line as a command. */
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size, 14px);
+  line-height: calc(22px + var(--delta-content-font-delta, 0px));
   white-space: pre-wrap;
 }
