@@ -6,7 +6,6 @@ import { formatRunDuration } from './message-chrome.ts'
 import a11yCss from './accessibility.module.css'
 import css from './TurnProcessNodeView.module.css'
 
-/** Settled Turn duration and process disclosure above its content. */
 export const TurnProcessNodeView = memo(function TurnProcessNodeView({
   node, turnProcess, t,
 }: ChatNodeViewProps<'turn-process'>) {

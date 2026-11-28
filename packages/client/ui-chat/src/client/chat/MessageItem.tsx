@@ -129,7 +129,6 @@ function ModelRetryItem({ node, active, t }: {
   )
 }
 
-/** Persistent, turn-positioned feedback for a terminal failure. */
 function TurnErrorItem({ node, t }: {
   node: TurnErrorNode
   t: ChatViewSlotProps['t']
@@ -146,7 +145,6 @@ function TurnErrorItem({ node, t }: {
   )
 }
 
-/** Persistent, turn-positioned notice for a turn ended at the output-token cap. */
 function TurnMaxTokensItem({ t }: {
   t: ChatViewSlotProps['t']
 }) {
@@ -176,7 +174,6 @@ const UNDECORATED_ROW: DecoratedRow = { kind: 'user', data: { source: null } }
 /** Occupant used by rows that do not own the message-source seat. */
 const NO_MESSAGE_SOURCE: PropsRenderSlots<'conversation.chat.user.before'>['renderSlotChain'] = () => null
 
-/** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   node, renderSlotChain, content, loadImage, renderFactorySlot, actions,
   pending = false, echo = false, batchStart = false,
@@ -361,7 +358,6 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
   )
 })
 
-/** Injected-context keyed Chat renderer. */
 export const ContextMessageNodeView = memo(function ContextMessageNodeView({ node, t }: ChatNodeViewProps<'context'>) {
   const data = node.data
   return (
@@ -375,7 +371,6 @@ export const ContextMessageNodeView = memo(function ContextMessageNodeView({ nod
   )
 })
 
-/** Automatic compaction keyed Chat renderer. */
 export const CompactionNodeView = memo(function CompactionNodeView({
   node, openCompaction, useCompactionPreview, t,
 }: ChatNodeViewProps<'compaction'> & InjectFace<CompactionRowInjected>) {
@@ -405,23 +400,19 @@ export const InheritedHistoryNodeView = memo(function InheritedHistoryNodeView({
   )
 })
 
-/** Correlated retry-chain keyed Chat renderer. */
 export const RetryNodeView = memo(function RetryNodeView({ node, t }: ChatNodeViewProps<'model-retry'>) {
   const data = node.data
   return <ModelRetryItem node={data.current} active={data.current.retryState === 'scheduled'} t={t} />
 })
 
-/** Terminal turn-error keyed Chat renderer. */
 export const TurnErrorNodeView = memo(function TurnErrorNodeView({ node, t }: ChatNodeViewProps<'turn-error'>) {
   return <TurnErrorItem node={node.data} t={t} />
 })
 
-/** Max-tokens turn-end notice keyed Chat renderer. */
 export const TurnMaxTokensNodeView = memo(function TurnMaxTokensNodeView({ t }: ChatNodeViewProps<'turn-max-tokens'>) {
   return <TurnMaxTokensItem t={t} />
 })
 
-/** Explicit unknown-surface keyed Chat renderer. */
 export const UnknownNodeView = memo(function UnknownNodeView({ node, t }: ChatNodeViewProps<'unknown'>) {
   const data = node.data
   return (

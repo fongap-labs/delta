@@ -12,7 +12,6 @@ import type { CompactionSummaryNode } from '../contract/snapshot.ts'
 import a11yCss from './accessibility.module.css'
 import css from './MessageItem.module.css'
 
-/** Session-bound checkpoint navigation for manual and automatic compaction rows. */
 export interface CompactionRowInjected {
   hooks: { compactionPreview: ObservableSnapshot<boolean> }
   openCompaction: (seq: number, signal: AbortSignal) => Promise<string | null>

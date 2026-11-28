@@ -3,11 +3,9 @@ import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-sl
 import type { ChatFileMentions, ChatNodeViewProps, PresentationInjected, TurnTailOwnerProps } from '../contract/slots.ts'
 import { AssistantMarkdown } from './AssistantMarkdown.tsx'
 
-/** Business readers owned by the assistant renderer's existing Slot registration. */
 export interface AssistantNodeInjected extends PresentationInjected {
   /** Resolve against the live Session directory. @param path - Recorded path. @returns Host path. */
   resolveFilePath: (path: string) => string
-  /** Resolve closing-Turn mentions with the supplied ordinary file gesture callback. */
   fileMentions: (owner: TurnTailOwnerProps, getFileTriggerProps: NonNullable<Parameters<ChatFileMentions['forClosing']>[2]>) => ReturnType<ChatFileMentions['forClosing']>
 }
 

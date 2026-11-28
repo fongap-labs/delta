@@ -1,4 +1,3 @@
-/** Ordered Chat rows, local echoes, and running status share the flow slot's parent. */
 import { memo, type ReactElement } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import { assertNever } from '@deepseek-ai/dsh-util-values'

@@ -2,7 +2,6 @@ import { memo } from 'react'
 import type { ChatViewSlotProps, CommandRowOwnerProps } from '../contract/slots.ts'
 import { CommandStatusRow } from './CommandStatusRow.tsx'
 
-/** Card props: the owner payload plus the render site's locale seat (plain prop). */
 export interface GenericCommandCardProps extends CommandRowOwnerProps {
   t: ChatViewSlotProps['t']
   /** Command-specific running copy; absent uses the generic command label. */

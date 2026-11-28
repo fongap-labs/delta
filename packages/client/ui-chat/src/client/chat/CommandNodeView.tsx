@@ -10,7 +10,6 @@ import css from './ChatView.module.css'
 
 type CommandNodeViewProps = ChatNodeViewProps<'command'> & PropsRenderSlots<'conversation.chat.commandview'>
 
-/** Ordinary command lifecycle renderer with command-name keyed specialization. */
 export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot, t }: CommandNodeViewProps) {
   const command = node.data
   const owner = useMemo<CommandRowOwnerProps>(() => ({ node: command }), [command])
@@ -24,7 +23,6 @@ export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot,
   )
 })
 
-/** One integrated `/compact` command and compaction transaction renderer. */
 export const ManualCompactionNodeView = memo(function ManualCompactionNodeView({
   node, openCompaction, useCompactionPreview, t,
 }: ChatNodeViewProps<'manual-compaction'> & InjectFace<CompactionRowInjected>) {
