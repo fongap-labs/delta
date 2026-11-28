@@ -7,7 +7,6 @@ export interface DesktopSettings {
 }
 
 /**
- * Initialize the shared document explicitly at startup, then resolve the popup preference.
  * @param userData - Electron userData, independent of DSH_HOME.
  * @returns Validated popup preference, or false with a diagnostic on failure; changes require restart.
  */
