@@ -6,7 +6,7 @@ import { globSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, posix, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { transform } from 'lightningcss'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 import {
   PACKAGE_ASSET_EXPORT,
   PACKAGE_ASSET_EXPORT_TARGET,

@@ -1,7 +1,7 @@
 /** Resolve producer opt-ins and core-owned source bindings before schema extraction. */
 
 import { relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 import type { SourceCompatibility } from './persistence-schema-model.ts'
 
 const CORE_SOURCE = 'packages/llm/llm/src/message.ts'

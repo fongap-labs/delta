@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs'
 import { dirname, extname, relative, resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 import { collectLogEvents } from './persistence-catalog-source.ts'
 import { sourceCompatibilityAnnotations } from './persistence-source-annotations.ts'
 import { validSourceCompatibility } from './persistence-source-policy.ts'

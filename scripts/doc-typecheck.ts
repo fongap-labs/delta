@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process'
 import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 import { builtDeclarationPath, isFrozenUpgradeGuidePath } from './doc-typecheck-paths.ts'
 import { markdownFences } from './markdown.ts'
 import { partitionPairedMarkdownDerivatives } from './paired-markdown-derivatives.ts'
