@@ -2,7 +2,7 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 import { experimentalPackageRecordNamespace } from './experimental-package-policy.ts'
 import { parseJsDoc, pointer, rawJsDoc, reportViolations } from './jsdoc.ts'
 

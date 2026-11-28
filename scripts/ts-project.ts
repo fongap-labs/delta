@@ -4,7 +4,7 @@
  */
 
 import { relative, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 
 interface ProjectGraph {
   rootNames: string[]

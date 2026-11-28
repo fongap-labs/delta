@@ -34,7 +34,7 @@
 
 import { globSync, readFileSync } from 'node:fs'
 import { join, posix, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from './semantic-compiler-api.ts'
 import { EXISTING_PLUGIN_ENTRY_EXPORTS } from './plugin-entry-existing-exports.ts'
 import { TypeScriptProject, type CompilerFace } from './ts-project.ts'
 
