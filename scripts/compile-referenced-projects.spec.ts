@@ -9,7 +9,13 @@ import { runCiBench } from './run-ci-bench.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 import { setPublishedFiles, writeTypertWorkspace } from './typert-workspace.fixture.ts'
 
-const compiler = fileURLToPath(import.meta.resolve('typescript/bin/tsc'))
+const compiler = fileURLToPath(import.meta.resolve('@typescript/native/bin/tsc'))
+
+it('runs the pinned native build compiler rather than the semantic API compiler', () => {
+  const result = spawnSync(process.execPath, [compiler, '--version'], { encoding: 'utf8' })
+  expect(result.status, result.stderr).toBe(0)
+  expect(result.stdout.trim()).toBe('Version 7.0.2')
+})
 
 function fixture(): { root: string; leaf: string } {
   const root = mkdtempSync(join(tmpdir(), 'dsh-referenced-projects-'))

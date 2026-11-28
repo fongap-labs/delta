@@ -56,7 +56,7 @@ export function referencedProjectsCompilerArgs(
   mode: CompilationMode = 'checked',
 ): string[] {
   const configPath = resolve(root, `tsconfig.${face}.json`)
-  const compiler = fileURLToPath(import.meta.resolve('typescript/bin/tsc'))
+  const compiler = fileURLToPath(import.meta.resolve('@typescript/native/bin/tsc'))
   // Resolve the effective config with the same compiler used for the build.
   // The native TypeScript compiler does not expose the old JavaScript config API.
   const result = spawnSync(process.execPath, [
@@ -102,7 +102,7 @@ export function referencedProjectsCompilerArgs(
  * @returns Arguments for `process.execPath`, run from the repository root.
  */
 export function aggregateCheckArgs(face: 'host' | 'client'): string[] {
-  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-p', `tsconfig.${face}.json`]
+  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('@typescript/native/bin/tsc')), '-p', `tsconfig.${face}.json`]
 }
 
 /**
@@ -113,7 +113,7 @@ export function aggregateCheckArgs(face: 'host' | 'client'): string[] {
  * @returns Arguments for `process.execPath`, run from the repository root.
  */
 export function aggregateBuildArgs(face: 'host' | 'client'): string[] {
-  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('typescript/bin/tsc')), '-b', `tsconfig.${face}.json`]
+  return ['--max-old-space-size=8192', fileURLToPath(import.meta.resolve('@typescript/native/bin/tsc')), '-b', `tsconfig.${face}.json`]
 }
 
 function hostHeapArgs(face: 'host' | 'client'): string[] {

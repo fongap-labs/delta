@@ -190,7 +190,7 @@ function compileBlocksStandalone(blocks: Block[], face: 'host' | 'client', repos
     }
     try {
       // Invoke tsc's JS entry through Node instead of a platform-specific shell shim.
-      execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-b', join(tmp, 'tsconfig.json')], {
+      execFileSync(process.execPath, [join(root, 'node_modules/@typescript/native/bin/tsc'), '-b', join(tmp, 'tsconfig.json')], {
         cwd: repositoryRoot,
         stdio: 'pipe',
       })
