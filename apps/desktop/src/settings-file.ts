@@ -24,9 +24,7 @@ export type DesktopSettingsProblem =
 /** A storage or validation failure; business consumers decide fallback or suspension. */
 export class DesktopSettingsFileError extends Error {
   /**
-   * @param problem - Stable failure classification and mutation outcome, when applicable.
    * @param path - Settings file location, never file contents.
-   * @param options - Original filesystem error, when available.
    */
   constructor(readonly problem: DesktopSettingsProblem, readonly path: string, options?: ErrorOptions) {
     super(`desktop settings: ${problem.kind}: ${path}`, options)
@@ -58,17 +56,13 @@ function field<T>(schema: z.ZodType<T>, value: unknown, name: keyof DesktopUpdat
 
 /**
  * Validate a channel at the IPC boundary using the same schema as file loading.
- * @param value - Untrusted input.
- * @returns Whether the input is a supported channel.
  */
 export function isDesktopUpdateChannel(value: unknown): value is DesktopUpdatePreferences['channel'] {
   return preferencesSchema.shape.channel.safeParse(value).success
 }
 
 /**
- * Resolve the document shared by shell preferences and update channels.
  * @param userData - Electron userData, independent of Host and DSH_HOME.
- * @returns Settings file path without filesystem changes.
  */
 function desktopSettingsPath(userData: string): string {
   return join(userData, 'desktop', 'settings.json')
@@ -109,7 +103,6 @@ export class DesktopSettingsFile {
 
   /**
    * Explicit startup initialization; existing files, including invalid ones, are never replaced.
-   * @returns Current file state after exclusive creation if missing, or a structured failure.
    */
   async initialize(): Promise<DesktopSettingsRead> {
     const current = await this.read()

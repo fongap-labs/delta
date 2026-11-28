@@ -34,7 +34,6 @@ export class DesktopUpdateSettings {
 
   /**
    * Save a selection while preserving other fields; never changes the runtime selection itself.
-   * @param channel - Validated UI selection.
    * @returns After a confirmed write, including logged lock-release failures.
    * Uncertain writes reject without retry; diagnostics are appended to settings.json.save.jsonl.
    */
