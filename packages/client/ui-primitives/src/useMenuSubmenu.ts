@@ -56,7 +56,7 @@ export function useMenuSubmenu(options: {
     && item.submenu !== undefined && item.submenu.length > 0)
   const trigger = expanded?.trigger ?? null
   const anchorId = useId().replaceAll(':', '')
-  const parentAnchor = `--dsh-submenu-parent-${anchorId}`
+  const parentAnchor = `--delta-submenu-parent-${anchorId}`
   // Null until the active child has been measured against the layout viewport.
   const [needsPage, setNeedsPage] = useState<boolean | null>(null)
   const contains = (node: Node | null): boolean => panelRef.current?.contains(node) === true
@@ -77,14 +77,14 @@ export function useMenuSubmenu(options: {
     const parent = listRef.current
     if (!visible || panel === null || parent === null || trigger === null) { setNeedsPage(null); return }
     const measureRow = (): void => {
-      panel.style.setProperty('--dsh-submenu-row-offset', `${trigger.getBoundingClientRect().top - parent.getBoundingClientRect().top}px`)
+      panel.style.setProperty('--delta-submenu-row-offset', `${trigger.getBoundingClientRect().top - parent.getBoundingClientRect().top}px`)
     }
     // The layout uses the side card's natural size, not the size a page layout gives it.
     const measure = (): void => {
       const layout = panel.getAttribute('data-submenu-layout')
       panel.removeAttribute('data-submenu-layout')
       const width = panel.offsetWidth
-      panel.style.setProperty('--dsh-submenu-height', `${panel.offsetHeight}px`)
+      panel.style.setProperty('--delta-submenu-height', `${panel.offsetHeight}px`)
       if (layout !== null) panel.setAttribute('data-submenu-layout', layout)
       measureRow()
       const viewport = document.documentElement.clientWidth || window.innerWidth

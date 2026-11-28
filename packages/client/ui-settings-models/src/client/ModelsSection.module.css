@@ -1,4 +1,4 @@
-/* Every color resolves through a `--dsw-alias-*` token. Bare `--border` /
+/* Every color resolves through a `--delta-alias-*` token. Bare `--border` /
  * `--surface` / `--text-*` names, which nothing in this app defines, would
  * render the light-mode literals written as their fallbacks and stay light
  * under the dark theme. */
@@ -6,38 +6,38 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--delta-space-6);
   max-width: 720px;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-16);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .intro {
   margin: 0;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .notice {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-warn-label);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-state-warn-label);
 }
 
 .savedNotice {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-success-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-state-success-primary);
 }
 
 .rows {
@@ -46,38 +46,38 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 /* Provider cards share the settings material; editors use the inset module fill. */
 .rowCard {
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  background: var(--dsw-alias-settings-card-fill);
-  border-radius: var(--dsw-radius-xl);
-  padding: 12px 14px;
+  border: 0.5px solid var(--delta-alias-settings-card-stroke);
+  background: var(--delta-alias-settings-card-fill);
+  border-radius: var(--delta-radius-xl);
+  padding: var(--delta-space-3) var(--delta-space-3-5);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--delta-space-4);
 }
 
 .rowHead {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 .rowIdentity {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
 }
 
 .rowName {
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 /* Reads as an annotation on the name, not as a second name: caption size and
@@ -86,12 +86,12 @@
    beside the name rather than drifting toward the actions. */
 .rowTag {
   flex: none;
-  padding: 1px 6px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-xs);
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-secondary);
+  padding: 1px var(--delta-space-1-5);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-xs);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-secondary);
 }
 
 .credentialDot {
@@ -105,27 +105,27 @@
 }
 
 .credentialDotConfigured {
-  background: var(--dsw-alias-state-success-primary);
+  background: var(--delta-alias-state-success-primary);
 }
 
 .credentialDotMissing {
-  background: var(--dsw-alias-state-error-primary);
+  background: var(--delta-alias-state-error-primary);
 }
 
 .accountStatus {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-state-success-primary);
+  gap: var(--delta-space-1-5);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-state-success-primary);
 }
 
 .rowActions {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   margin-left: auto;
 }
 
@@ -139,43 +139,43 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   height: 36px;
-  padding: 0 14px;
+  padding: 0 var(--delta-space-3-5);
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
   cursor: pointer;
 }
 
 .primaryButton {
-  background: var(--dsw-alias-button-primary-fill);
-  color: var(--dsw-alias-label-primary-foreground);
+  background: var(--delta-alias-button-primary-fill);
+  color: var(--delta-alias-label-primary-foreground);
 }
 
 @media (hover: hover) {
   .primaryButton:hover:not(:disabled) {
-    background: var(--dsw-alias-button-primary-hover);
+    background: var(--delta-alias-button-primary-hover);
   }
 }
 
 .secondaryButton,
 .addButton {
-  border: 0.5px solid var(--dsw-alias-border-l3);
+  border: 0.5px solid var(--delta-alias-border-l3);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .secondaryButton:hover:not(:disabled),
   .addButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 
   .secondaryButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover-solid);
+    background: var(--delta-alias-interactive-bg-hover-solid);
   }
 }
 
@@ -185,20 +185,20 @@
   align-items: center;
   justify-content: center;
   height: 36px;
-  padding: 0 14px;
+  padding: 0 var(--delta-space-3-5);
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .dangerButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover-danger);
+    background: var(--delta-alias-interactive-bg-hover-danger);
   }
 }
 
@@ -206,10 +206,10 @@
 .rowActions .secondaryButton,
 .rowActions .dangerButton {
   height: 28px;
-  padding: 0 10px;
-  border-radius: var(--dsw-radius-sm);
-  font-size: 12px;
-  line-height: 18px;
+  padding: 0 var(--delta-space-2-5);
+  border-radius: var(--delta-radius-sm);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .primaryButton:disabled,
@@ -231,80 +231,80 @@
 .iconButton:focus-visible,
 .customizedSummary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  box-shadow: 0 0 0 2px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 /* Editing surface: a filled module on the panel, matching the settings
    selector fill rather than adding another outline inside the row. */
 .editor {
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-module-platform);
-  padding: 14px 16px;
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-module-platform);
+  padding: var(--delta-space-3-5) var(--delta-space-4);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--delta-space-3-5);
 }
 
 .editorHeader {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .editorTitle {
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .editorRoute {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .fieldLabel {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-secondary);
+  gap: var(--delta-space-2-5);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-secondary);
 }
 
 .helpButton {
   width: 16px;
   height: 16px;
   padding: 0;
-  border: 0.5px solid var(--dsw-alias-border-l3);
+  border: 0.5px solid var(--delta-alias-border-l3);
   border-radius: 50%;
   corner-shape: round;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--delta-font-size-11);
   line-height: 15px;
   text-align: center;
   cursor: help;
 }
 
 .helpButton:focus-visible {
-  color: var(--dsw-alias-label-primary);
-  border-color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-primary);
+  border-color: var(--delta-alias-label-tertiary);
 }
 
 @media (hover: hover) {
   .helpButton:hover {
-    color: var(--dsw-alias-label-primary);
-    border-color: var(--dsw-alias-label-tertiary);
+    color: var(--delta-alias-label-primary);
+    border-color: var(--delta-alias-label-tertiary);
   }
 }
 
@@ -313,45 +313,45 @@
   display: inline-flex;
   align-items: center;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--delta-space-2-5);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font: inherit;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .linkButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-secondary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
 .advancedHint {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .editorActions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .addBlock > .editorActions {
-  margin-top: 12px;
+  margin-top: var(--delta-space-3);
 }
 
 .addBlock {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 /* The one entry to the add card, spanning the same width as the rows above. */
@@ -366,10 +366,10 @@
      affordance on this page, to read as a place rather than a command. */
   flex: 1 1 0;
   min-width: 180px;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   height: 44px;
-  border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
+  border: 1px dashed var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
 }
 
 /* The add card's mode switch with the one-line purpose of the chosen mode
@@ -378,7 +378,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 /* One panel per mode. Both stay mounted while the card is open; the hidden
@@ -387,7 +387,7 @@
 .addPanel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--delta-space-3-5);
 }
 
 .addPanel[hidden] {
@@ -396,12 +396,12 @@
 
 .addCard,
 .setupCard {
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-module-platform);
-  padding: 14px 16px;
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-module-platform);
+  padding: var(--delta-space-3-5) var(--delta-space-4);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--delta-space-3-5);
   list-style: none;
 }
 
@@ -413,8 +413,8 @@
 }
 
 .customized {
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
-  padding-top: 10px;
+  border-top: 0.5px solid var(--delta-alias-border-l2);
+  padding-top: var(--delta-space-2-5);
 }
 
 /* Native disclosure marker replaced by a rotating chevron: the built-in
@@ -422,16 +422,16 @@
 .customizedSummary {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   width: fit-content;
-  padding: 2px 4px;
-  margin-left: -4px;
-  border-radius: var(--dsw-radius-sm);
+  padding: var(--delta-space-0-5) var(--delta-space-1);
+  margin-left: calc(-1 * var(--delta-space-1));
+  border-radius: var(--delta-radius-sm);
   cursor: pointer;
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-secondary);
   list-style: none;
 }
 
@@ -446,7 +446,7 @@
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
   transform: rotate(-45deg) translate(-1px, -1px);
-  transition: transform 120ms ease;
+  transition: transform var(--delta-transition-duration-120ms) ease;
 }
 
 .customized[open] > .customizedSummary::before,
@@ -456,51 +456,51 @@
 
 /* The nested fold labels a part of the retry policy, so it reads at field-label weight. */
 .retryFold > .customizedSummary {
-  font-weight: 400;
-  color: var(--dsw-alias-label-tertiary);
+  font-weight: var(--delta-font-weight-regular);
+  color: var(--delta-alias-label-tertiary);
 }
 
 @media (hover: hover) {
   .customizedSummary:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .customizedBody {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 12px;
+  gap: var(--delta-space-3);
+  padding-top: var(--delta-space-3);
 }
 
 .modelCatalog {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-3);
+  padding-top: var(--delta-space-4);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .modelCatalogHeading {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
 }
 
 .modelCatalogTitle {
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-secondary);
 }
 
 .modelCatalogMeta,
 .modelEmpty {
   margin: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .modelList {
@@ -515,18 +515,18 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .modelEntry {
   container: model-row / inline-size;
   display: grid;
   grid-template-columns: 28px minmax(0, 1.4fr) minmax(0, 1fr) 28px 28px;
-  column-gap: 6px;
+  column-gap: var(--delta-space-1-5);
   position: relative;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-lg);
-  padding: 6px;
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-lg);
+  padding: var(--delta-space-1-5);
 }
 
 .modelRow {
@@ -534,7 +534,7 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .modelName {
@@ -560,7 +560,7 @@
     display: none;
     grid-column: 1 / -1;
     grid-row: 2;
-    padding: 2px 4px 0;
+    padding: var(--delta-space-0-5) var(--delta-space-1) 0;
   }
 
   .modelRow[data-expanded] .modelName {
@@ -585,7 +585,7 @@
 }
 
 .modelDragPreview {
-  background: var(--dsw-alias-bg-module-platform);
+  background: var(--delta-alias-bg-module-platform);
 }
 
 /* Cover half the row gap plus the border's inward, pixel-rounded positioning edge. */
@@ -614,17 +614,17 @@
     linear-gradient(
       55deg,
       transparent calc(50% - 1px),
-      var(--dsw-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
+      var(--delta-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     ) 0 0 / 5px 7px no-repeat,
     linear-gradient(
       125deg,
       transparent calc(50% - 1px),
-      var(--dsw-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
+      var(--delta-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     ) 0 5px / 5px 7px no-repeat,
     linear-gradient(
-      var(--dsw-alias-state-business-primary) 0 0
+      var(--delta-alias-state-business-primary) 0 0
     ) 4px 5px / calc(100% - 4px) 2px no-repeat;
 }
 
@@ -646,16 +646,16 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .iconButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-hover);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -667,8 +667,8 @@
 /* The delete glyph keeps the danger tint the rest of the section uses. */
 @media (hover: hover) {
   .iconButtonDanger:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover-danger);
-    color: var(--dsw-alias-state-error-primary);
+    background: var(--delta-alias-interactive-bg-hover-danger);
+    color: var(--delta-alias-state-error-primary);
   }
 }
 
@@ -676,30 +676,30 @@
   display: grid;
   grid-column: 2 / 4;
   grid-template-columns: subgrid;
-  row-gap: 16px;
-  padding: 16px 0 6px;
+  row-gap: var(--delta-space-4);
+  padding: var(--delta-space-4) 0 var(--delta-space-1-5);
 }
 
 /* Retry-policy fields under the mode select: codes and count, then the folded backoff values. */
 .retryBody {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 4px;
+  gap: var(--delta-space-3);
+  margin-top: var(--delta-space-1);
 }
 
 /* Code checkboxes in as many even columns as fit. */
 .retryCodeChoices {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 6px 16px;
+  gap: var(--delta-space-1-5) var(--delta-space-4);
 }
 
 /* Custom error-code input beside its Add action. */
 .retryCodeAdd {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--delta-space-2);
+  margin-top: var(--delta-space-2);
 }
 
 /* One backoff column wide, so the count lines up with the delay fields below. */
@@ -712,15 +712,15 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   align-items: end;
-  gap: 12px 8px;
-  padding-top: 8px;
+  gap: var(--delta-space-3) var(--delta-space-2);
+  padding-top: var(--delta-space-2);
 }
 
 .modelField {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .modelInputTypes {
@@ -733,42 +733,42 @@
 
 .modelInputTypes legend {
   padding: 0;
-  margin-bottom: 6px;
+  margin-bottom: var(--delta-space-1-5);
 }
 
 .modelInputChoices {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-height: 32px;
   align-items: center;
 }
 
 .modelFieldLabel {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .modelReasoning {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
 }
 
 .modelReasoningLabel {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .modelReasoningHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 /* Level select, API value, and delete action; the column labels share the grid. */
@@ -776,7 +776,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .modelReasoningRow .selectInput {
@@ -784,14 +784,14 @@
 }
 
 .modelReasoningValueInput {
-  font-family: var(--ds-font-family-code);
-  font-size: 13px;
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-13);
 }
 
 .modelEmpty {
-  padding: 12px;
-  border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
+  padding: var(--delta-space-3);
+  border: 1px dashed var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
   text-align: center;
 }
 
@@ -800,23 +800,23 @@
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   height: 32px;
-  padding: 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
+  padding: 0 var(--delta-space-2-5);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   font: inherit;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   cursor: pointer;
-  margin-top: 4px;
+  margin-top: var(--delta-space-1);
 }
 
 @media (hover: hover) {
   .addModelButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -824,14 +824,14 @@
   box-sizing: border-box;
   width: 100%;
   height: 32px;
-  padding: 0 10px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
+  padding: 0 var(--delta-space-2-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  background: var(--delta-alias-bg-layer-1);
+  color: var(--delta-alias-label-primary);
 }
 
 /* Enum pickers hold a handful of short options; a field-width dropdown reads
@@ -843,11 +843,11 @@ select.input {
 
 .input:focus {
   outline: none;
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 .input::placeholder {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .input:disabled {
@@ -860,12 +860,12 @@ select.input {
 }
 
 .savedKeyInput .input::placeholder {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   opacity: 1;
 }
 
 .keyInputFilled {
-  padding-right: 40px;
+  padding-right: var(--delta-space-10);
 }
 
 .keyToggle {
@@ -877,20 +877,20 @@ select.input {
   width: 32px;
   padding: 0;
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: none;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .keyToggle:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .keyToggle:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -904,7 +904,7 @@ select.input {
    .select chips; the right pad reserves its cell. */
 .selectInput {
   appearance: none;
-  padding-right: 32px;
+  padding-right: var(--delta-space-8);
   /* Data-URI SVGs cannot resolve CSS variables; #81858C is the caption gray
      shared by both themes. */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2381858C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -915,9 +915,9 @@ select.input {
 
 .error {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .deleteDialog {
@@ -925,13 +925,13 @@ select.input {
 }
 
 .deleteConfirm:not(:disabled) {
-  --dsh-button-outline-color: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-state-error-primary);
+  --delta-button-outline-color: var(--delta-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 @media (hover: hover) {
   .deleteConfirm:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover-danger);
+    background: var(--delta-alias-interactive-bg-hover-danger);
   }
 }
 
@@ -960,15 +960,15 @@ select.input {
      scrollbar indirection is rebound here rather than on the scrolling child:
      the elevation choice belongs with the surface and inherits down (see
      ui-theme styles/scrollbar.css for the contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .candidateToolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: var(--delta-space-2);
+  margin-bottom: var(--delta-space-1-5);
 }
 
 .candidateSearch {
@@ -979,7 +979,7 @@ select.input {
 .candidateList {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   max-height: 320px;
   margin: 0;
   overflow-y: auto;
@@ -988,43 +988,43 @@ select.input {
 }
 
 .candidate {
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 .candidateLabel {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: var(--delta-space-2);
+  padding: var(--delta-space-1-5) var(--delta-space-2);
   cursor: pointer;
 }
 
 .candidateId {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: var(--ds-font-family-code);
-  font-size: 13px;
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-13);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .candidateEmpty {
-  margin: 24px 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
+  margin: var(--delta-space-6) 0;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
   text-align: center;
 }
 
 .sectionHeader {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
 }
 
 @media (pointer: coarse) {
   .input {
-    font-size: 16px;
+    font-size: var(--delta-font-size-16);
   }
 }

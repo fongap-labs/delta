@@ -88,10 +88,10 @@ describe('plugin page touch rules', () => {
   it('gives touch clients a press state where the hover state is fenced off', () => {
     // Touch-down feedback is the only cue left once hover is fenced: without it a
     // card reads as inert until its detail page appears.
-    expect(ruleBody('.cardLink:active')).toContain('background: var(--dsw-alias-interactive-bg-active)')
-    expect(ruleBody('.iconButton:active:not(:disabled)')).toContain('background: var(--dsw-alias-interactive-bg-active)')
+    expect(ruleBody('.cardLink:active')).toContain('background: var(--delta-alias-interactive-bg-active)')
+    expect(ruleBody('.iconButton:active:not(:disabled)')).toContain('background: var(--delta-alias-interactive-bg-active)')
     expect(ruleBody('.deleteButton:active:not(:disabled)'))
-      .toContain('background: var(--dsw-alias-interactive-bg-hover-danger, var(--dsw-alias-interactive-bg-hover))')
+      .toContain('background: var(--delta-alias-interactive-bg-hover-danger, var(--delta-alias-interactive-bg-hover))')
   })
 
   it('keeps focused text fields at 16px under a coarse pointer', () => {
@@ -104,6 +104,6 @@ describe('plugin page touch rules', () => {
     for (const selector of [".installField input[type='text']", '.registryCustomField', '.partsFilter input']) {
       expect(rule?.[1]).toContain(selector)
     }
-    expect(rule?.[2]).toContain('font-size: 16px')
+    expect(rule?.[2]).toContain('font-size: var(--delta-font-size-16)')
   })
 })

@@ -2,31 +2,31 @@
 .sessionRow {
   display: flex;
   align-items: center;
-  gap: var(--dsh-sidebar-label-gap);
-  border-radius: var(--dsw-radius-md);
-  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
+  gap: var(--delta-sidebar-label-gap);
+  border-radius: var(--delta-radius-md);
+  border-inline: var(--delta-sidebar-paint-inset) solid transparent;
   background-clip: padding-box;
   box-sizing: border-box;
-  padding: 0 8px;
-  padding-inline-start: calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset) + var(--dsh-workspace-indent, 0px));
+  padding: 0 var(--delta-space-2);
+  padding-inline-start: calc(var(--delta-sidebar-row-padding) - var(--delta-sidebar-paint-inset) + var(--delta-workspace-indent, 0px));
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .projectRow:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .sessionRow.selected {
-  background-color: var(--dsw-alias-interactive-bg-hover);
+  background-color: var(--delta-alias-interactive-bg-hover);
 }
 
 .dragPreview {
-  background: var(--dsw-specific-sidebar-fill);
+  background: var(--delta-specific-sidebar-fill);
 }
 
 .searchResultRow {
@@ -37,24 +37,24 @@
   min-height: 48px;
   box-sizing: border-box;
   border: none;
-  border-radius: var(--dsw-radius-lg);
-  padding: 4px calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset));
-  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
+  border-radius: var(--delta-radius-lg);
+  padding: 4px calc(var(--delta-sidebar-row-padding) - var(--delta-sidebar-paint-inset));
+  border-inline: var(--delta-sidebar-paint-inset) solid transparent;
   background: transparent;
   background-clip: padding-box;
   cursor: pointer;
   text-align: left;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .searchResultRow:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .searchResultRow.selected {
-  background-color: var(--dsw-alias-interactive-bg-hover);
+  background-color: var(--delta-alias-interactive-bg-hover);
 }
 
 .searchResultHeading {
@@ -66,20 +66,20 @@
 .searchResultTitle {
   flex: 0 1 auto;
   min-width: 0;
-  margin: 0 var(--dsh-sidebar-label-gap);
+  margin: 0 var(--delta-sidebar-label-gap);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
 }
 
 .searchResultMeta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
-  margin-left: calc(16px + var(--dsh-sidebar-label-gap));
+  margin-left: calc(16px + var(--delta-sidebar-label-gap));
 }
 
 .searchResultWorkspace,
@@ -87,14 +87,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--delta-font-size-12);
   line-height: 17px;
 }
 
 .searchResultWorkspace {
   flex: none;
   max-width: 40%;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The 40% share only protects a snippet; a snippetless match keeps the row. */
@@ -105,7 +105,7 @@
 .searchResultSnippet {
   flex: 1;
   min-width: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* Compact one-line Workspace row after removing the session-count subtitle. */
@@ -126,7 +126,7 @@
 }
 
 .sessionRow .title {
-  margin: 0 12px 0 var(--dsh-sidebar-label-gap);
+  margin: 0 12px 0 var(--delta-sidebar-label-gap);
 }
 
 .slot {
@@ -136,7 +136,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .visuallyHidden {
@@ -149,7 +149,7 @@
 }
 
 .folderActive {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
 }
 
 
@@ -163,7 +163,7 @@
 
 /* Expand arrow (filled triangle): points right closed, rotates to point down open. */
 .arrow {
-  transition: transform 150ms var(--ds-ease-in-out);
+  transition: transform var(--delta-transition-duration-150ms) var(--delta-ease-in-out);
 }
 
 .arrowOpen {
@@ -175,7 +175,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
 }
 
 .title {
@@ -183,18 +183,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
 }
 
 .renameInput {
   min-width: 0;
-  font-size: 14px;
-  line-height: 20px;
-  padding: 0 2px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-button-elevated-fill);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  padding: 0 var(--delta-space-0-5);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-button-elevated-fill);
   color: inherit;
   outline: none;
 }
@@ -211,16 +211,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .time {
   flex: none;
-  font-size: 10px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-10);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-label-tertiary);
   margin-inline-end: -1px;
 }
 
@@ -231,8 +231,8 @@
   height: 20px;
   align-items: center;
   justify-content: center;
-  margin-left: 6px;
-  color: var(--dsw-alias-label-caption);
+  margin-left: var(--delta-space-1-5);
+  color: var(--delta-alias-label-caption);
 }
 
 /* Archived rows stay in place but read as inactive: titles drop to
@@ -243,7 +243,7 @@
 .searchResultRow.archived .searchResultTitle,
 .searchResultRow.archived .searchResultWorkspace,
 .searchResultRow.archived .searchResultSnippet {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 .dot {
@@ -255,7 +255,7 @@
   flex: none;
   display: none;
   align-items: center;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 /* Keep 14px between the Session title and the first glyph, including its slot inset. */
@@ -288,8 +288,8 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--dsw-alias-label-tertiary);
+  gap: var(--delta-space-1-5);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .rowResting .pinIndicator {
@@ -302,7 +302,7 @@
    unguarded rule would strand that row without its ellipsis. */
 @media (hover: hover) {
   .sessionRow:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 
   .sessionRow:hover .rowActions,
@@ -348,7 +348,7 @@
    hover fill while its dropdown is up). */
 .projectRow.menuOpen,
 .sessionRow.menuOpen {
-  background-color: var(--dsw-alias-interactive-bg-hover);
+  background-color: var(--delta-alias-interactive-bg-hover);
 }
 
 /* Session drag insert marker: a leading chevron and 2px rule between rows,
@@ -363,24 +363,24 @@
   content: '';
   position: absolute;
   z-index: 1;
-  left: calc(-1 * var(--dsh-sidebar-paint-inset));
-  right: calc(4px - var(--dsh-sidebar-paint-inset));
+  left: calc(-1 * var(--delta-sidebar-paint-inset));
+  right: calc(4px - var(--delta-sidebar-paint-inset));
   height: 12px;
   background:
     linear-gradient(
       55deg,
       transparent calc(50% - 1px),
-      var(--dsw-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
+      var(--delta-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     ) 0 0 / 5px 7px no-repeat,
     linear-gradient(
       125deg,
       transparent calc(50% - 1px),
-      var(--dsw-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
+      var(--delta-alias-state-business-primary) calc(50% - 1px) calc(50% + 1px),
       transparent calc(50% + 1px)
     ) 0 5px / 5px 7px no-repeat,
     linear-gradient(
-      var(--dsw-alias-state-business-primary) 0 0
+      var(--delta-alias-state-business-primary) 0 0
     ) 4px 5px / calc(100% - 4px) 2px no-repeat;
   pointer-events: none;
 }
@@ -397,42 +397,42 @@
 .hoverContent {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .hoverTitle {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--dsw-alias-hovercard-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-hovercard-label-primary);
   overflow-wrap: break-word;
 }
 
 .hoverPath {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--dsw-alias-hovercard-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-hovercard-label-secondary);
   word-break: break-all;
 }
 
 .hoverTime {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--dsw-alias-hovercard-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-16);
+  color: var(--delta-alias-hovercard-label-secondary);
 }
 
 .hoverStatus {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--dsw-alias-hovercard-label-tertiary);
+  gap: var(--delta-space-2);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-hovercard-label-tertiary);
 }
 
 /* Archive glyph rides the status row's text color; slight inset aligns it with the 6px status dots. */
 .hoverArchived svg {
   flex-shrink: 0;
-  margin: 0 -4px;
+  margin: 0 calc(-1 * var(--delta-space-1));
 }
 
 /* Compensated margins keep the 24px target on the compact icon's center. */
@@ -443,13 +443,13 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin: -4px;
+  margin: calc(-1 * var(--delta-space-1));
   border: none;
-  border-radius: var(--dsw-radius-xs);
+  border-radius: var(--delta-radius-xs);
   padding: 0;
   background: transparent;
   cursor: pointer;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .iconButton > svg {
@@ -464,14 +464,14 @@
 
 @media (hover: hover) {
   .iconButton:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 /* Chevrons ride the caption grey (#ADB2B8); the folder glyph stays one step
    darker (tertiary, #81858C) per the cell spec. */
 .chevron {
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,26 +7,26 @@
    mid-slide. */
 
 .root {
-  --dsh-sidebar-inline-padding: 8px;
-  --dsh-sidebar-row-padding: 12px;
-  --dsh-sidebar-label-gap: 6px;
-  --dsh-sidebar-paint-inset: 3px;
+  --delta-sidebar-inline-padding: 8px;
+  --delta-sidebar-row-padding: var(--delta-space-3);
+  --delta-sidebar-label-gap: 6px;
+  --delta-sidebar-paint-inset: 3px;
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 6px var(--dsh-sidebar-inline-padding);
+  padding: 6px var(--delta-sidebar-inline-padding);
   box-sizing: border-box;
-  background: var(--dsw-specific-sidebar-fill);
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
+  background: var(--delta-specific-sidebar-fill);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
   /* The sidebar is elevated above the conversation surface, so a revealed
      scrollbar uses the l2 pair. .quietBars hides it without changing layout. */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 :global([data-animating]:not([data-dragging])) .root {
-  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: width var(--delta-transition-duration-slow) var(--delta-ease-in-out);
 }
 
 /* macOS desktop: the AppFrame column owns the translucent sidebar tint; an
@@ -39,7 +39,7 @@
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
-  padding: 18px 10px 6px;
+  padding: 18px var(--delta-space-2-5) var(--delta-space-1-5);
 }
 
 /* The brand stays in the sidebar; fixed caption controls survive zero-width collapse. */
@@ -51,7 +51,7 @@
 
 :global([data-windows-titlebar]) .toggle {
   position: fixed;
-  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
+  top: calc((var(--delta-windows-titlebar-height) - 28px) / 2);
   left: 12px;
   z-index: 30;
   -webkit-app-region: no-drag;
@@ -62,7 +62,7 @@
 }
 
 :global([data-windows-titlebar]) .root:not(.collapsed) .brand {
-  padding-left: 8px;
+  padding-left: var(--delta-space-2);
 }
 
 :global([data-windows-titlebar]) .brandIdentity {
@@ -74,7 +74,7 @@
 }
 
 :global([data-windows-titlebar]) .brandName {
-  font-weight: 400;
+  font-weight: var(--delta-font-weight-regular);
 }
 
 :global([data-windows-titlebar]) .root.collapsed {
@@ -82,7 +82,7 @@
 }
 
 :global([data-windows-titlebar]) .root:not(.collapsed) .newSessionRow {
-  margin-top: 6px;
+  margin-top: var(--delta-space-1-5);
 }
 
 :global([data-windows-titlebar]) .collapsed .panelList,
@@ -92,12 +92,12 @@
 }
 
 :global(html[data-windows-titlebar]:has([data-sidebar-collapsed='true'])) {
-  --dsh-windows-menu-start: 84px;
+  --delta-windows-menu-start: 84px;
 }
 
 :global([data-windows-titlebar]) .collapsed .newSession {
   position: fixed;
-  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
+  top: calc((var(--delta-windows-titlebar-height) - 28px) / 2);
   left: 48px;
   margin: 0;
   padding: 0;
@@ -115,8 +115,8 @@
 :global([data-windows-titlebar]) .collapsed .newSession {
   width: 28px;
   height: 28px;
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-label-secondary);
+  border-radius: var(--delta-radius-sm);
+  color: var(--delta-alias-label-secondary);
 }
 
 :global([data-windows-titlebar]) .collapsed .toggle .panelIcon {
@@ -138,23 +138,23 @@
    during the delay sees no change. The collapse rule's `transition: width`
    outranks this one, so a leave during collapse or expand hides at once. */
 .root.quietBars {
-  --dsh-scrollbar-thumb: transparent;
-  --dsh-scrollbar-thumb-hover: transparent;
+  --delta-scrollbar-thumb: transparent;
+  --delta-scrollbar-thumb-hover: transparent;
   transition:
-    --dsh-scrollbar-thumb 200ms linear 500ms,
-    --dsh-scrollbar-thumb-hover 200ms linear 500ms;
+    --delta-scrollbar-thumb var(--delta-transition-duration) linear var(--delta-transition-duration-500ms),
+    --delta-scrollbar-thumb-hover var(--delta-transition-duration) linear var(--delta-transition-duration-500ms);
 }
 
 /* Collapse phase 1: the whole frozen-width content fades out in place over
    150ms; at settle the children unmount/snap to the rail layout. */
 .fading > * {
   opacity: 0;
-  transition: opacity 150ms var(--ds-ease-in-out);
+  transition: opacity var(--delta-transition-duration-150ms) var(--delta-ease-in-out);
 }
 
 /* Wide-only content fades back in on expand remount. */
 .wide {
-  animation: wide-in 200ms var(--ds-ease-in-out);
+  animation: wide-in var(--delta-transition-duration) var(--delta-ease-in-out);
 }
 
 @keyframes wide-in {
@@ -175,11 +175,11 @@
 .railIn .newSessionRow > :global([data-slot='sidebar.session.action']) > *,
 .railIn .panelList,
 .railIn .regionArea {
-  animation: rail-in 150ms var(--ds-ease-in-out) backwards;
+  animation: rail-in var(--delta-transition-duration-150ms) var(--delta-ease-in-out) backwards;
 }
 
 .railIn .footArea {
-  animation: rail-fade-in 150ms var(--ds-ease-in-out) backwards;
+  animation: rail-fade-in var(--delta-transition-duration-150ms) var(--delta-ease-in-out) backwards;
 }
 
 @keyframes rail-in {
@@ -205,11 +205,11 @@
   justify-content: flex-end;
   height: 52px;
   box-sizing: border-box;
-  margin: -6px calc(-1 * var(--dsh-sidebar-inline-padding)) 0;
+  margin: -6px calc(-1 * var(--delta-sidebar-inline-padding)) 0;
   /* The 2px foot centres the 28px toggle at y 25, level with the collapsed
      seat (ui-layout .leadingSeat, top 11) and the conversation title row, so
      collapse/expand never shifts it vertically. */
-  padding: 0 12px 2px;
+  padding: 0 var(--delta-space-3) var(--delta-space-0-5);
 }
 
 :global(html[data-platform='darwin']:not([data-fullscreen])) .root:not(.collapsed) > .topStrip > .toggle {
@@ -226,7 +226,7 @@
    tucks 12px back under it, still clear of the toggle (28px control centered
    in the strip ends at y 40). */
 .topStrip + .logoRow {
-  margin-top: -12px;
+  margin-top: calc(-1 * var(--delta-space-3));
 }
 
 /* Logo row: 8px vertical and leading padding, with no trailing padding or
@@ -247,9 +247,9 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--delta-space-2);
   height: 60px;
-  padding: 8px 0 8px 8px;
+  padding: var(--delta-space-2) 0 var(--delta-space-2) var(--delta-space-2);
   margin-bottom: 0;
   box-sizing: border-box;
   overflow: hidden;
@@ -258,7 +258,7 @@
 .collapsed .logoRow {
   height: 36px;
   padding: 0;
-  margin-bottom: 12px;
+  margin-bottom: var(--delta-space-3);
   justify-content: flex-start;
   /* The settled rail's 36px toggle is wider than this 35px row; the base row's clip would cut
      the control's right edge, so the rail stops clipping once the slide has settled. */
@@ -308,12 +308,12 @@
 .brandName {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
   height: 24px;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 24px;
+  font-size: var(--delta-font-size-18);
+  font-weight: var(--delta-font-weight-semibold);
+  line-height: var(--delta-line-height-24);
   letter-spacing: 0.04em;
 }
 
@@ -343,7 +343,7 @@
 }
 
 .localBuildTitle {
-  font-size: 12px;
+  font-size: var(--delta-font-size-12);
   line-height: 13px;
   letter-spacing: 0;
 }
@@ -357,23 +357,23 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   padding: 0;
   background: transparent;
   cursor: pointer;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 @media (hover: hover) {
   .iconButton:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 /* The toggle is flush with .logoRow, which clips its own overflow, so an outward ring loses
    the pixels that leave the row. Draw this control's ring inside its own box instead. */
 .iconButton.toggle:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -381,7 +381,7 @@
   width: 36px;
   height: 36px;
   /* Rail hovers share the panel rows' and New Session's 12px rounding. */
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 /* Rail logo swap: collapsed, the toggle rests as the whale mark (brand ink,
@@ -410,7 +410,7 @@
 /* Rail icons ride the primary ink (figma rail spec); expanded keeps the
    secondary icon-button ink. */
 .collapsed .iconButton {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .buildVersion {
@@ -420,11 +420,11 @@
   height: 10px;
   padding: 0 3px;
   border-radius: 2px;
-  color: var(--dsw-alias-label-primary-inverted);
-  background: var(--dsw-alias-label-primary);
-  font-family: var(--ds-font-family-code);
+  color: var(--delta-alias-label-primary-inverted);
+  background: var(--delta-alias-label-primary);
+  font-family: var(--delta-font-family-code);
   font-size: 6px;
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
   line-height: 10px;
   white-space: nowrap;
 }
@@ -434,8 +434,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 calc(var(--dsh-sidebar-paint-inset) + 1px) 6px;
+  gap: var(--delta-space-1-5);
+  margin: 0 calc(var(--delta-sidebar-paint-inset) + 1px) var(--delta-space-1-5);
 }
 
 /* New Session: 38px bar, 12px radius (figma 133:7634 geometry, squared-off
@@ -450,23 +450,23 @@
   justify-content: center;
   gap: 0;
   height: 38px;
-  padding: 8px 12px;
+  padding: var(--delta-space-2) var(--delta-space-3);
   margin: 0;
   box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-button-elevated-fill);
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-button-elevated-fill);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-22);
   cursor: pointer;
   overflow: hidden;
 }
 
 @media (hover: hover) {
   .newSession:hover {
-    background: var(--dsw-alias-button-floating-hover);
+    background: var(--delta-alias-button-floating-hover);
   }
 }
 
@@ -474,12 +474,12 @@
    sidebar; a white wash sits in the glass like native macOS sidebar
    controls; the glass tokens lower its alpha in dark mode. */
 :global([data-platform='darwin']) :where(.root:not([role='dialog'])) .newSession {
-  background: var(--dsw-specific-sidebar-glass-fill);
+  background: var(--delta-specific-sidebar-glass-fill);
 }
 
 @media (hover: hover) {
   :global([data-platform='darwin']) :where(.root:not([role='dialog'])) .newSession:hover {
-    background: var(--dsw-specific-sidebar-glass-hover);
+    background: var(--delta-specific-sidebar-glass-hover);
   }
 }
 
@@ -487,8 +487,8 @@
 .collapsed .newSessionRow {
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  margin: 0 0 12px;
+  gap: var(--delta-space-1);
+  margin: 0 0 var(--delta-space-3);
 }
 
 .collapsed .newSession {
@@ -504,17 +504,17 @@
 
 @media (hover: hover) {
   .collapsed .newSession:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 :global([data-platform='darwin']) :where(.root:not([role='dialog'])).collapsed .newSession {
-  background: var(--dsw-specific-sidebar-glass-collapsed-fill);
+  background: var(--delta-specific-sidebar-glass-collapsed-fill);
 }
 
 @media (hover: hover) {
   :global([data-platform='darwin']) :where(.root:not([role='dialog'])).collapsed .newSession:hover {
-    background: var(--dsw-specific-sidebar-glass-collapsed-hover);
+    background: var(--delta-specific-sidebar-glass-collapsed-hover);
   }
 }
 
@@ -541,7 +541,7 @@
     mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
   }
 }
-.newSessionContent { display: flex; width: 100cqw; align-items: center; justify-content: center; gap: 6px; }
+.newSessionContent { display: flex; width: 100cqw; align-items: center; justify-content: center; gap: var(--delta-space-1-5); }
 .newSessionContent > svg { flex: none; }
 
 .newSessionShortcut {
@@ -549,7 +549,7 @@
   display: inline-flex;
   flex: none;
   pointer-events: none;
-  font-weight: 400;
+  font-weight: var(--delta-font-weight-regular);
 }
 
 .newSession:focus-visible .newSessionShortcut {
@@ -563,7 +563,7 @@
 }
 
 .scrollRegion {
-  margin-top: 4px;
+  margin-top: var(--delta-space-1);
   position: relative;
   flex: 1;
   min-height: 0;
@@ -583,11 +583,11 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 4px minmax(0, 1fr) calc(var(--dsh-sidebar-inline-padding) - 2px);
+  grid-template-columns: 4px minmax(0, 1fr) calc(var(--delta-sidebar-inline-padding) - 2px);
   grid-template-rows: 8px max-content 2px max-content;
   align-content: start;
-  margin-left: -4px;
-  margin-right: calc(2px - var(--dsh-sidebar-inline-padding));
+  margin-left: calc(-1 * var(--delta-space-1));
+  margin-right: calc(2px - var(--delta-sidebar-inline-padding));
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -620,7 +620,7 @@
   inset-inline: 0;
   bottom: 0;
   height: 24px;
-  background: linear-gradient(to bottom, transparent, var(--dsw-specific-sidebar-fill));
+  background: linear-gradient(to bottom, transparent, var(--delta-specific-sidebar-fill));
   pointer-events: none;
 }
 
@@ -648,8 +648,8 @@
 .panelEntry {
   position: relative;
   display: flex;
-  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
-  border-radius: var(--dsw-radius-md);
+  border-inline: var(--delta-sidebar-paint-inset) solid transparent;
+  border-radius: var(--delta-radius-md);
   background-clip: padding-box;
 }
 
@@ -668,7 +668,7 @@
 
 .panelEntryActive,
 .panelEntry:has(:focus-visible) {
-  background-color: var(--dsw-alias-interactive-bg-hover);
+  background-color: var(--delta-alias-interactive-bg-hover);
 }
 
 .panelUnpin {
@@ -682,14 +682,14 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
   cursor: pointer;
 }
 
 .panelUnpin:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -702,9 +702,9 @@
   display: inline-flex;
   align-items: center;
   margin-left: auto;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   font-variant-numeric: tabular-nums;
 }
 
@@ -716,9 +716,9 @@
 
 @media (hover: hover) {
   .panelUnpin { opacity: 0; }
-  .panelEntry:hover { background-color: var(--dsw-alias-interactive-bg-hover); }
+  .panelEntry:hover { background-color: var(--delta-alias-interactive-bg-hover); }
   .panelEntry .panelRow:hover { background: transparent; }
-  .panelUnpin:hover { color: var(--dsw-alias-label-primary); }
+  .panelUnpin:hover { color: var(--delta-alias-label-primary); }
   .panelEntry:hover .panelUnpin,
   .panelEntry:has(:focus-visible) .panelUnpin { opacity: 1; }
 
@@ -740,8 +740,8 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: var(--delta-space-0-5);
+  margin-bottom: var(--delta-space-2);
 }
 
 /* Panel entries use a 3px paint inset, the New Session bar's 12px radius,
@@ -749,31 +749,31 @@
 .panelRow {
   display: flex;
   align-items: center;
-  gap: var(--dsh-sidebar-label-gap);
+  gap: var(--delta-sidebar-label-gap);
   margin: 0;
   min-height: 32px;
-  padding: 5px calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset));
+  padding: 5px calc(var(--delta-sidebar-row-padding) - var(--delta-sidebar-paint-inset));
   box-sizing: border-box;
   border: none;
-  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
-  border-radius: var(--dsw-radius-md);
+  border-inline: var(--delta-sidebar-paint-inset) solid transparent;
+  border-radius: var(--delta-radius-md);
   background: transparent;
   background-clip: padding-box;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   font: inherit;
-  line-height: 22px;
+  line-height: var(--delta-line-height-22);
   text-align: left;
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .panelRow:hover {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .panelRow:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -784,7 +784,7 @@
 }
 
 .panelRow[aria-expanded='true'] {
-  background-color: var(--dsw-alias-interactive-bg-hover);
+  background-color: var(--delta-alias-interactive-bg-hover);
 }
 
 .moreMenu {
@@ -807,8 +807,8 @@
 }
 
 .collapsed .panelList {
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: var(--delta-space-3);
+  margin-bottom: var(--delta-space-3);
 }
 
 .collapsed .panelEntry {
@@ -823,7 +823,7 @@
   border-inline: 0;
   background-clip: border-box;
   padding: 0;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The workspace seat stays mounted while its wide and rail bodies change. */
@@ -889,5 +889,5 @@
   }
 }
 
-.pinnedNav { flex: none; margin: 0 calc(var(--dsh-sidebar-paint-inset) + 1px); }
-.pinnedNav .panelList { grid-column: auto; grid-row: auto; margin-bottom: 6px; }
+.pinnedNav { flex: none; margin: 0 calc(var(--delta-sidebar-paint-inset) + 1px); }
+.pinnedNav .panelList { grid-column: auto; grid-row: auto; margin-bottom: var(--delta-space-1-5); }

@@ -2,17 +2,17 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   width: 100%;
-  height: calc(var(--dsh-search-field-height, 32px) + 3px + 0.5px);
+  height: calc(var(--delta-search-field-height, 32px) + 3px + 0.5px);
   margin: 0;
   margin-block-end: 3px;
-  padding: 0 8px 3px;
+  padding: 0 var(--delta-space-2) 3px;
   box-sizing: border-box;
-  border-block-end: 0.5px solid var(--dsw-alias-border-l2);
+  border-block-end: 0.5px solid var(--delta-alias-border-l2);
   background: transparent;
   cursor: text;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   overflow: hidden;
 }
 
@@ -23,31 +23,31 @@
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   padding: 0;
   background: transparent;
 }
 
 .leading {
   width: 14px;
-  color: var(--dsw-alias-menu-icon);
+  color: var(--delta-alias-menu-icon);
 }
 
 .clear {
   cursor: pointer;
   width: 24px;
   height: 24px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .clear:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
 @media (hover: hover) {
   .clear:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -60,15 +60,15 @@
   background: transparent;
   margin: 0;
   padding: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
 }
 
 .input::placeholder {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 @media (pointer: coarse) {
-  .input { font-size: 16px; }
+  .input { font-size: var(--delta-font-size-16); }
 }

@@ -157,12 +157,12 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     await expect.poll(() => page.locator('[data-turn-process]').count(), { timeout: 15_000 }).toBe(2)
     const trigger = page.locator('[data-turn-trigger]').first()
     const process = page.locator('[data-turn-process]').first()
-    const originalFontSize = await page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size'))
+    const originalFontSize = await page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size'))
     await process.click()
     try {
       for (const fontSize of [10, 14, 22]) {
         await scaffold!.ctx.settings.update('ui-theme', { fontSize })
-        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size')))
           .toBe(`${String(fontSize)}px`)
         const group = page.locator('[data-process-activity]:visible').first()
         const groupFontSize = await group.evaluate(element => getComputedStyle(element).fontSize)
@@ -177,7 +177,7 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
       }
     } finally {
       await scaffold!.ctx.settings.update('ui-theme', { fontSize: Number.parseFloat(originalFontSize) })
-      await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+      await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size')))
         .toBe(originalFontSize)
       await process.click()
     }

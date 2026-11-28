@@ -6,19 +6,19 @@
   flex: none;
   width: 28px;
   padding: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* The panel shows; the expanded fill outranks the Button's hover fill. */
 .trigger[aria-expanded='true'] {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-interactive-bg-active);
 }
 
 @media (hover: hover) {
   .trigger[aria-expanded='true']:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
-    background: var(--dsw-alias-interactive-bg-active);
+    color: var(--delta-alias-label-primary);
+    background: var(--delta-alias-interactive-bg-active);
   }
 
   .trigger[aria-disabled='true']:hover:not(:disabled) {
@@ -56,5 +56,5 @@
   height: 6px;
   border-radius: 50%;
   corner-shape: round;
-  box-shadow: 0 0 0 1.5px var(--dsw-alias-bg-base);
+  box-shadow: 0 0 0 1.5px var(--delta-alias-bg-base);
 }

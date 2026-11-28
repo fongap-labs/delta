@@ -1,20 +1,20 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--delta-space-4);
   max-height: 360px;
-  margin: 4px 0 4px 4px;
-  padding: 16px 20px;
+  margin: var(--delta-space-1) 0 var(--delta-space-1) var(--delta-space-1);
+  padding: var(--delta-space-4) var(--delta-space-5);
   overflow-y: auto;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-base);
+  border: 0.5px solid var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-base);
 }
 
 .item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   min-width: 0;
 }
 
@@ -23,16 +23,16 @@
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size, 14px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
 }
 
 .question {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .answer {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .answerLine {
@@ -40,28 +40,28 @@
 }
 
 .skipped {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .verdict {
   margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-content-font-size, 14px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
 }
 
 .questionList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--delta-space-5);
 }
 
 .unansweredQuestion {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size, 14px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
 }

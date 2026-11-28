@@ -30,7 +30,7 @@ function geometry(element: HTMLElement, scrollWidth: number, clientWidth: number
 
 /** What the stylesheet reads: whether the text marquees, the travel distance, and its duration. */
 function marquee(text: HTMLElement): (string | undefined)[] {
-  return [text.dataset.marquee, text.style.getPropertyValue('--dsh-marquee-range'), text.style.getPropertyValue('--dsh-marquee-duration')]
+  return [text.dataset.marquee, text.style.getPropertyValue('--delta-marquee-range'), text.style.getPropertyValue('--delta-marquee-duration')]
 }
 
 describe('useHoverMarquee', () => {

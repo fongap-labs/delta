@@ -1,10 +1,10 @@
 .onboardingOverlay {
   position: fixed;
   inset: 0;
-  z-index: 900;
+  z-index: var(--delta-layer-onboarding);
   display: flex;
   flex-direction: column;
-  background: var(--dsw-alias-bg-base);
+  background: var(--delta-alias-bg-base);
   user-select: none;
 }
 
@@ -13,7 +13,7 @@
 }
 
 .onboardingOverlay[data-exiting] {
-  animation: onboardingExit 180ms ease-out forwards;
+  animation: onboardingExit var(--delta-transition-duration-180ms) ease-out forwards;
   pointer-events: none;
 }
 

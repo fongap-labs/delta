@@ -4,49 +4,49 @@
 }
 
 .anchor .warning {
-  color: var(--dsw-alias-state-warn-label);
+  color: var(--delta-alias-state-warn-label);
 }
 
 @media (hover: hover) {
   .anchor .warning:hover {
-    color: var(--dsw-alias-state-warn-label);
+    color: var(--delta-alias-state-warn-label);
   }
 }
 
 .anchor .warning[aria-expanded='true'] {
-  background: var(--dsw-alias-state-warn-tertiary);
+  background: var(--delta-alias-state-warn-tertiary);
 }
 
 @media (hover: hover) {
   .anchor .warning:hover {
-    background: var(--dsw-alias-state-warn-tertiary);
+    background: var(--delta-alias-state-warn-tertiary);
   }
 }
 
 .panel {
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
   position: fixed;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
   box-sizing: border-box;
   width: min(340px, calc(100vw - 24px));
   max-height: calc(100dvh - 24px);
-  padding: 16px;
+  padding: var(--delta-space-4);
   overflow: auto;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-layer-2);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-bg-layer-2);
   border: 0;
-  border-radius: var(--dsw-radius-lg);
-  box-shadow: var(--dsw-elevation-prominent);
-  font-size: 13px;
-  line-height: 1.6;
+  border-radius: var(--delta-radius-lg);
+  box-shadow: var(--delta-elevation-prominent);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-relaxed);
   max-width: calc(100vw - 24px);
   position-area: none;
   top: max(12px, calc(anchor(bottom) + 8px));
   bottom: 12px;
   left: max(12px, anchor(left));
   right: 12px;
-  position-try-fallbacks: --dsh-fonts-window, --dsh-fonts-opposite, --dsh-fonts-wide-opposite, --dsh-fonts-tall, --dsh-fonts-viewport;
+  position-try-fallbacks: --delta-fonts-window, --delta-fonts-opposite, --delta-fonts-wide-opposite, --delta-fonts-tall, --delta-fonts-viewport;
   align-self: start;
   justify-self: start;
   height: fit-content;
@@ -58,24 +58,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .panelHeader h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .description {
-  margin: 8px 0 16px;
-  color: var(--dsw-alias-label-secondary);
+  margin: var(--delta-space-2) 0 var(--delta-space-4);
+  color: var(--delta-alias-label-secondary);
 }
 
 .count {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
+  margin: 0 0 var(--delta-space-1-5);
+  font-size: var(--delta-font-size-12);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .fonts {
@@ -86,11 +86,11 @@
 }
 
 .fonts li {
-  padding: 8px 0;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  padding: var(--delta-space-2) 0;
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
-@position-try --dsh-fonts-window {
+@position-try --delta-fonts-window {
   position-area: none;
   top: max(12px, calc(anchor(bottom) + 8px));
   bottom: 12px;
@@ -101,14 +101,14 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-fonts-opposite {
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+@position-try --delta-fonts-opposite {
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 8px));
   align-self: end;
 }
 
-@position-try --dsh-fonts-wide-opposite {
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+@position-try --delta-fonts-wide-opposite {
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: max(12px, calc(anchor(top) + 8px));
   left: 12px;
   right: 12px;
@@ -116,9 +116,9 @@
   justify-self: safe end;
 }
 
-@position-try --dsh-fonts-tall {
+@position-try --delta-fonts-tall {
   position-area: none;
-  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  top: max(12px, var(--delta-frame-overlay-top, 12px));
   bottom: 12px;
   left: max(12px, anchor(left));
   right: 12px;
@@ -127,9 +127,9 @@
   justify-self: start;
 }
 
-@position-try --dsh-fonts-viewport {
+@position-try --delta-fonts-viewport {
   position-area: none;
-  inset: max(12px, var(--dsh-frame-overlay-top, 12px)) 12px 12px;
+  inset: max(12px, var(--delta-frame-overlay-top, 12px)) 12px 12px;
   margin: 0;
   align-self: safe start;
   justify-self: safe end;

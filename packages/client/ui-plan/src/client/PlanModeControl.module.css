@@ -3,23 +3,23 @@
 .wrap {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   height: 28px;
   min-width: 34px;
-  padding: 0 8px;
+  padding: 0 var(--delta-space-2);
   border: none;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-state-business-tertiary);
-  color: var(--dsw-alias-state-business-primary);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-state-business-tertiary);
+  color: var(--delta-alias-state-business-primary);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-20);
   cursor: pointer;
 }
 
@@ -27,14 +27,14 @@
   .chip:hover:not(:disabled) {
     background: color-mix(
       in srgb,
-      var(--dsw-alias-state-business-tertiary),
-      var(--dsw-alias-state-business-primary) 6%
+      var(--delta-alias-state-business-tertiary),
+      var(--delta-alias-state-business-primary) 6%
     );
   }
 }
 
 .chip:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -76,7 +76,7 @@
 }
 
 .error {
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }

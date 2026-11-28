@@ -3,33 +3,33 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 0;
+  gap: var(--delta-space-1-5);
+  padding: var(--delta-space-3) 0;
 }
 
 .field + .field {
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .label {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-primary);
 }
 
 .labelGroup {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   flex: 1;
   min-width: 0;
 }
@@ -47,34 +47,34 @@
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 .helpButton[aria-expanded='true'] {
-  background: var(--dsw-alias-bg-layer-4);
-  color: var(--dsw-alias-label-secondary);
+  background: var(--delta-alias-bg-layer-4);
+  color: var(--delta-alias-label-secondary);
 }
 
 @media (hover: hover) {
   .helpButton:hover {
-    background: var(--dsw-alias-bg-layer-4);
-    color: var(--dsw-alias-label-secondary);
+    background: var(--delta-alias-bg-layer-4);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
 .helpButton:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 1px;
 }
 
 .help {
-  padding: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--dsw-alias-label-secondary);
+  padding: var(--delta-space-2-5) 0 0;
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-relaxed);
+  color: var(--delta-alias-label-secondary);
 }
 
 .help > p {
@@ -82,13 +82,13 @@
 }
 
 .help > p + p {
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
 }
 
 .badges {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .reset {
@@ -96,15 +96,15 @@
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-secondary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .reset:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -114,40 +114,40 @@
 
 .input {
   height: 34px;
-  padding: 0 12px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-3);
+  padding: 0 var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-layer-3);
   font: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-primary);
 }
 
 .input:focus-visible {
   outline: none;
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }
 
 .input:disabled {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: default;
 }
 
 .input[aria-invalid='true'] {
-  border-color: var(--dsw-alias-state-error-primary);
+  border-color: var(--delta-alias-state-error-primary);
 }
 
 .invalid {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .hint {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-tertiary);
 }

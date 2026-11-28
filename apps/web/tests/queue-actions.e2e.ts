@@ -174,7 +174,7 @@ describe('web e2e: queue row actions', () => {
         return {
           leftInset: queueBox.left - composerBox.left,
           rightInset: composerBox.right - queueBox.right,
-          dockInset: Number.parseFloat(getComputedStyle(composer).getPropertyValue('--dsh-composer-dock-inset')),
+          dockInset: Number.parseFloat(getComputedStyle(composer).getPropertyValue('--delta-composer-dock-inset')),
         }
       })
       expect(metrics).toBeDefined()

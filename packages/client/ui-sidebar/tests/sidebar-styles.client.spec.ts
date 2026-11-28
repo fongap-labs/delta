@@ -50,15 +50,15 @@ const ROW_CONTENT_SELECTOR = ROW_CONTENT.replace(SLOT_ANCHOR, "[data-slot='sideb
 
 describe('SidebarRoot.module.css', () => {
   it('uses a compact expanded navigation gap without shrinking the collapsed rail spacing', () => {
-    expect(declarations('.panelList')?.get('gap')).toBe('2px')
-    expect(declarations('.collapsed .panelList')?.get('gap')).toBe('12px')
+    expect(declarations('.panelList')?.get('gap')).toBe('var(--delta-space-0-5)')
+    expect(declarations('.collapsed .panelList')?.get('gap')).toBe('var(--delta-space-3)')
   })
 
   it('fits expanded navigation into 32px rows while retaining 36px rail controls', () => {
     const row = declarations('.panelRow')
     expect(row?.get('min-height')).toBe('32px')
-    expect(row?.get('padding')).toBe('5px calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset))')
-    expect(row?.get('line-height')).toBe('22px')
+    expect(row?.get('padding')).toBe('5px calc(var(--delta-sidebar-row-padding) - var(--delta-sidebar-paint-inset))')
+    expect(row?.get('line-height')).toBe('var(--delta-line-height-22)')
     expect(row?.get('box-sizing')).toBe('border-box')
     expect(row?.get('border')).toBe('none')
     expect(declarations('.collapsed .panelRow')?.get('width')).toBe('36px')
@@ -69,23 +69,23 @@ describe('SidebarRoot.module.css', () => {
   it('owns a shared scrollport whose gaps scroll away', () => {
     const root = declarations('.root')
     const scrollport = declarations('.scrollArea')
-    expect(root?.get('--dsh-sidebar-inline-padding')).toBe('8px')
-    expect(root?.get('--dsh-sidebar-row-padding')).toBe('12px')
-    expect(root?.get('--dsh-sidebar-label-gap')).toBe('6px')
-    expect(root?.get('--dsh-sidebar-paint-inset')).toBe('3px')
-    expect(root?.get('padding')).toBe('6px var(--dsh-sidebar-inline-padding)')
+    expect(root?.get('--delta-sidebar-inline-padding')).toBe('8px')
+    expect(root?.get('--delta-sidebar-row-padding')).toBe('var(--delta-space-3)')
+    expect(root?.get('--delta-sidebar-label-gap')).toBe('6px')
+    expect(root?.get('--delta-sidebar-paint-inset')).toBe('3px')
+    expect(root?.get('padding')).toBe('6px var(--delta-sidebar-inline-padding)')
     expect(declarations('.scrollRegion')?.get('min-height')).toBe('0')
     expect(declarations('.root:not(.collapsed) .scrollRegion')?.get('container-type')).toBe('size')
     expect(declarations('.scrollRegion')?.get('container-type')).toBeUndefined()
     expect(scrollport?.get('display')).toBe('grid')
     expect(scrollport?.get('overflow-y')).toBe('auto')
     expect(scrollport?.get('overflow-x')).toBe('hidden')
-    expect(scrollport?.get('grid-template-columns')).toBe('4px minmax(0, 1fr) calc(var(--dsh-sidebar-inline-padding) - 2px)')
+    expect(scrollport?.get('grid-template-columns')).toBe('4px minmax(0, 1fr) calc(var(--delta-sidebar-inline-padding) - 2px)')
     expect(scrollport?.get('grid-template-rows')).toBe('8px max-content 2px max-content')
-    expect(declarations('.scrollRegion')?.get('margin-top')).toBe('4px')
+    expect(declarations('.scrollRegion')?.get('margin-top')).toBe('var(--delta-space-1)')
     expect(declarations('.collapsed .scrollRegion')?.get('margin-top')).toBe('0')
-    expect(scrollport?.get('margin-left')).toBe('-4px')
-    expect(scrollport?.get('margin-right')).toBe('calc(2px - var(--dsh-sidebar-inline-padding))')
+    expect(scrollport?.get('margin-left')).toBe('calc(-1 * var(--delta-space-1))')
+    expect(scrollport?.get('margin-right')).toBe('calc(2px - var(--delta-sidebar-inline-padding))')
     expect(scrollport?.get('scroll-padding-block')).toBeUndefined()
     expect(declarations('.panelList')?.get('grid-row')).toBe('2')
     expect(declarations('.regionArea')?.get('grid-row')).toBe('4')
@@ -109,21 +109,21 @@ describe('SidebarRoot.module.css', () => {
   })
 
   it('keeps the reviewed expanded spacing separate from rail and caption controls', () => {
-    expect(declarations('.logoRow')?.get('padding')).toBe('8px 0 8px 8px')
+    expect(declarations('.logoRow')?.get('padding')).toBe('var(--delta-space-2) 0 var(--delta-space-2) var(--delta-space-2)')
     expect(declarations('.logoRow')?.get('margin-bottom')).toBe('0')
-    expect(declarations('.newSessionRow')?.get('margin')).toBe('0 calc(var(--dsh-sidebar-paint-inset) + 1px) 6px')
+    expect(declarations('.newSessionRow')?.get('margin')).toBe('0 calc(var(--delta-sidebar-paint-inset) + 1px) var(--delta-space-1-5)')
     expect(declarations('.newSession')?.get('margin')).toBe('0')
     expect(declarations('.newSessionContent')?.get('justify-content')).toBe('center')
     expect(declarations(":global(html[data-platform='darwin']:not([data-fullscreen])) .root:not(.collapsed) > .topStrip > .toggle")?.get('transform')).toBe('translateX(4px)')
     expect(css).not.toContain(':not(.fading)')
-    expect(declarations(':global([data-windows-titlebar]) .root:not(.collapsed) .newSessionRow')?.get('margin-top')).toBe('6px')
+    expect(declarations(':global([data-windows-titlebar]) .root:not(.collapsed) .newSessionRow')?.get('margin-top')).toBe('var(--delta-space-1-5)')
     expect(declarations(':global([data-windows-titlebar]) .root:not(.collapsed) .newSessionRow')?.has('margin-left')).toBe(false)
     expect(declarations('.topStrip')?.get('height')).toBe('52px')
-    expect(declarations('.root.collapsed')?.get('padding')).toBe('18px 10px 6px')
+    expect(declarations('.root.collapsed')?.get('padding')).toBe('18px var(--delta-space-2-5) var(--delta-space-1-5)')
   })
 
   it('moves the upper controls while the settings seat only fades', () => {
-    const animation = 'rail-in 150ms var(--ds-ease-in-out) backwards'
+    const animation = 'rail-in var(--delta-transition-duration-150ms) var(--delta-ease-in-out) backwards'
     for (const selector of [
       '.railIn .iconButton',
       ROW_CONTENT,
@@ -132,7 +132,7 @@ describe('SidebarRoot.module.css', () => {
       expect(declarations(selector)?.get('animation')).toBe(animation)
     }
     expect(declarations('.railIn .footArea')?.get('animation')).toBe(
-      'rail-fade-in 150ms var(--ds-ease-in-out) backwards',
+      'rail-fade-in var(--delta-transition-duration-150ms) var(--delta-ease-in-out) backwards',
     )
     expect(css).toMatch(
       /@keyframes rail-in\s*\{\s*from\s*\{\s*opacity: 0;\s*transform: translateX\(49px\);\s*}\s*}/,
@@ -144,7 +144,7 @@ describe('SidebarRoot.module.css', () => {
     // The row renders its content through the HOC slot, so the renderer's
     // display:contents anchor is the row's only child; the shell's New-session
     // button and the occupant's own controls are the anchor's children.
-    expect(declarations(ROW_CONTENT)?.get('animation')).toBe('rail-in 150ms var(--ds-ease-in-out) backwards')
+    expect(declarations(ROW_CONTENT)?.get('animation')).toBe('rail-in var(--delta-transition-duration-150ms) var(--delta-ease-in-out) backwards')
     expect(reducedMotion()).toContain(ROW_CONTENT)
     for (const selector of declaredSelectors()) {
       if (!selector.includes('.newSessionRow')) continue
@@ -189,8 +189,8 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.brandIdentity')?.get('gap')).toBe('5px')
     expect(declarations('.brandIdentity')?.get('height')).toBe('24px')
     expect(declarations('.brandName')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('line-height')).toBe('24px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('18px')
+    expect(declarations('.brandName')?.get('line-height')).toBe('var(--delta-line-height-24)')
+    expect(declarations('.brandName')?.get('font-size')).toBe('var(--delta-font-size-18)')
     expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
     expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
   })

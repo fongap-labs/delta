@@ -22,11 +22,11 @@ describe('StateDot.module.css', () => {
   })
 
   it('uses success green for done', () => {
-    expect(css).toMatch(/\.dot\[data-state='done'\][^{]*\{[^}]*--dsw-alias-state-success-primary/su)
+    expect(css).toMatch(/\.dot\[data-state='done'\][^{]*\{[^}]*--delta-alias-state-success-primary/su)
   })
 
   it('uses the neutral state token for idle', () => {
-    expect(css).toMatch(/\.dot\[data-state='idle'\][^{]*\{[^}]*--dsw-alias-state-idle-primary/su)
+    expect(css).toMatch(/\.dot\[data-state='idle'\][^{]*\{[^}]*--delta-alias-state-idle-primary/su)
   })
 
   it('keeps ongoing on the rotating spinner rather than a solid-dot rule', () => {

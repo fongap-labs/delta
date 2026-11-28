@@ -7,15 +7,15 @@
    the pane at its top so every capsule stays reachable. The block padding
    keeps a scrolled-to-end capsule's focus ring off the pane's edge. */
 .guide {
-  --dsl-guide-entry-radius: var(--dsw-radius-xl);
+  --delta-guide-entry-radius: var(--delta-radius-xl);
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--delta-space-3-5);
   align-items: center;
   justify-content: safe center;
   box-sizing: border-box;
-  padding: 14px 24px;
+  padding: var(--delta-space-3-5) var(--delta-space-6);
   overflow-y: auto;
 }
 
@@ -34,8 +34,8 @@
    below it; the capsules keep the bare gap between them. */
 .hero {
   display: flex;
-  margin-bottom: 16px;
-  color: var(--dsw-specific-guide-hero);
+  margin-bottom: var(--delta-space-4);
+  color: var(--delta-specific-guide-hero);
 }
 
 /* A filled pill, 380px wide by default, its icon and text anchored at the
@@ -45,25 +45,25 @@
    padding. Long text ellipsizes inside rather than widening it. */
 .entry {
   display: flex;
-  gap: 14px;
+  gap: var(--delta-space-3-5);
   align-items: center;
   box-sizing: border-box;
   width: 380px;
   max-width: 100%;
   min-height: 56px;
-  padding: 14px 20px;
-  color: var(--dsw-alias-label-primary);
+  padding: var(--delta-space-3-5) var(--delta-space-5);
+  color: var(--delta-alias-label-primary);
   font: inherit;
   text-align: left;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsl-guide-entry-radius);
+  background: var(--delta-alias-bg-layer-1);
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-guide-entry-radius);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .entry:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -77,13 +77,13 @@
   justify-content: center;
   width: 26px;
   height: 26px;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* The capsule's placeholder cube on ink one step quieter than a registered
    glyph's, marking the unclaimed slot. */
 .placeholderInk {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The capsule's words in one column beside the glyph: the title, and the
@@ -98,8 +98,8 @@
 
 .entryTitle {
   overflow: hidden;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-snug);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -107,9 +107,9 @@
 /* One line under the title on the quieter ink; it ellipsizes like the title. */
 .entryDescription {
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 1.4;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-snug);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -118,7 +118,7 @@
    draws on currentColor, so this ink is the chip rendering's own. */
 .titleIcon {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .entryCell { width: 380px; max-width: 100%; }
@@ -126,6 +126,6 @@
 /* The More card keeps the capsule width inside the menu's anchor wrapper. */
 .moreAnchor { display: flex; width: 380px; max-width: 100%; }
 
-.moreAnchor .entry[aria-expanded='true'] { background: var(--dsw-alias-interactive-bg-hover); }
+.moreAnchor .entry[aria-expanded='true'] { background: var(--delta-alias-interactive-bg-hover); }
 
 .moreMenu { width: max-content; max-width: min(480px, calc(100vw - 24px)); }

@@ -20,24 +20,24 @@
   align-items: center;
   width: 100%;
   min-width: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 .action {
   display: flex;
   flex: 1;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   align-items: center;
   min-width: 0;
   /* Rows abut, so the hover fill is the whole row; the tree's air is this
      inset, not a gap between rows. */
-  padding: 5px 10px;
+  padding: 5px var(--delta-space-2-5);
   color: inherit;
   font: inherit;
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   cursor: pointer;
 }
 
@@ -50,28 +50,28 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  padding-right: 10px;
+  padding-right: var(--delta-space-2-5);
 }
 
 @media (hover: hover) {
   .row:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 
   .current:hover {
-    background: var(--dsw-alias-interactive-bg-active);
+    background: var(--delta-alias-interactive-bg-active);
   }
 }
 
 /* The caller's current file; hovering keeps its fill. */
 .current {
-  background: var(--dsw-alias-interactive-bg-active);
+  background: var(--delta-alias-interactive-bg-active);
 }
 
 /* The folder glyph rides the tertiary ink, as the workspace tree's does (ui-workspace Rows `.slot`). */
 .icon {
   flex: 0 0 auto;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The type's coloured sheet at the folder glyph's 16px; its colour is its own. */
@@ -89,13 +89,13 @@
 /* An entry the caller marks hidden: subdued, with the secondary ink that stays
    readable in both themes. */
 .hidden {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* Neither an openable file nor a directory: shown so the directory is
    reported whole, greyed so nobody tries to open it. */
 .other {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: default;
 }
 
@@ -107,13 +107,13 @@
 
 .note {
   margin: 0;
-  padding: 3px 10px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  padding: 3px var(--delta-space-2-5);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
 }
 
 /* The occurrences of the highlighted text in a name. */
 .match {
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--delta-alias-state-business-primary);
   background: transparent;
 }

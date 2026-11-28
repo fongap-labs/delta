@@ -8,8 +8,9 @@ import '../styles/onboarding.css'
 import '../styles/scrollbar.css'
 import '../styles/gradient-shadow-text.css'
 import '../styles/shiki.css'
+import '../styles/legacy-plugin-aliases.css'
 
-const HAIRLINE_WIDTH = '--dsh-hairline-width'
+const HAIRLINE_WIDTH = '--delta-hairline-width'
 
 /**
  * Publish the current document's DPR-aware stroke width for the theme plugin lifetime.

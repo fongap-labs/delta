@@ -420,7 +420,7 @@ describe('workspace browser rows', () => {
       Object.defineProperty(title, 'clientWidth', { value: clientWidth, configurable: true })
     }
     const marquee = (): (string | undefined)[] =>
-      [title.dataset.marquee, title.style.getPropertyValue('--dsh-marquee-range'), title.style.getPropertyValue('--dsh-marquee-duration')]
+      [title.dataset.marquee, title.style.getPropertyValue('--delta-marquee-range'), title.style.getPropertyValue('--delta-marquee-duration')]
 
     geometry(320, 180)
     const touch = new Event('pointerover', { bubbles: true })
@@ -462,7 +462,7 @@ describe('workspace browser rows', () => {
     Object.defineProperty(title, 'scrollWidth', { value: 400, configurable: true })
     Object.defineProperty(title, 'clientWidth', { value: 160, configurable: true })
     fireEvent.pointerEnter(row)
-    expect(title.style.getPropertyValue('--dsh-marquee-range')).toBe('240px')
+    expect(title.style.getPropertyValue('--delta-marquee-range')).toBe('240px')
     view.rerender(<SessionNodeItem {...props} useContextMenuTarget={select => select({ kind: 'session',
       value: { sessionId: node.id, displayTitle: node.title } })} />)
     fireEvent.pointerLeave(row)

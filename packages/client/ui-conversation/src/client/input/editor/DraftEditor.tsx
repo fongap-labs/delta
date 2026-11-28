@@ -56,7 +56,7 @@ export function DraftEditor({
           aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
           tabIndex={workspaceTrigger ? 0 : undefined}
           onKeyDown={workspaceTrigger ? onWorkspaceKeyDown : undefined}
-          style={hint === null ? undefined : { '--dsh-composer-hint': JSON.stringify(hint) } as CSSProperties}
+          style={hint === null ? undefined : { '--delta-composer-hint': JSON.stringify(hint) } as CSSProperties}
         />
         {showPlaceholder && (
           <div id={placeholderId} aria-hidden className={css.placeholder} data-composer-placeholder>

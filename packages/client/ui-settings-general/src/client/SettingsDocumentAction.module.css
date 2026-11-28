@@ -2,15 +2,15 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .error {
   max-width: 180px;
   overflow: hidden;
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

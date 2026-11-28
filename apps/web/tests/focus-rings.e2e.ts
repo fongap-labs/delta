@@ -22,8 +22,8 @@ async function paint(target: Locator) {
       active: document.activeElement === element,
       focusVisible: element.matches(':focus-visible'),
       modality: document.documentElement.getAttribute('data-input-modality'),
-      focusColor: resolveColor(style.getPropertyValue('--dsw-alias-state-business-primary').trim()),
-      hover: resolveColor(style.getPropertyValue('--dsw-alias-interactive-bg-hover').trim()),
+      focusColor: resolveColor(style.getPropertyValue('--delta-alias-state-business-primary').trim()),
+      hover: resolveColor(style.getPropertyValue('--delta-alias-interactive-bg-hover').trim()),
       outline: style.outlineColor,
       outlineStyle: style.outlineStyle,
       outlineWidth: style.outlineWidth,
@@ -413,7 +413,7 @@ describe('source-compiled supplementary focus paint', () => {
     // Restore direct-colour fallback and the rejected global eraser only in this page.
     await page.addStyleTag({ content: `
       html[data-input-modality='pointer'] body :focus-visible {
-        --dsw-focus-ring-color: initial !important;
+        --delta-focus-ring-color: initial !important;
         outline-color: transparent !important;
         box-shadow: none !important;
       }

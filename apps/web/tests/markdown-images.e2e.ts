@@ -294,7 +294,7 @@ describe('web e2e: Markdown image rendering', () => {
     for (const windows of [true, false]) {
       await page.evaluate((value) => {
         document.documentElement.toggleAttribute('data-windows-titlebar', value)
-        document.documentElement.style.setProperty('--dsh-windows-titlebar-height', value ? '40px' : '')
+        document.documentElement.style.setProperty('--delta-windows-titlebar-height', value ? '40px' : '')
       }, windows)
       // The Windows caption stays unpainted and the close control sits below it.
       expect((await lightboxMask.boundingBox())?.y).toBe(windows ? 40 : 0)

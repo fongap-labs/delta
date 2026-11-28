@@ -2,42 +2,42 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   min-width: 0;
 }
 
 .switcherRoot {
   min-width: 0;
-  margin-left: 6px;
+  margin-left: var(--delta-space-1-5);
 }
 
 .switcherTrigger {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  padding: 3px 2px;
+  padding: 3px var(--delta-space-0-5);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   cursor: pointer;
 }
 
 .switcherTrigger {
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
   max-width: 244px;
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
-  font-weight: 500;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-primary);
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .ancestorSwitcherTrigger {
-  color: var(--dsw-alias-label-tertiary);
-  font-weight: 400;
+  color: var(--delta-alias-label-tertiary);
+  font-weight: var(--delta-font-weight-regular);
 }
 
 .switcherTitle {
@@ -53,51 +53,51 @@
 }
 
 .switcherTrigger:focus-visible {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .switcherTrigger:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .ancestorSwitcherTrigger:focus-visible {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 @media (hover: hover) {
   .ancestorSwitcherTrigger:hover {
-    color: var(--dsw-alias-label-tertiary);
+    color: var(--delta-alias-label-tertiary);
   }
 }
 
 .switcherTrigger svg {
-  transition: transform 120ms ease;
+  transition: transform var(--delta-transition-duration-120ms) ease;
 }
 
 .menu {
   position: fixed;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
 
   max-width: calc(100vw - 32px);
   max-height: min(560px, calc(100dvh - 140px));
-  padding: 6px;
+  padding: var(--delta-space-1-5);
   overflow: hidden;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  box-shadow: var(--delta-elevation-prominent);
   /* The fixed card width lets CSS retain both the trigger edge and the window inset. */
-  --dsh-subagent-menu-width: min(360px, calc(100vw - 32px));
+  --delta-subagent-menu-width: min(360px, calc(100vw - 32px));
   position-area: none;
   top: calc(anchor(bottom) + 5px);
-  left: clamp(16px, anchor(left), calc(100vw - var(--dsh-subagent-menu-width) - 16px));
-  width: var(--dsh-subagent-menu-width);
-  position-try-fallbacks: --dsh-subagents-above, --dsh-subagents-window;
+  left: clamp(16px, anchor(left), calc(100vw - var(--delta-subagent-menu-width) - 16px));
+  width: var(--delta-subagent-menu-width);
+  position-try-fallbacks: --delta-subagents-above, --delta-subagents-window;
   height: fit-content;
   min-height: 0;
   margin: 0;
@@ -110,13 +110,13 @@
   min-height: 0;
   overflow: auto;
   scrollbar-gutter: stable;
-  --dsh-scrollbar-track-margin: 6px;
+  --delta-scrollbar-track-margin: 6px;
 }
 
 /* Keep the shared WebKit scrollbar in the menu's right inset, not its content column. */
 @supports selector(::-webkit-scrollbar) {
   .menuBody {
-    margin-right: calc(-1 * var(--dsh-scrollbar-width));
+    margin-right: calc(-1 * var(--delta-scrollbar-width));
   }
 }
 
@@ -124,8 +124,8 @@
 .sectionProgress {
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xxs-12);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -133,7 +133,7 @@
 
 /* The panel toggle sizes and places this dot; it names the state for assistive technology. */
 .runningIndicator {
-  background: var(--dsw-alias-state-business-primary);
+  background: var(--delta-alias-state-business-primary);
 }
 
 .visuallyHidden {
@@ -156,14 +156,14 @@
 
 /* One 28px line per row: the name clips, and its owner, state, and tokens show in the row's hover card. */
 .sectionBody .row {
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-height: 28px;
-  padding: 4px 6px;
+  padding: var(--delta-space-1) var(--delta-space-1-5);
 }
 
 .sectionBody .clickarea {
-  gap: 8px;
-  border-radius: var(--dsw-radius-sm);
+  gap: var(--delta-space-2);
+  border-radius: var(--delta-radius-sm);
 }
 
 .sectionBody .rowActivitySlot {
@@ -179,17 +179,17 @@
 
 .sectionBody .label {
   overflow: hidden;
-  line-height: 20px;
+  line-height: var(--delta-line-height-20);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .sectionBody .duration {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
   font-variant-numeric: tabular-nums;
-  line-height: 20px;
+  line-height: var(--delta-line-height-20);
   white-space: nowrap;
 }
 
@@ -197,7 +197,7 @@
    just below its 6px dot. Each row sits in its hover card's anchor wrapper. */
 .sectionBody .children {
   --branch-anchor-y: 14px;
-  margin-left: 14px;
+  margin-left: var(--delta-space-3-5);
 }
 
 .sectionBody .children::before {
@@ -211,7 +211,7 @@
   top: calc(var(--branch-anchor-y) - 0.25px);
   left: -3px;
   width: 9px;
-  border-top: 0.5px solid var(--dsw-alias-border-l3);
+  border-top: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .sectionBody .children > .node > :first-child > .row:has(> .disclosureSpace)::before {
@@ -225,7 +225,7 @@
   align-self: center;
   width: 24px;
   height: 24px;
-  margin: -2px -4px;
+  margin: calc(-1 * var(--delta-space-0-5)) calc(-1 * var(--delta-space-1));
 }
 
 .node {
@@ -233,7 +233,7 @@
   min-width: 0;
 }
 .menuBody > [role="tree"] > .node {
-  margin-left: -2px;
+  margin-left: calc(-1 * var(--delta-space-0-5));
 }
 
 .row {
@@ -244,12 +244,12 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 40px;
-  padding: 4px 6px 4px 9px;
+  padding: var(--delta-space-1) var(--delta-space-1-5) var(--delta-space-1) 9px;
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 12px;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-12);
   line-height: 17px;
   text-align: left;
   cursor: pointer;
@@ -257,12 +257,12 @@
 }
 
 .row:focus-visible > .clickarea {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .clickarea:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -274,9 +274,9 @@
   align-items: flex-start;
   gap: 7px;
   min-width: 0;
-  margin: -4px -6px -4px;
-  padding: 4px 6px;
-  border-radius: var(--dsw-radius-md);
+  margin: calc(-1 * var(--delta-space-1)) calc(-1 * var(--delta-space-1-5)) calc(-1 * var(--delta-space-1));
+  padding: var(--delta-space-1) var(--delta-space-1-5);
+  border-radius: var(--delta-radius-md);
 }
 
 .rowActivitySlot {
@@ -303,7 +303,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
@@ -321,12 +321,12 @@
 .disclosure svg {
   width: 12px;
   height: 12px;
-  transition: transform 120ms ease;
+  transition: transform var(--delta-transition-duration-120ms) ease;
 }
 
 @media (hover: hover) {
   .disclosure:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -349,21 +349,21 @@
 
 .label {
   color: inherit;
-  font-size: 13px;
-  font-weight: 400;
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-regular);
 }
 
 .currentLabel {
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .secondaryLabel {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .metrics {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 10px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-10);
   line-height: 15px;
   display: grid;
   grid-template-rows: 17px 15px;
@@ -387,13 +387,13 @@
   flex: none;
   width: 28px;
   height: 28px;
-  margin: 4px 0;
+  margin: var(--delta-space-1) 0;
 }
 
 .currentCheck {
   display: grid;
   place-items: center;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 /* The arrow shares its row's highlight: a 24px target whose glyph darkens
@@ -407,22 +407,22 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin: 6px 2px;
+  margin: var(--delta-space-1-5) var(--delta-space-0-5);
   padding: 0;
   border: 0;
-  border-radius: var(--dsw-radius-xs);
+  border-radius: var(--delta-radius-xs);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 .sidebarButton:focus-visible {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .sidebarButton:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -430,7 +430,7 @@
   /* First-line marker center: row inset 4px + half of the 17px status column. */
   --branch-anchor-y: 12.5px;
   position: relative;
-  margin-left: 16px;
+  margin-left: var(--delta-space-4);
   padding-left: 3px;
 }
 
@@ -439,7 +439,7 @@
   content: '';
   position: absolute;
   left: 0;
-  border-left: 0.5px solid var(--dsw-alias-border-l3);
+  border-left: 0.5px solid var(--delta-alias-border-l3);
 }
 
 .children::before {
@@ -464,7 +464,7 @@
   top: calc(var(--branch-anchor-y) - 0.25px);
   left: -3px;
   width: 12px;
-  border-top: 0.5px solid var(--dsw-alias-border-l3);
+  border-top: 0.5px solid var(--delta-alias-border-l3);
 }
 
 /* A leaf beside expandable siblings keeps their disclosure column before its status marker. */
@@ -474,18 +474,18 @@
 
 .notice,
 .error {
-  padding: 8px 10px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
+  padding: var(--delta-space-2) var(--delta-space-2-5);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-16);
 }
 
 .error {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  color: var(--dsw-alias-state-error-primary);
+  gap: var(--delta-space-2-5);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .refresh {
@@ -495,7 +495,7 @@
   gap: 3px;
   padding: 3px 5px;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -508,17 +508,17 @@
 
 @media (hover: hover) {
   .refresh:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
-@position-try --dsh-subagents-above {
+@position-try --delta-subagents-above {
   top: auto;
   bottom: calc(anchor(top) + 5px);
 }
 
-@position-try --dsh-subagents-window {
-  top: max(16px, var(--dsh-frame-overlay-top, 16px));
+@position-try --delta-subagents-window {
+  top: max(16px, var(--delta-frame-overlay-top, 16px));
   bottom: 16px;
   align-self: safe start;
   justify-self: safe start;

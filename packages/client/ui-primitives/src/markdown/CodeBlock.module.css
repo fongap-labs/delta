@@ -2,19 +2,19 @@
    stay on the existing shiki `--shiki-*` sheet (not Prism highlight.css). */
 
 .block {
-  --dsl-code-block-banner-background-color: var(--dsw-alias-markdown-code-block-banner);
-  --dsl-code-block-border-radius: var(--dsw-radius-lg);
-  /* Local 11/18 instead of the shared --dsw-font-xs-13: the banner scales
+  --delta-code-block-banner-background-color: var(--delta-alias-markdown-code-block-banner);
+  --delta-code-block-border-radius: var(--delta-radius-lg);
+  /* Local 11/18 instead of the shared --delta-font-xs-13: the banner scales
      with the markdown 0.875 ladder without shrinking every other xs-13 use. */
-  --dsl-code-block-banner-font: 11px/18px var(--dsw-font-family);
-  --dsl-code-block-content-font: var(--dsw-font-markdown-code-block);
-  --dsl-code-block-background: var(--dsw-alias-markdown-code-block);
+  --delta-code-block-banner-font: 11px/18px var(--delta-font-family);
+  --delta-code-block-content-font: var(--delta-font-markdown-code-block);
+  --delta-code-block-background: var(--delta-alias-markdown-code-block);
 
   position: relative;
-  margin: 16px 0;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsl-code-block-background);
-  border-radius: var(--dsl-code-block-border-radius);
+  margin: var(--delta-space-4) 0;
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-code-block-background);
+  border-radius: var(--delta-code-block-border-radius);
 }
 
 .block:not(:last-child) {
@@ -25,28 +25,28 @@
   position: sticky;
   top: 0;
   z-index: 6;
-  background-color: var(--dsw-alias-bg-base);
-  border-top-left-radius: var(--dsl-code-block-border-radius);
-  border-top-right-radius: var(--dsl-code-block-border-radius);
+  background-color: var(--delta-alias-bg-base);
+  border-top-left-radius: var(--delta-code-block-border-radius);
+  border-top-right-radius: var(--delta-code-block-border-radius);
 }
 
 .banner {
-  background: var(--dsl-code-block-banner-background-color);
-  padding: 9px 14px;
+  background: var(--delta-code-block-banner-background-color);
+  padding: 9px var(--delta-space-3-5);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  font: var(--dsl-code-block-banner-font);
-  border-top-left-radius: var(--dsl-code-block-border-radius);
-  border-top-right-radius: var(--dsl-code-block-border-radius);
+  gap: var(--delta-space-3);
+  font: var(--delta-code-block-banner-font);
+  border-top-left-radius: var(--delta-code-block-border-radius);
+  border-top-right-radius: var(--delta-code-block-border-radius);
 }
 
 .infostring {
-  color: var(--dsw-alias-label-primary);
-  font-family: var(--ds-font-family-code);
-  font-size: 11px;
-  line-height: 18px;
+  color: var(--delta-alias-label-primary);
+  font-family: var(--delta-font-family-code);
+  font-size: var(--delta-font-size-11);
+  line-height: var(--delta-line-height-18);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -76,22 +76,22 @@
 }
 
 .block :where(pre) {
-  font: var(--dsl-code-block-content-font);
-  padding: 16px;
+  font: var(--delta-code-block-content-font);
+  padding: var(--delta-space-4);
   margin: 0 !important;
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  background: var(--dsl-code-block-background);
+  background: var(--delta-code-block-background);
   /* Bottom radii live on <pre>: overflow:hidden on .block would kill the
      sticky banner, and this opaque fill otherwise squares off the wrapper. */
-  border-bottom-left-radius: var(--dsl-code-block-border-radius);
-  border-bottom-right-radius: var(--dsl-code-block-border-radius);
+  border-bottom-left-radius: var(--delta-code-block-border-radius);
+  border-bottom-right-radius: var(--delta-code-block-border-radius);
 }
 
 /* Shiki inlines its theme background var; route it to the repo token. */
 .block :where(pre.shiki) {
-  background: var(--dsl-code-block-background) !important;
+  background: var(--delta-code-block-background) !important;
 }
 
 .block :where(pre) code {
@@ -101,17 +101,17 @@
 }
 
 .plain {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .card :where(pre) {
-  padding: 6px 22px 20px;
+  padding: var(--delta-space-1-5) 22px var(--delta-space-5);
   word-break: normal;
   overflow-wrap: anywhere;
 }
 
 .card[data-code-wrap='false'] {
-  --dsl-code-block-line-white-space: pre;
+  --delta-code-block-line-white-space: pre;
 }
 
 .card[data-code-wrap='false'] :where(pre) {
@@ -129,16 +129,16 @@
   position: relative;
   display: block;
   min-height: 1lh;
-  padding-inline-start: calc(var(--dsl-code-block-line-number-width) + 12px);
+  padding-inline-start: calc(var(--delta-code-block-line-number-width) + 12px);
   counter-increment: source-line;
-  white-space: var(--dsl-code-block-line-white-space, pre-wrap);
+  white-space: var(--delta-code-block-line-white-space, pre-wrap);
 }
 
 .numbered :where(pre) code > :global(.line)::before {
   position: absolute;
   inset-inline-start: 0;
-  width: var(--dsl-code-block-line-number-width);
-  color: var(--dsw-alias-label-tertiary);
+  width: var(--delta-code-block-line-number-width);
+  color: var(--delta-alias-label-tertiary);
   text-align: end;
   content: counter(source-line);
   user-select: none;
@@ -147,7 +147,7 @@
 /* Diff fences paint full-bleed rows with the Sidebar file diff's row colors;
    the row's own inline padding keeps the marker clear of the inset bar. */
 .diffFence :where(pre) {
-  padding: 8px 0 16px;
+  padding: var(--delta-space-2) 0 var(--delta-space-4);
 }
 
 .diffLine {
@@ -163,7 +163,7 @@
 }
 
 .diffFence .diffLine {
-  padding: 0 16px;
+  padding: 0 var(--delta-space-4);
   box-sizing: border-box;
 }
 
@@ -175,13 +175,13 @@
 }
 
 .diffAdd {
-  background: var(--dsw-alias-file-diff-added-bg);
-  box-shadow: inset 3px 0 0 var(--dsw-alias-file-diff-added-marker);
+  background: var(--delta-alias-file-diff-added-bg);
+  box-shadow: inset 3px 0 0 var(--delta-alias-file-diff-added-marker);
 }
 
 .diffDel {
-  background: var(--dsw-alias-file-diff-deleted-bg);
-  box-shadow: inset 3px 0 0 var(--dsw-alias-file-diff-deleted-marker);
+  background: var(--delta-alias-file-diff-deleted-bg);
+  box-shadow: inset 3px 0 0 var(--delta-alias-file-diff-deleted-marker);
 }
 
 .diffMarker {
@@ -189,21 +189,21 @@
 }
 
 .diffAdd .diffMarker {
-  color: var(--dsw-alias-file-diff-added-marker);
+  color: var(--delta-alias-file-diff-added-marker);
 }
 
 .diffDel .diffMarker {
-  color: var(--dsw-alias-file-diff-deleted-marker);
+  color: var(--delta-alias-file-diff-deleted-marker);
 }
 
 .diffContext {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .diffHunk {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .diffMeta {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }

@@ -6,25 +6,25 @@
 
 .modalError,
 .menuStatus {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 18px;
+  margin-top: var(--delta-space-2);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .modalError {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .menuStatus,
 .pathSuffix {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 /* A same-titled Workspace row: the title shrinks first and the path suffix
  * keeps at least the leading segments that tell the rows apart. */
 .disambiguated {
   display: flex;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
 }
 

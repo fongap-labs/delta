@@ -9,8 +9,8 @@ import { MenuSurface } from './MenuSurface.tsx'
 import css from './Menu.module.css'
 
 /** Name the parent card anchor, and hide the child card until its layout is known. */
-function anchors(submenu: ReturnType<typeof useMenuSubmenu>, hidden: boolean): CSSProperties & Record<`--dsh-submenu-${string}`, string> {
-  return { '--dsh-submenu-parent': submenu.parentAnchor, ...hidden ? { visibility: 'hidden' } : {} }
+function anchors(submenu: ReturnType<typeof useMenuSubmenu>, hidden: boolean): CSSProperties & Record<`--delta-submenu-${string}`, string> {
+  return { '--delta-submenu-parent': submenu.parentAnchor, ...hidden ? { visibility: 'hidden' } : {} }
 }
 
 /** Render one child list with a non-selecting back row in single-page placement.

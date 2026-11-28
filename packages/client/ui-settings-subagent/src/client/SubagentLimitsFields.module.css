@@ -1,7 +1,7 @@
 .limits {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-  gap: 16px;
+  gap: var(--delta-space-4);
 }
 
 .limit {
@@ -15,27 +15,27 @@
 
 .depthTable {
   width: 100%;
-  margin: 8px 0;
+  margin: var(--delta-space-2) 0;
   border-collapse: collapse;
-  border-block: 0.5px solid var(--dsw-alias-border-l2);
+  border-block: 0.5px solid var(--delta-alias-border-l2);
   font: inherit;
   text-align: left;
 }
 
 .depthTable th,
 .depthTable td {
-  padding: 6px 0;
+  padding: var(--delta-space-1-5) 0;
   vertical-align: top;
 }
 
 .depthTable th {
   width: 24px;
-  padding-right: 8px;
-  font-weight: 500;
+  padding-right: var(--delta-space-2);
+  font-weight: var(--delta-font-weight-medium);
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .depthTable tr + tr {
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }

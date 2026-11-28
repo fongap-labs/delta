@@ -1,19 +1,19 @@
 .summary {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   box-sizing: border-box;
   width: 100%;
   height: 34px;
-  padding: 0 8px;
+  padding: 0 var(--delta-space-2);
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 20px;
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-regular);
+  line-height: var(--delta-line-height-20);
   text-align: start;
   cursor: pointer;
 }
@@ -25,7 +25,7 @@
 
 .summary:focus-visible {
   outline: none;
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 .summaryLabel {
@@ -39,7 +39,7 @@
 .state,
 .chevron {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .chevron {
@@ -55,10 +55,10 @@
 
 .description {
   margin: 0;
-  padding: 4px 8px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  padding: var(--delta-space-1) var(--delta-space-2);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   overflow-wrap: anywhere;
 }
 
@@ -67,13 +67,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--delta-space-4);
   min-height: 34px;
-  padding: 0 8px;
-  border-radius: var(--dsw-radius-md);
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
+  padding: 0 var(--delta-space-2);
+  border-radius: var(--delta-radius-md);
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
 }
 
 .label {
@@ -91,12 +91,12 @@
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
 }
 
 @media (hover: hover) {
   .summary:not(:disabled):hover,
   .row:has(.toggle:not(:disabled)):hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }

@@ -7,7 +7,7 @@ import { parseRules, varReferences } from './stylesheet-scan.ts'
 const stylesheet = readFileSync(resolve(import.meta.dirname, '../src/styles/design-platform.css'), 'utf8')
 const illustration = readFileSync(resolve(import.meta.dirname, '../../ui-schedule/src/client/ScheduleEmptyIllustration.tsx'), 'utf8')
 const rules = parseRules(stylesheet)
-const PREFIX = '--dsw-alias-illustration-'
+const PREFIX = '--delta-alias-illustration-'
 const ROLES = ['background', 'backing', 'detail', 'inset', 'shadow', 'surface'] as const
 
 type Rgb = [number, number, number]
@@ -80,9 +80,9 @@ it('preserves the original light artwork colors, including surface-colored inset
 
 it.each([false, true])('defines the approved light static steps in the dark=%s palette', (dark) => {
   const palette = definitions(dark)
-  expect(resolveColor(palette, '--dsw-static-neutral-bluish-55')).toEqual([245, 247, 250])
-  expect(resolveColor(palette, '--dsw-static-neutral-bluish-90')).toEqual([237, 240, 244])
-  expect(resolveColor(palette, '--dsw-static-neutral-bluish-310')).toEqual([202, 210, 219])
+  expect(resolveColor(palette, '--delta-static-neutral-bluish-55')).toEqual([245, 247, 250])
+  expect(resolveColor(palette, '--delta-static-neutral-bluish-90')).toEqual([237, 240, 244])
+  expect(resolveColor(palette, '--delta-static-neutral-bluish-310')).toEqual([202, 210, 219])
 })
 
 it('resolves the dark artwork colors through the actual static palette', () => {
@@ -106,7 +106,7 @@ it.each([false, true])('resolves the illustration consumer names in the dark=%s 
 
 it('rejects light static-color drift even when alias names stay unchanged', () => {
   const palette = definitions(false)
-  palette.set('--dsw-static-neutral-bluish-90', 'rgb(235, 238, 242)')
+  palette.set('--delta-static-neutral-bluish-90', 'rgb(235, 238, 242)')
   expect(() => { expect(illustrationColors(palette)).toEqual(lightColors) }).toThrow()
 })
 
@@ -127,13 +127,13 @@ it.each([false, true])('rejects renamed consumers and missing definitions in the
   const palette = definitions(dark)
   const renamed = illustration.replaceAll(`${PREFIX}inset`, `${PREFIX}clock-face`)
   expect(() => { expectConsumerColors(renamed, palette) }).toThrow()
-  const misspelled = illustration.replace(PREFIX, '--dsw-alias-illustation-')
+  const misspelled = illustration.replace(PREFIX, '--delta-alias-illustation-')
   expect(() => { expectConsumerColors(misspelled, palette) }).toThrow()
   palette.delete(`${PREFIX}inset`)
   expect(() => { expectConsumerColors(illustration, palette) }).toThrow()
 })
 
-it.each(['--dsw-static-missing', `${PREFIX}inset`])('rejects an unresolved or cyclic inset reference to %s', (target) => {
+it.each(['--delta-static-missing', `${PREFIX}inset`])('rejects an unresolved or cyclic inset reference to %s', (target) => {
   const palette = definitions(true)
   palette.set(`${PREFIX}inset`, `var(${target})`)
   expect(() => resolveColor(palette, `${PREFIX}inset`)).toThrow('Unresolved color')

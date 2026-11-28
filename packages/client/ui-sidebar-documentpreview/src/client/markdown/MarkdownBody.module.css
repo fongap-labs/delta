@@ -1,20 +1,20 @@
 /* The owner supplies scrolling; Markdown uses prose whitespace inside its source-oriented container. */
 .document {
   min-width: 0;
-  padding: 10px 12px;
-  font-family: var(--dsw-font, inherit);
+  padding: var(--delta-space-2-5) var(--delta-space-3);
+  font-family: var(--delta-font, inherit);
   white-space: normal;
 }
 
 /* Leading YAML frontmatter: a bordered metadata box above the body, never heading text. */
 .frontmatter {
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-1);
-  font: var(--dsw-font-markdown-small);
-  color: var(--dsw-alias-label-primary);
+  margin: 0 0 var(--delta-space-4);
+  padding: var(--delta-space-2-5) var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-layer-1);
+  font: var(--delta-font-markdown-small);
+  color: var(--delta-alias-label-primary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -26,6 +26,6 @@
 
 .frontmatterSource {
   margin: 0;
-  font-family: var(--ds-font-family-code);
+  font-family: var(--delta-font-family-code);
   white-space: inherit;
 }

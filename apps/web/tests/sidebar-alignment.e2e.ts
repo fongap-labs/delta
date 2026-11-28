@@ -465,7 +465,7 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
       ? page.locator('[data-row-key="session:sidebar-action-geometry"]')
       : page.locator('[data-row-key^="workspace:"]').filter({ hasText: workspaceTitle })
     await row.evaluate((element) => {
-      element.parentElement!.style.setProperty('--dsh-workspace-indent', '24px')
+      element.parentElement!.style.setProperty('--delta-workspace-indent', '24px')
       element.parentElement!.style.setProperty('--unrelated-preview-variable', '17px')
     })
     const box = await row.boundingBox()
@@ -491,7 +491,7 @@ describe('web e2e: sidebar search alignment and row action targets', () => {
       })
       expect(await spacing(preview)).toEqual(await spacing(row))
       expect(await preview.evaluate(element => [...element.parentElement!.style].filter(name => name.startsWith('--')).sort()))
-        .toEqual(['--dsh-sidebar-label-gap', '--dsh-sidebar-paint-inset', '--dsh-sidebar-row-padding'])
+        .toEqual(['--delta-sidebar-label-gap', '--delta-sidebar-paint-inset', '--delta-sidebar-row-padding'])
       const titleOffset = (target: Locator) => target.evaluate((element) => {
         const title = element.querySelector<HTMLElement>('[class*="title"]')
         if (title === null) throw new Error('Row title is missing')

@@ -274,7 +274,7 @@ describe('FileTree', () => {
 
   it('subdues hidden rows with the secondary ink, which stays readable in both themes', () => {
     const sheet = readFileSync(resolve(import.meta.dirname, '../src/client/FileTree.module.css'), 'utf8')
-    expect(/\.hidden \{\s*color: var\(--dsw-alias-label-secondary\);\s*\}/.test(sheet)).toBe(true)
+    expect(/\.hidden \{\s*color: var\(--delta-alias-label-secondary\);\s*\}/.test(sheet)).toBe(true)
   })
 
   it('marks the current file and hands its row to the caller', () => {

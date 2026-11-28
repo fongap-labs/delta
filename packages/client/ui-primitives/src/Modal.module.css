@@ -7,26 +7,26 @@
   pointer-events: auto;
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--delta-layer-modal);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: max(24px, var(--dsh-frame-overlay-top, 24px)) 24px;
+  padding: max(24px, var(--delta-frame-overlay-top, 24px)) 24px;
 }
 
 /* Only paint excludes the native caption; the root still blocks background clicks. */
 .mask {
   position: absolute;
-  inset: var(--dsh-frame-chrome-top, 0px) 0 0;
-  backdrop-filter: var(--dsw-mask-blur);
+  inset: var(--delta-frame-chrome-top, 0px) 0 0;
+  backdrop-filter: var(--delta-mask-blur);
 }
 
 .mask::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--dsw-alias-bg-mask-1);
-  animation: modalEnter var(--ds-transition-duration) var(--ds-ease-in-out);
+  background: var(--delta-alias-bg-mask-1);
+  animation: modalEnter var(--delta-transition-duration) var(--delta-ease-in-out);
 }
 
 /* Dialogs use the prominent elevation on the secondary layer. */
@@ -36,15 +36,15 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--delta-space-5);
   width: min(380px, 100%);
-  padding: 0 0 24px;
+  padding: 0 0 var(--delta-space-6);
   overflow: hidden;
   border: 0;
-  border-radius: var(--dsw-radius-panel);
-  background: var(--dsw-alias-bg-layer-2);
-  box-shadow: var(--dsw-elevation-prominent);
-  animation: modalEnter var(--ds-transition-duration) var(--ds-ease-in-out);
+  border-radius: var(--delta-radius-panel);
+  background: var(--delta-alias-bg-layer-2);
+  box-shadow: var(--delta-elevation-prominent);
+  animation: modalEnter var(--delta-transition-duration) var(--delta-ease-in-out);
 }
 
 @keyframes modalEnter {
@@ -71,28 +71,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 22px 24px 12px;
+  gap: var(--delta-space-2);
+  padding: 22px var(--delta-space-6) var(--delta-space-3);
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 500; /* figma wt510, rendered 500 */
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-16);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium); /* figma wt510, rendered 500 */
+  color: var(--delta-alias-label-primary);
 }
 
 .warning .title {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .warningIcon {
   flex: none;
   margin-top: 3px;
-  color: var(--dsw-alias-state-warn-primary);
+  color: var(--delta-alias-state-warn-primary);
 }
 
 .warning .header + .body {
@@ -108,44 +108,44 @@
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
   cursor: pointer;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 @media (hover: hover) {
   .close:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 /* Description and body share the 332px content column (24px side pads). */
 .description {
   margin: 0;
-  padding: 0 24px;
-  font-size: 14px;
-  line-height: 22px;
-  font-weight: 400;
-  color: var(--dsw-alias-label-primary);
+  padding: 0 var(--delta-space-6);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
+  font-weight: var(--delta-font-weight-regular);
+  color: var(--delta-alias-label-primary);
 }
 
 .body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  margin-top: 20px;
-  padding: 0 24px;
+  margin-top: var(--delta-space-5);
+  padding: 0 var(--delta-space-6);
 }
 
 .header + .body {
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
 }
 
 .footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 0 24px;
+  gap: var(--delta-space-2);
+  padding: 0 var(--delta-space-6);
 }

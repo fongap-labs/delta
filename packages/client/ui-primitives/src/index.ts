@@ -1,5 +1,5 @@
 /**
- * Cordis-free React primitives styled only through `--dsw-*` tokens.
+ * Cordis-free React primitives styled only through `--delta-*` tokens.
  */
 
 export type { CodeToolbarLabels } from './CodeToolbar.tsx'

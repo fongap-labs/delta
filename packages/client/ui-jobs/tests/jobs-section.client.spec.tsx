@@ -743,9 +743,9 @@ describe('JobsSection hover', () => {
       Object.defineProperty(label, 'clientWidth', { value: 200, configurable: true })
       const row = label.closest<HTMLElement>('[data-job-row]')!
       fireEvent.pointerEnter(row)
-      expect([label.hasAttribute('data-marquee'), label.style.getPropertyValue('--dsh-marquee-range')]).toEqual([true, '100px'])
+      expect([label.hasAttribute('data-marquee'), label.style.getPropertyValue('--delta-marquee-range')]).toEqual([true, '100px'])
       fireEvent.pointerLeave(row)
-      expect([label.hasAttribute('data-marquee'), label.style.getPropertyValue('--dsh-marquee-range')]).toEqual([false, ''])
+      expect([label.hasAttribute('data-marquee'), label.style.getPropertyValue('--delta-marquee-range')]).toEqual([false, ''])
       const stop = screen.getByRole('button', { name: zh['kill.stopAria'].replace('{label}', 'pnpm run build') })
       fireEvent.pointerEnter(stop, { pointerType: 'mouse' })
       act(() => { vi.advanceTimersByTime(499) })

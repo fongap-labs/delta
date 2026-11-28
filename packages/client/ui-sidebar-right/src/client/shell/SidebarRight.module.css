@@ -28,16 +28,16 @@
   display: none;
 }
 
-@property --dsh-sidebar-right-panel-width {
+@property --delta-sidebar-right-panel-width {
   syntax: '<length>';
   inherits: false;
   initial-value: 0px;
 }
 
 .panel {
-  width: var(--dsh-sidebar-right-panel-width);
-  --dsh-dockkit-dock-layer: 10;
-  --dsh-dockkit-float-layer: 60;
+  width: var(--delta-sidebar-right-panel-width);
+  --delta-dockkit-dock-layer: 10;
+  --delta-dockkit-float-layer: 60;
   position: absolute;
   top: 0;
   right: 0;
@@ -57,12 +57,12 @@
 /* A split pane slides the full panel width, not its own width. An open panel
    needs this inherited distance only for items mounting during an animated opening. */
 .panel:not([data-sidebar-right-open]) {
-  --dsh-sidebar-width: var(--dsh-sidebar-right-panel-width);
+  --delta-sidebar-width: var(--delta-sidebar-right-panel-width);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .panel[data-sidebar-right-opening] {
-    --dsh-sidebar-width: var(--dsh-sidebar-right-panel-width);
+    --delta-sidebar-width: var(--delta-sidebar-right-panel-width);
   }
 }
 
@@ -71,11 +71,11 @@
 .panel :global([data-dockkit-host='dock']),
 .panel :global([data-dockkit-empty]),
 .panel :global([data-dockkit-divider]) {
-  transform: translateX(var(--dsh-sidebar-width));
+  transform: translateX(var(--delta-sidebar-width));
   visibility: hidden;
   transition:
-    transform var(--ds-transition-duration-slow) var(--ds-ease-in-out),
-    visibility 0s linear var(--ds-transition-duration-slow);
+    transform var(--delta-transition-duration-slow) var(--delta-ease-in-out),
+    visibility 0s linear var(--delta-transition-duration-slow);
 }
 
 .panel[data-sidebar-right-open] :global([data-dockkit-host='dock']),
@@ -83,7 +83,7 @@
 .panel[data-sidebar-right-open] :global([data-dockkit-divider]) {
   transform: none;
   visibility: visible;
-  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: transform var(--delta-transition-duration-slow) var(--delta-ease-in-out);
 }
 
 /* An item mounted by the opening has no closed style to slide from; it starts
@@ -94,12 +94,12 @@
   .panel[data-sidebar-right-opening] :global([data-dockkit-host='dock']),
   .panel[data-sidebar-right-opening] :global([data-dockkit-empty]),
   .panel[data-sidebar-right-opening] :global([data-dockkit-divider]) {
-    transform: translateX(var(--dsh-sidebar-width));
+    transform: translateX(var(--delta-sidebar-width));
   }
 }
 
 .panel[data-sidebar-right-panel='fullscreen'] {
-  --dsh-dockkit-dock-layer: 40;
+  --delta-dockkit-dock-layer: 40;
 }
 
 /* Dockkit owns its pane exclusions and marked strip rows. Electron composes
@@ -109,11 +109,11 @@
 
 /* Windows keeps caption controls above fullscreen file and terminal panels. */
 :global([data-windows-titlebar]) .panel[data-sidebar-right-panel='fullscreen'] {
-  max-width: calc(100vw - var(--dsh-windows-sidebar-width));
+  max-width: calc(100vw - var(--delta-windows-sidebar-width));
 }
 
 :global([data-windows-titlebar]) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-column='0'][data-dockkit-pane]) {
-  border-radius: var(--dsh-windows-content-radius) 0 0 0;
+  border-radius: var(--delta-windows-content-radius) 0 0 0;
   corner-shape: round;
 }
 
@@ -124,17 +124,17 @@
 :global([data-platform='darwin']) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-host='dock'][data-dockkit-column='0']) {
   /* Lights end near x 68; 88 leaves the same 20px of air the conversation
      header's leading controls keep after them (ui-sidebar HeaderLeadingControls). */
-  --dsh-dockkit-strip-inline-start: 88px;
+  --delta-dockkit-strip-inline-start: 88px;
 }
 
 :global([data-platform='darwin']) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-host='dock'][data-dockkit-column='1']) {
-  --dsh-dockkit-strip-inline-start: 10px;
+  --delta-dockkit-strip-inline-start: 10px;
 }
 
 /* Window fullscreen hides the traffic lights (html[data-fullscreen], desktop
    preload); the first pane's strip keeps only the ordinary inset. */
 :global([data-platform='darwin'][data-fullscreen]) .panel[data-sidebar-right-panel='fullscreen'] :global([data-dockkit-host='dock'][data-dockkit-column='0']) {
-  --dsh-dockkit-strip-inline-start: 10px;
+  --delta-dockkit-strip-inline-start: 10px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -157,12 +157,12 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  padding: 6px;
-  color: var(--dsw-alias-label-secondary);
-  line-height: 1;
+  padding: var(--delta-space-1-5);
+  color: var(--delta-alias-label-secondary);
+  line-height: var(--delta-line-height-none);
   background: transparent;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   cursor: pointer;
 }
 
@@ -173,7 +173,7 @@
 
 @media (hover: hover) {
   .iconButton:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -197,9 +197,9 @@
 
 .unavailable {
   margin: 0;
-  padding: 12px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
+  padding: var(--delta-space-3);
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
 }
 
 /* Keep the title's icon and text in dockkit's flex row while retaining occurrence markers. */
@@ -236,7 +236,7 @@
  */
 .panel :global([data-dockkit-pane][data-sidebar-right-flash]),
 .panel :global([data-dockkit-float][data-sidebar-right-flash]) {
-  --sidebar-right-flash-color: var(--dsw-specific-sidebar-right-flash);
+  --sidebar-right-flash-color: var(--delta-specific-sidebar-right-flash);
   --sidebar-right-flash-ring: color-mix(in srgb, var(--sidebar-right-flash-color) 48%, transparent);
   --sidebar-right-flash-near: color-mix(in srgb, var(--sidebar-right-flash-color) 16%, transparent);
   --sidebar-right-flash-far: color-mix(in srgb, var(--sidebar-right-flash-color) 10%, transparent);
@@ -262,19 +262,19 @@
 
 .panel :global([data-dockkit-float][data-sidebar-right-flash]) {
   --sidebar-right-flash-from:
-    var(--dsw-elevation-prominent),
+    var(--delta-elevation-prominent),
     0 0 0 1px var(--sidebar-right-flash-ring),
     0 2px 4px 0 var(--sidebar-right-flash-near),
     0 0 10px 0 var(--sidebar-right-flash-far);
   --sidebar-right-flash-to:
-    var(--dsw-elevation-prominent),
+    var(--delta-elevation-prominent),
     0 0 0 1px transparent, 0 2px 4px 0 transparent, 0 0 10px 0 transparent;
 }
 
 .panel :global([data-dockkit-pane][data-sidebar-right-flash])::after,
 .panel :global([data-dockkit-float][data-sidebar-right-flash]) {
-  animation-duration: calc(var(--ds-transition-duration-slow) * 2);
-  animation-timing-function: var(--ds-ease-in-out);
+  animation-duration: calc(var(--delta-transition-duration-slow) * 2);
+  animation-timing-function: var(--delta-ease-in-out);
 }
 
 .panel :global([data-dockkit-pane][data-sidebar-right-flash='odd'])::after,

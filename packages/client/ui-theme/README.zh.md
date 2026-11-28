@@ -1,5 +1,5 @@
 ---
-description: "dsh Web 客户端的主题、字号与字体设置：--dsw-* token 样式表、ThemeRuntime 状态、「通用」设置行与插件前引导。"
+description: "dsh Web 客户端的主题、字号与字体设置：--delta-* token 样式表、ThemeRuntime 状态、「通用」设置行与插件前引导。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-theme` 让 Web GUI 用户在设置中选择 `light`、`dark` 或 `system`，并分别设置正文、代码与终端的字体和字号。每个已认证浏览器都把这些值存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并注入同步引导，使所选调色板、字号与字体在外壳加载前生效。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
+`dsh-client-ui-theme` 让 Web GUI 用户在设置中选择 `light`、`dark` 或 `system`，并分别设置正文、代码与终端的字体和字号。每个已认证浏览器都把这些值存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--delta-*` token 样式表，并注入同步引导，使所选调色板、字号与字体在外壳加载前生效。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-用户从设置（「通用」分区）的各行中切换配色方案、字号与字体；在每个已认证浏览器中，这些选择都会跨重启持久化。功能插件通过 `ctx.theme` 消费当前快照，并在 CSS 中读取 `--dsw-*` token；它们不自行管理主题状态。
+用户从设置（「通用」分区）的各行中切换配色方案、字号与字体；在每个已认证浏览器中，这些选择都会跨重启持久化。功能插件通过 `ctx.theme` 消费当前快照，并在 CSS 中读取 `--delta-*` token；它们不自行管理主题状态。
 
 ### 外观与字号
 
@@ -37,22 +37,24 @@ Desktop 的固定快捷键 `Cmd`/`Ctrl` + `+`（或 `=`）和 `Cmd`/`Ctrl` + `-`
 
 ### 字体
 
-三行分别独立设置正文字体（界面与会话正文）、代码字体（代码块、行内代码及其他使用 `--ds-font-family-code` 的文本）与侧栏终端字体。每个输入框接受逗号分隔的字体名，失焦或按 Enter 时提交；清空输入框即恢复内置字体栈。服务会规范化每个列表：去掉引号、反斜杠、尖括号与控制字符，并给 CSS 通用字体族以外的名称加双引号，然后存入 `textFontFamily`、`codeFontFamily` 或 `terminalFontFamily`。用户列表排在该类内置字体栈之前，因此本机缺少的字体会回退到默认字体。输入框接受任何已安装字体的名称，但不枚举本地字体。
+三行分别独立设置正文字体（界面与会话正文）、代码字体（代码块、行内代码及其他使用 `--delta-font-family-code` 的文本）与侧栏终端字体。每个输入框接受逗号分隔的字体名，失焦或按 Enter 时提交；清空输入框即恢复内置字体栈。服务会规范化每个列表：去掉引号、反斜杠、尖括号与控制字符，并给 CSS 通用字体族以外的名称加双引号，然后存入 `textFontFamily`、`codeFontFamily` 或 `terminalFontFamily`。用户列表排在该类内置字体栈之前，因此本机缺少的字体会回退到默认字体。输入框接受任何已安装字体的名称，但不枚举本地字体。
 
 ### 注册主题
 
-组合可以通过 `ctx.theme` 注册带别名 token 覆盖的第三方主题 id；覆盖层按注册顺序折入活动快照的 token 中。主题还可以替换产品图标：`ThemeDefinition.icons` 把 ui-primitives `ICON_SYMBOLS` 的 id 映射到完整的 SVG 文档。插件在 `body` 开头保留一个隐藏的图标 sprite，其 `<symbol>` 子元素采用活动主题的替换项，缺省时回退到默认值，因此替换图形可以是多色的，并可使用跟随调色板的 `currentColor` 或 `--dsw-*` 变量绘制。替换标记与注册它的插件代码同等受信任。`register` 会拒绝未知 id、根元素不是带 `viewBox` 且格式正确的 SVG 命名空间 `<svg>` 的文档、会作用于整个文档的 `<style>` 或 `<script>` 元素，以及不以 `<symbol id>-` 开头的元素 id。根元素的 `width`、`height`、`class` 和 `aria-hidden` 会被忽略，因为图标尺寸由使用处决定。渐变及其他绘制服务器在 sprite 中解析其色标，因此会跟随调色板 token，但不跟随使用处的颜色覆盖。移除其中一个绝不会覆盖最后一个持久化的内置偏好。第三方主题 id 仍是进程内扩展，不会跨越内置 settings schema。
+组合可以通过 `ctx.theme` 注册带别名 token 覆盖的第三方主题 id；覆盖层按注册顺序折入活动快照的 token 中。主题还可以替换产品图标：`ThemeDefinition.icons` 把 ui-primitives `ICON_SYMBOLS` 的 id 映射到完整的 SVG 文档。插件在 `body` 开头保留一个隐藏的图标 sprite，其 `<symbol>` 子元素采用活动主题的替换项，缺省时回退到默认值，因此替换图形可以是多色的，并可使用跟随调色板的 `currentColor` 或 `--delta-*` 变量绘制。替换标记与注册它的插件代码同等受信任。`register` 会拒绝未知 id、根元素不是带 `viewBox` 且格式正确的 SVG 命名空间 `<svg>` 的文档、会作用于整个文档的 `<style>` 或 `<script>` 元素，以及不以 `<symbol id>-` 开头的元素 id。根元素的 `width`、`height`、`class` 和 `aria-hidden` 会被忽略，因为图标尺寸由使用处决定。渐变及其他绘制服务器在 sprite 中解析其色标，因此会跟随调色板 token，但不跟随使用处的颜色覆盖。移除其中一个绝不会覆盖最后一个持久化的内置偏好。第三方主题 id 仍是进程内扩展，不会跨越内置 settings schema。
+
+新插件与主题应使用 `--delta-` 前缀命名 token。以早期 `--dsw-`、`--dsh-`、`--dsl-` 与 `--ds-` 前缀书写的 token 名仍受支持。`register` 与 `overrideTokens` 会把旧键改写为对应的 `--delta-*` 名称；同一层同时给出两种写法时，`--delta-*` 的值优先。用户字体偏好映射到 `--delta-font-family-user-text`、`-code` 与 `-terminal`。`legacy-plugin-aliases.css` 使读取旧名称的插件 CSS 在两种调色板下都解析到当前 token。宿主在后代元素上重声明的名称（如插槽变量，以及 elevation、focus-ring 与滚动条 token）逐元素解析。受支持的名称冻结在 [`src/legacy-tokens.json`](src/legacy-tokens.json) 中，该列表只能缩减。`pnpm run gen-legacy-token-aliases` 重新生成该样式表，`verify-legacy-token-aliases` 校验其是否为最新。
 
 ### 插件前调色板
 
-当主机组合包含 HTTP 服务器时，宿主侧会把已注册的 `ui-theme` 设置或 schema 默认值嵌入每份 index 响应。head CSS 会在任何脚本运行前选择文档画布的配色方案，其中 `system` 偏好使用 `prefers-color-scheme` 查询；随后，body 脚本会在加载页面和应用脚本之前设置 `body[data-ds-dark-theme]`、`--dsh-content-font-size`、`--dsh-code-font-size`、`--dsh-terminal-font-size` 以及每个非空的 `--dsh-font-family-<role>` 列表，因此首帧绘制就采用所选调色板与正文、代码字号，`ThemeRuntime` 也从已保存的主题偏好、字号与字体开始，不会先渲染默认值。
+当主机组合包含 HTTP 服务器时，宿主侧会把已注册的 `ui-theme` 设置或 schema 默认值嵌入每份 index 响应。head CSS 会在任何脚本运行前选择文档画布的配色方案，其中 `system` 偏好使用 `prefers-color-scheme` 查询；随后，body 脚本会在加载页面和应用脚本之前设置 `body[data-ds-dark-theme]`、`--delta-content-font-size`、`--delta-code-font-size`、`--delta-terminal-font-size` 以及每个非空的 `--delta-font-family-user-<role>` 列表，因此首帧绘制就采用所选调色板与正文、代码字号，`ThemeRuntime` 也从已保存的主题偏好、字号与字体开始，不会先渲染默认值。
 
 -----
 
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
-公共菜单通过 `MenuSurface` 共享 `--dsw-menu-surface-fill` 和模糊，平台代码须保留这些 token 值。菜单吸顶分组标题可使用 `--dsw-alias-menu-group-header-fill`，其浅／深色填充均为 94% 不透明度，独立于菜单材质。其他浮层使用 `--dsw-specific-menu`，在没有菜单底层时保留 macOS 上接近不透明的填充。源码约束见[样式参考](../../../docs/web-styling.zh.md#component-rules)。 模态遮罩保留黑色半透明填充，不模糊背景。
+公共菜单通过 `MenuSurface` 共享 `--delta-menu-surface-fill` 和模糊，平台代码须保留这些 token 值。菜单吸顶分组标题可使用 `--delta-alias-menu-group-header-fill`，其浅／深色填充均为 94% 不透明度，独立于菜单材质。其他浮层使用 `--delta-specific-menu`，在没有菜单底层时保留 macOS 上接近不透明的填充。源码约束见[样式参考](../../../docs/web-styling.zh.md#component-rules)。 模态遮罩保留黑色半透明填充，不模糊背景。
 
 <details>
 <summary>实现细节——点击展开</summary>
@@ -63,41 +65,43 @@ Desktop 的固定快捷键 `Cmd`/`Ctrl` + `+`（或 `=`）和 `Cmd`/`Ctrl` + `-`
 
 ### 样式表
 
-当 document 有关联的 window 时，样式安装器在 document 根节点发布 `--dsh-hairline-width`，并通过一个设备像素比监听器更新它。没有 window 的文档仍安装样式表，并使用 CSS fallback 宽度。该宽度对应 0.5px 边框向下取整到整物理像素后的结果，最小为一个物理像素。只有显式读取该变量的样式会使用这一宽度；插件卸载时释放监听器并恢复根节点上原有的声明。
+`base.css` 还在 `:root` 上持有 `--delta-*` 设计刻度：字重（`--delta-font-weight-light` 至 `-bold`，300–700）、字号（`--delta-font-size-10` 至 `-28`，单位 px）、行高（`--delta-line-height-16` 至 `-32`，单位 px，另有无单位的 `-none`、`-snug`、`-normal`、`-relaxed` 与 `-loose`）、间距（`--delta-space-0-25` 至 `-12`，基于 4px `--delta-space-unit`）以及页面级层叠层（`--delta-layer-popover`、`-onboarding`、`-modal`、`-modal-raised`、`-overlay` 与 `-overlay-raised`）。design-literals 规范确保功能样式表使用这些刻度。独立的桌面入口页会在 ui-theme 加载前使用共享平台令牌表。
 
-`base.css` 持有共享圆角尺度、字体 token 与设置卡片材质别名。`--dsh-font-family-text-default` 与 `--dsh-font-family-code-default` 在 `:root` 上保存内置字体栈；在 `body` 上，`--dsw-font-family` 与 `--ds-font-family-code` 把 `--dsh-font-family-text` 与 `--dsh-font-family-code` 排在这些字体栈之前，未设置的列表解析为内置字体栈（重复一次，字体匹配会忽略重复项）。材质别名在 `body` 上随当前色板解析。组件圆角选择遵循 [Web 样式参考](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)。
+当 document 有关联的 window 时，样式安装器在 document 根节点发布 `--delta-hairline-width`，并通过一个设备像素比监听器更新它。没有 window 的文档仍安装样式表，并使用 CSS fallback 宽度。该宽度对应 0.5px 边框向下取整到整物理像素后的结果，最小为一个物理像素。只有显式读取该变量的样式会使用这一宽度；插件卸载时释放监听器并恢复根节点上原有的声明。
 
-`src/styles/` 下有八张样式表，由 ui-theme 的动态客户端 entry 依次导入：`base.css`、`corner-shape.css`、`design-platform.css`、`focus.css`、`onboarding.css`、`scrollbar.css`、`gradient-shadow-text.css` 与 `shiki.css`。客户端 bundle 将其编译并注入为插件持有的全局样式，因此卸载与 HMR（热模块替换）会随 ui-theme 一同移除。`scrollbar.css` 消费 `--dsw-alias-scrollbar-*` token，必须排在声明这些 token 的 `design-platform.css` 之后。状态标记使用各自的语义状态 token；`--dsw-alias-state-done-primary` 标记已完成的工作（例如已合并的变更请求），浅色主题为 violet-600，深色主题为 violet-400。`--dsw-alias-bg-document-selection` 在两种主题中均使用 40% 不透明度的 blue-500，供保留文档原色的选区使用。`design-platform.css` 还负责代码差异底色的别名及其静态透明度色阶，以及文件对比所用的 `--dsw-alias-file-diff-*` 代码区、行号区和标记配色；`shiki.css` 负责语法颜色。
+`base.css` 持有共享圆角尺度、字体 token 与设置卡片材质别名。`--delta-font-family-text-default` 与 `--delta-font-family-code-default` 在 `:root` 上保存内置字体栈；在 `body` 上，`--delta-font-family` 与 `--delta-font-family-code` 把 `--delta-font-family-user-text` 与 `--delta-font-family-user-code` 排在这些字体栈之前，未设置的列表解析为内置字体栈（重复一次，字体匹配会忽略重复项）。材质别名在 `body` 上随当前色板解析。组件圆角选择遵循 [Web 样式参考](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)。
 
-[`focus.css`](src/styles/focus.css) 提供 `:focus-visible` 兜底：通过 `var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary))` 声明焦点环颜色，并通过 `--dsw-focus-ring-width` 声明标准宽度，但不声明轮廓样式——因此禁用轮廓的控件仍然不绘制，而没有自有焦点环的控件保持标准几何，而不是落到 Chromium 的 `auto 1px`。主题将该蓝色解析为浅色模式的 `#4176E6` 和深色模式的 `#7AAAFF`。组件轮廓与焦点环阴影使用同一颜色表达式，包括后代和伪元素上的环。`--dsw-focus-ring-width`（2px）是标准宽度；密集表格与工具栏可以保留 1px，offset 仍由组件决定。
+`src/styles/` 下有九张样式表，由 ui-theme 的动态客户端 entry 依次导入：`base.css`、`corner-shape.css`、`design-platform.css`、`focus.css`、`onboarding.css`、`scrollbar.css`、`gradient-shadow-text.css`、`shiki.css` 与生成的 `legacy-plugin-aliases.css`。客户端 bundle 将其编译并注入为插件持有的全局样式，因此卸载与 HMR（热模块替换）会随 ui-theme 一同移除。`scrollbar.css` 消费 `--delta-alias-scrollbar-*` token，必须排在声明这些 token 的 `design-platform.css` 之后。状态标记使用各自的语义状态 token；`--delta-alias-state-done-primary` 标记已完成的工作（例如已合并的变更请求），浅色主题为 violet-600，深色主题为 violet-400。`--delta-alias-bg-document-selection` 在两种主题中均使用 40% 不透明度的 blue-500，供保留文档原色的选区使用。`design-platform.css` 还负责代码差异底色的别名及其静态透明度色阶，以及文件对比所用的 `--delta-alias-file-diff-*` 代码区、行号区和标记配色；`shiki.css` 负责语法颜色。
+
+[`focus.css`](src/styles/focus.css) 提供 `:focus-visible` 兜底：通过 `var(--delta-focus-ring-color, var(--delta-alias-state-business-primary))` 声明焦点环颜色，并通过 `--delta-focus-ring-width` 声明标准宽度，但不声明轮廓样式——因此禁用轮廓的控件仍然不绘制，而没有自有焦点环的控件保持标准几何，而不是落到 Chromium 的 `auto 1px`。主题将该蓝色解析为浅色模式的 `#4176E6` 和深色模式的 `#7AAAFF`。组件轮廓与焦点环阴影使用同一颜色表达式，包括后代和伪元素上的环。`--delta-focus-ring-width`（2px）是标准宽度；密集表格与工具栏可以保留 1px，offset 仍由组件决定。
 
 指针模态下，`html[data-input-modality='pointer'] body :focus-visible:not(:read-write)` 将焦点环颜色设为透明。后代与伪元素继承该值；规则不清除 `box-shadow`，因此 elevation 阴影与选中态边框独立于焦点环可见性。匹配 `:read-write` 的可编辑文本控件在点击时保留自身焦点反馈。[输入模态](../ui-primitives/README.zh.md#input-modality)决定何时恢复键盘焦点样式；它不移动 DOM 焦点。
 
-菜单图标使用 `--dsw-alias-menu-icon`：浅色模式为 neutral-bluish 800，深色模式为 `label-primary-dimmed`。
+菜单图标使用 `--delta-alias-menu-icon`：浅色模式为 neutral-bluish 800，深色模式为 `label-primary-dimmed`。
 
-`--dsw-alias-illustration-*` token 分别定义分层装饰插画的背景、前层表面、后层、投影、内嵌填充与细节配色。表盘使用内嵌填充。深色配色让前层表面比后层和背景更亮；内嵌填充与投影沿用后层色调。
+`--delta-alias-illustration-*` token 分别定义分层装饰插画的背景、前层表面、后层、投影、内嵌填充与细节配色。表盘使用内嵌填充。深色配色让前层表面比后层和背景更亮；内嵌填充与投影沿用后层色调。
 
 `base.css` 仅抑制[基础控件焦点工具](../ui-primitives/README.zh.md)通过 `data-dsh-automatic-focus` 标记的聚焦元素外轮廓线；正常键盘焦点样式、边框、阴影及错误状态保持不变。
 
-系统提示使用 `--dsw-alias-toast-bg`、`--dsw-alias-toast-label` 和 `--dsw-alias-toast-action`，在各调用方之间统一背景、文字与操作颜色。悬停卡片使用 `--dsw-alias-hovercard-bg`、三档 `--dsw-alias-hovercard-label-*`，以及 `--dsw-alias-hovercard-state-done` 和 `--dsw-alias-hovercard-state-error` 状态颜色；该表面在两套配色中均保持深色。`--dsw-alias-label-on-color` 是饱和填充（如发送按钮）上的白色文字。计划、日程和交付物卡片共用 `--dsw-alias-card-fill`、`--dsw-alias-card-fill-hover` 和 `--dsw-alias-card-tile-fill`；`--dsw-alias-json-tree-*` 为 JSON 树语法着色，`--dsw-alias-chart-*` 为上下文占用各类别着色，`--dsw-alias-border-selected` 用于选中的选项卡片，`--dsw-alias-trajectory-accent` 用于轨迹轮次高亮。组件专属值使用 `--dsw-specific-*`：引导页主视觉文字、文件上传进度轨道、右侧边栏显现闪烁颜色，以及 macOS 上侧边栏的玻璃控件、底色层和色调。文档预览配对使用 `--dsw-alias-bg-document-preview` 与 `--dsw-alias-label-document-preview`，使底色与状态文字遵循相同主题。Tooltip 键帽使用 `--dsw-alias-tooltip-key-bg`，由各主题的 tooltip 背景派生稍浅的填充。开关滑块读取 `--dsw-alias-switch-thumb`：浅色模式为纯白，深色模式为 neutral-bluish 400，使关闭态滑块比轨道更亮，同时避免纯白在暗色下过亮。
+系统提示使用 `--delta-alias-toast-bg`、`--delta-alias-toast-label` 和 `--delta-alias-toast-action`，在各调用方之间统一背景、文字与操作颜色。悬停卡片使用 `--delta-alias-hovercard-bg`、三档 `--delta-alias-hovercard-label-*`，以及 `--delta-alias-hovercard-state-done` 和 `--delta-alias-hovercard-state-error` 状态颜色；该表面在两套配色中均保持深色。`--delta-alias-label-on-color` 是饱和填充（如发送按钮）上的白色文字。计划、日程和交付物卡片共用 `--delta-alias-card-fill`、`--delta-alias-card-fill-hover` 和 `--delta-alias-card-tile-fill`；`--delta-alias-json-tree-*` 为 JSON 树语法着色，`--delta-alias-chart-*` 为上下文占用各类别着色，`--delta-alias-border-selected` 用于选中的选项卡片，`--delta-alias-trajectory-accent` 用于轨迹轮次高亮。组件专属值使用 `--delta-specific-*`：引导页主视觉文字、文件上传进度轨道、右侧边栏显现闪烁颜色，以及 macOS 上侧边栏的玻璃控件、底色层和色调。文档预览配对使用 `--delta-alias-bg-document-preview` 与 `--delta-alias-label-document-preview`，使底色与状态文字遵循相同主题。Tooltip 键帽使用 `--delta-alias-tooltip-key-bg`，由各主题的 tooltip 背景派生稍浅的填充。开关滑块读取 `--delta-alias-switch-thumb`：浅色模式为纯白，深色模式为 neutral-bluish 400，使关闭态滑块比轨道更亮，同时避免纯白在暗色下过亮。
 
-`--dsw-alias-label-shimmer` 为共享文字扫光提供叠加色：浅色配色使用 30% alpha 的黑色，深色配色使用 45% alpha 的白色。`--dsw-alias-label-deep-diving` 和 `--dsw-alias-label-deep-diving-shimmer` 提供蓝色活动文本和扫光颜色；深色主题使用更亮、饱和度更低的文字，并以更亮的蓝色扫光。
+`--delta-alias-label-shimmer` 为共享文字扫光提供叠加色：浅色配色使用 30% alpha 的黑色，深色配色使用 45% alpha 的白色。`--delta-alias-label-deep-diving` 和 `--delta-alias-label-deep-diving-shimmer` 提供蓝色活动文本和扫光颜色；深色主题使用更亮、饱和度更低的文字，并以更亮的蓝色扫光。
 
-`--dsw-alias-turn-trigger-*` token 分别定义深浅主题下轮次触发通知的常态和悬停底色。 深色提示使用更亮的交互层色，使静止卡片与文本记录背景保持区分。
+`--delta-alias-turn-trigger-*` token 分别定义深浅主题下轮次触发通知的常态和悬停底色。 深色提示使用更亮的交互层色，使静止卡片与文本记录背景保持区分。
 
 `brand-font.css` 导出本地 Montserrat Light、Regular 和 Medium 字体（正体、字重 300、400 和 500），`lib/styles/` 同时提供 `montserrat-light.woff2`、`montserrat-regular.woff2`、`montserrat-medium.woff2` 及其 SIL Open Font License。Desktop 将同一份样式表、字体和许可证打包，用于欢迎页品牌文字的离线显示；普通界面保留系统字体栈。
 
-`corner-shape.css` 平滑所有圆角：在 `@supports (corner-shape: superellipse(1.5))` 内定义 `--dsw-corner-shape`，并通过通配选择器应用到所有元素及其 `::before`/`::after`，因此不支持 `corner-shape` 的引擎保持普通圆弧。正圆形状——`border-radius: 50%` 的圆与胶囊半径——因超级椭圆会使其变形，须在所属组件样式表中把 `corner-shape: round` 与半径声明配对；corner-shape 样式表 spec 跨全部包样式表强制这一配对。
+`corner-shape.css` 平滑所有圆角：在 `@supports (corner-shape: superellipse(1.5))` 内定义 `--delta-corner-shape`，并通过通配选择器应用到所有元素及其 `::before`/`::after`，因此不支持 `corner-shape` 的引擎保持普通圆弧。正圆形状——`border-radius: 50%` 的圆与胶囊半径——因超级椭圆会使其变形，须在所属组件样式表中把 `corner-shape: round` 与半径声明配对；corner-shape 样式表 spec 跨全部包样式表强制这一配对。
 
-`gradient-shadow-text.css` 从 `--dsh-content-font-size` 派生 `--dsh-content-font-delta`，并以该增量移动 Markdown 标题与基础文本阶梯。它同时派生低一档变量 `--dsh-content-font-size-secondary`（设置 ≤14 时为设置值 −1，>14 时为设置值 −2；默认设置下为 13 px）及配套的 `--dsh-content-font-delta-secondary`，供表格变体与比正文低一档的流内行使用。紧凑的小号文本变体保持固定字号。代码变体（`--dsw-font-markdown-code`、`-code-block`、`-code-block-small`）按 `--dsh-code-font-delta`（`--dsh-code-font-size` 与 11 px 之差）调整字号与行高。阶梯之外，用户气泡与 composer 草稿直接读取正文字号变量对，流内行的标题及摘要读取低一档变量对。该表还持有阴影阶（`--dsw-shadow-lv*`）、半透明菜单使用的 `--dsw-menu-backdrop-filter` 与 elevation token：`--dsw-elevation-stroke` 经可重绑的 `--dsw-elevation-stroke-color` 画 0.5 px 发丝描边，`--dsw-elevation-panel`/`--dsw-elevation-prominent`/`--dsw-elevation-soft`（composer 专用的更大模糊、更低透明度档）在描边之上叠两层极淡柔光，因此高层级表面设 `border: 0`，不会产生占布局的轮廓；派生 token 逐元素重声明，使表面对描边色的重绑真实生效。绘制 `--dsw-specific-menu` 的高层级表面还会应用 `backdrop-filter: var(--dsw-menu-backdrop-filter)`（[样式参考](../../../docs/web-styling.zh.md#component-rules)）。 浅色菜单使用不透明度为 70% 的填充，深色菜单使用不透明度为 64% 的填充；深色菜单使用 `border-l3` 描边，浅色菜单使用 `border-l1` 描边。
+`gradient-shadow-text.css` 从 `--delta-content-font-size` 派生 `--delta-content-font-delta`，并以该增量移动 Markdown 标题与基础文本阶梯。它同时派生低一档变量 `--delta-content-font-size-secondary`（设置 ≤14 时为设置值 −1，>14 时为设置值 −2；默认设置下为 13 px）及配套的 `--delta-content-font-delta-secondary`，供表格变体与比正文低一档的流内行使用。紧凑的小号文本变体保持固定字号。代码变体（`--delta-font-markdown-code`、`-code-block`、`-code-block-small`）按 `--delta-code-font-delta`（`--delta-code-font-size` 与 11 px 之差）调整字号与行高。阶梯之外，用户气泡与 composer 草稿直接读取正文字号变量对，流内行的标题及摘要读取低一档变量对。该表还持有阴影阶（`--delta-shadow-lv*`）、半透明菜单使用的 `--delta-menu-backdrop-filter` 与 elevation token：`--delta-elevation-stroke` 经可重绑的 `--delta-elevation-stroke-color` 画 0.5 px 发丝描边，`--delta-elevation-panel`/`--delta-elevation-prominent`/`--delta-elevation-soft`（composer 专用的更大模糊、更低透明度档）在描边之上叠两层极淡柔光，因此高层级表面设 `border: 0`，不会产生占布局的轮廓；派生 token 逐元素重声明，使表面对描边色的重绑真实生效。绘制 `--delta-specific-menu` 的高层级表面还会应用 `backdrop-filter: var(--delta-menu-backdrop-filter)`（[样式参考](../../../docs/web-styling.zh.md#component-rules)）。 浅色菜单使用不透明度为 70% 的填充，深色菜单使用不透明度为 64% 的填充；深色菜单使用 `border-l3` 描边，浅色菜单使用 `border-l1` 描边。
 
-`brand-font.css` 引用随包提供的 `montserrat-regular.woff2` / `montserrat-light.woff2` / `montserrat-medium.woff2`，其中包含 Montserrat Regular、Light 和 Medium 字体，SIL Open Font License 与样式表和 WOFF2 一同随包保存在 `lib/styles/`。`--dsw-font-family-brand` 为品牌文字选择该字体，普通界面仍使用系统字体栈。源文件来自 Google Fonts 的 Montserrat 发布。Web 入口导入包的 `./brand-font.css` 导出，由 Vite 输出并解析字体资源，Web 构建也包含其许可。Web 应用（包括 Desktop 引导）可离线加载字体；原生凭证欢迎页保留系统字体。
+`brand-font.css` 引用随包提供的 `montserrat-regular.woff2` / `montserrat-light.woff2` / `montserrat-medium.woff2`，其中包含 Montserrat Regular、Light 和 Medium 字体，SIL Open Font License 与样式表和 WOFF2 一同随包保存在 `lib/styles/`。`--delta-font-family-brand` 为品牌文字选择该字体，普通界面仍使用系统字体栈。源文件来自 Google Fonts 的 Montserrat 发布。Web 入口导入包的 `./brand-font.css` 导出，由 Vite 输出并解析字体资源，Web 构建也包含其许可。Web 应用（包括 Desktop 引导）可离线加载字体；原生凭证欢迎页保留系统字体。
 
 `onboarding.css` 管理引导强调色、以紫色/蓝色/青色命名的渐变，以及卡片、复选框和次要操作的浅色与暗黑配色。卡片阴影的偏移与模糊尺寸由业务组件管理。
 
 ### 滚动条重新绑定
 
-`scrollbar.css` 在 `body` 上把 `--dsh-scrollbar-thumb` 与 `--dsh-scrollbar-thumb-hover` 绑定到 l1 基础表面 token；高层级表面（菜单、浮层、对话框）在自己的容器上把它们重新绑定为 l2 token；这组变量的另一个合法目标是 `transparent`（ui-sidebar 在指针不在栏内时就这样重新绑定自己的列）。两者都通过 `@property` 注册为可继承的 `<color>` 属性，初始值为 `transparent`，因此表面可以为重新绑定添加过渡；ui-sidebar 就以这种方式让滑块淡出。WebKit 系浏览器默认使用 5px 的 `--dsh-scrollbar-width`，并读取 `--dsh-scrollbar-thumb-border` 与 `--dsh-scrollbar-track-margin`；滚动表面可重新绑定它们，在较窄的可见滑块外保留较宽的拖动区域，或让轨道避开圆角两端。两条渲染路径在构造上互斥：Firefox 走 `@supports not selector(::-webkit-scrollbar)` 内的标准细滚动条，WebKit 系引擎走伪元素，因此几何与 hover 定制只经由伪元素路径生效。
+`scrollbar.css` 在 `body` 上把 `--delta-scrollbar-thumb` 与 `--delta-scrollbar-thumb-hover` 绑定到 l1 基础表面 token；高层级表面（菜单、浮层、对话框）在自己的容器上把它们重新绑定为 l2 token；这组变量的另一个合法目标是 `transparent`（ui-sidebar 在指针不在栏内时就这样重新绑定自己的列）。两者都通过 `@property` 注册为可继承的 `<color>` 属性，初始值为 `transparent`，因此表面可以为重新绑定添加过渡；ui-sidebar 就以这种方式让滑块淡出。WebKit 系浏览器默认使用 5px 的 `--delta-scrollbar-width`，并读取 `--delta-scrollbar-thumb-border` 与 `--delta-scrollbar-track-margin`；滚动表面可重新绑定它们，在较窄的可见滑块外保留较宽的拖动区域，或让轨道避开圆角两端。两条渲染路径在构造上互斥：Firefox 走 `@supports not selector(::-webkit-scrollbar)` 内的标准细滚动条，WebKit 系引擎走伪元素，因此几何与 hover 定制只经由伪元素路径生效。
 
 ### 偏好持久化
 
@@ -114,9 +118,8 @@ Desktop 的固定快捷键 `Cmd`/`Ctrl` + `+`（或 `=`）和 `Cmd`/`Ctrl` + `-`
 
 - [ui-layout](../ui-layout/README.zh.md)——应用解析后主题快照的展示转换器。
 - [ui-sidebar](../ui-sidebar/README.zh.md)——滚动条重新绑定约定的消费方。
-- [ui-conversation](../ui-conversation/README.zh.md)——为 composer 席位消费 `--dsh-scrollbar-width` 的消费方。
+- [ui-conversation](../ui-conversation/README.zh.md)——为 composer 席位消费 `--delta-scrollbar-width` 的消费方。
 - [Web 样式](../../../docs/web-styling.zh.md)——Web 客户端组件的权威样式规则。
-- [已认证浏览器 Host 偏好](../../../.agents/notes/implemented/bug-fix/2026-09-15-authenticated-browser-host-preferences.zh.md)——持久化策略决策。
 
 -----
 

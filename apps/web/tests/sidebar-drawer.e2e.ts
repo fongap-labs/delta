@@ -94,7 +94,7 @@ it('hides a collapsed rail immediately when it becomes a drawer', async () => {
       const sidebarColumn = sidebar.locator('..')
       await expect.poll(async () => (await sidebarColumn.boundingBox())?.width).toBe(56)
       await sidebarColumn.evaluate((el) => {
-        el.parentElement!.style.setProperty('--ds-transition-duration-slow', '100s')
+        el.parentElement!.style.setProperty('--delta-transition-duration-slow', '100s')
       })
       await page.setViewportSize({ width: 767, height: 844 })
       await page.locator('[data-sidebar-drawer]').waitFor()
@@ -147,7 +147,7 @@ it('retains the closing slide when an expanded sidebar becomes a collapsed drawe
       const sidebarColumn = page.locator('[data-slot="sidebar"]').locator('..')
       await expect.poll(async () => (await sidebarColumn.boundingBox())?.width).toBe(280)
       await sidebarColumn.evaluate((el) => {
-        el.parentElement!.style.setProperty('--ds-transition-duration-slow', '100s')
+        el.parentElement!.style.setProperty('--delta-transition-duration-slow', '100s')
       })
       await page.setViewportSize({ width: 767, height: 844 })
       await page.locator('[data-sidebar-drawer][data-sidebar-collapsed]').waitFor()
@@ -180,7 +180,7 @@ async function assertMaskFade(frame: Locator, from: number, to: number): Promise
     for (const animation of el.getAnimations({ subtree: true })) {
       if (animation instanceof CSSTransition) animation.finish()
     }
-    el.style.removeProperty('--ds-transition-duration-slow')
+    el.style.removeProperty('--delta-transition-duration-slow')
   })
 }
 
@@ -220,7 +220,7 @@ async function assertFoldResize(toggle: Locator, from: number, to: number): Prom
     // values stay at the end state: cancelling drops the transition effect, and the
     // computed grid lands on the same target the finished transition would show.
     for (const transition of transitions) transition.cancel()
-    frame.style.removeProperty('--ds-transition-duration-slow')
+    frame.style.removeProperty('--delta-transition-duration-slow')
     return { endpoints: [start.width, end.width], start, middle }
   })
   expect(sample.endpoints).toEqual([from, to])
@@ -255,7 +255,7 @@ it('overlays the conversation and closes after navigation without losing its sid
       await opener.waitFor()
       const frame = page.locator('[data-sidebar-drawer]')
       expect(await page.locator('[data-shell-leading]').getByRole('button').count()).toBe(1)
-      expect(await frame.evaluate(el => getComputedStyle(el).getPropertyValue('--dsh-frame-leading-clearance').trim()))
+      expect(await frame.evaluate(el => getComputedStyle(el).getPropertyValue('--delta-frame-leading-clearance').trim()))
         .toBe('48px')
       await expect.poll(() => frame.getAttribute('data-sidebar-collapsed')).toBe('true')
       const sidebar = page.locator('[data-slot="sidebar"]')
@@ -264,7 +264,7 @@ it('overlays the conversation and closes after navigation without losing its sid
       const closed = await main.boundingBox()
       // A long test-owned duration keeps the transition available until its
       // animation clock is sampled and finished explicitly.
-      await frame.evaluate((el) => { el.style.setProperty('--ds-transition-duration-slow', '100s') })
+      await frame.evaluate((el) => { el.style.setProperty('--delta-transition-duration-slow', '100s') })
       await opener.tap()
       const drawer = page.getByRole('dialog', { name: 'Navigation', exact: true })
       await drawer.waitFor()
@@ -287,7 +287,7 @@ it('overlays the conversation and closes after navigation without losing its sid
       const search = drawer.getByPlaceholder('Search session names')
       expect(await search.evaluate(el => getComputedStyle(el).fontSize)).toBe('16px')
       await drawer.getByRole('button', { name: 'Clear search', exact: true }).tap()
-      await frame.evaluate((el) => { el.style.setProperty('--ds-transition-duration-slow', '100s') })
+      await frame.evaluate((el) => { el.style.setProperty('--delta-transition-duration-slow', '100s') })
       await page.getByRole('treeitem').filter({ has: page.getByText('Drawer navigation', { exact: true }) }).tap()
       await assertMaskFade(frame, 1, 0)
       await drawer.waitFor({ state: 'hidden' })
@@ -506,14 +506,14 @@ it('overlays the conversation and closes after navigation without losing its sid
         await foldSearch.fill('fold search')
         const wideFrame = page.locator('[data-rightbar-collapsed]')
         const collapseSidebar = page.getByRole('button', { name: 'Collapse sidebar', exact: true })
-        await wideFrame.evaluate((el) => { el.style.setProperty('--ds-transition-duration-slow', '100s') })
+        await wideFrame.evaluate((el) => { el.style.setProperty('--delta-transition-duration-slow', '100s') })
         await posture.send('Emulation.clearDevicePostureOverride')
         await assertFoldResize(collapseSidebar, 475.5, 280)
         await expect.poll(() => main.boundingBox()).toEqual({ x: 280, y: 0, width: 671, height: 669 })
         expect(await page.locator('[data-side="sidebar"]').count()).toBe(1)
         expect(await foldSearch.evaluate(el => el === document.activeElement)).toBe(true)
         expect(await foldSearch.inputValue()).toBe('fold search')
-        await wideFrame.evaluate((el) => { el.style.setProperty('--ds-transition-duration-slow', '100s') })
+        await wideFrame.evaluate((el) => { el.style.setProperty('--delta-transition-duration-slow', '100s') })
         await posture.send('Emulation.setDevicePostureOverride', { posture: { type: 'folded' } })
         await assertFoldResize(collapseSidebar, 280, 475.5)
         await expect.poll(async () => (await main.boundingBox())?.x).toBe(475.5)

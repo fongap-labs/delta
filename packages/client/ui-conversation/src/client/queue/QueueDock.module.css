@@ -6,23 +6,23 @@
   flex: none;
   width: calc(
     100% -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
+    var(--delta-composer-side-clearance) -
+    var(--delta-composer-side-clearance) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset)
   );
   max-width: calc(
-    var(--dsh-composer-card-max-width) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
+    var(--delta-composer-card-max-width) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset)
   );
   /* Cancel the stack gap after this item and tuck 3px under the input card
      (square bottom), reading as one attached surface. */
-  margin: 0 auto calc(0px - var(--dsh-composer-stack-gap) - 3px);
+  margin: 0 auto calc(0px - var(--delta-composer-stack-gap) - 3px);
   /* Horizontal padding completes the shared dock inset (this wrapper only
      subtracts two insets from its width); no vertical padding, so the visual
      gap above the panel stays the uniform stack gap. */
-  padding: 0 var(--dsh-composer-dock-inset);
+  padding: 0 var(--delta-composer-dock-inset);
 }
 
 .panel {
@@ -30,10 +30,10 @@
   isolation: isolate;
   overflow: hidden;
   width: 100%;
-  padding: 2px 0;
-  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) 0 0;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  padding: var(--delta-space-0-5) 0;
+  border-radius: var(--delta-radius-lg) var(--delta-radius-lg) 0 0;
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .panel::before {
@@ -41,8 +41,8 @@
   z-index: -1;
   inset: 0;
   border-radius: inherit;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
   content: '';
   pointer-events: none;
 }
@@ -50,7 +50,7 @@
 .panel::after {
   position: absolute;
   inset: 0;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--delta-alias-border-l1);
   /* The input card's own top border closes the shape below. */
   border-bottom: none;
   border-radius: inherit;
@@ -62,22 +62,22 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   width: 100%;
   height: 36px;
   /* Right inset 12px puts the chevron on the same vertical line as the Todo
      header's chevron (12px body padding there). */
-  padding: 4px 12px;
+  padding: var(--delta-space-1) var(--delta-space-3);
   border: none;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--delta-radius-md);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   text-align: left;
   cursor: pointer;
 }
 
 .header:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -89,16 +89,16 @@
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .count {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: Inter, var(--dsw-font-family);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 24px;
+  font-family: Inter, var(--delta-font-family);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-24);
 }
 
 .chevron {
@@ -107,7 +107,7 @@
   place-items: center;
   width: 14px;
   height: 14px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .list {
@@ -122,22 +122,22 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   width: 100%;
   /* Grows with the inline editor's content; the other rows stay 36px. */
   min-height: 36px;
-  padding: 4px 5px 4px 12px;
-  border-radius: var(--dsw-radius-md);
+  padding: var(--delta-space-1) 5px var(--delta-space-1) var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
 }
 
 .row + .row {
-  box-shadow: inset 0 1px 0 var(--dsw-alias-border-l1);
+  box-shadow: inset 0 1px 0 var(--delta-alias-border-l1);
 }
 
 .attachments {
   display: flex;
   flex: none;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
   max-width: 55%;
   overflow: hidden;
@@ -151,14 +151,14 @@
   display: inline-flex;
   flex: 0 1 180px;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 74px;
   height: 24px;
-  padding: 0 6px;
+  padding: 0 var(--delta-space-1-5);
   overflow: hidden;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-base);
+  border: 0.5px solid var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-bg-base);
   box-sizing: border-box;
 }
 
@@ -172,47 +172,47 @@
 .fileName {
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-primary-dimmed);
-  font: var(--dsw-font-xs-13);
+  color: var(--delta-alias-label-primary-dimmed);
+  font: var(--delta-font-xs-13);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .fileSize {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 10px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-10);
   white-space: nowrap;
 }
 
 .thumb {
   width: 24px;
   height: 24px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-base);
+  border: 0.5px solid var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-xs);
+  background: var(--delta-alias-bg-base);
   object-fit: cover;
 }
 
 .preview {
   flex: 1 1 auto;
   min-width: 0;
-  font: var(--dsw-font-xs-13);
-  font-family: Inter, var(--dsw-font-family);
-  color: var(--dsw-alias-label-primary-dimmed);
+  font: var(--delta-font-xs-13);
+  font-family: Inter, var(--delta-font-family);
+  color: var(--delta-alias-label-primary-dimmed);
 }
 
 .actions {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .status {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xs-13);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xs-13);
   white-space: nowrap;
 }
 
@@ -227,18 +227,18 @@
   border-radius: 999px;
   corner-shape: round;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .action:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .action:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 

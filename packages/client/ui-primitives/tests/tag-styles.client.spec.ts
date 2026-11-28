@@ -33,7 +33,7 @@ describe('Tag.module.css', () => {
   it('keeps the capsule geometry on the base rule, not per tone', () => {
     const base = /^\.tag \{([^}]*)\}/m.exec(css)?.[1] ?? ''
     expect(base).toContain('border-radius: 999px')
-    expect(base).toContain('padding: 1px 8px')
+    expect(base).toContain('padding: 1px var(--delta-space-2)')
     for (const tone of TONES) expect(declarations(tone)).not.toContain('border-radius')
   })
 })

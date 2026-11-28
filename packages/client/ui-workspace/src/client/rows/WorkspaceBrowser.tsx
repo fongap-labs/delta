@@ -43,7 +43,7 @@ import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
 
 /**
- * Column slide length (--ds-transition-duration-slow): rail-search focus waits it out —
+ * Column slide length (--delta-transition-duration-slow): rail-search focus waits it out —
  * focus() forces a synchronous layout and would jank the slide.
  */
 const EXPAND_SLIDE_MS = 300
@@ -517,7 +517,7 @@ function SessionTree({
     // (WorkspaceBrowser.module.css).
       <div
         key={group.key}
-        style={{ '--dsh-workspace-indent': `${depth * 12}px` } as CSSProperties}
+        style={{ '--delta-workspace-indent': `${depth * 12}px` } as CSSProperties}
         className={clsx(
           css.groupSection,
           workspaceMarker === 'before' && css.workspaceDropBefore,

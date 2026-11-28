@@ -22,11 +22,11 @@ async function invalidInputStyles(page: Page, input: Locator) {
         const style = getComputedStyle(element)
         const probe = document.createElement('span')
         probe.style.display = 'none'
-        probe.style.color = style.getPropertyValue('--dsw-focus-ring-color').trim() || style.getPropertyValue('--dsw-alias-state-business-primary')
+        probe.style.color = style.getPropertyValue('--delta-focus-ring-color').trim() || style.getPropertyValue('--delta-alias-state-business-primary')
         element.after(probe)
         try {
           const focusRingColor = getComputedStyle(probe).color
-          probe.style.color = style.getPropertyValue('--dsw-alias-state-error-primary')
+          probe.style.color = style.getPropertyValue('--delta-alias-state-error-primary')
           return {
             focused: { outline: style.outlineStyle, boxShadow: style.boxShadow, borderColor: style.borderColor },
             focusRingColor,

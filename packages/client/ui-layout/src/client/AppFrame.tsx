@@ -291,7 +291,7 @@ export function AppFrame({
       className={css.frame}
       style={{
         ...(windowsTitlebar
-          ? { '--dsh-windows-sidebar-width': `${cols.sidebar}px` } : {}),
+          ? { '--delta-windows-sidebar-width': `${cols.sidebar}px` } : {}),
         gridTemplateColumns:
           `${cols.sidebar}px minmax(${cols.rightbar === 0 ? 0 : CENTER_MIN}px, 1fr) minmax(0px, ${rightbarMax}px)`,
       }}

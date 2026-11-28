@@ -139,8 +139,8 @@ describe('SegmentedControl', () => {
   it('places the sliding indicator by selected index and option count', () => {
     mount('import')
     const list = screen.getByRole('tablist')
-    expect(list.style.getPropertyValue('--dsh-segment-count')).toBe('3')
-    expect(list.style.getPropertyValue('--dsh-segment-index')).toBe('2')
+    expect(list.style.getPropertyValue('--delta-segment-count')).toBe('3')
+    expect(list.style.getPropertyValue('--delta-segment-index')).toBe('2')
   })
 
   it('keeps a caller class alongside its own so a render site can place it', () => {

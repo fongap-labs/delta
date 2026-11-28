@@ -279,14 +279,14 @@ describe('Menu submenus', () => {
     expect(menu.style.visibility).toBe('')
     // CSS anchors own placement and flipping; the card names its anchor and sets no coordinates.
     const box = root.querySelector<HTMLElement>(':scope > [aria-hidden="true"][style*="anchor-name"]')
-    expect(box?.style.anchorName).toBe(menu.style.getPropertyValue('--dsh-submenu-parent'))
+    expect(box?.style.anchorName).toBe(menu.style.getPropertyValue('--delta-submenu-parent'))
     expect(menu.style.left).toBe('')
     expect(menu.style.top).toBe('')
-    expect(menu.style.getPropertyValue('--dsh-submenu-height')).toBe('100px')
-    expect(menu.style.getPropertyValue('--dsh-submenu-row-offset')).toBe('60px')
+    expect(menu.style.getPropertyValue('--delta-submenu-height')).toBe('100px')
+    expect(menu.style.getPropertyValue('--delta-submenu-row-offset')).toBe('60px')
     row = new DOMRect(784, 650, 192, 34)
     fireEvent.scroll(root.querySelector('[role="presentation"]')!)
-    expect(menu.style.getPropertyValue('--dsh-submenu-row-offset')).toBe('30px')
+    expect(menu.style.getPropertyValue('--delta-submenu-row-offset')).toBe('30px')
   })
 
   it('re-measures the row offset on observed size changes and stops observing on close', () => {
@@ -308,10 +308,10 @@ describe('Menu submenus', () => {
     const menu = childMenu()
     const observer = observers.at(-1)!
     expect(observer.observed).toEqual(expect.arrayContaining([parent, menu, parent.closest('[role="menu"]')]))
-    expect(menu.style.getPropertyValue('--dsh-submenu-row-offset')).toBe('40px')
+    expect(menu.style.getPropertyValue('--delta-submenu-row-offset')).toBe('40px')
     row = new DOMRect(104, 200, 192, 34)
     act(() => { observer.callback([], {} as ResizeObserver) })
-    expect(menu.style.getPropertyValue('--dsh-submenu-row-offset')).toBe('100px')
+    expect(menu.style.getPropertyValue('--delta-submenu-row-offset')).toBe('100px')
     fireEvent.keyDown(menu, { key: 'Escape' })
     expect(observer.disconnect).toHaveBeenCalled()
   })

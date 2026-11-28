@@ -99,7 +99,7 @@ function WidthHandle(props: {
     if (!dragging.current) return
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
     const box = event.currentTarget.getBoundingClientRect()
-    event.currentTarget.style.setProperty('--dsh-width-handle-pointer-y', `${event.clientY - box.top}px`)
+    event.currentTarget.style.setProperty('--delta-width-handle-pointer-y', `${event.clientY - box.top}px`)
     latest.current = event.clientX
     frame.current ??= requestAnimationFrame(() => {
       frame.current = null
@@ -160,10 +160,10 @@ function WidthHandle(props: {
 export function ConversationWidthControls({ container, phase }: ConversationWidthControlsProps) {
   const publishWidths = useCallback((container: HTMLDivElement, column: number): void => {
     // The axis registers these inputs without inheritance, so they belong on the body that derives from them.
-    container.style.setProperty('--dsh-conversation-column-width', `${column}px`)
+    container.style.setProperty('--delta-conversation-column-width', `${column}px`)
     const preference = readWidthPreference()
-    if (preference === null) container.style.removeProperty('--dsh-chat-user-width')
-    else container.style.setProperty('--dsh-chat-user-width', `${resolveContentWidth(column, preference)}px`)
+    if (preference === null) container.style.removeProperty('--delta-chat-user-width')
+    else container.style.setProperty('--delta-chat-user-width', `${resolveContentWidth(column, preference)}px`)
   }, [])
 
   useLayoutEffect(() => {
@@ -184,7 +184,7 @@ export function ConversationWidthControls({ container, phase }: ConversationWidt
   }, [container])
   const onDrag = useCallback((width: number): void => {
     if (container === null) return
-    container.style.setProperty('--dsh-chat-user-width', `${resolveContentWidth(container.offsetWidth, width)}px`)
+    container.style.setProperty('--delta-chat-user-width', `${resolveContentWidth(container.offsetWidth, width)}px`)
   }, [container])
   const onCommit = useCallback((width: number): void => {
     if (container === null) return

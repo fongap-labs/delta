@@ -18,14 +18,14 @@ function declarations(selector: string, sheet = declarationText): string[] {
 
 describe('expanded command wrapping', () => {
   it.each([
-    ['../src/client/tool/toolviews/bash-sample.module.css', '.terminal', '--dsl-terminal-command-whitespace'],
-    ['../src/client/tool/toolviews/bash-sample.module.css', '.commandInput', '--dsl-command-whitespace'],
-    ['../src/client/tool/components/ToolRow.module.css', '.terminalBody', '--dsl-terminal-command-whitespace'],
+    ['../src/client/tool/toolviews/bash-sample.module.css', '.terminal', '--delta-terminal-command-whitespace'],
+    ['../src/client/tool/toolviews/bash-sample.module.css', '.commandInput', '--delta-command-whitespace'],
+    ['../src/client/tool/components/ToolRow.module.css', '.terminalBody', '--delta-terminal-command-whitespace'],
   ] as const)('%s opts %s into command wrapping only', (path, selector, property) => {
     const sheet = readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, ' ')
     expect(declarations(selector, sheet)).toContain(`${property}: pre-wrap`)
-    expect(sheet).not.toContain('--dsl-terminal-line-whitespace')
+    expect(sheet).not.toContain('--delta-terminal-line-whitespace')
     expect(declarations('.summary', sheet)).toEqual(expect.arrayContaining([
       'white-space: nowrap', 'overflow: hidden', 'text-overflow: ellipsis',
     ]))
@@ -74,8 +74,8 @@ describe('ToolRow.module.css summary line', () => {
     // tier (one step under the body), matching think text.
     for (const selector of ['.summary', '.summarySuffix', '.fileLink']) {
       expect(declarations(selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+        'font-size: var(--delta-content-font-size-secondary, 13px)',
+        'line-height: calc(24px + var(--delta-content-font-delta, 0px))',
       ]))
     }
   })

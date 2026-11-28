@@ -23,7 +23,7 @@ export function FontNotice({ fonts, t }: FontNoticeProps): ReactNode {
   const anchor = useRef<HTMLSpanElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const id = useId()
-  const anchorName = `--dsh-font-notice-${id.replaceAll(':', '')}`
+  const anchorName = `--delta-font-notice-${id.replaceAll(':', '')}`
   useDismissOnOutsidePointer(anchor, open, () => { setExpanded(false) }, panel)
   const closeDetails = (): void => {
     setExpanded(false)

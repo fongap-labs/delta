@@ -467,7 +467,7 @@ describe('web e2e: settings modal and General preferences', () => {
         legacy: localStorage.getItem('dsh.theme'),
         themeColor: metas[0]?.content ?? null,
         themeColorCount: metas.length,
-        token: computed.getPropertyValue('--dsw-alias-bg-base').trim(),
+        token: computed.getPropertyValue('--delta-alias-bg-base').trim(),
       }
     })
     const expectThemeColorSynchronized = (state: ThemeState): void => {
@@ -566,14 +566,14 @@ describe('web e2e: settings modal and General preferences', () => {
       await page.getByRole('dialog', { name: '设置', exact: true }).waitFor({ state: 'hidden' })
     })
     const readFontSize = async (target: Page = page): Promise<string> => await target.evaluate(
-      () => document.body.style.getPropertyValue('--dsh-content-font-size'),
+      () => document.body.style.getPropertyValue('--delta-content-font-size'),
     )
     // The secondary tier resolved by the real engine: a probe element's
     // font-size forces min/max/calc evaluation, which the CSS-text specs
     // cannot exercise. Setting −1 at ≤14, setting −2 above.
     const readSecondaryFontSize = async (): Promise<string> => await page.evaluate(() => {
       const probe = document.createElement('div')
-      probe.style.fontSize = 'var(--dsh-content-font-size-secondary, 13px)'
+      probe.style.fontSize = 'var(--delta-content-font-size-secondary, 13px)'
       document.body.appendChild(probe)
       const size = getComputedStyle(probe).fontSize
       probe.remove()
@@ -653,9 +653,9 @@ describe('web e2e: settings modal and General preferences', () => {
       }
       return {
         text: getComputedStyle(document.body).fontFamily,
-        code: probe('var(--ds-font-family-code)'),
-        textStack: probe('var(--dsh-font-family-text-default)'),
-        codeStack: probe('var(--dsh-font-family-code-default)'),
+        code: probe('var(--delta-font-family-code)'),
+        textStack: probe('var(--delta-font-family-text-default)'),
+        codeStack: probe('var(--delta-font-family-code-default)'),
       }
     })
     const patchFile = join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml')
@@ -685,7 +685,7 @@ describe('web e2e: settings modal and General preferences', () => {
     // The code size moves the code-block token independently of the content size.
     const readCodeSize = async (): Promise<string> => await page.evaluate(() => {
       const element = document.createElement('code')
-      element.style.font = 'var(--dsw-font-markdown-code-block)'
+      element.style.font = 'var(--delta-font-markdown-code-block)'
       document.body.appendChild(element)
       const size = getComputedStyle(element).fontSize
       element.remove()

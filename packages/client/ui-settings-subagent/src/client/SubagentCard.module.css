@@ -1,12 +1,12 @@
 .section {
   min-width: 0;
-  padding: 16px 0;
+  padding: var(--delta-space-4) 0;
 }
 
 .heading {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  font-weight: var(--delta-font-weight-semibold);
+  line-height: var(--delta-line-height-normal);
+  color: var(--delta-alias-label-primary);
 }

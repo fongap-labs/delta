@@ -1,35 +1,35 @@
 .trigger {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
   max-width: 220px;
   height: 28px;
-  padding: 0 4px 0 12px;
+  padding: 0 var(--delta-space-1) 0 var(--delta-space-3);
   border: none;
   /* Rounded chip chrome, matching the sibling model trigger. */
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   outline: none;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .trigger:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 .trigger:focus-visible {
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  box-shadow: 0 0 0 2px var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 .trigger:disabled {
-  color: var(--dsw-alias-label-dimmed);
+  color: var(--delta-alias-label-dimmed);
   cursor: default;
 }
 
@@ -54,7 +54,7 @@
 .optionLabel {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
   max-width: 100%;
 }
@@ -68,10 +68,10 @@
 
 .badge {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font-size: 8px;
   line-height: 10px;
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
   letter-spacing: 0.2px;
 }
 
@@ -80,8 +80,8 @@
      the svg and floats the glyph off-center in the 28px trigger. */
   display: inline-flex;
   flex: 0 0 auto;
-  color: var(--dsw-alias-label-caption);
-  transition: transform 120ms ease;
+  color: var(--delta-alias-label-caption);
+  transition: transform var(--delta-transition-duration-120ms) ease;
 }
 
 /* Narrow composer: mode text collapses while icons stay visible.

@@ -2,21 +2,21 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  padding: 0 10px;
-  height: calc(22px + var(--dsh-content-font-delta, 0px));
+  gap: var(--delta-space-1);
+  margin-left: var(--delta-space-2);
+  padding: 0 var(--delta-space-2-5);
+  height: calc(22px + var(--delta-content-font-delta, 0px));
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-button-floating-fill);
-  color: var(--dsw-alias-label-primary);
+  background: var(--delta-alias-button-floating-fill);
+  color: var(--delta-alias-label-primary);
   font-family: inherit;
-  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
-  line-height: 1;
+  font-size: calc(var(--delta-content-font-size-secondary, 13px) - 1px);
+  line-height: var(--delta-line-height-none);
   white-space: nowrap;
   cursor: pointer;
-  transition: background 100ms ease;
+  transition: background var(--delta-transition-duration-fast) ease;
 }
 
 .panelButton svg {
@@ -26,6 +26,6 @@
 
 @media (hover: hover) {
   .panelButton:hover {
-    background: var(--dsw-alias-button-floating-hover);
+    background: var(--delta-alias-button-floating-hover);
   }
 }

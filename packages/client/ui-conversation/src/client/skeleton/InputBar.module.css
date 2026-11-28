@@ -7,16 +7,16 @@
      the sides narrow with the shared width axis); the bottom gradient mask
      is owned by the chat scroller. No top pad: the composer stack's gap owns
      the space above; the status strip still carries its own margin. */
-  padding: 0 var(--dsh-composer-side-clearance) 4px;
+  padding: 0 var(--delta-composer-side-clearance) 4px;
 }
 
 .dock {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--delta-space-3);
   max-width: 100%;
-  padding-top: 4px;
+  padding-top: var(--delta-space-1);
 }
 
 /* The docked composer reserves one statistics row before its readings
@@ -25,7 +25,7 @@
    padding (ui-chat StatsPills `.pill`, ContextMeter `.trigger`). A minimum,
    not a fixed height, so taller readings still size the row. */
 .root:not(.hero) > .dock {
-  min-height: calc(22px + var(--dsh-content-font-delta-secondary, 0px));
+  min-height: calc(22px + var(--delta-content-font-delta-secondary, 0px));
 }
 
 .hero .dock:empty {
@@ -36,19 +36,19 @@
   /* No bottom pad in the centered hero, but the side clearance must survive:
      the hero wrapper is full-width on narrow viewports, so this padding is
      the only thing keeping the card off the edges there. */
-  padding: 0 var(--dsh-composer-side-clearance);
+  padding: 0 var(--delta-composer-side-clearance);
 }
 
 .notice {
   width: 100%;
-  max-width: var(--dsh-composer-card-max-width);
-  margin-bottom: 6px;
-  padding: 4px 8px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  max-width: var(--delta-composer-card-max-width);
+  margin-bottom: var(--delta-space-1-5);
+  padding: var(--delta-space-1) var(--delta-space-2);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-interactive-bg-hover);
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
 }
 
 .card {
@@ -58,36 +58,36 @@
   flex-direction: column;
   /* figma Input 75:8208: 12px between the text area and the button row; the
      card's top pad before .InputText tightened from the drawn 10 to 8. */
-  gap: 12px;
+  gap: var(--delta-space-3);
   width: 100%;
-  max-width: var(--dsh-composer-card-max-width);
-  padding-top: 8px;
+  max-width: var(--delta-composer-card-max-width);
+  padding-top: var(--delta-space-2);
   /* Input stroke: the light neutral (l2, one step above the menus' l1),
      drawn as the elevation hairline so it costs no layout; the shadow is the
      soft elevation tier. Fill: the input surface token (elevated in dark). */
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-panel);
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-panel);
+  background: var(--delta-specific-input-major);
+  box-shadow: var(--delta-elevation-soft);
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
      delta. */
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size, 14px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   /* Elevated surface in dark, same as the menus: the draft scrollport inside
      scrolls once the composer hits its height cap, so the thumb takes the l2
      pair. Declared on the card because the elevation belongs to the surface,
      and the custom properties inherit down to the box that actually scrolls
      (see ui-theme styles/scrollbar.css for the rebinding contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 @media (pointer: coarse) {
   .card {
-    font-size: max(16px, var(--dsh-content-font-size, 14px));
+    font-size: max(16px, var(--delta-content-font-size, 14px));
   }
 }
 
@@ -95,7 +95,7 @@
    workspace picker rather than a live composer. Keeping the complete stroke
    inside the rounded box prevents clipped corner pixels from reading heavier. */
 .cardWorkspaceTrigger {
-  --dsw-elevation-stroke-color: transparent;
+  --delta-elevation-stroke-color: transparent;
   cursor: pointer;
 }
 
@@ -105,9 +105,9 @@
   inset: 0;
   box-sizing: border-box;
   border: 1px dashed currentColor;
-  border-radius: var(--dsw-radius-panel);
-  color: var(--dsw-alias-border-l4);
-  transition: color 100ms ease;
+  border-radius: var(--delta-radius-panel);
+  color: var(--delta-alias-border-l4);
+  transition: color var(--delta-transition-duration-fast) ease;
   pointer-events: none;
 }
 
@@ -120,15 +120,15 @@
 
 @media (hover: hover) {
   .cardWorkspaceTrigger:hover::after {
-    color: var(--dsw-alias-state-business-primary);
+    color: var(--delta-alias-state-business-primary);
   }
 }
 
 .accessory {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px 0;
+  gap: var(--delta-space-2);
+  padding: var(--delta-space-2-5) var(--delta-space-3) 0;
 }
 
 /* Floating overlay anchor (menu / popupSelect shell): entries position
@@ -143,11 +143,11 @@
    contenteditable grows with its content inside; the 14-line cap lives here
    because this is the box the cap describes. */
 .scroll {
-  max-height: var(--dsh-composer-text-max-height);
+  max-height: var(--delta-composer-text-max-height);
   overflow-y: auto;
   /* Keeps the bar off the card's right border; .input's right pad gives the
      4px back so the text column is unchanged. */
-  margin-right: 4px;
+  margin-right: var(--delta-space-1);
 }
 
 /* The card's corner arc still overlaps the scrollport's top (8px top
@@ -155,7 +155,7 @@
    pokes outside the capsule. WebKit-path only; Firefox's thin bar has no
    track margin, an accepted remainder. */
 .scroll::-webkit-scrollbar-track {
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
 }
 
 /* Auto-grow anchor: the contenteditable is in normal flow and sets the
@@ -170,8 +170,8 @@
   height: 8px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-state-business-primary);
-  animation: input-pending 1s ease-in-out infinite alternate;
+  background: var(--delta-alias-state-business-primary);
+  animation: input-pending var(--delta-transition-duration-1000ms) ease-in-out infinite alternate;
 }
 
 @keyframes input-pending {
@@ -188,17 +188,17 @@
   /* Docked floor: one 24px line + 4px top pad = 28 content height; 36 leaves
      an 8px breath below the line (the hero keeps its own 52px floor below). */
   min-height: 36px;
-  padding: 4px 8px 0 14px;
-  font-family: var(--dsw-font-family);
+  padding: var(--delta-space-1) var(--delta-space-2) 0 var(--delta-space-3-5);
+  font-family: var(--delta-font-family);
   font-size: inherit;
   line-height: inherit;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
   outline: none;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   /* Business blue, not brand-primary: that token resolves to ink in this sheet. */
-  caret-color: var(--dsw-alias-state-business-primary);
+  caret-color: var(--delta-alias-state-business-primary);
 }
 
 /* Lexical paragraphs are <p> blocks: strip the UA margins so the surface
@@ -208,11 +208,11 @@
 }
 
 /* Claim ghost hint as generated content after the last paragraph: the bar
-   sets --dsh-composer-hint (a quoted string) while the claim's args are
+   sets --delta-composer-hint (a quoted string) while the claim's args are
    blank; without the variable the declaration is invalid and nothing shows. */
 .input p:last-child::after {
-  content: var(--dsh-composer-hint);
-  color: var(--dsw-alias-label-caption);
+  content: var(--delta-composer-hint);
+  color: var(--delta-alias-label-caption);
 }
 
 .input[data-composer-composing] p:last-child::after {
@@ -235,7 +235,7 @@
 .placeholder {
   position: absolute;
   inset: 4px 8px auto 14px;
-  color: var(--dsw-alias-label-caption);
+  color: var(--delta-alias-label-caption);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -244,7 +244,7 @@
 }
 
 .inputDisabled {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: not-allowed;
 }
 
@@ -275,8 +275,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 4px 8px 8px;
+  gap: var(--delta-space-3);
+  padding: var(--delta-space-1) var(--delta-space-2) var(--delta-space-2);
   min-width: 0;
   /* Size container so the chips inside can collapse to icon-only when the
      card runs out of row width (PermissionSelect @container rule). Anonymous
@@ -286,8 +286,8 @@
 }
 
 .row[data-model-compact] {
-  --dsh-composer-model-text-display: none;
-  --dsh-composer-model-icon-display: block;
+  --delta-composer-model-text-display: none;
+  --delta-composer-model-icon-display: block;
 }
 
 .tools,
@@ -302,11 +302,11 @@
    Read-only; both gaps settled on 12 so the pill chips read as separate
    controls without drifting from the + control. */
 .tools {
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .modes {
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .trailing {
@@ -317,7 +317,7 @@
      model trigger (external:107). The auto margin re-anchors it right on the
      wrapped line; on a single line space-between already pins it right. */
   margin-left: auto;
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 /* Compact spacing preserves room for the fixed-width controls in narrow cards. */
@@ -325,7 +325,7 @@
   .tools,
   .modes,
   .trailing {
-    gap: 8px;
+    gap: var(--delta-space-2);
   }
 }
 
@@ -339,14 +339,14 @@
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-specific-selector);
-  color: var(--dsw-alias-label-primary);
+  background: var(--delta-specific-selector);
+  color: var(--delta-alias-label-primary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .add:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover-solid);
+    background: var(--delta-alias-interactive-bg-hover-solid);
   }
 }
 
@@ -360,19 +360,19 @@
 .select {
   max-width: 220px;
   height: 28px;
-  padding: 0 20px 0 8px;
+  padding: 0 var(--delta-space-5) 0 var(--delta-space-2);
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   outline: none;
   background-color: transparent;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2381858C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 4px center;
   background-size: 12px 12px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
   white-space: nowrap;
   cursor: pointer;
   appearance: none;
@@ -380,7 +380,7 @@
 
 @media (hover: hover) {
   .select:hover:not(:disabled) {
-    background-color: var(--dsw-alias-interactive-bg-hover);
+    background-color: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -399,12 +399,12 @@
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-alias-button-info-fill);
+  background: var(--delta-alias-button-info-fill);
   /* On-color ink, not the foreground token: the arrow stays white on the blue
      fill in both themes (design 34:10465). */
-  color: var(--dsw-alias-label-on-color);
+  color: var(--delta-alias-label-on-color);
   cursor: pointer;
-  transition: background-color 100ms ease;
+  transition: background-color var(--delta-transition-duration-fast) ease;
 }
 
 /* Solid artwork uses a smaller footprint than the thin send arrow. */
@@ -414,7 +414,7 @@
 
 @media (hover: hover) {
   .primary:hover:not(:disabled) {
-    background: var(--dsw-alias-button-info-hover);
+    background: var(--delta-alias-button-info-hover);
   }
 }
 
@@ -431,12 +431,12 @@
 }
 
 .sendingSpinner {
-  animation: input-sending 800ms linear infinite;
+  animation: input-sending var(--delta-transition-duration-800ms) linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sendingSpinner {
-    animation-duration: 2400ms;
+    animation-duration: var(--delta-transition-duration-2400ms);
   }
 }
 
@@ -445,17 +445,17 @@
 }
 
 .retry {
-  margin-left: 8px;
-  padding: 1px 8px;
+  margin-left: var(--delta-space-2);
+  padding: 1px var(--delta-space-2);
   border: 1px solid currentColor;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--delta-font-size-12);
   cursor: pointer;
 }
 
-.standardControls { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.standardControls { display: flex; align-items: center; gap: var(--delta-space-3); min-width: 0; }
 .tools[hidden], .standardControls[hidden] { display: none; }
 .trailingActive { flex: 1; margin-left: 0; }
 .activity { display: flex; align-items: center; flex: none; }

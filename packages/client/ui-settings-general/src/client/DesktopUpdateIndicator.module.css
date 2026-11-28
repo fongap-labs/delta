@@ -9,14 +9,14 @@
   justify-content: center;
   padding: 0;
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--dsw-alias-brand-primary-new-colorprimary-new-color) 20%, transparent);
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
-  background: color-mix(in srgb, var(--dsw-alias-brand-primary-new-colorprimary-new-color) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--delta-alias-brand-primary-new-colorprimary-new-color) 20%, transparent);
+  border-radius: var(--delta-radius-sm);
+  color: var(--delta-alias-brand-primary-new-colorprimary-new-color);
+  background: color-mix(in srgb, var(--delta-alias-brand-primary-new-colorprimary-new-color) 8%, transparent);
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  font-size: var(--delta-font-size-12);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-18);
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
@@ -43,11 +43,11 @@
   height: 6px;
   border-radius: 50%;
   corner-shape: round;
-  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  background: var(--delta-alias-brand-primary-new-colorprimary-new-color);
 }
 
 .errorDot { background: currentColor; width: 6px; height: 6px; border-radius: 50%; corner-shape: round; }
-.spinner { animation: spin 1s linear infinite; }
+.spinner { animation: spin var(--delta-transition-duration-1000ms) linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 

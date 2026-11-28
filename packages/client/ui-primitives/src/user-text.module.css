@@ -15,9 +15,9 @@
      inline chip shares the consumer's baseline by construction. */
   display: inline;
   max-width: 100%;
-  margin: 0 2px;
-  color: var(--dsw-alias-state-business-primary);
-  font-weight: 500;
+  margin: 0 var(--delta-space-0-5);
+  color: var(--delta-alias-state-business-primary);
+  font-weight: var(--delta-font-weight-medium);
   white-space: inherit;
   overflow-wrap: anywhere;
   text-align: inherit;
@@ -28,7 +28,7 @@
    like the plain runs around it. `@` chips keep the body face — a file or
    session name is a label, not code. */
 .slashChip {
-  font-family: var(--dsw-font-markdown-code-font-family);
+  font-family: var(--delta-font-markdown-code-font-family);
 }
 
 /* Inline reference glyphs (always ReferenceIcon svgs) ride the consumer's own
@@ -39,7 +39,7 @@
 .refIcon {
   width: 1em;
   height: 1em;
-  margin-right: 4px;
+  margin-right: var(--delta-space-1);
   /* Optical centering against the text: drops the glyph below the baseline by
      a font-relative amount, so it holds across the font axis. */
   vertical-align: -0.125em;

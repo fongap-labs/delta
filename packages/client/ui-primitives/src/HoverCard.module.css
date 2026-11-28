@@ -8,13 +8,13 @@
 /* The preview remains hit-testable so pointer entry cancels the grace close. */
 .card {
   position: fixed;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
   box-sizing: border-box;
   width: 244px;
-  padding: 12px 16px;
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-hovercard-bg);
-  box-shadow: var(--dsw-shadow-lv3);
+  padding: var(--delta-space-3) var(--delta-space-4);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-hovercard-bg);
+  box-shadow: var(--delta-shadow-lv3);
 }
 
 /* A compact card sits beside its anchor's end edge with its top on the
@@ -31,29 +31,29 @@
   inset: 0 8px 8px;
   position-try-fallbacks:
     flip-inline,
-    --dsh-hover-card-low,
-    --dsh-hover-card-low flip-inline,
-    --dsh-hover-card-below,
-    --dsh-hover-card-above,
-    --dsh-hover-card-held;
+    --delta-hover-card-low,
+    --delta-hover-card-low flip-inline,
+    --delta-hover-card-below,
+    --delta-hover-card-above,
+    --delta-hover-card-held;
 }
 
-@position-try --dsh-hover-card-low {
+@position-try --delta-hover-card-low {
   position-area: inline-end span-all;
   align-self: end;
 }
 
-@position-try --dsh-hover-card-below {
+@position-try --delta-hover-card-below {
   position-area: block-end span-inline-end;
   inset: 8px 8px 8px 0;
 }
 
-@position-try --dsh-hover-card-above {
+@position-try --delta-hover-card-above {
   position-area: block-start span-inline-end;
   inset: 8px 8px 8px 0;
 }
 
-@position-try --dsh-hover-card-held {
+@position-try --delta-hover-card-held {
   position-area: span-all;
   justify-self: end;
   align-self: end;
@@ -64,7 +64,7 @@
 }
 
 .copyable:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -75,9 +75,9 @@
 }
 
 .copied {
-  color: var(--dsw-alias-hovercard-label-primary);
-  font-size: 14px;
-  line-height: 20px;
+  color: var(--delta-alias-hovercard-label-primary);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
   text-align: center;
 }
 
@@ -96,12 +96,12 @@
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-  box-shadow: var(--dsw-elevation-panel);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-layer-1);
+  color: var(--delta-alias-label-primary);
+  box-shadow: var(--delta-elevation-panel);
   opacity: 1;
-  transition: opacity var(--dsh-hover-preview-fade) linear;
+  transition: opacity var(--delta-hover-preview-fade) linear;
 }
 
 @starting-style {
@@ -119,15 +119,15 @@
 
 .inline { display: inline; }
 .media {
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
   overflow: auto;
-  padding: 8px;
+  padding: var(--delta-space-2);
   border: 0;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  box-shadow: var(--dsw-elevation-panel);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
+  box-shadow: var(--delta-elevation-panel);
 }
 
 .fitContent {
@@ -140,7 +140,7 @@
 
 .bridge {
   position: fixed;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
 }
 
 /* The display:contents portal has no box to subtract from native drag regions. */

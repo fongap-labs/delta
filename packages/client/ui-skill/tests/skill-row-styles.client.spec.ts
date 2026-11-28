@@ -16,23 +16,23 @@ describe('SkillRow.module.css summary line', () => {
   it('uses the shared ToolCall secondary font-size axis', () => {
     for (const selector of ['.title', '.summary']) {
       expect(declarations(selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+        'font-size: var(--delta-content-font-size-secondary, 13px)',
+        'line-height: calc(24px + var(--delta-content-font-delta, 0px))',
       ]))
     }
   })
 
   it('scales the collapsed row and business glyph with the global font delta', () => {
     expect(declarations('.row')).toEqual(expect.arrayContaining([
-      'height: calc(24px + var(--dsh-content-font-delta, 0px))',
+      'height: calc(24px + var(--delta-content-font-delta, 0px))',
     ]))
     expect(declarations('.leading')).toEqual(expect.arrayContaining([
-      'width: calc(16px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(16px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(16px + var(--delta-content-font-delta, 0px))',
+      'height: calc(16px + var(--delta-content-font-delta, 0px))',
     ]))
     expect(declarations('.leading svg')).toEqual(expect.arrayContaining([
-      'width: calc(14px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(14px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(14px + var(--delta-content-font-delta, 0px))',
+      'height: calc(14px + var(--delta-content-font-delta, 0px))',
     ]))
   })
 })

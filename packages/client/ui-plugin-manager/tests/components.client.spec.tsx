@@ -713,7 +713,7 @@ describe('PluginManagerPage', () => {
       if (navigation === 'after') hidePage()
       expect(document.querySelector('[data-plugin-panel]')).toBeNull()
       expect(screen.getByRole('alert')).toBe(toast)
-      expect(toast.style.getPropertyValue('--dsh-toast-hold')).toBe('3000ms')
+      expect(toast.style.getPropertyValue('--delta-toast-hold')).toBe('3000ms')
       act(() => { vi.advanceTimersByTime(3_999) })
       expect(actions.dismissNotice).not.toHaveBeenCalled()
       act(() => { vi.advanceTimersByTime(1) })
@@ -2028,7 +2028,7 @@ describe('PluginManagerPage', () => {
     expect(screen.getByText('pnpm add dsh-x')).toBeTruthy()
     const terminal = document.querySelector('[data-terminal]') as HTMLElement
     expect(terminal.hasAttribute('data-running')).toBe(true)
-    expect(within(terminal).getByText('1').getAttribute('style')).toContain('--dsw-static-blue-500')
+    expect(within(terminal).getByText('1').getAttribute('style')).toContain('--delta-static-blue-500')
     expect(within(terminal).getByText(en.terminalRunning)).toBeTruthy()
     // A long log folds its middle behind an expand control, so the dialog keeps its height while pnpm talks.
     const lines = Array.from({ length: 15 }, (_line, index) => `line ${String(index + 1)}`).join('\n')

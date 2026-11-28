@@ -11,7 +11,7 @@ it('centers the status dot on one command line rather than the wrapped prompt he
   const prompt = /\.promptLine\s*\{([^{}]*)\}/.exec(css)?.[1]
   expect(state).toBeDefined()
   expect(prompt).toBeDefined()
-  expect(state).toContain('top: calc(var(--dsl-terminal-line-height) / 2)')
+  expect(state).toContain('top: calc(var(--delta-terminal-line-height) / 2)')
   expect(state).toContain('transform: translateY(-50%)')
-  expect(prompt).toContain('line-height: var(--dsl-terminal-line-height)')
+  expect(prompt).toContain('line-height: var(--delta-terminal-line-height)')
 })

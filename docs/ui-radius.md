@@ -29,25 +29,25 @@ H means designed outer height in CSS pixels, including borders. R means CSS `bor
 
 | Role | Typical dimensions or examples | Radius | Shared token |
 |---|---|---|---|
-| Small detail | Below H20; keycaps, inline code, tiny controls | R4 | `--dsw-radius-xs` |
-| Compact control | H20–28; small buttons, compact icon buttons, compact menu items | R8 | `--dsw-radius-sm` |
-| Standard control or single-line cell | H32–40; buttons, inputs, selects, navigation rows | R12 | `--dsw-radius-md` |
-| Large control or grouped content | Large buttons, deliberately multiline cells, nested form groups | R16 | `--dsw-radius-lg` |
-| Independent content card | Settings cards, message bubbles, guide entry cards | R20 | `--dsw-radius-xl` |
-| Main enclosing surface | Composer, dialogs, main or floating panels | R28 | `--dsw-radius-panel` |
+| Small detail | Below H20; keycaps, inline code, tiny controls | R4 | `--delta-radius-xs` |
+| Compact control | H20–28; small buttons, compact icon buttons, compact menu items | R8 | `--delta-radius-sm` |
+| Standard control or single-line cell | H32–40; buttons, inputs, selects, navigation rows | R12 | `--delta-radius-md` |
+| Large control or grouped content | Large buttons, deliberately multiline cells, nested form groups | R16 | `--delta-radius-lg` |
+| Independent content card | Settings cards, message bubbles, guide entry cards | R20 | `--delta-radius-xl` |
+| Main enclosing surface | Composer, dialogs, main or floating panels | R28 | `--delta-radius-panel` |
 
 Prefer an existing shared size variant when a proposed control falls between these bands. A taller card remains a card: do not promote it to R28 merely because it exceeds a button's height. A multiline cell intentionally designed for multiple lines uses R16; an ordinary button whose label wraps retains its button variant.
 
 Concrete defaults: `Button` uses H28/R8 for `sm` and H36/R12 for `md`, including outline variants. Standard H32 inputs and H36 selectors use R12. The Workspace files and New terminal guide entries both use R20, including title-only and described variants. Reserve R28 for their enclosing panel or dialog, not those entries. Composer statistics and the context-occupancy trigger use compact-control R8 with the theme curve, including hover, expanded, and focus states.
 
-Code blocks, diffs, and preview cards share R16: changed-file entry cards, delivered-file cards, submitted-plan cards, created-task cards, generic file attachment cards before and after sending, and hover preview panels. The 40px icon tiles inside changed-file, delivery, submitted-plan, and created-task cards use R10 on all four corners as a component-specific exception and share the same neutral tile fill and border in both themes. Their hover fills keep the same contour.
+Code blocks, diffs, and preview cards share R16: changed-file entry cards, delivered-file cards, submitted-plan cards, created-task cards, generic file attachment cards before and after sending, and hover preview panels. The 40px icon tiles inside changed-file, delivery, submitted-plan, and created-task cards use the shared R10 token (`--delta-radius-2-5`) on all four corners and share the same neutral tile fill and border in both themes. Their hover fills keep the same contour.
 
 <a id="shapes"></a>
 ## Reuse tokens and preserve deliberate shapes
 
 Reuse `ui-primitives` controls before adding feature-owned geometry. Use `box-sizing: border-box` for fixed outer dimensions. Filled, outline, ghost, loading, and disabled variants keep the same size and radius; hover, pressed, selected, and focus states do not change the radius.
 
-Consume the named tokens instead of introducing local values such as 10px, 14px, 18px, or 24px for ordinary controls and cards. Schedule controls, Desktop onboarding, account notices, and shortcut controls retain their package-owned geometry; the [radius exception record](../packages/client/ui-theme/tests/expected/radius-exceptions.expected.json) pins each permitted file, selector, and declaration rather than exempting whole packages. A family-specific property may refer to a shared token, as `--dsl-guide-entry-radius` does. Geometry derived from a real inset may use `calc()`; it is not an additional scale tier.
+Consume the named tokens instead of introducing local values such as 6px, 10px, 14px, 18px, 24px, or 32px for controls and cards. `base.css` also names the R6, R10, R24, and R32 values as shared tokens for components whose existing geometry uses those sizes. A family-specific property may refer to a shared token, as `--delta-guide-entry-radius` does. Geometry derived from a real inset may use `calc()`; it is not an additional scale tier.
 
 Ordinary rounded surfaces use the theme's `superellipse(1.5)` curve where supported. `corner-shape` is not inherited: the theme applies it to elements and their `::before`/`::after`. Unsupported engines retain ordinary circular corners. Do not introduce component-specific smoothing that makes a fill and its outline curve differently.
 
@@ -78,7 +78,7 @@ For a split guide card, put the shared radius and clipping on the outer card; gi
 
 ```css
 .entry {
-  border-radius: var(--dsl-guide-entry-radius);
+  border-radius: var(--delta-guide-entry-radius);
   overflow: hidden;
 }
 
@@ -88,7 +88,7 @@ For a split guide card, put the shared radius and clipping on the outer card; gi
 }
 ```
 
-The enclosing guide sets `--dsl-guide-entry-radius: var(--dsw-radius-xl)`. Do not give the inner buttons their own R28 ends while the outer card is R20.
+The enclosing guide sets `--delta-guide-entry-radius: var(--delta-radius-xl)`. Do not give the inner buttons their own R28 ends while the outer card is R20.
 
 <a id="settings-cards"></a>
 ## Settings card materials
@@ -97,15 +97,15 @@ Account profile, balance, model-provider, preset, and plugin cards share this de
 
 ```css
 .card {
-  border-radius: var(--dsw-radius-xl);
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  background: var(--dsw-alias-settings-card-fill);
+  border-radius: var(--delta-radius-xl);
+  border: 0.5px solid var(--delta-alias-settings-card-stroke);
+  background: var(--delta-alias-settings-card-fill);
 }
 ```
 
-The theme resolves the card fill to `--dsw-alias-bg-layer-2` and the stroke to `--dsw-alias-border-l4` on `body`, where palette aliases exist. Feature styles consume these aliases in both palettes. Nested editors use R16 and the existing module fill. Account usage/top-up links follow H36/R12 Button geometry; authorization buttons use the shared Button.
+The theme resolves the card fill to `--delta-alias-bg-layer-2` and the stroke to `--delta-alias-border-l4` on `body`, where palette aliases exist. Feature styles consume these aliases in both palettes. Nested editors use R16 and the existing module fill. Account usage/top-up links follow H36/R12 Button geometry; authorization buttons use the shared Button.
 
-Flat neutral borders use the shared 0.5px hairline. Elevated menus, popovers, dialogs, and panels use `border: 0` with the existing `--dsw-elevation-*` material, whose shadow includes the hairline. Do not add a second neutral border over that stroke or add a shadow to an ordinary settings card merely to distinguish its tab. Preserve semantic state-colored borders and the existing translucent-menu backdrop behavior.
+Flat neutral borders use the shared 0.5px hairline. Elevated menus, popovers, dialogs, and panels use `border: 0` with the existing `--delta-elevation-*` material, whose shadow includes the hairline. Do not add a second neutral border over that stroke or add a shadow to an ordinary settings card merely to distinguish its tab. Preserve semantic state-colored borders and the existing translucent-menu backdrop behavior.
 
 A page-level radius review compares roles and silhouettes together, including native small selection controls. Token compliance only establishes membership in the scale; it does not establish that adjacent roles or nested contours look coherent. Use the [geometry cases](ui-design-review-cases.md#geometry) for the comparison method, while this document remains the owner of values and curve rules.
 

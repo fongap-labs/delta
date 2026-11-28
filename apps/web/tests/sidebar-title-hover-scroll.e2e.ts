@@ -63,7 +63,7 @@ describe('web e2e: hovering a clipped session title marquees it to its far edge'
       return glyphs.getBoundingClientRect().top
     })
     /** The distance the hook measured for the hovered cell. */
-    const range = async (): Promise<number> => title.evaluate(el => Number.parseFloat(el.style.getPropertyValue('--dsh-marquee-range')))
+    const range = async (): Promise<number> => title.evaluate(el => Number.parseFloat(el.style.getPropertyValue('--delta-marquee-range')))
 
     // At rest the row clips its title with an ellipsis and holds its start.
     expect(await title.evaluate(el => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0)

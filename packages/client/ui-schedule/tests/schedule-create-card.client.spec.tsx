@@ -300,18 +300,20 @@ describe('ScheduleCreateCard', () => {
 
   it('keeps the delivery card text steps, icon frame, and box', () => {
     const stylesheet = readFileSync(resolve(import.meta.dirname, '../src/client/ScheduleCreateCard.module.css'), 'utf8')
-    expect(stylesheet).toMatch(/\.title\s*\{[^}]*font-size:\s*13px;[^}]*line-height:\s*20px;[^}]*font-weight:\s*500;/)
+    expect(stylesheet).toMatch(/\.title\s*\{[^}]*font-size:\s*var\(--delta-font-size-13\);/s)
+    expect(stylesheet).toMatch(/\.title\s*\{[^}]*line-height:\s*var\(--delta-line-height-20\);/s)
+    expect(stylesheet).toMatch(/\.title\s*\{[^}]*font-weight:\s*var\(--delta-font-weight-medium\);/s)
     const frequency = /\.frequency\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
-    expect(frequency).toMatch(/color:\s*var\(--dsw-alias-label-tertiary\);/)
-    expect(frequency).toMatch(/font-size:\s*10px;/)
-    expect(frequency).toMatch(/line-height:\s*16px;/)
+    expect(frequency).toMatch(/color:\s*var\(--delta-alias-label-tertiary\);/)
+    expect(frequency).toMatch(/font-size:\s*var\(--delta-font-size-10\);/)
+    expect(frequency).toMatch(/line-height:\s*var\(--delta-line-height-16\);/)
     const card = /\.card\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? ''
-    expect(card).toMatch(/padding:\s*8px 10px;/)
-    expect(card).toMatch(/border-radius:\s*var\(--dsw-radius-lg\);/)
+    expect(card).toMatch(/padding:\s*var\(--delta-space-2\)\s*var\(--delta-space-2-5\);/)
+    expect(card).toMatch(/border-radius:\s*var\(--delta-radius-lg\);/)
     expect(card).toMatch(/background:\s*var\(--card-fill\);/)
     expect(stylesheet).toMatch(/\.card:has\(\.cardOpen\):hover\s*\{[^}]*background:\s*var\(--card-hover\);/)
     expect(stylesheet).toMatch(/\.row\s*\{[^}]*min-height:\s*44px;/)
     expect(stylesheet).toMatch(/\.cardOpen\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;/)
-    expect(stylesheet).toMatch(/\.leading\s*\{[^}]*width:\s*40px;[^}]*height:\s*40px;[^}]*border-radius:\s*10px;/)
+    expect(stylesheet).toMatch(/\.leading\s*\{[^}]*width:\s*40px;[^}]*height:\s*40px;[^}]*border-radius:\s*var\(--delta-radius-2-5\);/)
   })
 })

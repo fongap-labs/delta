@@ -30,9 +30,9 @@ describe('QuestionComposer long-copy layout', () => {
   it('reads question overflow against three lines and keeps two once it overflows', () => {
     expect(declarations('.questionTitle')).toEqual(expect.arrayContaining(['flex-shrink: 0', 'timeline-scope: --question-copy']))
     expect(declarations('.titlePreview')).toEqual(expect.arrayContaining([
-      'max-height: calc(3lh + 2px)',
-      'margin: 0 0 -2px',
-      'padding-bottom: 2px',
+      'max-height: calc(3lh + var(--delta-space-0-5))',
+      'margin: 0 0 calc(-1 * var(--delta-space-0-5))',
+      'padding-bottom: var(--delta-space-0-5)',
       'overflow: hidden',
       'scroll-timeline: --question-copy block',
       'animation-name: question-clipped',
@@ -40,8 +40,8 @@ describe('QuestionComposer long-copy layout', () => {
       'animation-timeline: --question-copy',
     ]))
     expect(keyframes('question-clipped')).toEqual(expect.arrayContaining([
-      'margin-bottom: calc(-1lh - 2px)',
-      'clip-path: inset(0 0 calc(1lh + 2px) 0)',
+      'margin-bottom: calc(-1lh - var(--delta-space-0-5))',
+      'clip-path: inset(0 0 calc(1lh + var(--delta-space-0-5)) 0)',
       'mask-size: 100% 1lh, 100% 1lh',
       'mask-position: 0 0, 0 1lh',
     ]))
@@ -57,20 +57,20 @@ describe('QuestionComposer long-copy layout', () => {
       'display: block',
       'width: max-content',
       'max-width: 100%',
-      'max-height: calc(2lh + 2px)',
-      'margin-bottom: -2px',
-      'padding-bottom: 2px',
+      'max-height: calc(2lh + var(--delta-space-0-5))',
+      'margin-bottom: calc(-1 * var(--delta-space-0-5))',
+      'padding-bottom: var(--delta-space-0-5)',
       'overflow: hidden',
-      'font-size: 13px',
-      'line-height: 20px',
+      'font-size: var(--delta-font-size-13)',
+      'line-height: var(--delta-line-height-20)',
       'scroll-timeline: --description-copy block',
       'animation-name: description-clipped',
       'animation-fill-mode: both',
       'animation-timeline: --description-copy',
     ]))
     expect(keyframes('description-clipped')).toEqual(expect.arrayContaining([
-      'margin-bottom: calc(-1lh - 2px)',
-      'clip-path: inset(0 0 calc(1lh + 2px) 0)',
+      'margin-bottom: calc(-1lh - var(--delta-space-0-5))',
+      'clip-path: inset(0 0 calc(1lh + var(--delta-space-0-5)) 0)',
       'mask-size: 100% 1lh',
     ]))
     expect(declarations('.descriptionToggle')).toEqual(expect.arrayContaining([

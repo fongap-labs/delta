@@ -5,44 +5,44 @@
   margin: 0 auto;
   width: calc(
     100% -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
+    var(--delta-composer-side-clearance) -
+    var(--delta-composer-side-clearance) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset)
   );
   max-width: calc(
-    var(--dsh-composer-card-max-width) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
+    var(--delta-composer-card-max-width) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset) -
+    var(--delta-composer-dock-inset)
   );
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  box-shadow: var(--dsw-elevation-panel);
+  --delta-elevation-stroke-color: var(--delta-alias-border-l1);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-menu);
+  backdrop-filter: var(--delta-menu-backdrop-filter);
+  box-shadow: var(--delta-elevation-panel);
   /* The menu surface and the scrolling `.list` use the l2 scrollbar colors.
      Declared here because the custom properties inherit into `.list` (see
      ui-theme styles/scrollbar.css for the rebinding contract). */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: var(--delta-space-2);
+  padding: var(--delta-space-1-5) var(--delta-space-3);
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   width: 100%;
   padding: 0;
   border: none;
@@ -57,25 +57,25 @@
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .title {
   flex: none;
-  font-size: 13px;
-  line-height: 24px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-24);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-primary);
 }
 
 .progress {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 400;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-regular);
+  color: var(--delta-alias-label-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -84,13 +84,13 @@
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--delta-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -101,11 +101,11 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   min-width: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-label-secondary);
 }
 
 .glyph {

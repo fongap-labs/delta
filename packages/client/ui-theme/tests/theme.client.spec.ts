@@ -69,13 +69,13 @@ describe('ThemeRuntime', () => {
   it('seeds the initial font size from the boot-script body variable, ignoring junk', () => {
     // The Host boot script writes the durable size on body before any plugin
     // runs; the first snapshot must match it so activation never flashes 14.
-    document.body.style.setProperty('--dsh-content-font-size', '22px')
+    document.body.style.setProperty('--delta-content-font-size', '22px')
     try {
       expect(make().theme.getTheme().fontSizes.text).toBe(22)
-      document.body.style.setProperty('--dsh-content-font-size', '23px')
+      document.body.style.setProperty('--delta-content-font-size', '23px')
       expect(make().theme.getTheme().fontSizes.text).toBe(14)
     } finally {
-      document.body.style.removeProperty('--dsh-content-font-size')
+      document.body.style.removeProperty('--delta-content-font-size')
     }
   })
 
@@ -111,13 +111,13 @@ describe('ThemeRuntime', () => {
   })
 
   it('seeds code and terminal sizes from the boot-script body variables, ignoring junk', () => {
-    document.body.style.setProperty('--dsh-code-font-size', '14px')
-    document.body.style.setProperty('--dsh-terminal-font-size', '99px')
+    document.body.style.setProperty('--delta-code-font-size', '14px')
+    document.body.style.setProperty('--delta-terminal-font-size', '99px')
     try {
       expect(make().theme.getTheme().fontSizes).toEqual({ text: 14, code: 14, terminal: 13 })
     } finally {
-      document.body.style.removeProperty('--dsh-code-font-size')
-      document.body.style.removeProperty('--dsh-terminal-font-size')
+      document.body.style.removeProperty('--delta-code-font-size')
+      document.body.style.removeProperty('--delta-terminal-font-size')
     }
   })
 
@@ -130,11 +130,11 @@ describe('ThemeRuntime', () => {
   })
 
   it('seeds initial font lists from the boot-script body variables, normalizing them', () => {
-    document.body.style.setProperty('--dsh-font-family-code', 'Iosevka')
+    document.body.style.setProperty('--delta-font-family-user-code', 'Iosevka')
     try {
       expect(make().theme.getTheme().fontFamilies).toEqual({ text: '', code: '"Iosevka"', terminal: '' })
     } finally {
-      document.body.style.removeProperty('--dsh-font-family-code')
+      document.body.style.removeProperty('--delta-font-family-user-code')
     }
   })
 
@@ -218,10 +218,10 @@ describe('ThemeRuntime', () => {
 
   it('registered themes join the snapshot; disposing the active one resets to default', () => {
     const { theme, events, host } = make()
-    const dispose = theme.register({ id: 'sepia', colorScheme: 'light', tokens: { '--dsw-alias-bg-base': 'red' } })
+    const dispose = theme.register({ id: 'sepia', colorScheme: 'light', tokens: { '--delta-alias-bg-base': 'red' } })
     expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark', 'sepia'])
     theme.setTheme('sepia')
-    expect(theme.getTheme().active.tokens['--dsw-alias-bg-base']).toBe('red')
+    expect(theme.getTheme().active.tokens['--delta-alias-bg-base']).toBe('red')
     dispose()
     expect(theme.getTheme().preference).toBe('system')
     expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark'])
@@ -301,7 +301,7 @@ describe('ThemeRuntime', () => {
       id: 'custom',
       colorScheme: 'light',
       tokens: {
-        '--dsw-alias-bg-base': 'duplicate-built-in',
+        '--delta-alias-bg-base': 'duplicate-built-in',
         '--registered': 'registered',
       },
     })
@@ -319,7 +319,7 @@ describe('ThemeRuntime', () => {
     const semantic = tokens.find(token => token.name === 'semanticAccent')
     expect(semantic).toMatchObject({ valueType: 'CSS value' })
     expect(semantic).not.toHaveProperty('cssVariable')
-    expect(tokens.filter(token => token.name === '--dsw-alias-bg-base')).toHaveLength(1)
+    expect(tokens.filter(token => token.name === '--delta-alias-bg-base')).toHaveLength(1)
 
     tokens[0]!.description = 'caller mutation'
     expect(theme.exportInspectTokens()[0]!.description).not.toBe('caller mutation')

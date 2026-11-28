@@ -9,7 +9,7 @@
   z-index: 7;
   height: 0;
   /* Query the transcript's usable width while keeping the rail full-bleed. */
-  padding-inline: calc(var(--dsh-composer-side-clearance) + 16px);
+  padding-inline: calc(var(--delta-composer-side-clearance) + 16px);
   container-type: inline-size;
   pointer-events: none;
 }
@@ -24,7 +24,7 @@
      the scrollport; the fallbacks carry the first paint before its observer
      fires. */
   --turn-rail-band: calc(
-    var(--dsh-conversation-viewport-height, 100dvh) - var(--dsh-composer-height, 152px)
+    var(--delta-conversation-viewport-height, 100dvh) - var(--delta-composer-height, 152px)
   );
   --turn-preview-height: 100px;
 
@@ -90,7 +90,7 @@
   height: 10px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--delta-radius-sm);
   background: transparent;
   cursor: pointer;
 }
@@ -102,11 +102,11 @@
   width: 20px;
   height: 2px;
   border-radius: 2px;
-  background: var(--dsw-alias-border-l4);
+  background: var(--delta-alias-border-l4);
   content: '';
   transform: translateY(-50%) scaleX(0.6);
   transform-origin: left center;
-  transition: transform 140ms ease, background-color 140ms ease;
+  transition: transform var(--delta-transition-duration-140ms) ease, background-color var(--delta-transition-duration-140ms) ease;
 }
 
 /* Ordered before hover/active so those states keep their stronger tick. */
@@ -117,16 +117,16 @@
 
 .markPreview::before {
   transform: translateY(-50%) scaleX(0.9);
-  background: var(--dsw-alias-label-tertiary);
+  background: var(--delta-alias-label-tertiary);
 }
 
 .markBusy::before {
-  animation: dsh-turn-mark-busy 1s ease-in-out infinite;
+  animation: dsh-turn-mark-busy var(--delta-transition-duration-1000ms) ease-in-out infinite;
 }
 
 .markActive::before {
   transform: translateY(-50%) scaleX(1);
-  background: var(--dsw-alias-label-primary);
+  background: var(--delta-alias-label-primary);
 }
 
 /* Keyboard focus outranks both resting states: the tick takes the brand color
@@ -134,7 +134,7 @@
    against a busy transcript. */
 .mark:focus-visible::before {
   transform: translateY(-50%) scaleX(1);
-  background: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  background: var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
 }
 
 .mark:focus-visible {
@@ -146,7 +146,7 @@
   inset: 0 auto 0 0;
   width: 20px;
   border-radius: inherit;
-  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 1px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   /* The scroller clips the left edge; keep the marker's ring inside it. */
   outline-offset: -1px;
   content: '';
@@ -164,15 +164,15 @@
   width: min(300px, calc(100cqw - 120px));
   max-height: var(--turn-preview-height);
   overflow: hidden;
-  padding: 10px 12px;
+  padding: var(--delta-space-2-5) var(--delta-space-3);
   border: 0;
-  border-radius: var(--dsw-radius-lg);
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow: var(--dsw-elevation-panel);
+  border-radius: var(--delta-radius-lg);
+  color: var(--delta-alias-label-primary);
+  background: var(--delta-alias-bg-layer-1);
+  box-shadow: var(--delta-elevation-panel);
   pointer-events: none;
-  animation: dsh-turn-preview-enter 120ms ease-out;
-  transition: top 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: dsh-turn-preview-enter var(--delta-transition-duration-120ms) ease-out;
+  transition: top var(--delta-transition-duration-140ms) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .previewPrompt,
@@ -183,14 +183,14 @@
 }
 
 .previewPrompt {
-  font: var(--dsw-font-xs-strong-13);
+  font: var(--delta-font-xs-strong-13);
   -webkit-line-clamp: 1;
 }
 
 .previewResponse {
-  margin-top: 4px;
-  color: var(--dsw-alias-label-caption);
-  font: var(--dsw-font-xxs-12);
+  margin-top: var(--delta-space-1);
+  color: var(--delta-alias-label-caption);
+  font: var(--delta-font-xxs-12);
   -webkit-line-clamp: 3;
 }
 

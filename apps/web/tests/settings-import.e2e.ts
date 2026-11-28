@@ -34,7 +34,7 @@ it('imports settings.yaml into the profile once and applies the imported values'
     const tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
-    await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')), { timeout: 10_000 }).toBe('16px')
+    await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--delta-content-font-size')), { timeout: 10_000 }).toBe('16px')
     expect(tripwire.pageErrors).toEqual([])
   } finally {
     await browser.close()

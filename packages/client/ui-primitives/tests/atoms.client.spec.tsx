@@ -772,7 +772,7 @@ describe('Menu', () => {
       expect(menu.style.positionAnchor).toBe(name)
       expect(menu.style.left).toBe('')
       expect(menu.style.top).toBe('')
-      expect(menu.style.getPropertyValue('--dsh-anchored-max-height')).toBe('')
+      expect(menu.style.getPropertyValue('--delta-anchored-max-height')).toBe('')
       expect(geometry).not.toHaveBeenCalled()
       expect(add).not.toHaveBeenCalled()
       view.unmount()

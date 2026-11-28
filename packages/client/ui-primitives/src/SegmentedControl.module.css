@@ -13,24 +13,24 @@
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  gap: 2px;
-  padding: 4px;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-interactive-bg-hover);
+  gap: var(--delta-space-0-5);
+  padding: var(--delta-space-1);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 .indicator {
   position: absolute;
   top: 4px;
   left: 4px;
-  width: calc((100% - 8px - 2px * (var(--dsh-segment-count) - 1)) / var(--dsh-segment-count));
+  width: calc((100% - 8px - 2px * (var(--delta-segment-count) - 1)) / var(--delta-segment-count));
   height: calc(100% - 8px);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow: var(--dsw-elevation-soft);
-  transform: translateX(calc(var(--dsh-segment-index) * (100% + 2px)));
-  transition: transform 160ms ease;
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-bg-layer-1);
+  box-shadow: var(--delta-elevation-soft);
+  transform: translateX(calc(var(--delta-segment-index) * (100% + 2px)));
+  transition: transform var(--delta-transition-duration-160ms) ease;
   pointer-events: none;
 }
 
@@ -39,27 +39,27 @@
   position: relative;
   z-index: 1;
   height: 28px;
-  padding: 0 16px;
+  padding: 0 var(--delta-space-4);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   font: inherit;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  font-weight: var(--delta-font-weight-medium);
   white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease;
+  transition: color var(--delta-transition-duration-120ms) ease;
 }
 
 .tab[aria-selected='true'] {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .tab:hover:not(:disabled) {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -69,7 +69,7 @@
 }
 
 .tab:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 

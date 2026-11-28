@@ -1,9 +1,9 @@
 .bubble {
   display: inline-flex;
   align-items: safe center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   position: fixed;
-  z-index: 100;
+  z-index: var(--delta-layer-popover);
   /* Fixed-position shrink-to-fit measures only the space from `left` to the
      viewport edge, so anchors near the right edge would wrap early;
      max-content sizes by the label alone, capped at half the viewport. */
@@ -13,19 +13,19 @@
   max-height: calc(100vh - 24px);
   overflow: auto;
   padding: 3px 7px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-tooltip-bg);
-  color: var(--dsw-alias-tooltip-label);
-  font-size: 13px;
-  line-height: 20px;
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-tooltip-bg);
+  color: var(--delta-alias-tooltip-label);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
   white-space: pre-line;
   /* Unbreakable tokens (URLs, paths) must not push past max-width. */
   overflow-wrap: break-word;
   pointer-events: none;
-  animation: tooltip-in 150ms var(--ds-ease-in-out);
+  animation: tooltip-in var(--delta-transition-duration-150ms) var(--delta-ease-in-out);
 }
 
-.bubble[data-portal] { z-index: 1100; }
+.bubble[data-portal] { z-index: var(--delta-layer-overlay); }
 :global(:where(html[data-platform='darwin'])) .bubble { -webkit-app-region: no-drag; }
 .bubble[data-pinned] { pointer-events: auto; }
 .label { min-width: 0; }

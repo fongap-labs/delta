@@ -1,23 +1,23 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--delta-space-6);
   max-width: 720px;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
+  font-size: var(--delta-font-size-16);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-24);
 }
 
 .intro {
   margin: 0;
-  font-size: 14px;
-  color: var(--dsw-alias-label-tertiary);
-  line-height: 22px;
+  font-size: var(--delta-font-size-14);
+  color: var(--delta-alias-label-tertiary);
+  line-height: var(--delta-line-height-22);
 }
 
 /* Cards, not rows: a preset is a thing you pick, and the description is the
@@ -25,19 +25,19 @@
 .group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 /* Separate the two rosters by 32px, including the section gap. */
 .group + .group {
-  margin-top: 8px;
+  margin-top: var(--delta-space-2);
 }
 
 .groupHead {
   margin: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  font-weight: var(--delta-font-weight-medium);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .cards {
@@ -47,30 +47,30 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
   /* Match neighboring cards within a row, without stretching shorter rows. */
-  gap: 12px;
+  gap: var(--delta-space-3);
 }
 
 .card {
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  border-radius: var(--dsw-radius-xl);
+  border: 0.5px solid var(--delta-alias-settings-card-stroke);
+  border-radius: var(--delta-radius-xl);
   display: flex;
   flex-direction: column;
-  background: var(--dsw-alias-settings-card-fill);
-  transition: border-color .16s, background .16s;
+  background: var(--delta-alias-settings-card-fill);
+  transition: border-color var(--delta-transition-duration-160ms), background var(--delta-transition-duration-160ms);
 }
 
 
 @media (hover: hover) {
   .card:hover:not(.cardActive) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
 /* The default preset reads as selected exactly like the Appearance cubes:
    platform fill + the selected border. */
 .cardActive {
-  background: var(--dsw-alias-bg-module-platform);
-  border-color: var(--dsw-alias-border-selected);
+  background: var(--delta-alias-bg-module-platform);
+  border-color: var(--delta-alias-border-selected);
 }
 
 /* Mode selection is off, not the preset itself: mute only the selectable
@@ -78,25 +78,25 @@
 /* A broken preset reads as damaged before anything else: the card cannot be
    picked, so its border carries the warning the disabled body cannot. */
 .cardBroken {
-  border-color: var(--dsw-alias-state-error-primary);
+  border-color: var(--delta-alias-state-error-primary);
 }
 
 @media (hover: hover) {
   .cardBroken:hover {
-    border-color: var(--dsw-alias-state-error-primary);
+    border-color: var(--delta-alias-state-error-primary);
   }
 }
 
 .brokenBadge {
   border-radius: 999px;
   corner-shape: round;
-  padding: 1px 8px;
-  font-size: 11px;
+  padding: 1px var(--delta-space-2);
+  font-size: var(--delta-font-size-11);
   line-height: 17px;
   white-space: nowrap;
-  font-weight: 500;
-  background: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-bg-layer-3);
+  font-weight: var(--delta-font-weight-medium);
+  background: var(--delta-alias-state-error-primary);
+  color: var(--delta-alias-bg-layer-3);
 }
 
 /* The discovery-reported reason, verbatim: it names the rows and the fix.
@@ -111,19 +111,19 @@
   z-index: 1;
   width: max-content;
   max-width: 100%;
-  padding: 6px 8px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-layer-3);
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.5;
+  padding: var(--delta-space-1-5) var(--delta-space-2);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-label-primary);
+  color: var(--delta-alias-bg-layer-3);
+  font-size: var(--delta-font-size-11);
+  font-weight: var(--delta-font-weight-regular);
+  line-height: var(--delta-line-height-normal);
   text-align: left;
   white-space: pre-line;
   overflow-wrap: anywhere;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .12s;
+  transition: opacity var(--delta-transition-duration-120ms);
 }
 
 /* Focusing the card reveals it too: a broken card keeps its place in the tab
@@ -144,7 +144,7 @@
 }
 
 .cardMain:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
@@ -186,9 +186,9 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px 12px;
-  border-radius: var(--dsw-radius-xl) var(--dsw-radius-xl) 0 0;
+  gap: var(--delta-space-3);
+  padding: var(--delta-space-3-5) var(--delta-space-4) var(--delta-space-3);
+  border-radius: var(--delta-radius-xl) var(--delta-radius-xl) 0 0;
 }
 
 .cardMain:disabled {
@@ -196,14 +196,14 @@
 }
 
 .cardMain:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 
 .cardHead {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--delta-space-3);
   /* Anchors the broken badge's tooltip: the badge itself stays unpositioned so
      the tooltip resolves against the card's own width instead of against a
      badge that sits partway across it. A tooltip grown from the badge would
@@ -216,14 +216,14 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .cardName {
   min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: var(--delta-font-size-15);
+  font-weight: var(--delta-font-weight-semibold);
+  line-height: var(--delta-line-height-snug);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -236,9 +236,9 @@
    Descriptions start below their headings; spare height remains below them. */
 .cardDesc {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--delta-font-size-13);
   line-height: 1.55;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
@@ -256,10 +256,10 @@
 .cardId {
   flex-shrink: 0;
   max-width: 35%;
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 11px;
+  font-family: var(--delta-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--delta-font-size-11);
   line-height: 21px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -270,33 +270,33 @@
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 2px;
-  padding: 6px 10px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  gap: var(--delta-space-0-5);
+  padding: var(--delta-space-1-5) var(--delta-space-2-5);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 .cardHelp {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   margin-right: auto;
 }
 
 .helpButton {
-  padding: 5px 6px;
+  padding: 5px var(--delta-space-1-5);
   min-height: 28px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
+  font-weight: var(--delta-font-weight-regular);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .helpButton:focus-visible {
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .helpButton:hover {
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
@@ -306,10 +306,10 @@
   position: relative;
   appearance: none;
   border: 0;
-  border-radius: var(--dsw-radius-sm);
-  padding: 6px;
+  border-radius: var(--delta-radius-sm);
+  padding: var(--delta-space-1-5);
   background: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -317,13 +317,13 @@
 
 @media (hover: hover) {
   .iconButton:hover {
-    background: var(--dsw-alias-bg-layer-1);
-    color: var(--dsw-alias-label-primary);
+    background: var(--delta-alias-bg-layer-1);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .iconButton:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -1px;
 }
 
@@ -333,16 +333,16 @@
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  padding: 3px 8px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-layer-3);
-  font-size: 11px;
+  padding: 3px var(--delta-space-2);
+  border-radius: var(--delta-radius-sm);
+  background: var(--delta-alias-label-primary);
+  color: var(--delta-alias-bg-layer-3);
+  font-size: var(--delta-font-size-11);
   line-height: 17px;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .12s;
+  transition: opacity var(--delta-transition-duration-120ms);
 }
 
 .iconButton:focus-visible::after {
@@ -362,26 +362,26 @@
 /* A declared composition can be long; the dialog scrolls it rather than grow. */
 .viewerCode {
   margin: 0;
-  padding: 12px;
+  padding: var(--delta-space-3);
   max-height: min(60vh, 560px);
   overflow: auto;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-layer-2);
-  color: var(--dsw-alias-label-secondary);
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-layer-2);
+  color: var(--delta-alias-label-secondary);
+  font-family: var(--delta-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12.5px;
-  line-height: 1.5;
+  line-height: var(--delta-line-height-normal);
   white-space: pre;
   tab-size: 2;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  --delta-scrollbar-thumb: var(--delta-alias-scrollbar-bg-l2);
+  --delta-scrollbar-thumb-hover: var(--delta-alias-scrollbar-hover-l2);
 }
 
 .error {
   margin: 0;
-  font-size: 12px;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  color: var(--delta-alias-state-error-primary);
 }
 
 /* The conversational authoring entry, after the card grid. Dashed like the
@@ -393,21 +393,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   height: 44px;
-  border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-lg);
+  border: 1px dashed var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-lg);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-22);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
   cursor: pointer;
 }
 
 @media (hover: hover) {
   .creatorButton:hover:not(:disabled) {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -419,5 +419,5 @@
 .sectionHeader {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--delta-space-1);
 }

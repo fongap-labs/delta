@@ -6,16 +6,16 @@
 
 .gutter {
   flex: none;
-  width: var(--dsl-read-gutter);
-  margin-right: 12px;
+  width: var(--delta-read-gutter);
+  margin-right: var(--delta-space-3);
   text-align: right;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   user-select: none;
 }
 
 .content {
   min-width: 0;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 .block[data-code-wrap='true'] .line {
@@ -29,10 +29,10 @@
 .expand {
   display: block;
   width: 100%;
-  padding: 0 0 0 calc(var(--dsl-read-gutter) + 12px);
+  padding: 0 0 0 calc(var(--delta-read-gutter) + 12px);
   border: none;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -40,6 +40,6 @@
 
 @media (hover: hover) {
   .expand:hover {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 }

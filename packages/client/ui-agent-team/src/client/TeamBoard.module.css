@@ -8,8 +8,8 @@
 .progress {
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-xxs-12);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -31,28 +31,28 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--delta-space-2);
   width: 100%;
   min-width: 0;
   min-height: 28px;
-  padding: 4px 6px;
+  padding: var(--delta-space-1) var(--delta-space-1-5);
   border: 0;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: var(--dsw-font-xs-13);
+  color: var(--delta-alias-label-primary);
+  font: var(--delta-font-xs-13);
   text-align: left;
   cursor: pointer;
 }
 
 .taskRow:focus-visible {
   outline: none;
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--delta-alias-interactive-bg-hover);
 }
 
 @media (hover: hover) {
   .taskRow:hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -63,7 +63,7 @@
   place-items: center;
   width: 16px;
   height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 .subject {
@@ -89,10 +89,10 @@
 }
 
 .details {
-  padding: 0 6px 8px 30px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  padding: 0 var(--delta-space-1-5) var(--delta-space-2) 30px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   overflow-wrap: anywhere;
 }
 
@@ -103,14 +103,14 @@
 
 .owner {
   display: flex;
-  gap: 4px;
+  gap: var(--delta-space-1);
   min-width: 0;
   margin: 0;
   white-space: nowrap;
 }
 
 .description + .owner {
-  margin-top: 6px;
+  margin-top: var(--delta-space-1-5);
 }
 
 .ownerLabel {
@@ -126,10 +126,10 @@
 .error {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 5px 6px;
-  color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
+  gap: var(--delta-space-2);
+  padding: 5px var(--delta-space-1-5);
+  color: var(--delta-alias-state-error-primary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   overflow-wrap: anywhere;
 }

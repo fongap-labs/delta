@@ -3,15 +3,15 @@
 .label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--delta-space-1);
   max-width: 180px;
-  padding: 0 2px 0 0;
+  padding: 0 var(--delta-space-0-5) 0 0;
   height: 22px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-fill-tsp-secondary);
-  font-size: 12px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-tertiary);
+  border-radius: var(--delta-radius-xs);
+  background: var(--delta-alias-fill-tsp-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-22);
+  color: var(--delta-alias-label-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

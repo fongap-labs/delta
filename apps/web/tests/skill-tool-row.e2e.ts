@@ -90,17 +90,17 @@ describe.skipIf(MODE === 'record')('web e2e: dedicated Skill tool row', () => {
 
     const previous = await page.evaluate(() => ({
       fontSize: {
-        value: document.body.style.getPropertyValue('--dsh-content-font-size-secondary'),
-        priority: document.body.style.getPropertyPriority('--dsh-content-font-size-secondary'),
+        value: document.body.style.getPropertyValue('--delta-content-font-size-secondary'),
+        priority: document.body.style.getPropertyPriority('--delta-content-font-size-secondary'),
       },
       delta: {
-        value: document.body.style.getPropertyValue('--dsh-content-font-delta'),
-        priority: document.body.style.getPropertyPriority('--dsh-content-font-delta'),
+        value: document.body.style.getPropertyValue('--delta-content-font-delta'),
+        priority: document.body.style.getPropertyPriority('--delta-content-font-delta'),
       },
     }))
     await page.evaluate(() => {
-      document.body.style.setProperty('--dsh-content-font-size-secondary', '15px')
-      document.body.style.setProperty('--dsh-content-font-delta', '2px')
+      document.body.style.setProperty('--delta-content-font-size-secondary', '15px')
+      document.body.style.setProperty('--delta-content-font-delta', '2px')
     })
     try {
       expect(await title.evaluate(element => getComputedStyle(element).fontSize)).toBe('15px')
@@ -113,8 +113,8 @@ describe.skipIf(MODE === 'record')('web e2e: dedicated Skill tool row', () => {
           if (entry.value === '') document.body.style.removeProperty(name)
           else document.body.style.setProperty(name, entry.value, entry.priority)
         }
-        restore('--dsh-content-font-size-secondary', saved.fontSize)
-        restore('--dsh-content-font-delta', saved.delta)
+        restore('--delta-content-font-size-secondary', saved.fontSize)
+        restore('--delta-content-font-delta', saved.delta)
       }, previous)
     }
   })

@@ -183,7 +183,7 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
 
 /**
  * Opaque chrome fallback matching the built-in sidebar palette (the resolved
- * `--dsw-static-neutral-bluish-900` / `-50` tokens). An approximation for
+ * `--delta-static-neutral-bluish-900` / `-50` tokens). An approximation for
  * custom themes: Windows captions use the renderer's measured palette over
  * windowsAppearance IPC. The Windows workspace base stays opaque and follows
  * the effective light/dark theme; macOS uses it only while minimized or hidden.

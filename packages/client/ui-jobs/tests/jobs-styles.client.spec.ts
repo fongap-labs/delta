@@ -24,16 +24,16 @@ describe('JobsSection.module.css', () => {
 
   it('keeps a job on one 28px line, with the stop target overhanging it', () => {
     expect(rule('.rowLine')).toMatch(/min-height:\s*28px/)
-    expect(rule('.rowLine')).toMatch(/padding:\s*4px 6px/)
-    expect(rule('.label')).toMatch(/line-height:\s*20px/)
+    expect(rule('.rowLine')).toMatch(/padding:\s*var\(--delta-space-1\)\s*var\(--delta-space-1-5\)/)
+    expect(rule('.label')).toMatch(/line-height:\s*var\(--delta-line-height-20\)/)
     expect(rule('.stop')).toMatch(/height:\s*24px/)
-    expect(rule('.stop')).toMatch(/margin:\s*-2px -4px/)
+    expect(rule('.stop')).toMatch(/margin:\s*calc\(-1 \* var\(--delta-space-0-5\)\) calc\(-1 \* var\(--delta-space-1\)\)/)
   })
 
   it('keeps the 28px line while the stop control is armed, its pill filling the row padding', () => {
     expect(rule('.stopArmed')).toMatch(/height:\s*20px/)
     expect(rule('.stopArmed')).toMatch(/margin:\s*0;/)
-    expect(rule('.stopArmed')).toMatch(/padding:\s*0 6px/)
-    expect(rule('.stopLabel')).toMatch(/line-height:\s*18px/)
+    expect(rule('.stopArmed')).toMatch(/padding:\s*0 var\(--delta-space-1-5\)/)
+    expect(rule('.stopLabel')).toMatch(/line-height:\s*var\(--delta-line-height-18\)/)
   })
 })

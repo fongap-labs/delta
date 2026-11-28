@@ -1180,7 +1180,7 @@ describe('web e2e: shipped right Sidebar', () => {
       // draws inside it.
       const clamped = await panel.evaluate((node) => {
         const element = node as HTMLElement
-        for (const name of ['x', 'y', 'width', 'height']) element.style.setProperty(`--dsh-dockkit-float-${name}`, '5000px')
+        for (const name of ['x', 'y', 'width', 'height']) element.style.setProperty(`--delta-dockkit-float-${name}`, '5000px')
         const box = element.getBoundingClientRect()
         return { left: box.left, top: box.top, right: box.right, bottom: box.bottom }
       })

@@ -4,17 +4,17 @@
   align-items: center;
   width: 100%;
   min-width: 0;
-  height: calc(33px + var(--dsh-content-font-delta, 0px));
-  padding: 0 0 8px;
+  height: calc(33px + var(--delta-content-font-delta, 0px));
+  padding: 0 0 var(--delta-space-2);
   border: none;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--delta-alias-border-l2);
   background: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
   font: inherit;
-  font-size: var(--dsh-content-font-size, 14px);
+  font-size: var(--delta-content-font-size, 14px);
   cursor: pointer;
   text-align: left;
-  transition: color 100ms ease;
+  transition: color var(--delta-transition-duration-fast) ease;
 }
 
 .root:disabled {
@@ -23,7 +23,7 @@
 
 @media (hover: hover) {
   .root:hover:not(:disabled) {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
@@ -31,9 +31,9 @@
   flex: none;
   width: 14px;
   height: 14px;
-  margin-left: 4px;
+  margin-left: var(--delta-space-1);
   color: inherit;
-  transition: transform 100ms ease;
+  transition: transform var(--delta-transition-duration-fast) ease;
 }
 
 .root[data-open] .chevron {
@@ -44,13 +44,13 @@
   min-width: 0;
   overflow: hidden;
   font-size: inherit;
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .durationNumber {
-  font-family: var(--ds-font-family-code);
+  font-family: var(--delta-font-family-code);
   font-variant-numeric: tabular-nums;
 }
 

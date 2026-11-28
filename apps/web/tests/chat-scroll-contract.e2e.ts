@@ -1335,7 +1335,7 @@ describe('web e2e: long Chat scroll contract', () => {
           for (const contentWidth of [901, 900, 899, 901]) {
             await frame.evaluate((element, { clearance, contentWidth }) => {
               element.style.width = `${contentWidth + 2 * (clearance + 16)}px`
-              element.style.setProperty('--dsh-composer-side-clearance', `${clearance}px`)
+              element.style.setProperty('--delta-composer-side-clearance', `${clearance}px`)
             }, { clearance, contentWidth })
             await expect.poll(() => rail.isVisible()).toBe(contentWidth > 900)
           }

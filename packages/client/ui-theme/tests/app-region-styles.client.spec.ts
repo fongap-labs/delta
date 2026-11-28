@@ -95,7 +95,7 @@ const CHROME_ROWS: readonly ChromeRow[] = [
     selector: '.tabStrip',
     markup: 'client/ui-dockkit/src/components/TabPanel.tsx',
     height: ['height', '28px'],
-    inset: ['padding', '10px 6px 0 var(--dsh-dockkit-strip-inline-start, 10px)'],
+    inset: ['padding', '10px 6px 0 var(--delta-dockkit-strip-inline-start, 10px)'],
   },
   {
     file: PLUGIN_MANAGER,

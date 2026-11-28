@@ -6,18 +6,18 @@
   /* Six 20px text lines plus padding and border, then the editor scrolls. */
   max-height: 127px;
   margin: 0;
-  padding: 3px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-sm);
+  padding: 3px var(--delta-space-2);
+  border: 0.5px solid var(--delta-alias-border-l4);
+  border-radius: var(--delta-radius-sm);
   outline: none;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-primary);
-  font: var(--dsw-font-xs-13);
-  font-family: Inter, var(--dsw-font-family);
+  background: var(--delta-alias-bg-base);
+  color: var(--delta-alias-label-primary);
+  font: var(--delta-font-xs-13);
+  font-family: Inter, var(--delta-font-family);
   overflow-y: auto;
   resize: none;
 }
 
 .editor:focus {
-  border-color: var(--dsw-alias-state-business-primary);
+  border-color: var(--delta-alias-state-business-primary);
 }

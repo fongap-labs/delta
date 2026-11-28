@@ -611,7 +611,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     })
     expect(layout).toEqual({ whiteSpace: 'pre', overflowX: 'auto', wrapped: false, scrollsSideways: true })
     // The run-state dot's color is the whole point of it and is the one thing
-    // jsdom cannot report: --dsw-* tokens resolve only against the real theme
+    // jsdom cannot report: --delta-* tokens resolve only against the real theme
     // stylesheet. This command settled cleanly, so the dot must be the green
     // success token — a red one here would read as a failed command.
     const dot = await card.locator('[data-terminal-banner] [data-state]').evaluate((node) => {
@@ -620,7 +620,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
       if (banner === null || prompt === null) throw new Error('terminal status dot has no prompt banner')
       // The token lives on body, so the probe must sit in the same cascade.
       const probe = document.createElement('span')
-      probe.style.color = 'var(--dsw-alias-state-success-primary)'
+      probe.style.color = 'var(--delta-alias-state-success-primary)'
       document.body.appendChild(probe)
       const success = getComputedStyle(probe).color
       probe.remove()

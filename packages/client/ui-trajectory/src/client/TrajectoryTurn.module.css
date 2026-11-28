@@ -7,10 +7,10 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   box-sizing: border-box;
   width: 100%;
   max-width: 880px;
   margin: 0 auto;
-  padding: 8px 16px 22px;
+  padding: var(--delta-space-2) var(--delta-space-4) 22px;
 }

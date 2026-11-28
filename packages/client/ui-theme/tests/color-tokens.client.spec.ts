@@ -43,7 +43,7 @@ function exempt(file: string): boolean {
 function colorViolations(css: string): string[] {
   return parseRules(css).flatMap(rule => rule.declarations
     .filter(([property, value]) => !EXEMPT_PROPERTIES.test(property) && (
-      value.includes('--dsw-static-')
+      value.includes('--delta-static-')
       || [...value.matchAll(LITERAL_COLOR)].some(([literal = '']) => !transparentLiteral(literal))
     ))
     .map(([property, value]) => `${rule.selectors.join(', ')} { ${property}: ${value} }`))
@@ -70,24 +70,24 @@ function featureSource(file: string): boolean {
 
 it('rejects static palette steps and literal colors outside box shadows, masks and alpha-0 literals', () => {
   expect(colorViolations(`
-    .a { color: var(--dsw-static-blue-500); }
+    .a { color: var(--delta-static-blue-500); }
     .b { background: #2C2C2E; }
     .c { border-color: rgb(255 255 255 / 0.55); }
-    .d { --local: color-mix(in srgb, var(--dsw-static-neutral-00) 5%, transparent); }
+    .d { --local: color-mix(in srgb, var(--delta-static-neutral-00) 5%, transparent); }
     .e { color: rgb(0, 0, 0); }
     .f { fill: white; }
     .g { color: oklch(70% 0.1 250); }
   `)).toEqual([
-    '.a { color: var(--dsw-static-blue-500) }',
+    '.a { color: var(--delta-static-blue-500) }',
     '.b { background: #2C2C2E }',
     '.c { border-color: rgb(255 255 255 / 0.55) }',
-    '.d { --local: color-mix(in srgb, var(--dsw-static-neutral-00) 5%, transparent) }',
+    '.d { --local: color-mix(in srgb, var(--delta-static-neutral-00) 5%, transparent) }',
     '.e { color: rgb(0, 0, 0) }',
     '.f { fill: white }',
     '.g { color: oklch(70% 0.1 250) }',
   ])
   expect(colorViolations(`
-    .a { color: var(--dsw-alias-label-primary); }
+    .a { color: var(--delta-alias-label-primary); }
     .b { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
     .c { mask-image: linear-gradient(#000, transparent); }
     .d { border-left: 3px solid rgb(255 255 255 / 0); }
@@ -105,7 +105,7 @@ it('keeps feature stylesheets on alias tokens', () => {
 it('keeps static palette steps out of feature scripts', () => {
   const files = scripts.filter(file => !file.endsWith('.d.ts') && featureSource(file))
   expect(files.length).toBeGreaterThan(0)
-  expect(files.filter(file => readFileSync(file, 'utf8').includes('--dsw-static-'))).toEqual([])
+  expect(files.filter(file => readFileSync(file, 'utf8').includes('--delta-static-'))).toEqual([])
 })
 
 it('names an existing file for every exemption', () => {

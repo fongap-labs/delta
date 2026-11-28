@@ -1,7 +1,7 @@
 .copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   min-width: 0;
   white-space: normal;
 }
@@ -11,9 +11,9 @@
   max-height: 36px;
   overflow: hidden;
   overflow-wrap: anywhere;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--delta-alias-label-secondary);
+  font-size: var(--delta-font-size-12);
+  line-height: var(--delta-line-height-18);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }

@@ -4,28 +4,28 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
 }
 
 .userStack {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--delta-space-2);
   min-width: 0;
   /* The figma 525px cap held as a share of the width axis (525/748 ≈ 0.702):
      resolves to the original 525px on the default column and widens with a
      dragged or adaptive column. The 748px fallback covers mounts outside the
      conversation column, where the axis variable is absent. */
-  max-width: min(calc(var(--dsh-chat-content-width, 748px) * 0.702), 82%);
+  max-width: min(calc(var(--delta-chat-content-width, 748px) * 0.702), 82%);
 }
 .referenceSummary {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(18px + var(--delta-content-font-delta-secondary, 0px));
 }
 .contextRow {
-  padding: 2px 0;
+  padding: var(--delta-space-0-5) 0;
 }
 
 /* Inherited-history divider: a hairline split by a centered caption. The
@@ -34,14 +34,14 @@
 .inheritedHistoryRow {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 2px 0 20px;
+  gap: var(--delta-space-3);
+  padding: var(--delta-space-0-5) 0 var(--delta-space-5);
 }
 
 .inheritedHistoryLine {
   flex: 1 1 0;
   min-width: 16px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--delta-alias-border-l2);
 }
 
 /* Glyph and label share one caption and its tertiary ink. The 6px gap matches
@@ -51,9 +51,9 @@
   flex: 0 1 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   min-width: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--delta-alias-label-tertiary);
 }
 
 /* The 14px flow-row glyph edge shared with DisclosureRow's leading icon: the
@@ -61,16 +61,16 @@
    delta. */
 .inheritedHistoryIcon {
   flex: none;
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--delta-content-font-delta, 0px));
+  height: calc(14px + var(--delta-content-font-delta, 0px));
 }
 
 .inheritedHistoryLabel {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -78,21 +78,21 @@
 /* Compaction marker: one 24px row with a context icon at rest and a
    hover/focus chevron for opening the checkpoint in the right Sidebar. */
 .compactionRow {
-  padding: 2px 0;
+  padding: var(--delta-space-0-5) 0;
 }
 
 .compactionButton {
   display: flex;
   align-items: center;
   width: 100%;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  height: calc(24px + var(--delta-content-font-delta, 0px));
   min-width: 0;
   padding: 0;
   border: none;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   background: none;
-  color: var(--dsw-alias-label-tertiary);
-  transition: color 100ms ease;
+  color: var(--delta-alias-label-tertiary);
+  transition: color var(--delta-transition-duration-fast) ease;
   font: inherit;
   text-align: left;
 }
@@ -103,11 +103,11 @@
 
 @media (hover: hover) {
   .compactionButton:hover {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 
   .compactionButton:not(:disabled):hover {
-    background: var(--dsw-alias-interactive-bg-hover);
+    background: var(--delta-alias-interactive-bg-hover);
   }
 }
 
@@ -115,17 +115,17 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
-  margin-right: 6px;
+  width: calc(16px + var(--delta-content-font-delta, 0px));
+  height: calc(16px + var(--delta-content-font-delta, 0px));
+  margin-right: var(--delta-space-1-5);
   color: inherit;
 }
 
 /* Same glyph-scaling rule as DisclosureRow's leading: the CSS edge overrides
    the svg attributes so the 14px glyphs follow the font-size delta. */
 .compactionLeading svg {
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--delta-content-font-delta, 0px));
+  height: calc(14px + var(--delta-content-font-delta, 0px));
 }
 
 .compactionContextIcon,
@@ -162,8 +162,8 @@
 
 .compactionTitle {
   flex: none;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   color: inherit;
 }
 
@@ -171,9 +171,9 @@
   flex: none;
   width: 2px;
   height: 2px;
-  margin: 0 8px;
+  margin: 0 var(--delta-space-2);
   border-radius: 1px;
-  background: var(--dsw-alias-label-caption);
+  background: var(--delta-alias-label-caption);
 }
 
 .compactionSummary {
@@ -181,16 +181,16 @@
   min-width: 0;
   overflow: hidden;
   color: inherit;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--delta-content-font-delta, 0px));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .retryRow {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--delta-content-font-delta-secondary, 0px));
 }
 
 .retrySummary {
@@ -198,9 +198,9 @@
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  padding: 2px 0;
+  padding: var(--delta-space-0-5) 0;
   gap: 7px;
-  border-radius: var(--dsw-radius-sm);
+  border-radius: var(--delta-radius-sm);
   color: inherit;
   cursor: pointer;
   list-style: none;
@@ -215,17 +215,17 @@
   flex: none;
   width: 6px;
   height: 6px;
-  margin-right: 2px;
+  margin-right: var(--delta-space-0-5);
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
   content: '';
   transform: rotate(-45deg);
-  transition: transform 120ms ease;
+  transition: transform var(--delta-transition-duration-120ms) ease;
 }
 
 @media (hover: hover) {
   .retrySummary:hover {
-    color: var(--dsw-alias-label-secondary);
+    color: var(--delta-alias-label-secondary);
   }
 }
 
@@ -236,7 +236,7 @@
 }
 
 .retrySummary:focus-visible {
-  outline: 1.5px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: 1.5px solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -251,26 +251,26 @@
 
 .retryDetails {
   display: grid;
-  gap: 2px;
+  gap: var(--delta-space-0-5);
   margin-top: 3px;
-  padding-left: 14px;
+  padding-left: var(--delta-space-3-5);
   overflow-wrap: anywhere;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(18px + var(--delta-content-font-delta-secondary, 0px));
 }
 
 .retryDetailLabel {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .turnErrorRow {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--delta-space-2);
   align-items: start;
-  padding: 2px 0;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  padding: var(--delta-space-0-5) 0;
+  font-size: var(--delta-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--delta-content-font-delta-secondary, 0px));
 }
 
 .turnErrorDot {
@@ -283,24 +283,24 @@
 }
 
 .turnErrorTitle {
-  margin-right: 6px;
-  color: var(--dsw-alias-state-error-primary);
-  font-weight: 600;
+  margin-right: var(--delta-space-1-5);
+  color: var(--delta-alias-state-error-primary);
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .turnErrorMessage {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .turnErrorCode {
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-markdown-code-block-small);
+  color: var(--delta-alias-label-tertiary);
+  font: var(--delta-font-markdown-code-block-small);
 }
 
 .maxTokensTitle {
-  margin-right: 6px;
-  color: var(--dsw-alias-state-warn-primary);
-  font-weight: 600;
+  margin-right: var(--delta-space-1-5);
+  color: var(--delta-alias-state-warn-primary);
+  font-weight: var(--delta-font-weight-semibold);
 }
 
 .attachmentRow {
@@ -308,20 +308,20 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   max-width: 100%;
-  gap: 8px;
+  gap: var(--delta-space-2);
 }
 
 .fileCard {
   display: inline-flex;
   flex: 0 0 240px;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
   width: 240px;
   min-height: 64px;
-  padding: 8px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-input-major, transparent);
+  padding: var(--delta-space-2) var(--delta-space-3);
+  border: 0.5px solid var(--delta-alias-border-l2);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-specific-input-major, transparent);
   box-sizing: border-box;
 }
 
@@ -342,17 +342,17 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
+  color: var(--delta-alias-label-primary);
+  font-size: var(--delta-font-size-14);
+  font-weight: var(--delta-font-weight-medium);
+  line-height: var(--delta-line-height-22);
 }
 
 .fileMeta {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  color: var(--delta-alias-label-tertiary);
+  font-size: var(--delta-font-size-12);
   line-height: 15px;
 }

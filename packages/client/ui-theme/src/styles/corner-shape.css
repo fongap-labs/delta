@@ -15,12 +15,12 @@
  * sheet. The corner-shape stylesheet spec enforces that pairing. */
 @supports (corner-shape: superellipse(1.5)) {
   :root {
-    --dsw-corner-shape: superellipse(1.5);
+    --delta-corner-shape: superellipse(1.5);
   }
 
   *,
   *::before,
   *::after {
-    corner-shape: var(--dsw-corner-shape);
+    corner-shape: var(--delta-corner-shape);
   }
 }

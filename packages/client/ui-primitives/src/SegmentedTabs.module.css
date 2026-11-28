@@ -4,18 +4,18 @@
   position: relative;
   display: grid;
   padding: var(--segmented-tabs-inset);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-module-platform);
+  border-radius: var(--delta-radius-lg);
+  background: var(--delta-alias-bg-module-platform);
 }
 
 .indicator {
   position: absolute;
   inset: var(--segmented-tabs-inset) auto var(--segmented-tabs-inset) var(--segmented-tabs-inset);
   box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-layer-3);
-  transition: transform 180ms ease;
+  border: 0.5px solid var(--delta-alias-border-l3);
+  border-radius: var(--delta-radius-md);
+  background: var(--delta-alias-bg-layer-3);
+  transition: transform var(--delta-transition-duration-180ms) ease;
   pointer-events: none;
 }
 
@@ -23,35 +23,35 @@
   position: relative;
   justify-content: center;
   height: 34px;
-  padding: 0 12px;
-  border-radius: var(--dsw-radius-md);
-  font-size: 14px;
-  line-height: 20px;
+  padding: 0 var(--delta-space-3);
+  border-radius: var(--delta-radius-md);
+  font-size: var(--delta-font-size-14);
+  line-height: var(--delta-line-height-20);
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  transition: color 180ms ease;
+  color: var(--delta-alias-label-secondary);
+  transition: color var(--delta-transition-duration-180ms) ease;
 }
 
 .tab[aria-selected='true'] {
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--delta-alias-label-primary);
 }
 
 @media (hover: hover) {
   .tab:hover:not(:disabled) {
     background: transparent;
-    color: var(--dsw-alias-label-primary);
+    color: var(--delta-alias-label-primary);
   }
 }
 
 .tab[aria-selected='true'] {
-  font-weight: 500;
+  font-weight: var(--delta-font-weight-medium);
 }
 
 .tabs[data-size='sm'] {
   --segmented-tabs-inset: 2px;
 
-  border-radius: calc(var(--dsw-radius-md) + var(--segmented-tabs-inset));
+  border-radius: calc(var(--delta-radius-md) + var(--segmented-tabs-inset));
 }
 
 .tabs[data-size='sm'] .tab {
@@ -59,7 +59,7 @@
 }
 
 .tab:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: -2px;
 }
 

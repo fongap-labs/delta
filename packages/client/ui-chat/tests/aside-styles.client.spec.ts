@@ -24,15 +24,15 @@ describe('Chat aside layer', () => {
   })
 
   it('reaches across the Conversation body\'s end inset, so it spans the scrollport whatever room the body keeps free', () => {
-    expect(declarationsOf('.asideSlot')).toContain('margin-inline-end: calc(-1 * var(--dsh-chat-end-inset, 0px))')
+    expect(declarationsOf('.asideSlot')).toContain('margin-inline-end: calc(-1 * var(--delta-chat-end-inset, 0px))')
     // The margin animates with the scrollport's padding, so the layer's end edge stays put while the inset changes.
-    expect(declarationsOf('.asideSlot')).toContain('transition: margin-inline-end var(--dsh-chat-end-reserve-transition, 0s)')
+    expect(declarationsOf('.asideSlot')).toContain('transition: margin-inline-end var(--delta-chat-end-reserve-transition, 0s)')
   })
 
   it('publishes the end gutter as the end inset plus half of what the transcript column leaves of the rest, never negative', () => {
     expect(declarationsOf('.asideSlot')).toContain(
-      '--dsh-chat-aside-gutter: calc(var(--dsh-chat-end-inset, 0px)'
-      + ' + max(0px, (100% - var(--dsh-chat-end-inset, 0px) - var(--dsh-chat-content-width, 100%)) / 2))',
+      '--delta-chat-aside-gutter: calc(var(--delta-chat-end-inset, 0px)'
+      + ' + max(0px, (100% - var(--delta-chat-end-inset, 0px) - var(--delta-chat-content-width, 100%)) / 2))',
     )
     // The declaration, evaluated for a layer `frame` wide: without an inset it is the centered column's gutter.
     const gutter = (frame: number, content: number, inset: number): number => inset + Math.max(0, (frame - inset - content) / 2)

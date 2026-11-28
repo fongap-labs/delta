@@ -1,7 +1,7 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--delta-space-3);
   min-width: 0;
 }
 
@@ -11,46 +11,46 @@
   max-height: min(560px, 60vh);
   overflow-y: auto;
   /* Horizontal rules separate the document from its neighbors; a full frame would clash with the images' own corners. */
-  border-block: 0.5px solid var(--dsw-alias-border-l1);
+  border-block: 0.5px solid var(--delta-alias-border-l1);
   /* Keep the scrollbar off the text and the text width independent of overflow. */
   scrollbar-gutter: stable;
-  padding: 12px 0;
+  padding: var(--delta-space-3) 0;
   overflow-wrap: anywhere;
 }
 
 .document:focus-visible {
-  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline: var(--delta-focus-ring-width) solid var(--delta-focus-ring-color, var(--delta-alias-state-business-primary));
   outline-offset: 3px;
 }
 
 .failure {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 .error {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--delta-space-1-5);
   margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--delta-font-size-13);
+  line-height: var(--delta-line-height-20);
+  color: var(--delta-alias-state-error-primary);
 }
 
 .skeleton {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--delta-space-2-5);
 }
 
 .bar {
   display: block;
   height: 12px;
-  border-radius: var(--dsw-radius-xs);
-  background: var(--dsw-alias-bg-skeleton);
-  animation: dsh-plugin-detail-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
+  border-radius: var(--delta-radius-xs);
+  background: var(--delta-alias-bg-skeleton);
+  animation: dsh-plugin-detail-skeleton var(--delta-transition-duration-2000ms) cubic-bezier(0.36, 0, 0.64, 1) infinite;
 }
 
 .long { width: min(480px, 90%); }

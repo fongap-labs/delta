@@ -4,7 +4,7 @@
 }
 
 .canvas {
-  --home-whale-code-ink: var(--dsw-alias-label-primary);
+  --home-whale-code-ink: var(--delta-alias-label-primary);
   /* The host isolates stacking at the Conversation root, so -1 lands above its background and below its content. */
   position: absolute;
   inset: 0;
@@ -14,7 +14,7 @@
   display: block;
   pointer-events: none;
   opacity: 0.18;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
   filter: grayscale(1);
-  font-family: var(--ds-font-family-code);
+  font-family: var(--delta-font-family-code);
 }

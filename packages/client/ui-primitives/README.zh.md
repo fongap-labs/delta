@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-使用 `dsh-client-ui-primitives`，通过共享 React UI 构建 Web 客户端控件并渲染 agent 输出。它提供标准控件、图标、锚定浮层，以及用于带 TeX 公式的 Markdown、终端输出、文件读取、差异、搜索、网页检索和 JSON 的渲染器。这些渲染器会丢弃原始 HTML、限制链接并解析 ANSI 转义序列，以处理不受信任的模型输出。组件不 import Cordis 运行时；调用方提供本地化 label，主题相关颜色使用 `--dsw-*` 设计 token。
+使用 `dsh-client-ui-primitives`，通过共享 React UI 构建 Web 客户端控件并渲染 agent 输出。它提供标准控件、图标、锚定浮层，以及用于带 TeX 公式的 Markdown、终端输出、文件读取、差异、搜索、网页检索和 JSON 的渲染器。这些渲染器会丢弃原始 HTML、限制链接并解析 ANSI 转义序列，以处理不受信任的模型输出。组件不 import Cordis 运行时；调用方提供本地化 label，主题相关颜色使用 `--delta-*` 设计 token。
 
 ## 目录
 
@@ -35,7 +35,7 @@ kind: "package-library"
 
 本包是 Web 壳的构建输入。静态 ESM 为 Vite 保留第三方导入，包括 KaTeX 等第三方样式表；本包自身的样式表编译进 `__$dsh_client_module_manifest` 导出，由 renderer 安装；独立消费方自行提供开发依赖（[依赖规则](../AGENTS.md#dependency-declaration)）。
 
-只要 Web 客户端需要标准控件或 agent 输出渲染器，就用这些原子组件拼装功能 UI。它们只经 React 渲染，并从主题取得 `--dsw-*` 设计 token，因此无需导入主题或 slot 系统即可适配任意插件。
+只要 Web 客户端需要标准控件或 agent 输出渲染器，就用这些原子组件拼装功能 UI。它们只经 React 渲染，并从主题取得 `--delta-*` 设计 token，因此无需导入主题或 slot 系统即可适配任意插件。
 
 <a id="component-catalog"></a>
 ### 组件目录
@@ -45,7 +45,7 @@ kind: "package-library"
 | 导出 | 是什么 |
 |---|---|
 | `Button` | 可点击操作；`variant` 选择 `primary`、`ghost`、`outline` 或 `toolbar`。描边操作使用内侧细线。ref 指向原生按钮，供焦点控制与浮层锚定使用。 |
-| `Switch` | 36×20 的双态开关。关闭态滑块读取 `--dsw-alias-switch-thumb`，在两种主题下均保持亮色；开启态滑块与品牌色轨道形成对比。禁用控件使用半透明样式。`label` 必填，控件不可能在没有名称的情况下发布。可选的 `autoFocus` 与 `describedBy` 直接传给原生按钮。 |
+| `Switch` | 36×20 的双态开关。关闭态滑块读取 `--delta-alias-switch-thumb`，在两种主题下均保持亮色；开启态滑块与品牌色轨道形成对比。禁用控件使用半透明样式。`label` 必填，控件不可能在没有名称的情况下发布。可选的 `autoFocus` 与 `describedBy` 直接传给原生按钮。 |
 | `SegmentedControl` | 两段或更多等宽分段加一个滑动指示块的 tablist，用于在几种模式间切换一张卡片或面板；选中项由调用方持有，`label` 为列表命名。`id` 派生每个 tab 的 id（`<id>-<value>`）及其控制的面板 id（`<id>-<value>-panel`），面板由调用方渲染并用 `aria-labelledby` 指回 tab；分段可 `disabled` 并带 `title`，控件级 `disabled` 在当前面板有进行中的操作时锁住全部分段。 |
 | `Checkbox` | 带标签的原生复选框，支持受控状态、键盘交互和禁用样式；调用方提供本地化的 `label` 文本。`modalAutofocus` 将输入标记为所属 Modal 的初始焦点，本身不会移动焦点。 |
 | `Input` | 单行文本输入，用于搜索框与行内表单。ref 指向原生输入框，供焦点控制使用，并在卸载时清空。 |
@@ -102,7 +102,7 @@ kind: "package-library"
 
 共享的菜单与导航图标按图形分别保留视觉内边距；`size` 仍表示 SVG 框，而非实际绘制轮廓。编辑与归档的轮廓在缩放时保留所选描边粗细。圆形信息与勾选图标使用和同级状态控件相同的内缩圆环；沿用的 `IconCheckCircleFill` 名称保持空心圆环勾选的外观，并遵循所选描边粗细。
 
-上面的目录说明每个导出的用途；本节讲 props 本身看不出来的行为。产品图标名称不含画板尺寸，以 `Regular` 或 `Medium` 结尾。`size` prop 控制渲染尺寸。描边路径使用 `non-scaling-stroke`，Regular 保持 1 CSS px，Medium 保持 1.3 CSS px。填充轮廓（包括混合图标中的填充部分）仍随几何缩放，不受 stroke-width 变化影响；固定描边结论不涵盖这些部分。共享菜单通过 `Menu.module.css` 将图标渲染为 14px，紧凑列表为 12px；这些是渲染尺寸，不是固定描边宽度。具名组件让所选线重在导入处可见；描边几何由组件库拥有，而不是由消费方 CSS 覆盖。每个产品图标渲染一个 `<svg>` 框，其中包含一个引用对应 `dsw-icon-<glyph>-<weight>` symbol 的 `<use>`，例如 `dsw-icon-search-outline-regular`，并在 `data-icon` 中写出该 id。`ICON_SYMBOLS` 保存每个 symbol 的默认 SVG 文档；ui-theme 据此渲染文档的图标 sprite，缺少对应 symbol 的图标不渲染任何内容。通过 `<use>` 引用的图形会从使用处继承 `currentColor` 与 CSS 变量。每个产品、引用、链接与权限图形都会有意保留两种线重导出，即使当前产品只使用其中一种，也让调用方无需再次扩展 API 就能选择强调程度；仅填充的成对图形外观相同。`IconMailReadOutlineRegular`/`Medium` 使用打开的信封，`IconMailUnreadOutlineRegular`/`Medium` 使用带未读圆点的闭合信封。`IconWarningOutlineRegular`/`Medium` 使用圆形；`IconWarningTriangleOutlineRegular`/`Medium` 使用圆角三角形。`IconEyeOutlineRegular`/`Medium` 绘制带瞳孔的睁眼，`IconEyeOffOutlineRegular`/`Medium` 在同一轮廓上加一条斜线，用于成对的显示与隐藏开关。`FishLogo` 与 `BrandWordmark` 填充品牌 slot。`FileTypeIcon` 渲染传统的 28px spreadsheet、folder、HTML、image、Markdown、generic、PDF、PPT、video 与 Word 图形，并为现有 48 个代码和配置类别使用导入的方形技术图形。该导入只替换图形：资源包中额外的类别不会扩展 `CodeFileType`。`classifyFileType` 按完整文件名、前缀、后缀、可选项目上下文、扩展名的顺序匹配；React 文件名优先于 TypeScript/JavaScript，Angular 后缀优先于基础扩展名，只有传入的项目文件包含带 `flutter:` 的 `pubspec.yaml` 时 Dart 文件才使用 Flutter。Markdown 与 SVG 仍分别使用传统 Markdown 与图片图形。表格映射包括 CSV、TSV、Excel 工作簿与模板、OpenDocument 表格和 Numbers；KEY 映射为幻灯片，RTF/ODT/Pages 映射为文档。`fileExtension` 为相邻元数据 label 暴露同一套 basename 与最终点号解析。传统图形使用实色分类底板、白色标记和半透明白色折角；通用代码图形使用尖括号与斜线，保留原图 1.35px 描边；通用文件使用灰色底板与较深灰色折角。调用方可通过 `--dsh-file-type-icon-color` 覆盖底板颜色。全彩技术图形是明确例外，会保留其内嵌调色板。所有图形都是装饰性的，不自带 label。`LinkIconMedium` 是可点击产物链接的前置图形——地球、文件夹、代码、图片、文档或纸张，`url` 链接的 `href` 指向已知站点时则改用该站点自己的标记——转写内容常引用的开发者站点（GitHub、GitLab、npm、PyPI、Stack Overflow、MDN、Wikipedia、Hacker News、YouTube、X、Bilibili、知乎、掘金、CSDN），以及主流搜索、视频、社交、购物与参考资料站点（Google、百度、DuckDuckGo、TikTok、Netflix、Spotify、Facebook、Instagram、Reddit、Telegram、WhatsApp、微信、QQ、微博、淘宝、速卖通、eBay、Quora、V2EX、Apple）——`classifyLinkPath` 把共享文件类型折叠进原有六类词汇。`ConnectionIndicator` 可渲染警告色的断联操作（常驻重试图形指明重试动作，断联文案由持有方提供）、与文案使用相同警告色的共享 ongoing loading 加一至三个点以独立于 retry 时序的 500ms 节奏推进的连接中状态，或成功色的恢复状态。点击任一警告状态都会请求立即重连；没有任何悬停交互会改变文案。药丸出现时淡入、卸载前淡出 150ms，宽度随当前 label 自适应。它的持有方提供可见性、恢复驻留时间、本地化 label 与立即重连回调；该原语不使用原生 title tooltip。`useAnchoredMaxHeight` 将底部锚定浮层限制在可见视口内；过大的面板保留近端边距，不会滑出该边缘。portal 模式的 `Menu` 按布局视口限制卡片高度，固定页脚位于内部滚动区域之外；子卡片使用各自的 body portal，父级滚动不会裁剪它们。`HoverCard` 在框架发布的顶部占用量上增加 20px，原生全屏时保留 20px，普通浏览器中沿用自身的最小边距；锚点位于该顶部区域内时，卡片不会被推到低于锚点底边加自身间距的位置。`HoverCard` 通过指针离开宽限期让采用 portal 的预览在跨过锚点间隙时仍可触及，并可通过 `copyText` prop 提供复制按钮。触摸进入不会打开预览，也不会拦截锚点操作。鼠标进入要求存在可悬停的指针设备；键盘聚焦不依赖该能力。其 `preview` 变体使用 anchor 或 `widthAnchorRef` 元素的宽度减去 48px，左右各内缩 24px，并在视口内放置于行的上方或下方。浮层避开框架顶部保留区（位于顶部区域内的锚点下方时除外），高度最多 420px，会跟随内容及 anchor 尺寸变化；Escape 或通过鼠标和键盘激活锚点可将其关闭。整个浮层的淡入和淡出各持续 100ms；关闭中的浮层停止接收指针输入，淡出后卸载。在淡出期间移回锚点可恢复显示。减少动态效果偏好会禁用过渡动画。只有启用复制时才必须提供复制标签。`HoverCard` 与嵌套的操作提示独立显示；使用 `Tooltip.portal` 将小气泡置于卡片上层。可见的嵌套 `Tooltip` 只隐藏外层 tooltip，不隐藏悬停卡片。`Toast` 使用调用方的 `holdMs` 同时控制淡出延迟与停留加淡出的总时长。`holdMs` 未变时，父组件重渲染不会重启该生命周期；完成时调用最新回调，完全淡出的操作不能接收输入。新的组件 key 会重新开始横幅周期。 portal 模式的 `Menu` 通过 CSS Anchor Positioning 跟随触发元素，并按布局视口限制尺寸。每个候选位置都保留 12px 布局视口边距，并将框架浮层起点作为顶部下限；按指针定位的上下文菜单顶部保留 12px。首选位置放不下时，CSS 尝试横向调整或相反方向，最后使用窗口内的回退位置。浏览器缩放和平移时，菜单随页面移动，可以超出视觉视口，包括键盘打开时。内部滚动、菜单关闭和焦点恢复保持独立。`Menu.autoFocus` 聚焦首个启用项，支持上下方向键与 Home/End 导航，并在 Escape 时聚焦 anchor 内的第一个按钮；操作菜单可显式启用。
+上面的目录说明每个导出的用途；本节讲 props 本身看不出来的行为。产品图标名称不含画板尺寸，以 `Regular` 或 `Medium` 结尾。`size` prop 控制渲染尺寸。描边路径使用 `non-scaling-stroke`，Regular 保持 1 CSS px，Medium 保持 1.3 CSS px。填充轮廓（包括混合图标中的填充部分）仍随几何缩放，不受 stroke-width 变化影响；固定描边结论不涵盖这些部分。共享菜单通过 `Menu.module.css` 将图标渲染为 14px，紧凑列表为 12px；这些是渲染尺寸，不是固定描边宽度。具名组件让所选线重在导入处可见；描边几何由组件库拥有，而不是由消费方 CSS 覆盖。每个产品图标渲染一个 `<svg>` 框，其中包含一个引用对应 `dsw-icon-<glyph>-<weight>` symbol 的 `<use>`，例如 `dsw-icon-search-outline-regular`，并在 `data-icon` 中写出该 id。`ICON_SYMBOLS` 保存每个 symbol 的默认 SVG 文档；ui-theme 据此渲染文档的图标 sprite，缺少对应 symbol 的图标不渲染任何内容。通过 `<use>` 引用的图形会从使用处继承 `currentColor` 与 CSS 变量。每个产品、引用、链接与权限图形都会有意保留两种线重导出，即使当前产品只使用其中一种，也让调用方无需再次扩展 API 就能选择强调程度；仅填充的成对图形外观相同。`IconMailReadOutlineRegular`/`Medium` 使用打开的信封，`IconMailUnreadOutlineRegular`/`Medium` 使用带未读圆点的闭合信封。`IconWarningOutlineRegular`/`Medium` 使用圆形；`IconWarningTriangleOutlineRegular`/`Medium` 使用圆角三角形。`IconEyeOutlineRegular`/`Medium` 绘制带瞳孔的睁眼，`IconEyeOffOutlineRegular`/`Medium` 在同一轮廓上加一条斜线，用于成对的显示与隐藏开关。`FishLogo` 与 `BrandWordmark` 填充品牌 slot。`FileTypeIcon` 渲染传统的 28px spreadsheet、folder、HTML、image、Markdown、generic、PDF、PPT、video 与 Word 图形，并为现有 48 个代码和配置类别使用导入的方形技术图形。该导入只替换图形：资源包中额外的类别不会扩展 `CodeFileType`。`classifyFileType` 按完整文件名、前缀、后缀、可选项目上下文、扩展名的顺序匹配；React 文件名优先于 TypeScript/JavaScript，Angular 后缀优先于基础扩展名，只有传入的项目文件包含带 `flutter:` 的 `pubspec.yaml` 时 Dart 文件才使用 Flutter。Markdown 与 SVG 仍分别使用传统 Markdown 与图片图形。表格映射包括 CSV、TSV、Excel 工作簿与模板、OpenDocument 表格和 Numbers；KEY 映射为幻灯片，RTF/ODT/Pages 映射为文档。`fileExtension` 为相邻元数据 label 暴露同一套 basename 与最终点号解析。传统图形使用实色分类底板、白色标记和半透明白色折角；通用代码图形使用尖括号与斜线，保留原图 1.35px 描边；通用文件使用灰色底板与较深灰色折角。调用方可通过 `--delta-file-type-icon-color` 覆盖底板颜色。全彩技术图形是明确例外，会保留其内嵌调色板。所有图形都是装饰性的，不自带 label。`LinkIconMedium` 是可点击产物链接的前置图形——地球、文件夹、代码、图片、文档或纸张，`url` 链接的 `href` 指向已知站点时则改用该站点自己的标记——转写内容常引用的开发者站点（GitHub、GitLab、npm、PyPI、Stack Overflow、MDN、Wikipedia、Hacker News、YouTube、X、Bilibili、知乎、掘金、CSDN），以及主流搜索、视频、社交、购物与参考资料站点（Google、百度、DuckDuckGo、TikTok、Netflix、Spotify、Facebook、Instagram、Reddit、Telegram、WhatsApp、微信、QQ、微博、淘宝、速卖通、eBay、Quora、V2EX、Apple）——`classifyLinkPath` 把共享文件类型折叠进原有六类词汇。`ConnectionIndicator` 可渲染警告色的断联操作（常驻重试图形指明重试动作，断联文案由持有方提供）、与文案使用相同警告色的共享 ongoing loading 加一至三个点以独立于 retry 时序的 500ms 节奏推进的连接中状态，或成功色的恢复状态。点击任一警告状态都会请求立即重连；没有任何悬停交互会改变文案。药丸出现时淡入、卸载前淡出 150ms，宽度随当前 label 自适应。它的持有方提供可见性、恢复驻留时间、本地化 label 与立即重连回调；该原语不使用原生 title tooltip。`useAnchoredMaxHeight` 将底部锚定浮层限制在可见视口内；过大的面板保留近端边距，不会滑出该边缘。portal 模式的 `Menu` 按布局视口限制卡片高度，固定页脚位于内部滚动区域之外；子卡片使用各自的 body portal，父级滚动不会裁剪它们。`HoverCard` 在框架发布的顶部占用量上增加 20px，原生全屏时保留 20px，普通浏览器中沿用自身的最小边距；锚点位于该顶部区域内时，卡片不会被推到低于锚点底边加自身间距的位置。`HoverCard` 通过指针离开宽限期让采用 portal 的预览在跨过锚点间隙时仍可触及，并可通过 `copyText` prop 提供复制按钮。触摸进入不会打开预览，也不会拦截锚点操作。鼠标进入要求存在可悬停的指针设备；键盘聚焦不依赖该能力。其 `preview` 变体使用 anchor 或 `widthAnchorRef` 元素的宽度减去 48px，左右各内缩 24px，并在视口内放置于行的上方或下方。浮层避开框架顶部保留区（位于顶部区域内的锚点下方时除外），高度最多 420px，会跟随内容及 anchor 尺寸变化；Escape 或通过鼠标和键盘激活锚点可将其关闭。整个浮层的淡入和淡出各持续 100ms；关闭中的浮层停止接收指针输入，淡出后卸载。在淡出期间移回锚点可恢复显示。减少动态效果偏好会禁用过渡动画。只有启用复制时才必须提供复制标签。`HoverCard` 与嵌套的操作提示独立显示；使用 `Tooltip.portal` 将小气泡置于卡片上层。可见的嵌套 `Tooltip` 只隐藏外层 tooltip，不隐藏悬停卡片。`Toast` 使用调用方的 `holdMs` 同时控制淡出延迟与停留加淡出的总时长。`holdMs` 未变时，父组件重渲染不会重启该生命周期；完成时调用最新回调，完全淡出的操作不能接收输入。新的组件 key 会重新开始横幅周期。 portal 模式的 `Menu` 通过 CSS Anchor Positioning 跟随触发元素，并按布局视口限制尺寸。每个候选位置都保留 12px 布局视口边距，并将框架浮层起点作为顶部下限；按指针定位的上下文菜单顶部保留 12px。首选位置放不下时，CSS 尝试横向调整或相反方向，最后使用窗口内的回退位置。浏览器缩放和平移时，菜单随页面移动，可以超出视觉视口，包括键盘打开时。内部滚动、菜单关闭和焦点恢复保持独立。`Menu.autoFocus` 聚焦首个启用项，支持上下方向键与 Home/End 导航，并在 Escape 时聚焦 anchor 内的第一个按钮；操作菜单可显式启用。
 
 `Tooltip` 在悬停或键盘聚焦时读取锚点位置，再根据 `ResizeObserver` 提供的边框盒尺寸调整气泡。首次定位前保持隐藏，优先使用指定方向，再尝试相反方向和垂直于该方向的两侧；只要某一侧容得下，就沿锚点平移而不遮挡锚点。左右放置保留 10px 间距，上下放置使用 `gap`（默认 8px）。宽高限制在视口内并保留 12px 边距；文本自动换行，超出视口高度的内容在固定气泡后可滚动。若所有方向都放不下，则使用稳定的视口内回退位置，可能遮挡锚点。视口尺寸变化会重新读取锚点坐标，标签尺寸变化则复用坐标；定位不会同步测量气泡，也不会触发 React 渲染。 触摸按下会关闭未固定的提示，且不会触发悬停提示，包括触摸后的兼容鼠标事件。只有 `(any-hover: hover)` 表明存在可悬停的输入设备时，鼠标进入才会打开提示，从而排除 iOS 因已点击图标变化而生成的鼠标进入事件。仅有触摸输入的设备仍可使用键盘聚焦提示和显式点击打开的说明。信息按钮可显式启用 `openOnClick`，通过鼠标或触摸点击固定气泡供阅读，并将内容关联为锚点的无障碍描述；再次点击、Escape、Tab 或外部 pointerdown 会关闭。普通操作按钮在触摸点击时直接执行操作，不显示 Tooltip。可选的 `onlyWhenClipped` 只在气泡即将显示时锚点或其内部某个 HTML 元素横向溢出才显示气泡，因此重复被省略号截断文本的标签只在能补充信息时出现。
 
@@ -149,11 +149,11 @@ kind: "package-library"
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
-`Button` 的 `md` 使用 H36/R12，`sm` 使用 H28/R8，包含描边控件。`outline` 变体保留 0.5px 透明边框用于布局，并通过内阴影绘制描边。描边宽度读取 ui-theme 随设备像素比更新的 `--dsh-hairline-width`，未安装主题时回退到 0.5px。功能样式通过 `--dsh-button-outline-color` 定制描边颜色，并保留边框宽度、透明边框颜色和 box-shadow。菜单与卡片遵循[共享圆角规则](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)；功能样式保留控件几何。
+`Button` 的 `md` 使用 H36/R12，`sm` 使用 H28/R8，包含描边控件。`outline` 变体保留 0.5px 透明边框用于布局，并通过内阴影绘制描边。描边宽度读取 ui-theme 随设备像素比更新的 `--delta-hairline-width`，未安装主题时回退到 0.5px。功能样式通过 `--delta-button-outline-color` 定制描边颜色，并保留边框宽度、透明边框颜色和 box-shadow。菜单与卡片遵循[共享圆角规则](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)；功能样式保留控件几何。
 
 锚点变为 inert 或隐藏时，portal 菜单会关闭；右键菜单使用 `returnFocus` 提供的原始控件。调用方通过 `isExternalTrigger(node)` 指定外部控件，使其指针按下事件不触发外部关闭，而由自己的切换处理器处理。省略该 prop 时，锚点与菜单面板之外的按下事件都会关闭菜单，包括 `returnFocus` 目标上的按下事件。单独设置 `returnFocus` 只控制焦点恢复。右键菜单打开期间会将自身 ID 加入该控件的 `aria-controls`，关闭时恢复原值。其所属区域保留的内容继续挂载。
 
-`Menu.listClassName` 独立控制菜单卡片样式，不影响入口容器，也适用于 portal 模式。较高的 portal 菜单使用窗口内的纵向滚动空间时，仍保持与触发元素的横向对齐；只有卡片在该侧放不下时才调整横向位置。前置图标使用 `--dsw-alias-menu-icon` 文本色；破坏性操作图标保留错误色。普通菜单图标和选中勾使用 14px 框，紧凑变体保留 12px 框。线性图标使用 Regular 版本，使实际显示的描边固定为 1px。
+`Menu.listClassName` 独立控制菜单卡片样式，不影响入口容器，也适用于 portal 模式。较高的 portal 菜单使用窗口内的纵向滚动空间时，仍保持与触发元素的横向对齐；只有卡片在该侧放不下时才调整横向位置。前置图标使用 `--delta-alias-menu-icon` 文本色；破坏性操作图标保留错误色。普通菜单图标和选中勾使用 14px 框，紧凑变体保留 12px 框。线性图标使用 Regular 版本，使实际显示的描边固定为 1px。
 
 子菜单父项显示向右箭头，可通过聚焦、点击或支持悬停的非触摸指针事件展开。菜单行上的 ArrowRight 进入其子级，不激活外部弹窗入口；ArrowLeft 与 Escape 将焦点还给父项。每个子级通过 portal 脱离父级滚动区域，优先向右展开，左侧能容纳时向左翻转，并采用根菜单相同的 visual viewport 限制与 WebKit 坐标归一化规则，在内部限高滚动。两侧均放不下时，点击或 ArrowRight 用子级及返回行替换当前可见的父菜单面板；仅聚焦时仍显示父面板。`submenuBackLabel` 提供该行的本地化文案；省略时使用调用方的父项标签配合向左箭头，返回操作不会选定父项。布局取决于可用空间，不取决于设备 UA；宽屏触控设备也可通过点击展开子级。调整窗口大小时保留已聚焦子项的 DOM 节点。JavaScript 悬停要求 `(any-hover: hover)` 与非触摸指针事件，所以主指针为触摸时，外接鼠标或笔仍可展开子级。兼容鼠标悬停事件不会展开或收起子级。指针宽限允许跨越卡片间隙；同级其他行会关闭原子级。宽限结束关闭子级时，仍在子级中的焦点会回到父项。父项被移除、禁用或其子项清空时，恢复根面板并取消该子菜单。留在被移除子级中的焦点会回到仍可用的父项、首个可用根菜单行或锚点；已经移到其他位置的焦点保持不变。
 
@@ -161,7 +161,7 @@ kind: "package-library"
 
 `Menu` 将卡片材质交给 `MenuSurface`，自定义菜单也使用该组件。`MenuSurface` 转发 div 属性和 ref，采用透明填充及模糊，`compact` 使用较小圆角。默认相对定位使材质层限制在容器内；调用方的类可以设置 fixed 或 absolute 定位。macOS 上，不接收交互的底层通过 CSS 锚点跟随卡片，并随卡片卸载；该底层要求 Web 外壳隔离 body 的层叠上下文。功能类控制布局和层级，组件负责材质和外圆角（[菜单规则](../../../docs/web-styling.zh.md#component-rules)）。 模态遮罩保留黑色半透明填充，不模糊背景。
 
-`MenuGroup` 渲染以本地化标题命名的 `role="group"` 区段，标题 id 由各实例独立持有。自定义菜单与列表框共用其标题字体、间距和吸顶定位。标题原位透明；只有 `data-stuck` 才启用主题在浅／深色模式下的 94% 不透明分组标题填充。`data-platform="darwin"` 以外的标题使用 `--dsw-radius-md` 圆角；外围菜单保留半透明材质。
+`MenuGroup` 渲染以本地化标题命名的 `role="group"` 区段，标题 id 由各实例独立持有。自定义菜单与列表框共用其标题字体、间距和吸顶定位。标题原位透明；只有 `data-stuck` 才启用主题在浅／深色模式下的 94% 不透明分组标题填充。`data-platform="darwin"` 以外的标题使用 `--delta-radius-md` 圆角；外围菜单保留半透明材质。
 
 将 `MenuGroup` 区段渲染为无内边距、无边框的滚动容器的直接子节点后，在普通 effect 中调用 `observeStickyMenuGroups(viewport)`。原生交叉观察与滚动区尺寸观察异步更新背景，不同步读取布局，也不注册滚动监听器。标题保持透明，直到观察结果确认分组跨过滚动区顶部；吸顶定位由 CSS 负责。
 
@@ -172,7 +172,7 @@ kind: "package-library"
 
 Markdown 链接图标保留完整图标框及内部留白。与前文的外间距大于图标到标签的内间距，正文链接仍可换行。
 
-本包只做一件事：提供零 cordis、零 slot 知识、仅经 `--dsw-*` token 设置样式的纯 React 原子组件，而所有功能专属的关注点（locale、会话数据、组合）都留在拼装它们的插件中。
+本包只做一件事：提供零 cordis、零 slot 知识、仅经 `--delta-*` token 设置样式的纯 React 原子组件，而所有功能专属的关注点（locale、会话数据、组合）都留在拼装它们的插件中。
 
 ### 源码地图
 
@@ -201,7 +201,7 @@ Markdown 链接图标保留完整图标框及内部留白。与前文的外间�
 
 ### 几何与溢出
 
-输出卡片共享同一套几何模型：`white-space: pre` 并横向滚动，让按列对齐的内容保持对齐；超过 `maxLines`（默认 16）时折叠为头部切片加尾部切片，由展开按钮控制，长正文不会撑高卡片。`TerminalBlock` 通过 `CommandText` 让每条原始命令行可选中并横向滚动；提示符和状态保持固定。状态点始终对齐命令的第一个视觉行，包括命令自动折行时。只有横向溢出的文本以具名 group 进入 Tab 顺序，名称使用 owner 的本地化 `commandLine(line)` 标签。能完整显示的文本（包括 Jobs 中已换行的命令）不会添加 Tab 停靠点。尺寸、文本与字体变化会更新可聚焦状态，不改变滚动位置。`TerminalBlock` 把 ANSI 解析为 React span，并带逐行列缓冲处理光标移动，遵循行内擦除、制表位与字符宽度。宿主可按表层选择退出共享几何：把 `--dsl-terminal-command-whitespace` / `--dsl-terminal-line-whitespace` 重绑为 `pre-wrap` 让命令与输出完整换行且不横向滚动；`maxLines: Infinity` 为改用 `--dsl-terminal-output-max-height` 限高滚动的宿主禁用折叠；`copyText` 覆盖复制载荷（并让控件在任何输出出现之前就保持渲染）；`runStateDot: false` 在外围行已携带同一状态时省去状态点，并经 `--dsl-terminal-gutter` 收回其落区。`background` 默认为 false，透传调用的后台标志。后台调用的 `running` 表示启动调用进度：Start 显示该指示，回执使 `running` 变为 false，命令保持静态且不显示状态点或辅助标签。后台调用不显示输出、空输出提示、退出状态 pill 或默认输出 Copy 控件，显式 `copyText` 覆盖仍可使用。横幅分割线跟随渲染出的正文：正在流式输出的 running 卡片像已结束卡片一样把命令与文本分隔开。
+输出卡片共享同一套几何模型：`white-space: pre` 并横向滚动，让按列对齐的内容保持对齐；超过 `maxLines`（默认 16）时折叠为头部切片加尾部切片，由展开按钮控制，长正文不会撑高卡片。`TerminalBlock` 通过 `CommandText` 让每条原始命令行可选中并横向滚动；提示符和状态保持固定。状态点始终对齐命令的第一个视觉行，包括命令自动折行时。只有横向溢出的文本以具名 group 进入 Tab 顺序，名称使用 owner 的本地化 `commandLine(line)` 标签。能完整显示的文本（包括 Jobs 中已换行的命令）不会添加 Tab 停靠点。尺寸、文本与字体变化会更新可聚焦状态，不改变滚动位置。`TerminalBlock` 把 ANSI 解析为 React span，并带逐行列缓冲处理光标移动，遵循行内擦除、制表位与字符宽度。宿主可按表层选择退出共享几何：把 `--delta-terminal-command-whitespace` / `--delta-terminal-line-whitespace` 重绑为 `pre-wrap` 让命令与输出完整换行且不横向滚动；`maxLines: Infinity` 为改用 `--delta-terminal-output-max-height` 限高滚动的宿主禁用折叠；`copyText` 覆盖复制载荷（并让控件在任何输出出现之前就保持渲染）；`runStateDot: false` 在外围行已携带同一状态时省去状态点，并经 `--delta-terminal-gutter` 收回其落区。`background` 默认为 false，透传调用的后台标志。后台调用的 `running` 表示启动调用进度：Start 显示该指示，回执使 `running` 变为 false，命令保持静态且不显示状态点或辅助标签。后台调用不显示输出、空输出提示、退出状态 pill 或默认输出 Copy 控件，显式 `copyText` 覆盖仍可使用。横幅分割线跟随渲染出的正文：正在流式输出的 running 卡片像已结束卡片一样把命令与文本分隔开。
 
 </details>
 
@@ -215,7 +215,7 @@ Markdown 链接图标保留完整图标框及内部留白。与前文的外间�
 - [ui-renderer](../ui-renderer/README.zh.md)——挂载组装后应用并绑定 slot 数据的 React 渲染器。
 - [ui-tool](../ui-tool/README.zh.md)——拼装这些输出卡片的工具调用展示层。
 - [ui-conversation](../ui-conversation/README.zh.md)——渲染 Markdown 回复与工具卡片的聊天界面。
-- [ui-theme](../ui-theme/README.zh.md)——这些原子组件样式所依赖的 `--dsw-*` token 体系。
+- [ui-theme](../ui-theme/README.zh.md)——这些原子组件样式所依赖的 `--delta-*` token 体系。
 - [Web 样式](../../../docs/web-styling.zh.md)——Web 客户端组件的权威样式规则。
 
 -----

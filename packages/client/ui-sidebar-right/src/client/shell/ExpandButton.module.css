@@ -3,7 +3,7 @@
   flex: none;
   width: 28px;
   padding: 0;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--delta-alias-label-secondary);
 }
 
 .button svg {

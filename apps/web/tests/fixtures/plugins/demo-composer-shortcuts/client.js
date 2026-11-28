@@ -24,21 +24,21 @@ window.__ModuleLoader__.load({
       },
     }
     const fieldStyle = {
-      borderRadius: 'var(--dsw-radius-xs)',
-      backgroundColor: 'var(--dsw-alias-bg-module-platform)',
-      color: 'var(--dsw-alias-label-secondary)',
+      borderRadius: 'var(--delta-radius-xs)',
+      backgroundColor: 'var(--delta-alias-bg-module-platform)',
+      color: 'var(--delta-alias-label-secondary)',
       padding: '1px 5px',
       whiteSpace: 'nowrap',
     }
     const headingStyle = {
       ...fieldStyle,
-      backgroundColor: 'var(--dsw-alias-state-business-tertiary)',
-      color: 'var(--dsw-alias-state-business-primary)',
+      backgroundColor: 'var(--delta-alias-state-business-tertiary)',
+      color: 'var(--delta-alias-state-business-primary)',
       fontWeight: 500,
     }
     const keyStyle = {
       ...fieldStyle,
-      border: '1px solid var(--dsw-alias-border-l2)',
+      border: '1px solid var(--delta-alias-border-l2)',
       font: 'inherit',
     }
 
