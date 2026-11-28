@@ -9,6 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import { nativeCompilerPath } from './native-compiler-cli.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -147,7 +148,7 @@ try {
   // shim isn't spawnable on Windows (CVE-2024-27980) and the .cmd variant needs
   // shell:true, which space-joins args UNESCAPED (DEP0190) — a hazard for the
   // temp tsconfig path. The JS entry behaves identically on every platform.
-  execFileSync(process.execPath, ['node_modules/@typescript/native/bin/tsc', '-p', resolve(tmp, 'tsconfig.json'), '--pretty', 'false'], {
+  execFileSync(process.execPath, [nativeCompilerPath(), '-p', resolve(tmp, 'tsconfig.json'), '--pretty', 'false'], {
     cwd: root,
     stdio: 'pipe',
   })
